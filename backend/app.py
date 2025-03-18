@@ -1,7 +1,8 @@
 from fastapi import FastAPI, HTTPException, Body, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any, Literal
+from typing import List, Optional, Dict, Any, Literal, AsyncIterator
 from enum import Enum
 import pymongo
 import os
@@ -14,24 +15,36 @@ from datetime import datetime
 import asyncio
 import time
 import numpy as np
+import torch
 from sentence_transformers import SentenceTransformer
 import nltk
 from nltk.tokenize import word_tokenize
 from nltk.tag import pos_tag
 
-# Download required NLTK data
+# Optimize NLTK data downloads with proper path handling
+nltk_data_path = os.path.expanduser("~/.nltk_data")
+nltk.data.path.append(nltk_data_path)
+
+if not os.path.exists(nltk_data_path):
+    os.makedirs(nltk_data_path, exist_ok=True)
+
 try:
-    nltk.data.find('tokenizers/punkt')
+    nltk.data.find('tokenizers/punkt', paths=[nltk_data_path])
 except LookupError:
-    nltk.download('punkt')
+    print("⏳ Downloading NLTK punkt tokenizer...")
+    nltk.download('punkt', download_dir=nltk_data_path)
+    print("✅ NLTK punkt tokenizer downloaded successfully")
+
 try:
-    nltk.data.find('taggers/averaged_perceptron_tagger')
+    nltk.data.find('taggers/averaged_perceptron_tagger', paths=[nltk_data_path])
 except LookupError:
-    nltk.download('averaged_perceptron_tagger')
+    print("⏳ Downloading NLTK averaged_perceptron_tagger...")
+    nltk.download('averaged_perceptron_tagger', download_dir=nltk_data_path)
+    print("✅ NLTK averaged_perceptron_tagger downloaded successfully")
 
 # Load environment variables - improve error handling
-print("Starting 2Dots1Line AI Service...")
-print(f"Current working directory: {os.getcwd()}")
+print("🚀 Starting 2Dots1Line AI Service...")
+print(f"📂 Current working directory: {os.getcwd()}")
 
 # First try to load from backend/.env
 load_dotenv()
@@ -40,6 +53,7 @@ load_dotenv()
 class AIProvider(str, Enum):
     OPENROUTER = "openrouter"
     OLLAMA = "ollama"
+    CLOUD = "cloud"  # Added for future cloud-based providers
 
 # Provider configuration model
 class ProviderConfig(BaseModel):
@@ -130,50 +144,69 @@ MONGODB_URI = os.getenv("MONGODB_URI")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 if not MONGODB_URI:
-    print("Warning: MONGODB_URI not found in .env file")
+    print("⚠️ Warning: MONGODB_URI not found in .env file")
     # As a fallback, try to load from parent directory's .env.local
     parent_env_path = os.path.join(os.path.dirname(os.getcwd()), '.env.local')
     if os.path.exists(parent_env_path):
-        print(f"Trying to load variables from {parent_env_path}")
+        print(f"🔍 Trying to load variables from {parent_env_path}")
         from dotenv import dotenv_values
         parent_env = dotenv_values(parent_env_path)
         MONGODB_URI = parent_env.get("MONGODB_URI")
         # If JWT_SECRET exists in parent env, use it as OPENROUTER_API_KEY
         if parent_env.get("JWT_SECRET") and not OPENROUTER_API_KEY:
             OPENROUTER_API_KEY = parent_env.get("JWT_SECRET")
-            print("Using JWT_SECRET as OPENROUTER_API_KEY")
+            print("🔑 Using JWT_SECRET as OPENROUTER_API_KEY")
 
-# Get AI provider selection
+# Optimize AI provider selection logic
 AI_PROVIDER = os.getenv("AI_PROVIDER", "openrouter").lower()
-print(f"Using AI Provider: {AI_PROVIDER}")
+
+if AI_PROVIDER == "openrouter":
+    OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "deepseek/deepseek-chat")
+    print(f"✅ Using OpenRouter with model: {OPENROUTER_MODEL}")
+    
+elif AI_PROVIDER == "ollama":
+    OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
+    OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")
+    print(f"✅ Using Ollama locally with model: {OLLAMA_MODEL}")
+    
+elif AI_PROVIDER == "cloud":
+    CLOUD_AI_ENDPOINT = os.getenv("CLOUD_AI_ENDPOINT")
+    CLOUD_AI_KEY = os.getenv("CLOUD_AI_KEY")
+    print(f"✅ Using Cloud-based AI at {CLOUD_AI_ENDPOINT}")
+    
+else:
+    print(f"⚠️ Warning: Unknown AI_PROVIDER '{AI_PROVIDER}', falling back to OpenRouter")
+    AI_PROVIDER = "openrouter"
 
 # Get embedding model name
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
-print(f"Using Embedding Model: {EMBEDDING_MODEL}")
+print(f"🔍 Using Embedding Model: {EMBEDDING_MODEL}")
 
-# Initialize sentence transformer model
+# Initialize sentence transformer model with GPU if available
 sentence_transformer = None
 try:
-    print(f"Loading Sentence Transformer model: {EMBEDDING_MODEL}")
-    sentence_transformer = SentenceTransformer(EMBEDDING_MODEL)
-    print("Sentence Transformer model loaded successfully")
+    print(f"⏳ Loading Sentence Transformer model: {EMBEDDING_MODEL}")
+    # Check if GPU is available and use it
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    sentence_transformer = SentenceTransformer(EMBEDDING_MODEL, device=device)
+    print(f"✅ Sentence Transformer model loaded successfully on {device}")
 except Exception as e:
-    print(f"Error loading Sentence Transformer model: {e}")
+    print(f"❌ Error loading Sentence Transformer model: {e}")
     sentence_transformer = None
 
 # Final check for required variables
 if not MONGODB_URI:
-    raise ValueError("MONGODB_URI environment variable is not set. Please check your .env file.")
+    raise ValueError("❌ MONGODB_URI environment variable is not set. Please check your .env file.")
 
 # Initialize Ollama configuration
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")
-print(f"Ollama URL: {OLLAMA_URL}, Model: {OLLAMA_MODEL}")
+print(f"🔧 Ollama URL: {OLLAMA_URL}, Model: {OLLAMA_MODEL}")
 
 # OpenRouter configuration
 OPENROUTER_API_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "deepseek/deepseek-chat")
-print(f"Using OpenRouter model: {OPENROUTER_MODEL}")
+print(f"🔧 Using OpenRouter model: {OPENROUTER_MODEL}")
 SITE_URL = os.getenv("SITE_URL", "http://localhost:3000")
 SITE_NAME = os.getenv("SITE_NAME", "2Dots1Line")
 
@@ -900,98 +933,9 @@ async def tokenize_story(story: Story):
         }
 
 @app.get("/api/stories/similar/{story_id}", response_model=List[Dict[str, Any]])
-async def find_similar_stories(story_id: str):
-    try:
-        # Check if MongoDB is connected
-        if not mongodb_connected or db is None:
-            print("MongoDB not connected. Cannot find similar stories.")
-            return []
-            
-        try:
-            stories_collection = db["stories"]
-            
-            # Get the story
-            story = stories_collection.find_one({"_id": ObjectId(story_id)})
-            if not story:
-                print(f"Story not found with ID: {story_id}")
-                return []
-            
-            # Get the vector embedding
-            vector_embedding = story.get("vectorEmbedding")
-            if not vector_embedding:
-                print(f"Story has no vector embedding: {story_id}. Generating embedding...")
-                # Generate embedding if not present
-                if sentence_transformer:
-                    content = story.get("content", "")
-                    if content:
-                        vector_embedding = sentence_transformer.encode(content).tolist()
-                        # Save the new embedding
-                        stories_collection.update_one(
-                            {"_id": ObjectId(story_id)},
-                            {"$set": {
-                                "vectorEmbedding": vector_embedding,
-                                "embeddingModel": EMBEDDING_MODEL,
-                                "embeddingUpdatedAt": datetime.now()
-                            }}
-                        )
-                    else:
-                        print("Story has no content, cannot generate embedding")
-                        return []
-                else:
-                    print("Sentence transformer not available, cannot generate embedding")
-                    return []
-            
-            # Get the child ID - this ensures we only compare stories from the same child
-            child_id = story.get("child")
-            
-            # Find similar stories
-            # Get all stories from the same child, except the current one
-            child_stories = list(stories_collection.find(
-                {"child": child_id, "_id": {"$ne": ObjectId(story_id)}, "vectorEmbedding": {"$exists": True}}
-            ))
-            
-            if not child_stories:
-                print(f"No other stories found for child: {child_id}")
-                return []
-            
-            # Calculate cosine similarity for each story
-            similarity_scores = []
-            for s in child_stories:
-                s_embedding = s.get("vectorEmbedding")
-                if s_embedding and len(s_embedding) == len(vector_embedding):
-                    # Calculate cosine similarity
-                    dot_product = sum(a * b for a, b in zip(vector_embedding, s_embedding))
-                    magnitude_a = sum(a ** 2 for a in vector_embedding) ** 0.5
-                    magnitude_b = sum(b ** 2 for b in s_embedding) ** 0.5
-                    
-                    if magnitude_a > 0 and magnitude_b > 0:
-                        similarity = dot_product / (magnitude_a * magnitude_b)
-                    else:
-                        similarity = 0
-                    
-                    similarity_scores.append((s, similarity))
-            
-            # Sort by similarity score
-            similarity_scores.sort(key=lambda x: x[1], reverse=True)
-            
-            # Take the top 5 most similar stories
-            result = []
-            for s, score in similarity_scores[:5]:
-                result.append({
-                    "id": str(s["_id"]),
-                    "content": s.get("content", "")[:100] + "...",  # Only include a preview
-                    "similarity_score": round(score, 4),
-                    "created_at": s.get("createdAt")
-                })
-            
-            return result
-        except Exception as mongo_error:
-            print(f"Error accessing MongoDB for similar stories: {mongo_error}")
-            return []
-            
-    except Exception as e:
-        print(f"Error in find_similar_stories: {e}")
-        return []
+async def find_similar_stories(story_id: str, limit: int = 5):
+    """Find similar stories based on vector similarity"""
+    return await find_similar_stories_optimized(story_id, limit)
 
 @app.get("/test-openrouter")
 async def test_openrouter():
@@ -1342,8 +1286,8 @@ async def get_ollama_models():
     return []
 
 @app.post("/api/stories/vectorize-all")
-async def vectorize_all_stories(limit: int = 100):
-    """Batch process all stories to generate or update vector embeddings"""
+async def vectorize_all_stories(limit: int = 100, batch_size: int = 10):
+    """Batch process all stories to generate or update vector embeddings with optimized batching"""
     if not mongodb_connected or db is None:
         raise HTTPException(status_code=503, detail="MongoDB not connected")
     
@@ -1365,51 +1309,79 @@ async def vectorize_all_stories(limit: int = 100):
         
         print(f"Found {len(stories_without_embeddings)} stories without proper embeddings")
         
-        # Process them
+        # Process them in batches for better efficiency
         successfully_processed = 0
         failed_stories = []
         
-        for story in stories_without_embeddings:
-            try:
-                story_id = str(story["_id"])
-                content = story.get("content", "")
-                
-                if not content:
-                    print(f"Story {story_id} has no content, skipping")
-                    failed_stories.append({"id": story_id, "reason": "No content"})
-                    continue
-                
-                # Generate embedding
-                vector_embedding = sentence_transformer.encode(content).tolist()
-                
-                # Update the story
-                update_result = stories_collection.update_one(
-                    {"_id": story["_id"]},
-                    {"$set": {
-                        "vectorEmbedding": vector_embedding,
-                        "embeddingModel": EMBEDDING_MODEL,
-                        "embeddingUpdatedAt": datetime.now()
-                    }}
-                )
-                
-                if update_result.modified_count > 0:
-                    successfully_processed += 1
-                    print(f"Successfully updated embedding for story {story_id}")
-                else:
-                    print(f"Failed to update story {story_id} in database")
-                    failed_stories.append({"id": story_id, "reason": "Database update failed"})
+        # Process in batches to improve efficiency
+        for i in range(0, len(stories_without_embeddings), batch_size):
+            batch = stories_without_embeddings[i:i+batch_size]
+            texts = []
+            story_ids = []
+            story_objects = []
             
-            except Exception as e:
-                story_id = str(story["_id"]) if "_id" in story else "unknown"
-                print(f"Error processing story {story_id}: {e}")
-                failed_stories.append({"id": story_id, "reason": str(e)})
+            # Prepare batch data
+            for story in batch:
+                content = story.get("content", "")
+                if not content:
+                    print(f"Story {str(story['_id'])} has no content, skipping")
+                    failed_stories.append({"id": str(story['_id']), "reason": "No content"})
+                    continue
+                    
+                texts.append(content)
+                story_ids.append(str(story['_id']))
+                story_objects.append(story)
+            
+            if not texts:
+                continue
+            
+            # Generate embeddings for the entire batch at once
+            try:
+                print(f"Generating embeddings for batch of {len(texts)} stories...")
+                start_time = time.time()
+                
+                # Use GPU if available for faster processing
+                batch_embeddings = sentence_transformer.encode(texts)
+                
+                elapsed = time.time() - start_time
+                print(f"Batch embedding generation completed in {elapsed:.2f}s ({len(texts)/elapsed:.2f} stories/sec)")
+                
+                # Update each story with its embedding
+                for idx, (story_id, story) in enumerate(zip(story_ids, story_objects)):
+                    try:
+                        vector_embedding = batch_embeddings[idx].tolist()
+                        
+                        # Update the story
+                        update_result = stories_collection.update_one(
+                            {"_id": story["_id"]},
+                            {"$set": {
+                                "vectorEmbedding": vector_embedding,
+                                "embeddingModel": EMBEDDING_MODEL,
+                                "embeddingUpdatedAt": datetime.now()
+                            }}
+                        )
+                        
+                        if update_result.modified_count > 0:
+                            successfully_processed += 1
+                        else:
+                            print(f"Failed to update story {story_id} in database")
+                            failed_stories.append({"id": story_id, "reason": "Database update failed"})
+                    except Exception as e:
+                        print(f"Error updating story {story_id}: {e}")
+                        failed_stories.append({"id": story_id, "reason": str(e)})
+                
+            except Exception as batch_err:
+                print(f"Error processing batch: {batch_err}")
+                for story_id in story_ids:
+                    failed_stories.append({"id": story_id, "reason": f"Batch error: {str(batch_err)}"})
         
         return {
             "status": "success",
             "total_stories_found": len(stories_without_embeddings),
             "successfully_processed": successfully_processed,
             "failed_stories": failed_stories,
-            "embedding_model": EMBEDDING_MODEL
+            "embedding_model": EMBEDDING_MODEL,
+            "device": "cuda" if torch.cuda.is_available() else "cpu"
         }
         
     except Exception as e:
@@ -1505,6 +1477,110 @@ async def upgrade_database_schema():
         }
     except Exception as e:
         print(f"Error in upgrade_database_schema: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Add optimized function to generate embeddings for new stories
+async def generate_or_update_embedding(story_id, content=None, batch_mode=False):
+    """
+    Generate or update the vector embedding for a story with improved performance
+    """
+    if not mongodb_connected or db is None:
+        print("MongoDB not connected. Cannot update embeddings.")
+        return False
+        
+    try:
+        # Get story content if not provided
+        stories_collection = db["stories"]
+        story = None
+        
+        if not content:
+            story = stories_collection.find_one({"_id": ObjectId(story_id)})
+            if not story:
+                print(f"Story not found with ID: {story_id}")
+                return False
+            content = story.get("content", "")
+            
+        if not content:
+            print(f"Story has no content: {story_id}")
+            return False
+            
+        # Generate embedding with optimized processing
+        if sentence_transformer:
+            start_time = time.time()
+            
+            # Use GPU acceleration if available
+            vector_embedding = sentence_transformer.encode(content).tolist()
+            
+            elapsed = time.time() - start_time
+            print(f"Generated embedding for story {story_id} in {elapsed:.4f}s")
+            
+            # Update the story with the new embedding
+            update_result = stories_collection.update_one(
+                {"_id": ObjectId(story_id)},
+                {"$set": {
+                    "vectorEmbedding": vector_embedding,
+                    "embeddingModel": EMBEDDING_MODEL,
+                    "embeddingUpdatedAt": datetime.now()
+                }}
+            )
+            
+            if update_result.modified_count > 0 or update_result.matched_count > 0:
+                print(f"Updated embedding for story: {story_id}")
+                return True
+            else:
+                print(f"Failed to update embedding for story: {story_id}")
+                return False
+        else:
+            print("Sentence transformer not available, cannot generate embedding")
+            return False
+    except Exception as e:
+        print(f"Error generating embedding: {e}")
+        return False
+
+# Add a function to create MongoDB indexes for optimization
+@app.post("/api/database/optimize-indexes")
+async def optimize_database_indexes():
+    """Create indexes to optimize query performance in MongoDB"""
+    if not mongodb_connected or db is None:
+        raise HTTPException(status_code=503, detail="MongoDB not connected")
+    
+    try:
+        # Get the stories collection
+        stories_collection = db.stories
+        
+        # Create indexes
+        indexes_created = []
+        
+        # Index on child field
+        stories_collection.create_index([("child", 1)])
+        indexes_created.append("child")
+        
+        # Index on embedding model for faster filtering
+        stories_collection.create_index([("embeddingModel", 1)])
+        indexes_created.append("embeddingModel")
+        
+        # Compound index for sorting by child and creation date
+        stories_collection.create_index([("child", 1), ("createdAt", -1)])
+        indexes_created.append("child_createdAt")
+        
+        # Create full text search index on content
+        stories_collection.create_index([("content", "text")])
+        indexes_created.append("content_text")
+        
+        # Add index for analysis fields if they exist
+        try:
+            stories_collection.create_index([("analysis.analyzed_at", -1)])
+            indexes_created.append("analysis.analyzed_at")
+        except Exception as analysis_err:
+            print(f"Error creating analysis index: {analysis_err}")
+        
+        return {
+            "status": "success",
+            "indexes_created": indexes_created,
+            "message": "Database indexes optimized successfully"
+        }
+    except Exception as e:
+        print(f"Error optimizing database indexes: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # Helper functions
@@ -1757,53 +1833,6 @@ async def call_ollama(messages):
     
     return result["message"]["content"]
 
-# Add a function to update or generate embeddings for stories
-async def generate_or_update_embedding(story_id, content=None):
-    """
-    Generate or update the vector embedding for a story
-    """
-    if not mongodb_connected or db is None:
-        print("MongoDB not connected. Cannot update embeddings.")
-        return False
-        
-    try:
-        # Get story content if not provided
-        stories_collection = db["stories"]
-        story = None
-        
-        if not content:
-            story = stories_collection.find_one({"_id": ObjectId(story_id)})
-            if not story:
-                print(f"Story not found with ID: {story_id}")
-                return False
-            content = story.get("content", "")
-            
-        if not content:
-            print(f"Story has no content: {story_id}")
-            return False
-            
-        # Generate embedding
-        if sentence_transformer:
-            vector_embedding = sentence_transformer.encode(content).tolist()
-            
-            # Update the story with the new embedding
-            stories_collection.update_one(
-                {"_id": ObjectId(story_id)},
-                {"$set": {
-                    "vectorEmbedding": vector_embedding,
-                    "embeddingModel": EMBEDDING_MODEL,
-                    "embeddingUpdatedAt": datetime.now()
-                }}
-            )
-            print(f"Updated embedding for story: {story_id}")
-            return True
-        else:
-            print("Sentence transformer not available, cannot generate embedding")
-            return False
-    except Exception as e:
-        print(f"Error generating embedding: {e}")
-        return False
-
 # Add a new endpoint to monitor AI generation status
 @app.get("/api/status/ai-requests")
 async def get_ai_requests_status():
@@ -1828,7 +1857,236 @@ async def test_ai(request_data: dict):
     # Forward to the existing test endpoint
     return await test_ask_question(request_data)
 
+# Add streaming API support
+async def stream_ai_response(prompt: str):
+    """Stream AI responses for better user experience"""
+    request_id = f"stream_{int(time.time())}"
+    current_provider = ai_provider_registry.current_provider
+    provider_config = ai_provider_registry.get_current_provider()
+    
+    if not provider_config:
+        yield json.dumps({"error": "No AI provider configured"})
+        return
+    
+    messages = [
+        {"role": "user", "content": prompt}
+    ]
+    
+    ai_provider_registry.track_request(request_id, {
+        "message_length": len(prompt),
+        "model": provider_config.model,
+        "streaming": True
+    })
+    
+    try:
+        ai_provider_registry.update_request_status(request_id, "in_progress")
+        
+        if current_provider == AIProvider.OPENROUTER:
+            # OpenRouter streaming
+            headers = provider_config.headers.copy()
+            
+            payload = {
+                "model": provider_config.model,
+                "messages": messages,
+                "stream": True
+            }
+            
+            async with requests.post(
+                provider_config.endpoint,
+                headers=headers,
+                json=payload,
+                stream=True,
+                timeout=provider_config.timeout
+            ) as response:
+                response.raise_for_status()
+                async for line in response.iter_lines():
+                    if line:
+                        # Process SSE format
+                        if line.startswith(b'data: '):
+                            data = line[6:].decode('utf-8')
+                            if data.strip() == '[DONE]':
+                                break
+                            try:
+                                chunk = json.loads(data)
+                                if 'choices' in chunk and chunk['choices']:
+                                    content = chunk['choices'][0].get('delta', {}).get('content', '')
+                                    if content:
+                                        yield content
+                            except json.JSONDecodeError:
+                                pass
+        
+        elif current_provider == AIProvider.OLLAMA:
+            # Ollama streaming
+            payload = {
+                "model": provider_config.model,
+                "messages": messages,
+                "stream": True
+            }
+            
+            async with requests.post(
+                provider_config.endpoint,
+                headers=provider_config.headers,
+                json=payload,
+                stream=True,
+                timeout=provider_config.timeout
+            ) as response:
+                response.raise_for_status()
+                async for line in response.iter_lines():
+                    if line:
+                        try:
+                            chunk = json.loads(line.decode('utf-8'))
+                            content = chunk.get('message', {}).get('content', '')
+                            if content:
+                                yield content
+                        except json.JSONDecodeError:
+                            pass
+                            
+        ai_provider_registry.update_request_status(request_id, "completed")
+        
+    except Exception as e:
+        error_msg = str(e)
+        print(f"Error in streaming: {error_msg}")
+        ai_provider_registry.update_request_status(request_id, "failed", error=error_msg)
+        yield json.dumps({"error": error_msg})
+
+@app.post("/api/ai/stream")
+async def ai_stream_endpoint(data: dict = Body(...)):
+    """Endpoint for streaming AI responses"""
+    if "prompt" not in data:
+        raise HTTPException(status_code=400, detail="Missing 'prompt' field in request")
+    
+    return StreamingResponse(
+        stream_ai_response(data["prompt"]),
+        media_type="text/event-stream"
+    )
+
+# Optimize vector search using MongoDB $vectorSearch
+async def find_similar_stories_optimized(story_id: str, top_k: int = 5):
+    """Find similar stories using vector search with MongoDB Atlas"""
+    if not mongodb_connected or db is None:
+        print("MongoDB not connected. Cannot find similar stories.")
+        return []
+        
+    try:
+        stories_collection = db["stories"]
+        
+        # Get the story
+        story = stories_collection.find_one({"_id": ObjectId(story_id)})
+        if not story:
+            print(f"Story not found with ID: {story_id}")
+            return []
+        
+        # Get the vector embedding
+        vector_embedding = story.get("vectorEmbedding")
+        if not vector_embedding:
+            print(f"Story has no vector embedding: {story_id}")
+            return []
+            
+        # Get the child ID
+        child_id = story.get("child")
+        if not child_id:
+            print(f"Story has no child ID: {story_id}")
+            return []
+            
+        # Try to use $vectorSearch if available (MongoDB Atlas)
+        try:
+            # Check if we can use $vectorSearch - it requires MongoDB Atlas
+            # This will fall back to manual calculation if not available
+            results = stories_collection.aggregate([
+                {
+                    "$search": {
+                        "vectorSearch": {
+                            "queryVector": vector_embedding,
+                            "path": "vectorEmbedding",
+                            "numCandidates": top_k * 2,
+                            "limit": top_k * 2
+                        }
+                    }
+                },
+                {
+                    "$match": {
+                        "child": child_id,
+                        "_id": {"$ne": ObjectId(story_id)}
+                    }
+                },
+                {
+                    "$limit": top_k
+                },
+                {
+                    "$project": {
+                        "_id": 1,
+                        "content": 1,
+                        "createdAt": 1,
+                        "score": {"$meta": "searchScore"}
+                    }
+                }
+            ])
+            
+            similar_stories = list(results)
+            
+            if similar_stories:
+                print(f"Found {len(similar_stories)} similar stories using vector search")
+                return [
+                    {
+                        "id": str(s["_id"]),
+                        "content": s.get("content", "")[:100] + "...",
+                        "similarity_score": s.get("score", 0),
+                        "created_at": s.get("createdAt")
+                    }
+                    for s in similar_stories
+                ]
+            
+        except Exception as vector_err:
+            print(f"Vector search error (falling back to manual calculation): {vector_err}")
+        
+        # Fallback to manual similarity calculation
+        print("Using manual similarity calculation")
+        child_stories = list(stories_collection.find(
+            {"child": child_id, "_id": {"$ne": ObjectId(story_id)}, "vectorEmbedding": {"$exists": True}}
+        ))
+        
+        if not child_stories:
+            print(f"No other stories found for child: {child_id}")
+            return []
+        
+        # Calculate cosine similarity for each story
+        similarity_scores = []
+        for s in child_stories:
+            s_embedding = s.get("vectorEmbedding")
+            if s_embedding and len(s_embedding) == len(vector_embedding):
+                # Calculate cosine similarity
+                dot_product = sum(a * b for a, b in zip(vector_embedding, s_embedding))
+                magnitude_a = sum(a ** 2 for a in vector_embedding) ** 0.5
+                magnitude_b = sum(b ** 2 for b in s_embedding) ** 0.5
+                
+                if magnitude_a > 0 and magnitude_b > 0:
+                    similarity = dot_product / (magnitude_a * magnitude_b)
+                else:
+                    similarity = 0
+                
+                similarity_scores.append((s, similarity))
+        
+        # Sort by similarity score
+        similarity_scores.sort(key=lambda x: x[1], reverse=True)
+        
+        # Take the top k most similar stories
+        result = []
+        for s, score in similarity_scores[:top_k]:
+            result.append({
+                "id": str(s["_id"]),
+                "content": s.get("content", "")[:100] + "...",
+                "similarity_score": round(score, 4),
+                "created_at": s.get("createdAt")
+            })
+        
+        return result
+    
+    except Exception as e:
+        print(f"Error in find_similar_stories_optimized: {e}")
+        return []
+
 # Run the server with: uvicorn app:app --reload
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
+    # Run with workers for better performance
+    uvicorn.run("app:app", host="0.0.0.0", port=8000, workers=4)

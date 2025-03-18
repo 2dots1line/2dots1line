@@ -9,4 +9,13 @@ pytest==7.3.1
 httpx==0.24.0
 sentence-transformers==2.3.1
 numpy==1.24.3
-scikit-learn==1.3.0 
+scikit-learn==1.3.0
+# Added for performance optimization
+torch>=2.0.0
+aiohttp==3.8.6
+# For MongoDB Atlas vector search (optional)
+pymongo[srv]
+# For enhanced performance
+uvloop ; sys_platform != 'win32'
+httptools
+ujson 

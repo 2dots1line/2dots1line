@@ -1,60 +1,34 @@
 #!/bin/bash
 
-# Restart script for the 2Dots1Line backend server using the virtual environment
-# This script will find and kill any processes using port 8000,
-# then restart the backend server using the virtual environment's Python.
+# Script to restart the backend server with proper environment setup
 
-PORT=8000
-echo "2Dots1Line Backend Restart Script (venv)"
-echo "---------------------------------"
-
-# Check if we're in the correct directory
-if [ ! -f "app.py" ]; then
-    echo "Error: app.py not found in current directory."
-    echo "Please run this script from the backend directory."
-    exit 1
+# Kill any existing processes on port 8000
+echo "Checking for processes on port 8000..."
+lsof_result=$(lsof -ti:8000)
+if [ -n "$lsof_result" ]; then
+    echo "Killing processes: $lsof_result"
+    kill -9 $lsof_result || echo "Failed to kill some processes"
 fi
 
-# Find process using port 8000
-echo "Checking for processes using port $PORT..."
-PID=$(lsof -ti :$PORT)
+# Activate the virtual environment
+echo "Activating virtual environment..."
+source venv/bin/activate || { echo "Failed to activate virtual environment. Is it created?"; exit 1; }
 
-if [ -n "$PID" ]; then
-    echo "Found process using port $PORT: PID $PID"
-    echo "Killing process $PID..."
-    kill -9 $PID
-    if [ $? -eq 0 ]; then
-        echo "Successfully killed process $PID"
-    else
-        echo "Warning: Could not kill process $PID. You may need to kill it manually."
-        echo "Try: kill -9 $PID"
-        exit 1
-    fi
-else
-    echo "No process found using port $PORT"
-fi
+# Check if GPU is available
+echo "Checking for GPU availability..."
+python -c "import torch; print(f'GPU available: {torch.cuda.is_available()}')" || echo "PyTorch not installed or error checking GPU"
 
-# Get virtual environment Python path
-VENV_PYTHON="../.venv/bin/python"
-VENV_UVICORN="../.venv/bin/uvicorn"
+# Install or update dependencies if needed
+echo "Checking dependencies..."
+pip install -r requirements.txt
 
-if [ ! -f "$VENV_PYTHON" ]; then
-    echo "Error: Virtual environment Python not found at $VENV_PYTHON"
-    echo "Make sure the virtual environment is activated and properly set up."
-    exit 1
-fi
+# Start the server with optimized configuration
+echo "Starting backend server with optimized configuration..."
+num_workers=$(python -c "import os; print(max(2, min(4, os.cpu_count() or 1)))")
+echo "Using $num_workers workers based on available CPU cores"
 
-# Start the backend server using virtual environment's Python and uvicorn
-echo "Starting backend server with virtual environment..."
-nohup $VENV_PYTHON -m uvicorn app:app --reload > nohup.out 2>&1 &
+# Use nohup to run the server in the background
+nohup uvicorn app:app --host 0.0.0.0 --port 8000 --workers $num_workers > nohup.out 2>&1 &
 
-if [ $? -eq 0 ]; then
-    echo "Backend server started successfully with virtual environment."
-    echo "You can view the server logs in 'nohup.out'"
-    echo "Access the API at http://localhost:8000"
-else
-    echo "Error starting backend server."
-    exit 1
-fi
-
-echo "Backend restart process completed." 
+echo "Backend server started. Access the API at http://localhost:8000"
+echo "Server logs can be viewed in the file: nohup.out" 

@@ -275,3 +275,23 @@ For a quick restart of just the backend:
 cd backend
 ./restart-backend-venv.sh
 ``` 
+
+
+Github management
+
+git branch
+git add .
+git commit -m "Your descriptive commit message here"
+git push origin your-branch-name
+git checkout main
+git pull origin main
+git merge your-branch-name
+git push origin main
+git branch -d your-branch-name  # Optional
+
+git branch feature-vectorization  # Create a new branch
+git checkout feature-vectorization  # Switch to the new branch
+# OR shortcut
+git checkout -b feature-vectorization  # Create and switch in one command
+git branch  # Verify branch switch
+git push -u origin feature-vectorization  # Push new branch to remote
