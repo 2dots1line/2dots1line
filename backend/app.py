@@ -1,7 +1,8 @@
-from fastapi import FastAPI, HTTPException, Body, Depends
+from fastapi import FastAPI, HTTPException, Body, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
+from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Any, Literal
+from enum import Enum
 import pymongo
 import os
 import sys
@@ -12,6 +13,21 @@ import requests
 from datetime import datetime
 import asyncio
 import time
+import numpy as np
+from sentence_transformers import SentenceTransformer
+import nltk
+from nltk.tokenize import word_tokenize
+from nltk.tag import pos_tag
+
+# Download required NLTK data
+try:
+    nltk.data.find('tokenizers/punkt')
+except LookupError:
+    nltk.download('punkt')
+try:
+    nltk.data.find('taggers/averaged_perceptron_tagger')
+except LookupError:
+    nltk.download('averaged_perceptron_tagger')
 
 # Load environment variables - improve error handling
 print("Starting 2Dots1Line AI Service...")
@@ -19,6 +35,95 @@ print(f"Current working directory: {os.getcwd()}")
 
 # First try to load from backend/.env
 load_dotenv()
+
+# AI Provider definition with Enum
+class AIProvider(str, Enum):
+    OPENROUTER = "openrouter"
+    OLLAMA = "ollama"
+
+# Provider configuration model
+class ProviderConfig(BaseModel):
+    name: str
+    enabled: bool
+    endpoint: str
+    model: str
+    api_key: Optional[str] = None
+    headers: Dict[str, str] = {}
+    timeout: int = 30
+    
+    class Config:
+        arbitrary_types_allowed = True
+
+# AI Provider Registry
+class AIProviderRegistry:
+    def __init__(self):
+        self.providers = {}
+        self.current_provider = None
+        self.active_requests = {}
+        
+    def register_provider(self, provider_name: str, config: ProviderConfig):
+        self.providers[provider_name] = config
+        print(f"Registered AI provider: {provider_name} with model {config.model}")
+        
+    def get_provider(self, provider_name: str) -> Optional[ProviderConfig]:
+        return self.providers.get(provider_name)
+    
+    def get_current_provider(self) -> Optional[ProviderConfig]:
+        if self.current_provider:
+            return self.providers.get(self.current_provider)
+        return None
+        
+    def set_current_provider(self, provider_name: str) -> bool:
+        if provider_name in self.providers and self.providers[provider_name].enabled:
+            self.current_provider = provider_name
+            print(f"Set current AI provider to: {provider_name}")
+            return True
+        return False
+    
+    def list_providers(self):
+        return {name: {
+            "enabled": config.enabled, 
+            "model": config.model,
+            "is_current": name == self.current_provider
+        } for name, config in self.providers.items()}
+        
+    def track_request(self, request_id, info):
+        """Track a new AI request"""
+        self.active_requests[request_id] = {
+            "status": "started",
+            "start_time": time.time(),
+            "info": info,
+            "provider": self.current_provider
+        }
+        
+    def update_request_status(self, request_id, status, **kwargs):
+        """Update status of an AI request"""
+        if request_id in self.active_requests:
+            self.active_requests[request_id]["status"] = status
+            for key, value in kwargs.items():
+                self.active_requests[request_id][key] = value
+                
+    def get_active_requests(self):
+        """Get all active requests with elapsed time"""
+        current_time = time.time()
+        result = {}
+        # Clean up completed requests older than 10 minutes
+        to_remove = []
+        for req_id, req_info in self.active_requests.items():
+            elapsed = current_time - req_info["start_time"]
+            if req_info["status"] in ["completed", "failed"] and elapsed > 600:  # 10 minutes
+                to_remove.append(req_id)
+            else:
+                result[req_id] = {**req_info, "elapsed_seconds": round(elapsed, 2)}
+        
+        # Remove old completed requests
+        for req_id in to_remove:
+            del self.active_requests[req_id]
+            
+        return result
+
+# Initialize the provider registry
+ai_provider_registry = AIProviderRegistry()
 
 # Check if required environment variables are loaded
 MONGODB_URI = os.getenv("MONGODB_URI")
@@ -38,9 +143,32 @@ if not MONGODB_URI:
             OPENROUTER_API_KEY = parent_env.get("JWT_SECRET")
             print("Using JWT_SECRET as OPENROUTER_API_KEY")
 
+# Get AI provider selection
+AI_PROVIDER = os.getenv("AI_PROVIDER", "openrouter").lower()
+print(f"Using AI Provider: {AI_PROVIDER}")
+
+# Get embedding model name
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+print(f"Using Embedding Model: {EMBEDDING_MODEL}")
+
+# Initialize sentence transformer model
+sentence_transformer = None
+try:
+    print(f"Loading Sentence Transformer model: {EMBEDDING_MODEL}")
+    sentence_transformer = SentenceTransformer(EMBEDDING_MODEL)
+    print("Sentence Transformer model loaded successfully")
+except Exception as e:
+    print(f"Error loading Sentence Transformer model: {e}")
+    sentence_transformer = None
+
 # Final check for required variables
 if not MONGODB_URI:
     raise ValueError("MONGODB_URI environment variable is not set. Please check your .env file.")
+
+# Initialize Ollama configuration
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")
+print(f"Ollama URL: {OLLAMA_URL}, Model: {OLLAMA_MODEL}")
 
 # OpenRouter configuration
 OPENROUTER_API_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
@@ -48,6 +176,38 @@ OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "deepseek/deepseek-chat")
 print(f"Using OpenRouter model: {OPENROUTER_MODEL}")
 SITE_URL = os.getenv("SITE_URL", "http://localhost:3000")
 SITE_NAME = os.getenv("SITE_NAME", "2Dots1Line")
+
+# Configure OpenRouter provider
+openrouter_headers = {
+    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+    "Content-Type": "application/json",
+    "HTTP-Referer": SITE_URL,
+    "X-Title": SITE_NAME
+}
+
+openrouter_config = ProviderConfig(
+    name="OpenRouter",
+    enabled=bool(OPENROUTER_API_KEY),
+    endpoint=OPENROUTER_API_ENDPOINT,
+    model=OPENROUTER_MODEL,
+    api_key=OPENROUTER_API_KEY,
+    headers=openrouter_headers
+)
+ai_provider_registry.register_provider(AIProvider.OPENROUTER, openrouter_config)
+
+# Configure Ollama provider
+ollama_config = ProviderConfig(
+    name="Ollama",
+    enabled=True,  # We'll test the connection later
+    endpoint=f"{OLLAMA_URL}/api/chat",
+    model=OLLAMA_MODEL,
+    headers={"Content-Type": "application/json"},
+    timeout=120  # Increase timeout for large models like qwq:32B
+)
+ai_provider_registry.register_provider(AIProvider.OLLAMA, ollama_config)
+
+# Set current provider from environment
+ai_provider_registry.set_current_provider(AI_PROVIDER)
 
 print(f"MONGODB_URI found: {MONGODB_URI[:20]}...")
 print(f"OPENROUTER_API_KEY {'found' if OPENROUTER_API_KEY else 'not found'}")
@@ -57,29 +217,100 @@ app = FastAPI(title="2Dots1Line AI Service",
               description="API for story analysis and AI-powered insights")
 
 # Configure CORS to allow requests from the frontend
+# Get allowed origins from environment variable or use defaults
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001")
+allowed_origins = [origin.strip() for origin in ALLOWED_ORIGINS.split(",")]
+
+# Add * for development if CORS_ALLOW_ALL is set to true
+if os.getenv("CORS_ALLOW_ALL", "false").lower() == "true":
+    allowed_origins.append("*")
+    print("Warning: CORS allows all origins (*). This should not be used in production.")
+else:
+    print(f"CORS configured with specific origins: {allowed_origins}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "*"],  # More permissive for development
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "User-Agent", "DNT", "Cache-Control", "X-Mx-ReqToken", "X-Requested-With"]
 )
 
 # MongoDB connection
-try:
-    client = pymongo.MongoClient(MONGODB_URI)
-    # Verify connection
-    client.admin.command('ping')
-    print("Connected to MongoDB successfully")
-    db = client["2dots1line"]
-    mongodb_connected = True
-except Exception as e:
-    print(f"MongoDB connection error: {e}")
-    print("Starting server without MongoDB connection. Some features will be unavailable.")
+mongodb_connected = False
+db = None
+client = None
+
+def validate_mongo_connection():
+    """Validate MongoDB connection and retry if necessary"""
+    global client, db, mongodb_connected
+
+    if mongodb_connected and client is not None and db is not None:
+        try:
+            # Try a lightweight operation to check connection
+            client.admin.command('ping')
+            return True
+        except Exception as e:
+            print(f"MongoDB connection validation failed: {e}")
+            mongodb_connected = False
+
+    # Initial connection or reconnection
+    max_retries = 3
+    retry_delay = 2  # seconds
+
+    for attempt in range(max_retries):
+        try:
+            print(f"Connecting to MongoDB (attempt {attempt+1}/{max_retries})...")
+            client = pymongo.MongoClient(
+                MONGODB_URI,
+                serverSelectionTimeoutMS=5000,  # 5 second timeout
+                connectTimeoutMS=5000,          # 5 second connection timeout
+                socketTimeoutMS=30000           # 30 second socket timeout
+            )
+            
+            # Verify connection
+            client.admin.command('ping')
+            print("Connected to MongoDB successfully")
+            
+            # Initialize database
+            db = client["2dots1line"]
+            
+            # Verify collections
+            required_collections = ["stories", "children", "users", "households"]
+            existing_collections = db.list_collection_names()
+            
+            for collection in required_collections:
+                if collection not in existing_collections:
+                    print(f"Warning: Collection '{collection}' not found in database")
+            
+            # Check if we have data in the stories collection
+            stories_count = db.stories.count_documents({})
+            print(f"Found {stories_count} stories in the database")
+            
+            mongodb_connected = True
+            return True
+            
+        except pymongo.errors.ServerSelectionTimeoutError as e:
+            print(f"MongoDB server selection timeout (attempt {attempt+1}): {e}")
+        except pymongo.errors.ConnectionFailure as e:
+            print(f"MongoDB connection failure (attempt {attempt+1}): {e}")
+        except Exception as e:
+            print(f"MongoDB connection error (attempt {attempt+1}): {e}")
+        
+        if attempt < max_retries - 1:
+            print(f"Retrying in {retry_delay} seconds...")
+            time.sleep(retry_delay)
+            retry_delay *= 2  # Exponential backoff
+    
+    # All connection attempts failed
+    print("All MongoDB connection attempts failed. Some features will be unavailable.")
     mongodb_connected = False
-    # Create a fallback client and db objects
     client = None
     db = None
+    return False
+
+# Run initial MongoDB connection
+validate_mongo_connection()
 
 # Helper class for JSON serialization of ObjectId
 class MongoJSONEncoder(json.JSONEncoder):
@@ -148,16 +379,34 @@ async def health_check():
         
         # Check MongoDB connection
         mongodb_status = "disconnected"
-        if mongodb_connected and client:
+        mongodb_error = None
+        
+        if mongodb_connected:
             try:
-                client.admin.command('ping')
-                mongodb_status = "connected"
+                # Use our validation function
+                if validate_mongo_connection():
+                    mongodb_status = "connected"
+                    
+                    # Get collection counts for additional info
+                    collection_stats = {}
+                    if db is not None:
+                        for collection_name in ["stories", "children", "users", "households"]:
+                            try:
+                                collection = db[collection_name]
+                                count = collection.count_documents({})
+                                collection_stats[collection_name] = count
+                            except Exception as coll_err:
+                                collection_stats[collection_name] = f"error: {str(coll_err)[:30]}..."
+                else:
+                    mongodb_status = "validation_failed"
             except Exception as e:
                 print(f"Health check MongoDB error: {e}")
-                mongodb_status = f"error: {str(e)[:100]}..."
+                mongodb_status = "error"
+                mongodb_error = str(e)[:100]
         
-        # Check if OpenRouter API key is configured
-        ai_status = "configured" if OPENROUTER_API_KEY else "not configured"
+        # Check current AI provider
+        ai_provider = ai_provider_registry.current_provider
+        provider_config = ai_provider_registry.get_current_provider()
         
         # Log request time
         elapsed = time.time() - start_time
@@ -165,19 +414,37 @@ async def health_check():
         
         return {
             "status": "healthy", 
-            "mongodb": mongodb_status,
-            "ai_api": ai_status,
+            "timestamp": datetime.now().isoformat(),
+            "uptime_seconds": time.time() - start_time,
+            "mongodb": {
+                "status": mongodb_status,
+                "error": mongodb_error,
+                "collections": collection_stats if mongodb_status == "connected" else None
+            },
+            "ai_provider": {
+                "current": ai_provider,
+                "model": provider_config.model if provider_config else None,
+                "all_providers": ai_provider_registry.list_providers()
+            },
+            "embedding": {
+                "model": EMBEDDING_MODEL,
+                "loaded": bool(sentence_transformer)
+            },
             "response_time": f"{elapsed:.2f}s"
         }
     except Exception as e:
         return {
             "status": "error",
+            "timestamp": datetime.now().isoformat(),
             "message": str(e)
         }
 
 @app.post("/api/stories/analyze", response_model=StoryAnalysis)
-async def analyze_story(story: Story):
+async def analyze_story(story: Story, request_id: Optional[str] = None):
     start_time = time.time()
+    if not request_id:
+        request_id = f"story_{int(time.time())}"
+        
     print(f"Received analysis request for story: {story.id}, content length: {len(story.content)}, child_id: {story.child_id}")
     
     try:
@@ -248,281 +515,374 @@ async def analyze_story(story: Story):
                                 {"child": child_id_obj},
                                 {"child_id": child_id_obj},
                                 {"childId": child_id_obj},
-                                {"author": child_id_obj}
                             ]
-                        })
-                        if story_id_obj:
-                            previous_stories_cursor = previous_stories_cursor.find({"_id": {"$ne": story_id_obj}})
-                        previous_stories_cursor = previous_stories_cursor.sort("createdAt", -1).limit(5)
+                        }).sort("createdAt", -1).limit(5)
+                        
                         previous_stories = list(previous_stories_cursor)
+                        print(f"Found {len(previous_stories)} previous stories for child by ObjectId")
                     
-                    # If no results, try with string ID
-                    if not previous_stories or len(previous_stories) == 0:
+                    # If no stories found, try with string ID
+                    if not previous_stories:
+                        print(f"Trying to find stories with string child ID: {story.child_id}")
                         previous_stories_cursor = stories_collection.find({
                             "$or": [
                                 {"child": story.child_id},
-                                {"child_id": story.child_id}, 
+                                {"child_id": story.child_id},
                                 {"childId": story.child_id},
-                                {"author": story.child_id}
                             ]
-                        })
-                        if story.id:
-                            previous_stories_cursor = previous_stories_cursor.find({"_id": {"$ne": story.id}})
-                        previous_stories_cursor = previous_stories_cursor.sort("createdAt", -1).limit(5)
+                        }).sort("createdAt", -1).limit(5)
+                        
                         previous_stories = list(previous_stories_cursor)
+                        print(f"Found {len(previous_stories)} previous stories for child by string ID")
                     
-                    print(f"Found {len(previous_stories)} previous stories for analysis context")
-                except Exception as db_err:
-                    print(f"Error fetching previous stories: {db_err}")
+                    # Filter out the current story if it exists
+                    if story_id_obj:
+                        previous_stories = [s for s in previous_stories if s.get("_id") != story_id_obj]
+                    
+                except Exception as stories_err:
+                    print(f"Error retrieving previous stories: {stories_err}")
                     previous_stories = []
-            except Exception as db_err:
-                print(f"Error fetching child data or previous stories: {db_err}")
-        
-        # Format previous stories for context
-        previous_stories_text = ""
-        if previous_stories:
-            previous_stories_text = "Previously written stories:\n"
-            for i, prev_story in enumerate(previous_stories):
-                prev_content = prev_story.get("content", "")
-                if prev_content:
-                    previous_stories_text += f"Story {i+1}: {prev_content}\n"
-        
-        # Prepare input data for the AI model
-        child_age = calculate_age(child_data) if child_data else "unknown"
-        child_name = child_data.get("name", "the child") if child_data else "the child"
-        
-        # Set up the content for the OpenRouter API request
-        system_message = f"""You are an expert child psychologist and educator analyzing a child's story or drawing description.
-        
-The story was created by {child_name}, who is {child_age} years old.
-
-Analyze this content deeply to identify:
-1. Strengths: What cognitive, creative, or emotional strengths does this story reveal?
-2. Traits: What personality traits or thinking styles are evident?
-3. Summary: Provide a brief 1-2 sentence summary of the key developmental insights.
-4. AI Insights: Provide 3-4 paragraphs of detailed developmental analysis, including cognitive patterns, emotional themes, and educational recommendations.
-
-YOU MUST FORMAT YOUR RESPONSE AS A VALID JSON OBJECT with these exact keys: strengths, traits, summary, ai_insights.
-- strengths and traits should be arrays of 3-5 specific words or short phrases each
-- summary should be a string with 1-2 sentences
-- ai_insights should be a string with your detailed analysis
-
-EXAMPLE FORMAT:
-{{"strengths": ["creativity", "empathy", "detail-oriented"], 
-"traits": ["reflective", "considerate", "expressive"],
-"summary": "This story demonstrates the child's ability to understand different perspectives and strong emotional intelligence.",
-"ai_insights": "The child shows exceptional ability to... This suggests a developmental pattern of... Parents and educators should..."}}
-
-DO NOT include any text outside of the JSON object. DO NOT use markdown, LaTeX or other formatting."""
-        
-        # Make the request to OpenRouter
-        print(f"Sending story to OpenRouter for analysis...")
-        headers = {
-            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-            "HTTP-Referer": SITE_URL,
-            "X-Title": SITE_NAME,
-            "Content-Type": "application/json"
-        }
-        
-        payload = {
-            "model": OPENROUTER_MODEL,
-            "messages": [
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": f"Here is the story to analyze:\n\n{story.content}\n\n{previous_stories_text}"}
-            ],
-            "temperature": 0.7,
-            "max_tokens": 1000
-        }
-        
-        start_request = time.time()
-        response = requests.post(
-            OPENROUTER_API_ENDPOINT,
-            headers=headers,
-            json=payload
-        )
-        request_time = time.time() - start_request
-        print(f"OpenRouter response received in {request_time:.2f} seconds with status: {response.status_code}")
-        
-        # Process the response
-        if response.status_code == 200:
-            result = response.json()
-            answer = result["choices"][0]["message"]["content"]
-            print(f"Received answer: {answer[:50]}...")
-            
-            # Extract the analysis from the response
-            try:
-                import json
-                import re
-                
-                # Try different approaches to parse the JSON from the response
-                json_content = None
-                
-                # Log raw answer for debugging
-                print(f"Raw answer from OpenRouter (first 100 chars): {answer[:min(100, len(answer))]}")
-                
-                # Approach 1: Try directly parsing the entire response as JSON
-                try:
-                    json_content = json.loads(answer)
-                    print("✅ Successfully parsed direct JSON response")
-                except json.JSONDecodeError as e:
-                    print(f"❌ Failed to parse as direct JSON: {e}")
-
-                    # Approach 2: Look for JSON patterns with different markdowns
-                    if not json_content:
-                        # Try to find JSON in markdown code blocks
-                        json_patterns = [
-                            r'```(?:json)?\s*(\{.*?\})\s*```',  # Markdown code block with optional json tag
-                            r'`(\{.*?\})`',                     # Inline code block
-                            r'(\{[\s\S]*"strengths"[\s\S]*\})'  # Any JSON-like block with "strengths" key
-                        ]
-                        
-                        for pattern in json_patterns:
-                            match = re.search(pattern, answer, re.DOTALL)
-                            if match:
-                                try:
-                                    json_content = json.loads(match.group(1).strip())
-                                    print(f"✅ Successfully parsed JSON from markdown with pattern: {pattern[:20]}...")
-                                    break
-                                except json.JSONDecodeError:
-                                    continue
-                
-                # Approach 3: If still no JSON, try to find key sections manually
-                if not json_content:
-                    print("⚠️ Attempting manual section extraction from text...")
-                    # Extract sections from text
-                    strengths = extract_list_items(extract_section(answer, "strengths"))
-                    traits = extract_list_items(extract_section(answer, "traits"))
-                    summary = extract_section(answer, "summary")
-                    ai_insights = extract_section(answer, "ai_insights") or extract_section(answer, "insights") or answer
-                    
-                    if strengths or traits or summary or ai_insights:
-                        print(f"✅ Manually extracted sections: found {len(strengths)} strengths, {len(traits)} traits")
-                        json_content = {
-                            "strengths": strengths,
-                            "traits": traits, 
-                            "summary": summary,
-                            "ai_insights": ai_insights
-                        }
-                    else:
-                        print("❌ Manual extraction failed to find any sections")
-                        
-                # If we still have no content, use defaults
-                if not json_content:
-                    print("⚠️ Using default content with original answer as AI insights")
-                    json_content = {
-                        "strengths": ["expression", "communication"],
-                        "traits": ["thoughtful", "articulate"],
-                        "summary": "The child shows expressive abilities in their writing.",
-                        "ai_insights": answer  # Use the entire answer as insights
-                    }
-                
-                # Check content quality and fix missing fields
-                if not json_content.get("strengths") or len(json_content.get("strengths", [])) < 2:
-                    print("⚠️ Fixing missing or insufficient strengths")
-                    json_content["strengths"] = json_content.get("strengths", []) or ["creativity", "expression"]
-                    if len(json_content["strengths"]) < 2:
-                        json_content["strengths"].append("communication")
-                
-                if not json_content.get("traits") or len(json_content.get("traits", [])) < 2:
-                    print("⚠️ Fixing missing or insufficient traits")
-                    json_content["traits"] = json_content.get("traits", []) or ["thoughtful", "expressive"]
-                    if len(json_content["traits"]) < 2:
-                        json_content["traits"].append("observant")
-                
-                if not json_content.get("summary") or len(json_content.get("summary", "")) < 10:
-                    print("⚠️ Fixing missing or short summary")
-                    json_content["summary"] = json_content.get("summary") or "This story shows the child's ability to express thoughts clearly."
-                
-                if not json_content.get("ai_insights") or len(json_content.get("ai_insights", "")) < 50:
-                    print("⚠️ Fixing missing or short AI insights")
-                    # Use the original answer if available, or create a default insight
-                    json_content["ai_insights"] = json_content.get("ai_insights") or answer or "The child demonstrates good communication skills in this story, showing an ability to convey thoughts and experiences. This indicates developmental progress in literacy and self-expression."
-                
-                # Create the final analysis object
-                analysis = StoryAnalysis(
-                    strengths=json_content.get("strengths")[:5],  # Limit to 5 items
-                    traits=json_content.get("traits")[:5],        # Limit to 5 items
-                    summary=json_content.get("summary"),
-                    ai_insights=json_content.get("ai_insights"),
-                    related_story_ids=[]
-                )
-                
-                print(f"✅ Final analysis object created with {len(analysis.strengths)} strengths, {len(analysis.traits)} traits")
-                print(f"Summary: {analysis.summary[:50]}...")
-                
-                # Store the analysis in MongoDB if connected
-                if mongodb_connected and db is not None and story.id:
-                    try:
-                        stories_collection = db.stories
-                        
-                        # Try to convert ID to ObjectId or use the string ID
-                        story_id_obj = story.get_id_as_object_id()
-                        
-                        # Log which ID format we're using
-                        if story_id_obj:
-                            print(f"Updating story with ObjectId: {story_id_obj}")
-                            query = {"_id": story_id_obj}
-                        else:
-                            print(f"Updating story with string ID: {story.id}")
-                            query = {"_id": story.id}
-                        
-                        # Update the story with the analysis
-                        update_result = stories_collection.update_one(
-                            query,
-                            {"$set": {
-                                "aiAnalysis": {
-                                    "strengths": analysis.strengths,
-                                    "traits": analysis.traits,
-                                    "summary": analysis.summary,
-                                    "ai_insights": analysis.ai_insights,
-                                    "related_story_ids": analysis.related_story_ids
-                                }
-                            }}
-                        )
-                        
-                        if update_result.matched_count > 0:
-                            print(f"Analysis stored in database for story {story.id}")
-                        else:
-                            print(f"Warning: No document matched for story ID: {story.id}")
-                            
-                    except Exception as update_err:
-                        print(f"Error updating story with analysis: {update_err}")
-                        # Continue anyway - we still want to return the analysis
-                
-                total_time = time.time() - start_time
-                print(f"Analysis completed in {total_time:.2f}s")
-                return analysis
-                
-            except Exception as parse_err:
-                print(f"Error parsing AI response: {parse_err}")
-                raise HTTPException(status_code=500, detail=f"Failed to parse AI response: {str(parse_err)}")
+            except Exception as mongo_err:
+                print(f"Error accessing MongoDB: {mongo_err}")
+                child_data = {"name": "the child", "dateOfBirth": None}  # Fallback data
         else:
-            print(f"Error from OpenRouter API: {response.status_code}")
-            print(f"Response content: {response.text}")
-            raise HTTPException(status_code=response.status_code, detail=f"OpenRouter API error: {response.text}")
-    
+            print("MongoDB not connected, using default child data")
+            child_data = {"name": "the child", "dateOfBirth": None}  # Fallback data
+        
+        # Generate embeddings for the story if it has an ID
+        if story.id and mongodb_connected and db is not None:
+            asyncio.create_task(generate_or_update_embedding(story.id, story.content))
+        
+        # Extract child's name and age
+        child_name = child_data.get("name", "the child")
+        
+        # Get previous story snippets
+        previous_story_texts = []
+        for prev_story in previous_stories:
+            content = prev_story.get("content", "")
+            if content:
+                # Limit to first 100 characters to avoid prompt getting too large
+                previous_story_texts.append(content[:100] + "...")
+
+        # If the child has previous stories with embeddings, find related ones
+        similar_stories = []
+        if story.id and mongodb_connected and db is not None:
+            try:
+                # This will make a quick check for similar stories
+                similar_stories_data = await find_similar_stories(story.id)
+                for s in similar_stories_data:
+                    similar_stories.append(s.get("content", "")[:100] + "...")
+            except Exception as sim_err:
+                print(f"Error finding similar stories: {sim_err}")
+        
+        # Prepare context for the AI based on previous and similar stories
+        prev_stories_context = ""
+        if previous_story_texts:
+            prev_stories_context = f"Previous stories by this child:\n" + "\n".join([f"- {text}" for text in previous_story_texts[:3]])
+        
+        sim_stories_context = ""
+        if similar_stories:
+            sim_stories_context = f"Similar stories by this child:\n" + "\n".join([f"- {text}" for text in similar_stories[:3]])
+        
+        # Prepare the prompt for the AI
+        user_message = f"""
+As a child development expert, analyze this story written by {child_name}:
+
+STORY:
+{story.content}
+
+{prev_stories_context}
+
+{sim_stories_context}
+
+Provide a thoughtful analysis in the following format:
+1. SUMMARY: A brief, 2-3 sentence summary of the story.
+2. STRENGTHS: List 3-5 strengths or skills demonstrated in the writing (creative thinking, vocabulary use, etc.) - one per line with a dash.
+3. TRAITS: List 3-5 personality traits or interests revealed by the story's themes and content - one per line with a dash.
+4. INSIGHTS: 2-3 paragraphs of developmental insights about the child based on this story.
+
+IMPORTANT: Use plain text format only. Do not use asterisks, markdown symbols, or other special formatting. Number sections as shown above.
+Maintain a positive, encouraging tone while providing substantive feedback.
+"""
+
+        # Format messages for the LLM
+        messages = [
+            {"role": "system", "content": "You are a child development expert who analyzes children's writing to provide insights about their skills, interests, and development."},
+            {"role": "user", "content": user_message}
+        ]
+        
+        # Call the selected LLM provider
+        try:
+            print("Calling LLM provider...")
+            ai_response = await call_llm_provider(messages, request_id=request_id)
+            print(f"Received LLM response of length: {len(ai_response)}")
+        except Exception as ai_err:
+            print(f"Error calling LLM: {ai_err}")
+            # Provide a fallback response
+            ai_response = "I couldn't analyze this story at the moment. Please try again later."
+        
+        # Parse the AI response (in a more resilient way)
+        strengths = []
+        traits = []
+        summary = ""
+        ai_insights = ""
+        
+        # Clean the response of any unwanted characters
+        ai_response = ai_response.replace("**", "").replace("---", "").replace("##", "")
+        
+        # Simple parsing based on keywords
+        if "SUMMARY:" in ai_response or "1. SUMMARY:" in ai_response or "1.SUMMARY:" in ai_response:
+            # Try different summary patterns
+            summary_patterns = ["SUMMARY:", "1. SUMMARY:", "1.SUMMARY:"]
+            for pattern in summary_patterns:
+                if pattern in ai_response:
+                    parts = ai_response.split(pattern, 1)[1]
+                    # Find the end of summary section
+                    end_markers = ["STRENGTHS:", "2. STRENGTHS:", "2.STRENGTHS:"]
+                    for marker in end_markers:
+                        if marker in parts:
+                            summary = parts.split(marker)[0].strip()
+                            break
+                    if summary:
+                        break
+        
+        if "STRENGTHS:" in ai_response or "2. STRENGTHS:" in ai_response or "2.STRENGTHS:" in ai_response:
+            # Get strengths section
+            strengths_patterns = ["STRENGTHS:", "2. STRENGTHS:", "2.STRENGTHS:"]
+            for pattern in strengths_patterns:
+                if pattern in ai_response:
+                    parts = ai_response.split(pattern, 1)[1]
+                    # Find the end of strengths section
+                    end_markers = ["TRAITS:", "3. TRAITS:", "3.TRAITS:"]
+                    strengths_text = ""
+                    for marker in end_markers:
+                        if marker in parts:
+                            strengths_text = parts.split(marker)[0].strip()
+                            break
+                    if strengths_text:
+                        # Extract bullet points or numbered items
+                        lines = strengths_text.split('\n')
+                        for line in lines:
+                            line = line.strip()
+                            # Remove bullet points, numbers, and other markers
+                            if line and (line.startswith("-") or line.startswith("•") or 
+                                        any(line.startswith(f"{i}.") for i in range(1, 10))):
+                                # Clean the line
+                                clean_line = line
+                                for prefix in ["-", "•", "1.", "2.", "3.", "4.", "5.", "6.", "7.", "8.", "9."]:
+                                    if clean_line.startswith(prefix):
+                                        clean_line = clean_line[len(prefix):].strip()
+                                if clean_line:
+                                    strengths.append(clean_line)
+                        break
+        
+        # If no strengths found with bullets, try to split by line or comma
+        if not strengths:
+            if "STRENGTHS:" in ai_response:
+                strengths_part = ai_response.split("STRENGTHS:")[1]
+                if "TRAITS:" in strengths_part:
+                    strengths_part = strengths_part.split("TRAITS:")[0]
+                
+                # Try splitting by line first
+                lines = [line.strip() for line in strengths_part.split('\n') if line.strip()]
+                if len(lines) >= 2:
+                    for line in lines:
+                        # Remove any leading markers or numbers
+                        clean_line = line
+                        for prefix in ["-", "•", "1.", "2.", "3.", "4.", "5."]:
+                            if clean_line.startswith(prefix):
+                                clean_line = clean_line[len(prefix):].strip()
+                        if clean_line and not clean_line.startswith("TRAITS") and len(clean_line) > 3:
+                            strengths.append(clean_line)
+                # If still no strengths, try comma separation
+                elif len(lines) == 1 and "," in lines[0]:
+                    strengths = [s.strip() for s in lines[0].split(",") if s.strip()]
+        
+        # Process traits section
+        if "TRAITS:" in ai_response or "3. TRAITS:" in ai_response or "3.TRAITS:" in ai_response:
+            # Get traits section
+            traits_patterns = ["TRAITS:", "3. TRAITS:", "3.TRAITS:"]
+            for pattern in traits_patterns:
+                if pattern in ai_response:
+                    parts = ai_response.split(pattern, 1)[1]
+                    # Find the end of traits section
+                    end_markers = ["INSIGHTS:", "4. INSIGHTS:", "4.INSIGHTS:"]
+                    traits_text = ""
+                    for marker in end_markers:
+                        if marker in parts:
+                            traits_text = parts.split(marker)[0].strip()
+                            break
+                    if traits_text:
+                        # Extract bullet points or numbered items
+                        lines = traits_text.split('\n')
+                        for line in lines:
+                            line = line.strip()
+                            # Remove bullet points, numbers, and other markers
+                            if line and (line.startswith("-") or line.startswith("•") or 
+                                        any(line.startswith(f"{i}.") for i in range(1, 10))):
+                                # Clean the line
+                                clean_line = line
+                                for prefix in ["-", "•", "1.", "2.", "3.", "4.", "5.", "6.", "7.", "8.", "9."]:
+                                    if clean_line.startswith(prefix):
+                                        clean_line = clean_line[len(prefix):].strip()
+                                if clean_line:
+                                    traits.append(clean_line)
+                        break
+        
+        # If no traits found with bullets, try to split by line or comma
+        if not traits:
+            if "TRAITS:" in ai_response:
+                traits_part = ai_response.split("TRAITS:")[1]
+                if "INSIGHTS:" in traits_part:
+                    traits_part = traits_part.split("INSIGHTS:")[0]
+                
+                # Try splitting by line first
+                lines = [line.strip() for line in traits_part.split('\n') if line.strip()]
+                if len(lines) >= 2:
+                    for line in lines:
+                        # Remove any leading markers or numbers
+                        clean_line = line
+                        for prefix in ["-", "•", "1.", "2.", "3.", "4.", "5."]:
+                            if clean_line.startswith(prefix):
+                                clean_line = clean_line[len(prefix):].strip()
+                        if clean_line and not clean_line.startswith("INSIGHTS") and len(clean_line) > 3:
+                            traits.append(clean_line)
+                # If still no traits, try comma separation
+                elif len(lines) == 1 and "," in lines[0]:
+                    traits = [s.strip() for s in lines[0].split(",") if s.strip()]
+        
+        # Get insights
+        if "INSIGHTS:" in ai_response or "4. INSIGHTS:" in ai_response or "4.INSIGHTS:" in ai_response:
+            # Try different patterns
+            insights_patterns = ["INSIGHTS:", "4. INSIGHTS:", "4.INSIGHTS:"]
+            for pattern in insights_patterns:
+                if pattern in ai_response:
+                    ai_insights = ai_response.split(pattern, 1)[1].strip()
+                    break
+        
+        # Strip any special markdown characters from final outputs
+        if summary:
+            summary = summary.replace("*", "").replace("#", "").replace("_", "").strip()
+        if ai_insights:
+            ai_insights = ai_insights.replace("*", "").replace("#", "").replace("_", "").strip()
+        
+        # Make sure strengths and traits have at least some items
+        if not strengths:
+            summary_words = summary.split()
+            # Extract some keywords from the summary as strengths
+            if len(summary_words) > 10:
+                strengths = ["Written expression", "Storytelling ability", "Narrative skills"]
+            else:
+                strengths = ["Basic story structure", "Sequential thinking"]
+        
+        if not traits:
+            # Extract some default traits based on the strengths
+            if "creative" in summary.lower() or "imagination" in summary.lower():
+                traits.append("Creative")
+            if "confident" in summary.lower() or "achievement" in summary.lower():
+                traits.append("Confident")
+            if len(traits) < 2:
+                traits.append("Expressive")
+                traits.append("Thoughtful")
+        
+        # If we have a single trait with comma-separated values, split it
+        if len(traits) == 1 and "," in traits[0]:
+            traits = [t.strip() for t in traits[0].split(",") if t.strip()]
+            
+        # If we have a single strength with comma-separated values, split it
+        if len(strengths) == 1 and "," in strengths[0]:
+            strengths = [s.strip() for s in strengths[0].split(",") if s.strip()]
+            
+        # If no insights were found, use the entire response
+        if not summary and not strengths and not traits and not ai_insights:
+            summary = "This story shows the child's imagination and writing skills."
+            ai_insights = ai_response.replace("*", "").replace("#", "").replace("_", "").strip()
+            strengths = ["Written expression", "Storytelling"]
+            traits = ["Creative", "Imaginative"]
+        
+        # Store the story analysis in the database if connected
+        if mongodb_connected and db is not None and story.id:
+            try:
+                stories_collection = db.stories
+                
+                # Save vector embedding and analysis
+                stories_collection.update_one(
+                    {"_id": ObjectId(story.id)},
+                    {"$set": {
+                        "analysis": {
+                            "summary": summary,
+                            "strengths": strengths,
+                            "traits": traits,
+                            "insights": ai_insights,
+                            "analyzed_at": datetime.now(),
+                            "analyzerModel": AI_PROVIDER,
+                            "modelName": OPENROUTER_MODEL if AI_PROVIDER == "openrouter" else OLLAMA_MODEL
+                        }
+                    }}
+                )
+                print(f"Saved analysis to database for story: {story.id}")
+            except Exception as mongo_err:
+                print(f"Error saving analysis to MongoDB: {mongo_err}")
+        
+        # Log timing
+        elapsed = time.time() - start_time
+        print(f"Analysis completed in {elapsed:.2f} seconds")
+        
+        # Return the analysis
+        return {
+            "summary": summary,
+            "strengths": strengths,
+            "traits": traits,
+            "ai_insights": ai_insights,
+            "related_story_ids": [str(s.get("_id", "")) for s in previous_stories[:3]]
+        }
+        
     except Exception as e:
-        print(f"Error in analyze_story: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Story analysis failed: {str(e)}")
+        print(f"Error in analyze_story: {e}")
+        return {
+            "summary": "Error analyzing story.",
+            "strengths": ["Unable to analyze"],
+            "traits": ["Unable to analyze"],
+            "ai_insights": f"Sorry, we encountered an error analyzing this story. Please try again later.",
+            "related_story_ids": []
+        }
 
 @app.post("/api/stories/tokenize", response_model=TokenizedStory)
 async def tokenize_story(story: Story):
     try:
-        # Placeholder for tokenization and embedding generation
-        # In production, replace with actual tokenization and embedding generation
-        tokens = [{"token": word, "pos": "NOUN"} for word in story.content.split()]
+        print(f"Tokenizing story: {story.id}, content length: {len(story.content)}")
         
-        # Placeholder vector embedding (128-dimensional)
-        vector_embedding = [0.1] * 128
+        # 1. POS Tagging using NLTK
+        words = word_tokenize(story.content)
+        tagged_words = pos_tag(words)
+        tokens = [{"token": word, "pos": tag} for word, tag in tagged_words]
         
-        # Store vector embedding in MongoDB if connected
-        if mongodb_connected and db and story.id:
+        # 2. Generate embeddings using Sentence Transformers
+        if sentence_transformer:
+            # Generate embedding for the full story
+            vector_embedding = sentence_transformer.encode(story.content)
+            vector_embedding = vector_embedding.tolist()  # Convert numpy array to list for JSON serialization
+            print(f"Generated embedding of dimension: {len(vector_embedding)}")
+        else:
+            # Fallback to placeholder if model failed to load
+            print("Warning: Using placeholder embeddings as sentence transformer model is not available")
+            vector_embedding = [0.1] * 384  # Common dimension for embedding models
+        
+        # 3. Store in MongoDB if connected and story.id exists
+        if mongodb_connected and db is not None and story.id:
             try:
                 stories_collection = db["stories"]
-                stories_collection.update_one(
+                # Update the story with the new embeddings and tokens
+                result = stories_collection.update_one(
                     {"_id": ObjectId(story.id)},
-                    {"$set": {"vectorEmbedding": vector_embedding, "tokens": tokens}}
+                    {"$set": {
+                        "vectorEmbedding": vector_embedding, 
+                        "tokens": tokens,
+                        "embeddingModel": EMBEDDING_MODEL,
+                        "embeddingUpdatedAt": datetime.now()
+                    }}
                 )
+                print(f"Updated story in MongoDB: {result.modified_count} document(s) modified")
             except Exception as mongo_error:
                 print(f"Error saving tokenization to MongoDB: {mongo_error}")
         
@@ -533,16 +893,17 @@ async def tokenize_story(story: Story):
         
     except Exception as e:
         print(f"Error in tokenize_story: {e}")
+        # Return a minimal response in case of error
         return {
             "tokens": [{"token": "error", "pos": "NOUN"}],
-            "vector_embedding": [0.0] * 128
+            "vector_embedding": [0.0] * 384  # Use standard dimension
         }
 
 @app.get("/api/stories/similar/{story_id}", response_model=List[Dict[str, Any]])
 async def find_similar_stories(story_id: str):
     try:
         # Check if MongoDB is connected
-        if not mongodb_connected or not db:
+        if not mongodb_connected or db is None:
             print("MongoDB not connected. Cannot find similar stories.")
             return []
             
@@ -558,26 +919,68 @@ async def find_similar_stories(story_id: str):
             # Get the vector embedding
             vector_embedding = story.get("vectorEmbedding")
             if not vector_embedding:
-                print(f"Story has no vector embedding: {story_id}")
-                return []
+                print(f"Story has no vector embedding: {story_id}. Generating embedding...")
+                # Generate embedding if not present
+                if sentence_transformer:
+                    content = story.get("content", "")
+                    if content:
+                        vector_embedding = sentence_transformer.encode(content).tolist()
+                        # Save the new embedding
+                        stories_collection.update_one(
+                            {"_id": ObjectId(story_id)},
+                            {"$set": {
+                                "vectorEmbedding": vector_embedding,
+                                "embeddingModel": EMBEDDING_MODEL,
+                                "embeddingUpdatedAt": datetime.now()
+                            }}
+                        )
+                    else:
+                        print("Story has no content, cannot generate embedding")
+                        return []
+                else:
+                    print("Sentence transformer not available, cannot generate embedding")
+                    return []
             
-            # Get the child ID
+            # Get the child ID - this ensures we only compare stories from the same child
             child_id = story.get("child")
             
             # Find similar stories
-            # In production, use a vector database or proper similarity search
-            # This is just a placeholder that returns the most recent stories
-            similar_stories = list(stories_collection.find(
-                {"child": child_id, "_id": {"$ne": ObjectId(story_id)}}
-            ).sort("createdAt", -1).limit(3))
+            # Get all stories from the same child, except the current one
+            child_stories = list(stories_collection.find(
+                {"child": child_id, "_id": {"$ne": ObjectId(story_id)}, "vectorEmbedding": {"$exists": True}}
+            ))
             
-            # Format the response
+            if not child_stories:
+                print(f"No other stories found for child: {child_id}")
+                return []
+            
+            # Calculate cosine similarity for each story
+            similarity_scores = []
+            for s in child_stories:
+                s_embedding = s.get("vectorEmbedding")
+                if s_embedding and len(s_embedding) == len(vector_embedding):
+                    # Calculate cosine similarity
+                    dot_product = sum(a * b for a, b in zip(vector_embedding, s_embedding))
+                    magnitude_a = sum(a ** 2 for a in vector_embedding) ** 0.5
+                    magnitude_b = sum(b ** 2 for b in s_embedding) ** 0.5
+                    
+                    if magnitude_a > 0 and magnitude_b > 0:
+                        similarity = dot_product / (magnitude_a * magnitude_b)
+                    else:
+                        similarity = 0
+                    
+                    similarity_scores.append((s, similarity))
+            
+            # Sort by similarity score
+            similarity_scores.sort(key=lambda x: x[1], reverse=True)
+            
+            # Take the top 5 most similar stories
             result = []
-            for s in similar_stories:
+            for s, score in similarity_scores[:5]:
                 result.append({
                     "id": str(s["_id"]),
-                    "content": s["content"],
-                    "similarity_score": 0.85,  # Placeholder
+                    "content": s.get("content", "")[:100] + "...",  # Only include a preview
+                    "similarity_score": round(score, 4),
                     "created_at": s.get("createdAt")
                 })
             
@@ -633,6 +1036,7 @@ async def test_openrouter():
 @app.post("/api/direct/analyze")
 async def direct_analyze(request_data: dict):
     start_time = time.time()
+    request_id = f"story_{int(time.time())}"
     print(f"Received direct analysis request: {request_data}")
     
     try:
@@ -669,9 +1073,9 @@ async def direct_analyze(request_data: dict):
             if not story_id_obj and mongodb_connected:
                 print(f"Warning: story id '{story.id}' is not a valid MongoDB ObjectId. Database update may fail.")
         
-        # Call the analyze_story function
+        # Call the analyze_story function with request_id
         print("Calling analyze_story function...")
-        analysis = await analyze_story(story)
+        analysis = await analyze_story(story, request_id)
         
         elapsed_time = time.time() - start_time
         print(f"Direct analysis completed in {elapsed_time:.2f}s")
@@ -692,55 +1096,48 @@ async def test_ask_question(request_data: dict):
     if not request_data.get("question"):
         raise HTTPException(status_code=400, detail="No question provided")
     
-    if not OPENROUTER_API_KEY:
-        raise HTTPException(status_code=500, detail="OpenRouter API key not configured")
+    # Get the current provider
+    current_provider = ai_provider_registry.current_provider
+    provider_config = ai_provider_registry.get_current_provider()
+    
+    if not provider_config:
+        raise HTTPException(status_code=500, detail="No AI provider configured")
+    
+    if not provider_config.enabled:
+        raise HTTPException(status_code=500, detail=f"Provider {current_provider} is disabled")
     
     try:
-        print("Sending test question to OpenRouter...")
+        print(f"Sending test question to {current_provider}...")
         start_time = time.time()
         
-        headers = {
-            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-            "HTTP-Referer": SITE_URL,
-            "X-Title": SITE_NAME,
-            "Content-Type": "application/json"
-        }
+        # Use the appropriate provider for the test
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant. Provide clear, concise answers in plain text format. Do not use LaTeX, markdown, or other formatting. For example, answer '206' instead of '\\boxed{206}'."},
+            {"role": "user", "content": request_data.get("question")}
+        ]
         
-        payload = {
-            "model": OPENROUTER_MODEL,
-            "messages": [
-                {"role": "system", "content": "You are a helpful assistant. Provide clear, concise answers in plain text format. Do not use LaTeX, markdown, or other formatting. For example, answer '206' instead of '\\boxed{206}'."},
-                {"role": "user", "content": request_data.get("question")}
-            ],
-            "temperature": 0.7,
-            "max_tokens": 500
-        }
-        
-        response = requests.post(
-            OPENROUTER_API_ENDPOINT,
-            headers=headers,
-            json=payload
-        )
+        # Call the selected provider
+        try:
+            if current_provider == AIProvider.OPENROUTER:
+                answer = await call_openrouter(messages)
+            elif current_provider == AIProvider.OLLAMA:
+                answer = await call_ollama(messages)
+            else:
+                raise HTTPException(status_code=400, detail=f"Unsupported provider: {current_provider}")
+        except Exception as provider_err:
+            print(f"Error calling {current_provider}: {provider_err}")
+            raise HTTPException(status_code=500, detail=f"Error calling {current_provider}: {str(provider_err)}")
         
         elapsed_time = time.time() - start_time
-        print(f"OpenRouter response received in {elapsed_time:.2f} seconds with status: {response.status_code}")
+        print(f"{current_provider} response received in {elapsed_time:.2f} seconds")
+        print(f"Received answer: {answer[:50]}...")
         
-        if response.status_code == 200:
-            result = response.json()
-            answer = result["choices"][0]["message"]["content"]
-            print(f"Received answer: {answer[:20]}...")
-            
-            return {
-                "answer": answer,
-                "elapsed_time_seconds": elapsed_time,
-                "status_code": response.status_code
-            }
-        else:
-            print(f"OpenRouter API error: Status {response.status_code}, {response.text}")
-            raise HTTPException(
-                status_code=response.status_code, 
-                detail=f"OpenRouter API error: {response.text}"
-            )
+        return {
+            "answer": answer,
+            "elapsed_time_seconds": elapsed_time,
+            "provider": current_provider,
+            "model": provider_config.model
+        }
             
     except Exception as e:
         error_message = str(e)
@@ -749,13 +1146,366 @@ async def test_ask_question(request_data: dict):
 
 @app.get("/config")
 async def get_config():
-    """Get current configuration values for debugging"""
+    """Get the current configuration of the API"""
+    current_provider = ai_provider_registry.get_current_provider()
     return {
         "mongodb_status": "connected" if mongodb_connected else "disconnected",
-        "openrouter_model": OPENROUTER_MODEL,
-        "openrouter_api": "configured" if OPENROUTER_API_KEY else "not configured",
-        "environment": "production" if os.getenv("ENVIRONMENT") == "production" else "development"
+        "ai_provider": ai_provider_registry.current_provider,
+        "providers": ai_provider_registry.list_providers(),
+        "embedding": {
+            "model": EMBEDDING_MODEL,
+            "loaded": bool(sentence_transformer)
+        }
     }
+
+@app.get("/config/providers")
+async def list_providers():
+    """Get a list of available AI providers and their status"""
+    return {
+        "current_provider": ai_provider_registry.current_provider,
+        "providers": ai_provider_registry.list_providers()
+    }
+
+@app.post("/config/switch-provider/{provider}")
+async def switch_provider(provider: AIProvider):
+    """Switch the AI provider"""
+    # Check if the provider exists and is enabled
+    provider_config = ai_provider_registry.get_provider(provider)
+    if not provider_config:
+        raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
+    
+    if not provider_config.enabled:
+        raise HTTPException(status_code=400, detail=f"Provider {provider} is disabled")
+    
+    # Test the provider before switching
+    test_messages = [
+        {"role": "user", "content": "Hello, this is a test message to verify the provider works."}
+    ]
+    
+    try:
+        # Test the provider based on its type
+        if provider == AIProvider.OPENROUTER:
+            response = await call_openrouter(test_messages)
+        elif provider == AIProvider.OLLAMA:
+            response = await call_ollama(test_messages)
+        else:
+            raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
+        
+        # If we got here, the test was successful, so switch the provider
+        ai_provider_registry.set_current_provider(provider)
+        
+        # Update the .env file with the new setting
+        try:
+            env_path = os.path.join(os.getcwd(), '.env')
+            if os.path.exists(env_path):
+                with open(env_path, 'r') as file:
+                    lines = file.readlines()
+                
+                with open(env_path, 'w') as file:
+                    for line in lines:
+                        if line.startswith('AI_PROVIDER='):
+                            file.write(f'AI_PROVIDER={provider}\n')
+                        else:
+                            file.write(line)
+                print(f"Updated .env file with new AI_PROVIDER={provider}")
+        except Exception as env_err:
+            print(f"Error updating .env file: {env_err}")
+        
+        return {
+            "status": "success",
+            "provider": provider,
+            "test_response_preview": response[:100] if response else None
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "provider": ai_provider_registry.current_provider,  # Return the unchanged provider
+            "error": str(e)
+        }
+
+@app.get("/config/test-ollama")
+async def test_ollama():
+    """Test connection to Ollama API"""
+    provider_config = ai_provider_registry.get_provider(AIProvider.OLLAMA)
+    
+    if not provider_config:
+        return {
+            "status": "error",
+            "message": "Ollama provider not configured"
+        }
+    
+    try:
+        # First test if Ollama server is running
+        ping_url = f"{OLLAMA_URL}/api/tags"
+        try:
+            print(f"Testing Ollama API connection at {ping_url}")
+            response = requests.get(ping_url, timeout=5)
+            if response.status_code != 200:
+                # Update provider status to disabled
+                provider_config.enabled = False
+                return {
+                    "status": "error",
+                    "message": f"Ollama server returned status code {response.status_code}",
+                    "raw_response": response.text
+                }
+        except Exception as conn_err:
+            # Update provider status to disabled
+            provider_config.enabled = False
+            return {
+                "status": "error",
+                "message": f"Could not connect to Ollama server at {OLLAMA_URL}: {str(conn_err)}"
+            }
+        
+        # Test the specified model
+        chat_url = provider_config.endpoint
+        payload = {
+            "model": provider_config.model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "Hello, this is a test message"
+                }
+            ],
+            "stream": False
+        }
+        
+        print(f"Testing Ollama API with model: {provider_config.model}")
+        response = requests.post(
+            chat_url, 
+            headers=provider_config.headers, 
+            json=payload,
+            timeout=60  # Increased timeout for large models like qwq:32B
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            available_models = []
+            
+            # Also get available models
+            try:
+                models_response = requests.get(f"{OLLAMA_URL}/api/tags", timeout=5)
+                if models_response.status_code == 200:
+                    models_data = models_response.json()
+                    if "models" in models_data:
+                        available_models = [model["name"] for model in models_data["models"]]
+            except Exception as models_err:
+                print(f"Error fetching available models: {models_err}")
+            
+            # Update provider status to enabled
+            provider_config.enabled = True
+            
+            return {
+                "status": "success",
+                "message": "Ollama server is working properly",
+                "response_preview": result["message"]["content"][:100] if "message" in result else None,
+                "available_models": available_models,
+                "provider_status": "enabled"
+            }
+        else:
+            # Check if it's a specific model issue
+            if "model not found" in response.text.lower():
+                return {
+                    "status": "error",
+                    "message": f"Model '{provider_config.model}' not found in Ollama",
+                    "raw_response": response.text,
+                    "available_models": await get_ollama_models(),
+                    "action_required": "Please pull the model with: ollama pull " + provider_config.model
+                }
+            
+            # Update provider status to disabled
+            provider_config.enabled = False
+            
+            return {
+                "status": "error",
+                "message": f"Ollama server returned status code {response.status_code}",
+                "raw_response": response.text
+            }
+    except Exception as e:
+        # Update provider status to disabled
+        provider_config.enabled = False
+        
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+async def get_ollama_models():
+    """Helper function to get available Ollama models"""
+    try:
+        models_response = requests.get(f"{OLLAMA_URL}/api/tags", timeout=5)
+        if models_response.status_code == 200:
+            models_data = models_response.json()
+            if "models" in models_data:
+                return [model["name"] for model in models_data["models"]]
+    except Exception:
+        pass
+    return []
+
+@app.post("/api/stories/vectorize-all")
+async def vectorize_all_stories(limit: int = 100):
+    """Batch process all stories to generate or update vector embeddings"""
+    if not mongodb_connected or db is None:
+        raise HTTPException(status_code=503, detail="MongoDB not connected")
+    
+    if not sentence_transformer:
+        raise HTTPException(status_code=503, detail="Sentence transformer model not loaded")
+    
+    try:
+        # Get stories without vector embeddings or with outdated embeddings
+        stories_collection = db.stories
+        
+        # Find stories without embeddings
+        stories_without_embeddings = list(stories_collection.find(
+            {"$or": [
+                {"vectorEmbedding": {"$exists": False}},
+                {"vectorEmbedding": None},
+                {"embeddingModel": {"$ne": EMBEDDING_MODEL}}
+            ]}
+        ).limit(limit))
+        
+        print(f"Found {len(stories_without_embeddings)} stories without proper embeddings")
+        
+        # Process them
+        successfully_processed = 0
+        failed_stories = []
+        
+        for story in stories_without_embeddings:
+            try:
+                story_id = str(story["_id"])
+                content = story.get("content", "")
+                
+                if not content:
+                    print(f"Story {story_id} has no content, skipping")
+                    failed_stories.append({"id": story_id, "reason": "No content"})
+                    continue
+                
+                # Generate embedding
+                vector_embedding = sentence_transformer.encode(content).tolist()
+                
+                # Update the story
+                update_result = stories_collection.update_one(
+                    {"_id": story["_id"]},
+                    {"$set": {
+                        "vectorEmbedding": vector_embedding,
+                        "embeddingModel": EMBEDDING_MODEL,
+                        "embeddingUpdatedAt": datetime.now()
+                    }}
+                )
+                
+                if update_result.modified_count > 0:
+                    successfully_processed += 1
+                    print(f"Successfully updated embedding for story {story_id}")
+                else:
+                    print(f"Failed to update story {story_id} in database")
+                    failed_stories.append({"id": story_id, "reason": "Database update failed"})
+            
+            except Exception as e:
+                story_id = str(story["_id"]) if "_id" in story else "unknown"
+                print(f"Error processing story {story_id}: {e}")
+                failed_stories.append({"id": story_id, "reason": str(e)})
+        
+        return {
+            "status": "success",
+            "total_stories_found": len(stories_without_embeddings),
+            "successfully_processed": successfully_processed,
+            "failed_stories": failed_stories,
+            "embedding_model": EMBEDDING_MODEL
+        }
+        
+    except Exception as e:
+        print(f"Error in vectorize_all_stories: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/database/upgrade-schema")
+async def upgrade_database_schema():
+    """
+    Upgrade the database schema to ensure it has all the required fields for vectorization
+    """
+    if not mongodb_connected or db is None:
+        raise HTTPException(status_code=503, detail="MongoDB not connected")
+    
+    try:
+        # 1. Create indices for faster queries
+        indices_created = []
+        
+        # Stories collection indices
+        try:
+            stories_collection = db.stories
+            # Index on child field for faster retrieval of child's stories
+            stories_collection.create_index("child")
+            # Index on embedding model for finding stories with outdated embeddings
+            stories_collection.create_index("embeddingModel")
+            # Compound index on child and createdAt for sorting by recency
+            stories_collection.create_index([("child", 1), ("createdAt", -1)])
+            
+            indices_created.append("stories collection indices")
+        except Exception as e:
+            print(f"Error creating stories indices: {e}")
+        
+        # 2. Verify and update schema if needed
+        schemas_updated = []
+        
+        # Add required fields to stories collection using updateMany if missing
+        try:
+            result = stories_collection.update_many(
+                {"embeddingModel": {"$exists": False}},
+                {"$set": {"embeddingModel": None, "embeddingUpdatedAt": None}}
+            )
+            schemas_updated.append(f"Added embedding fields to {result.modified_count} stories")
+        except Exception as e:
+            print(f"Error updating stories schema: {e}")
+        
+        # 3. Add vectorEmbedding field to stories that don't have it
+        # This won't actually populate the field with embeddings, just add it as null
+        try:
+            result = stories_collection.update_many(
+                {"vectorEmbedding": {"$exists": False}},
+                {"$set": {"vectorEmbedding": None}}
+            )
+            schemas_updated.append(f"Added vectorEmbedding field to {result.modified_count} stories")
+        except Exception as e:
+            print(f"Error adding vectorEmbedding field: {e}")
+        
+        # 4. Add analysis fields for proper schema
+        try:
+            result = stories_collection.update_many(
+                {"analysis": {"$exists": False}},
+                {"$set": {"analysis": {
+                    "summary": None,
+                    "strengths": [],
+                    "traits": [],
+                    "insights": None,
+                    "analyzed_at": None,
+                    "analyzerModel": None
+                }}}
+            )
+            schemas_updated.append(f"Added analysis fields to {result.modified_count} stories")
+        except Exception as e:
+            print(f"Error adding analysis fields: {e}")
+        
+        # 5. Count documents that need embeddings
+        try:
+            needs_embeddings_count = stories_collection.count_documents({
+                "$or": [
+                    {"vectorEmbedding": None},
+                    {"vectorEmbedding": {"$exists": False}},
+                    {"embeddingModel": {"$ne": EMBEDDING_MODEL}}
+                ]
+            })
+            schemas_updated.append(f"Found {needs_embeddings_count} stories needing embeddings")
+        except Exception as e:
+            print(f"Error counting stories needing embeddings: {e}")
+        
+        return {
+            "status": "success",
+            "timestamp": datetime.now().isoformat(),
+            "indices_created": indices_created,
+            "schemas_updated": schemas_updated,
+            "stories_needing_embeddings": needs_embeddings_count if 'needs_embeddings_count' in locals() else "unknown"
+        }
+    except Exception as e:
+        print(f"Error in upgrade_database_schema: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Helper functions
 def calculate_age(child):
@@ -877,6 +1627,206 @@ def extract_list_items(text):
                     break
     
     return clean_items[:5]  # Limit to 5 items
+
+# Add a function to call different LLM providers
+async def call_llm_provider(messages, max_retries=3, request_id=None):
+    """
+    Call the configured LLM provider based on environment settings
+    """
+    current_provider = ai_provider_registry.get_current_provider()
+    
+    if not current_provider:
+        raise ValueError("No AI provider configured or current provider not set")
+    
+    provider_name = ai_provider_registry.current_provider
+    print(f"Using AI provider: {provider_name}")
+    
+    # Generate a request ID if not provided
+    if not request_id:
+        request_id = f"req_{int(time.time())}_{provider_name}"
+    
+    # Track this request
+    ai_provider_registry.track_request(request_id, {
+        "message_length": sum(len(m.get("content", "")) for m in messages),
+        "model": current_provider.model
+    })
+    
+    for attempt in range(max_retries):
+        try:
+            ai_provider_registry.update_request_status(request_id, "in_progress", attempt=attempt+1)
+            
+            if provider_name == AIProvider.OPENROUTER:
+                result = await call_openrouter(messages)
+            elif provider_name == AIProvider.OLLAMA:
+                result = await call_ollama(messages)
+            else:
+                # Fallback to OpenRouter if provider is unknown
+                print(f"Unknown AI provider: {provider_name}, falling back to OpenRouter")
+                ai_provider_registry.update_request_status(request_id, "fallback", fallback_to="openrouter")
+                if ai_provider_registry.set_current_provider(AIProvider.OPENROUTER):
+                    result = await call_openrouter(messages)
+                else:
+                    raise ValueError(f"Fallback to OpenRouter failed - provider not configured")
+            
+            # Update request status to completed
+            ai_provider_registry.update_request_status(request_id, "completed", 
+                                                     response_length=len(result) if result else 0)
+            return result
+            
+        except Exception as e:
+            print(f"Error calling {provider_name} (attempt {attempt+1}/{max_retries}): {e}")
+            ai_provider_registry.update_request_status(request_id, "error", error=str(e))
+            
+            if attempt == max_retries - 1:
+                # On last attempt, try fallback provider
+                if provider_name != AIProvider.OPENROUTER and ai_provider_registry.get_provider(AIProvider.OPENROUTER).enabled:
+                    print(f"Falling back to OpenRouter after {max_retries} failed attempts with {provider_name}")
+                    ai_provider_registry.update_request_status(request_id, "fallback", fallback_to="openrouter")
+                    try:
+                        result = await call_openrouter(messages)
+                        ai_provider_registry.update_request_status(request_id, "completed", 
+                                                                 response_length=len(result) if result else 0)
+                        return result
+                    except Exception as fallback_err:
+                        print(f"Fallback to OpenRouter also failed: {fallback_err}")
+                        ai_provider_registry.update_request_status(request_id, "failed", 
+                                                                 error=f"Both providers failed: {e}, fallback: {fallback_err}")
+                
+                # Mark as failed if all attempts failed
+                ai_provider_registry.update_request_status(request_id, "failed", error=str(e))
+                raise  # Re-raise the last exception if fallback also failed
+            await asyncio.sleep(1)  # Wait before retrying
+
+async def call_openrouter(messages):
+    """Call OpenRouter API"""
+    provider_config = ai_provider_registry.get_provider(AIProvider.OPENROUTER)
+    
+    if not provider_config or not provider_config.enabled:
+        raise ValueError("OpenRouter provider not configured or disabled")
+    
+    if not provider_config.api_key:
+        raise ValueError("OpenRouter API key not configured")
+    
+    payload = {
+        "model": provider_config.model,
+        "messages": messages
+    }
+    
+    print(f"Calling OpenRouter API with model: {provider_config.model}")
+    response = requests.post(
+        provider_config.endpoint, 
+        headers=provider_config.headers,
+        json=payload,
+        timeout=provider_config.timeout
+    )
+    response.raise_for_status()  # Raise exception for HTTP errors
+    
+    result = response.json()
+    if "choices" not in result or not result["choices"]:
+        raise ValueError(f"Invalid response from OpenRouter: {result}")
+    
+    return result["choices"][0]["message"]["content"]
+
+async def call_ollama(messages):
+    """Call Ollama API"""
+    provider_config = ai_provider_registry.get_provider(AIProvider.OLLAMA)
+    
+    if not provider_config or not provider_config.enabled:
+        raise ValueError("Ollama provider not configured or disabled")
+    
+    # Format messages for Ollama
+    payload = {
+        "model": provider_config.model,
+        "messages": messages,
+        "stream": False
+    }
+    
+    print(f"Calling Ollama API at {provider_config.endpoint} with model: {provider_config.model}")
+    
+    response = requests.post(
+        provider_config.endpoint,
+        headers=provider_config.headers,
+        json=payload,
+        timeout=provider_config.timeout
+    )
+    response.raise_for_status()  # Raise exception for HTTP errors
+    
+    result = response.json()
+    if "message" not in result:
+        raise ValueError(f"Invalid response from Ollama: {result}")
+    
+    return result["message"]["content"]
+
+# Add a function to update or generate embeddings for stories
+async def generate_or_update_embedding(story_id, content=None):
+    """
+    Generate or update the vector embedding for a story
+    """
+    if not mongodb_connected or db is None:
+        print("MongoDB not connected. Cannot update embeddings.")
+        return False
+        
+    try:
+        # Get story content if not provided
+        stories_collection = db["stories"]
+        story = None
+        
+        if not content:
+            story = stories_collection.find_one({"_id": ObjectId(story_id)})
+            if not story:
+                print(f"Story not found with ID: {story_id}")
+                return False
+            content = story.get("content", "")
+            
+        if not content:
+            print(f"Story has no content: {story_id}")
+            return False
+            
+        # Generate embedding
+        if sentence_transformer:
+            vector_embedding = sentence_transformer.encode(content).tolist()
+            
+            # Update the story with the new embedding
+            stories_collection.update_one(
+                {"_id": ObjectId(story_id)},
+                {"$set": {
+                    "vectorEmbedding": vector_embedding,
+                    "embeddingModel": EMBEDDING_MODEL,
+                    "embeddingUpdatedAt": datetime.now()
+                }}
+            )
+            print(f"Updated embedding for story: {story_id}")
+            return True
+        else:
+            print("Sentence transformer not available, cannot generate embedding")
+            return False
+    except Exception as e:
+        print(f"Error generating embedding: {e}")
+        return False
+
+# Add a new endpoint to monitor AI generation status
+@app.get("/api/status/ai-requests")
+async def get_ai_requests_status():
+    """Get status of active and recent AI requests"""
+    active_requests = ai_provider_registry.get_active_requests()
+    return {
+        "current_provider": ai_provider_registry.current_provider,
+        "requests": active_requests
+    }
+
+# Add a /test-ai endpoint for backward compatibility
+@app.post("/test-ai")
+async def test_ai(request_data: dict):
+    """Test endpoint for AI providers - redirects to /api/test/ask for backward compatibility"""
+    if "question" not in request_data:
+        # Try to convert query to question if provided
+        if "query" in request_data:
+            request_data["question"] = request_data["query"]
+        else:
+            raise HTTPException(status_code=400, detail="No question or query provided")
+    
+    # Forward to the existing test endpoint
+    return await test_ask_question(request_data)
 
 # Run the server with: uvicorn app:app --reload
 if __name__ == "__main__":
