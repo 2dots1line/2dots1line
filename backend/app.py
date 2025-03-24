@@ -301,12 +301,12 @@ def validate_mongo_connection():
                 socketTimeoutMS=30000           # 30 second socket timeout
             )
             
-            # Verify connection
-            client.admin.command('ping')
-            print("Connected to MongoDB successfully")
+    # Verify connection
+    client.admin.command('ping')
+    print("Connected to MongoDB successfully")
             
             # Initialize database
-            db = client["2dots1line"]
+    db = client["2dots1line"]
             
             # Verify collections
             required_collections = ["stories", "children", "users", "households"]
@@ -320,14 +320,14 @@ def validate_mongo_connection():
             stories_count = db.stories.count_documents({})
             print(f"Found {stories_count} stories in the database")
             
-            mongodb_connected = True
+    mongodb_connected = True
             return True
             
         except pymongo.errors.ServerSelectionTimeoutError as e:
             print(f"MongoDB server selection timeout (attempt {attempt+1}): {e}")
         except pymongo.errors.ConnectionFailure as e:
             print(f"MongoDB connection failure (attempt {attempt+1}): {e}")
-        except Exception as e:
+except Exception as e:
             print(f"MongoDB connection error (attempt {attempt+1}): {e}")
         
         if attempt < max_retries - 1:
@@ -418,7 +418,7 @@ async def health_check():
             try:
                 # Use our validation function
                 if validate_mongo_connection():
-                    mongodb_status = "connected"
+                mongodb_status = "connected"
                     
                     # Get collection counts for additional info
                     collection_stats = {}
@@ -560,7 +560,7 @@ async def analyze_story(story: Story, request_id: Optional[str] = None):
                         previous_stories_cursor = stories_collection.find({
                             "$or": [
                                 {"child": story.child_id},
-                                {"child_id": story.child_id},
+                                {"child_id": story.child_id}, 
                                 {"childId": story.child_id},
                             ]
                         }).sort("createdAt", -1).limit(5)
@@ -744,7 +744,7 @@ Maintain a positive, encouraging tone while providing substantive feedback.
                     for marker in end_markers:
                         if marker in parts:
                             traits_text = parts.split(marker)[0].strip()
-                            break
+                                    break
                     if traits_text:
                         # Extract bullet points or numbered items
                         lines = traits_text.split('\n')
@@ -834,14 +834,14 @@ Maintain a positive, encouraging tone while providing substantive feedback.
             traits = ["Creative", "Imaginative"]
         
         # Store the story analysis in the database if connected
-        if mongodb_connected and db is not None and story.id:
-            try:
-                stories_collection = db.stories
-                
+                if mongodb_connected and db is not None and story.id:
+                    try:
+                        stories_collection = db.stories
+                        
                 # Save vector embedding and analysis
                 stories_collection.update_one(
                     {"_id": ObjectId(story.id)},
-                    {"$set": {
+                            {"$set": {
                         "analysis": {
                             "summary": summary,
                             "strengths": strengths,
@@ -869,7 +869,7 @@ Maintain a positive, encouraging tone while providing substantive feedback.
             "ai_insights": ai_insights,
             "related_story_ids": [str(s.get("_id", "")) for s in previous_stories[:3]]
         }
-        
+    
     except Exception as e:
         print(f"Error in analyze_story: {e}")
         return {
@@ -1366,7 +1366,7 @@ async def vectorize_all_stories(limit: int = 100, batch_size: int = 10):
                         else:
                             print(f"Failed to update story {story_id} in database")
                             failed_stories.append({"id": story_id, "reason": "Database update failed"})
-                    except Exception as e:
+    except Exception as e:
                         print(f"Error updating story {story_id}: {e}")
                         failed_stories.append({"id": story_id, "reason": str(e)})
                 
@@ -1375,7 +1375,7 @@ async def vectorize_all_stories(limit: int = 100, batch_size: int = 10):
                 for story_id in story_ids:
                     failed_stories.append({"id": story_id, "reason": f"Batch error: {str(batch_err)}"})
         
-        return {
+    return {
             "status": "success",
             "total_stories_found": len(stories_without_embeddings),
             "successfully_processed": successfully_processed,

@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+  <title>3D Globe Bipartite Graph</title>
+    <style>
+    body { margin: 0; overflow: hidden; background-color: #111122; }
+    #tooltip {
+      position: absolute;
+      background: rgba(255, 255, 255, 0.9);
+      color: #333;
+      padding: 10px;
+      border-radius: 4px;
+      font-family: Arial, sans-serif;
+      font-size: 14px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s;
+      z-index: 100;
+      max-width: 250px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+      border: 1px solid rgba(0, 0, 0, 0.1);
+    }
+    .label {
+      color: white;
+      font-family: Arial, sans-serif;
+      font-size: 12px;
+      font-weight: bold;
+      background-color: rgba(0, 0, 0, 0.5);
+      padding: 2px 6px;
+      border-radius: 3px;
+      white-space: nowrap;
+      pointer-events: none;
+      position: absolute;
+      z-index: 10;
+      text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.8);
+    }
+    .journal-label {
+      color: white;
+      font-family: Arial, sans-serif;
+      font-size: 12px;
+      background-color: rgba(0, 0, 0, 0.7);
+      padding: 8px;
+      border-radius: 4px;
+      pointer-events: none;
+      position: absolute;
+      z-index: 20;
+      width: 200px;
+      display: none;
+      text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.8);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(100, 149, 237, 0.5);
+    }
+    </style>
+</head>
+<body>
+  <!-- Tooltip div -->
+  <div id="tooltip"></div>
+  
+  <!-- Container for labels -->
+  <div id="labels-container"></div>
+  
+  <!-- Three.js Library -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  
+  <!-- OrbitControls -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  
+  <!-- D3.js -->
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+  
+  <script>
+    window.onload = function() {
+      console.log("Window loaded, initializing 3D globe bipartite graph visualization");
+      
+      // Create sample data for bipartite graph
+      // Type A nodes - Qualities
+      const qualityNodes = [
+        { id: 'q1', name: 'Resilience', type: 'quality' },
+        { id: 'q2', name: 'Creativity', type: 'quality' },
+        { id: 'q3', name: 'Empathy', type: 'quality' },
+        { id: 'q4', name: 'Leadership', type: 'quality' },
+        { id: 'q5', name: 'Problem Solving', type: 'quality' },
+        { id: 'q6', name: 'Communication', type: 'quality' },
+        { id: 'q7', name: 'Adaptability', type: 'quality' },
+        { id: 'q8', name: 'Critical Thinking', type: 'quality' },
+        { id: 'q9', name: 'Time Management', type: 'quality' },
+        { id: 'q10', name: 'Integrity', type: 'quality' }
+      ];
+      
+      // Type B nodes - Journal entries
+      const journalNodes = [
+        { id: 'j1', title: 'Overcoming Challenges', content: 'Today I faced a difficult problem at work that seemed impossible to solve. The client needed a complex system redesign in half the usual timeframe. Instead of panicking, I broke the problem into smaller components, prioritized tasks, and rallied the team. We worked methodically, focusing on core functionality first. Through persistence and creative thinking, we delivered a solution that exceeded expectations and strengthened our client relationship.', type: 'journal' },
+        { id: 'j2', title: 'Creative Solution', content: 'Our team was struggling with an outdated workflow that was causing delays and frustration. Rather than continuing with incremental improvements, I stepped back and completely reimagined our approach. By combining digital tools with visual management techniques, I created a hybrid system that addressed our unique needs. The solution reduced processing time by 40% and has since been adopted by other departments.', type: 'journal' },
+        { id: 'j3', title: 'Understanding Others', content: 'A colleague was consistently missing deadlines, causing friction within the team. Instead of criticizing, I invited them for coffee and genuinely listened to understand their perspective. I discovered they were dealing with significant personal challenges while trying to manage an overwhelming workload. Together, we developed a plan to redistribute tasks and create a more supportive environment. This experience reminded me how important it is to seek understanding before judgment.', type: 'journal' },
+        { id: 'j4', title: 'Growth Mindset', content: 'When assigned to lead a project using technology I wasn\'t familiar with, my initial reaction was anxiety. Instead of avoiding the challenge, I embraced it as an opportunity to expand my skills. I dedicated extra hours to learning, sought mentorship from experts, and approached difficulties with curiosity rather than frustration. The project not only succeeded but transformed my relationship with learning. I now actively seek challenges that push me beyond my comfort zone.', type: 'journal' },
+        { id: 'j5', title: 'Leading Through Change', content: 'Our organization underwent a major restructuring that created uncertainty and resistance among team members. I recognized the need for clear communication and emotional support during this transition. I organized regular check-ins, created spaces for concerns to be voiced, and maintained transparency about changes as they developed. By acknowledging both the challenges and opportunities of the restructuring, I helped transform skepticism into cautious optimism and eventually into enthusiastic participation.', type: 'journal' },
+        { id: 'j6', title: 'Solving Complex Problems', content: 'The data migration project had stalled for months due to incompatible systems and unclear requirements. When I joined the team, I implemented a methodical approach by first documenting all the barriers and constraints. Then I consulted with stakeholders to establish clear priorities and success criteria. By developing a staged migration strategy with robust validation at each step, we successfully completed a project that had previously seemed impossible. This taught me that even the most complex problems become manageable when approached systematically.', type: 'journal' },
+        { id: 'j7', title: 'Effective Presentation', content: 'The quarterly review meeting was critical for securing continued funding for our research initiative. I knew that simply presenting data wouldn\'t be sufficient to engage our diverse audience of technical and non-technical stakeholders. I redesigned our typical presentation to lead with impact stories, followed by key insights, and only then the supporting data. I practiced extensively, prepared for potential questions, and used visual aids strategically. The approach resonated strongly, leading to increased funding and new partnership opportunities.', type: 'journal' },
+        { id: 'j8', title: 'Adapting to Remote Work', content: 'The sudden transition to remote work due to the pandemic disrupted our highly collaborative team environment. I quickly recognized that simply moving in-person meetings online wouldn\'t maintain our effectiveness. I researched remote collaboration tools and techniques, experimenting with different approaches to maintain team cohesion. By implementing structured check-ins, documenting decisions more thoroughly, and creating informal virtual spaces for team bonding, I helped our team not just adjust to remote work but discover new efficiencies we\'ve since incorporated into our hybrid model.', type: 'journal' },
+        { id: 'j9', title: 'Analyzing Data Trends', content: 'When reviewing our quarterly performance metrics, I noticed subtle patterns that others had overlooked. Rather than accepting the surface-level interpretation, I dug deeper into the data, cross-referencing with customer feedback and market conditions. This analysis revealed that our declining engagement wasn\'t due to product issues as initially assumed, but changing user needs. I developed a comprehensive report with visualizations that made these insights accessible to decision-makers, leading to a strategic pivot that reversed the negative trend within three months.', type: 'journal' },
+        { id: 'j10', title: 'Project Planning', content: 'The annual conference had grown from a small internal event to a major industry gathering, requiring significantly more complex planning. I created a detailed project timeline with clear dependencies, accountability metrics, and contingency plans. By implementing weekly status reviews and a centralized documentation system, I ensured that all team members had visibility into progress and bottlenecks. When unexpected venue issues arose six weeks before the event, our robust planning allowed us to quickly assess alternatives and execute a venue change with minimal disruption.', type: 'journal' },
+        { id: 'j11', title: 'Ethical Decision Making', content: 'During a product development cycle, I discovered that one feature could potentially be misused to collect unauthorized user data. While implementing this feature would have accelerated our timeline and added a competitive advantage, I raised concerns with the leadership team. I presented both the ethical implications and potential long-term reputation risks. Though the decision to remove the feature was initially met with resistance, I maintained my position, supporting it with industry examples and regulatory considerations. The team ultimately redesigned the feature with stronger privacy protections, reinforcing our company\'s commitment to ethical products.', type: 'journal' },
+        { id: 'j12', title: 'Collaborative Research', content: 'The research project required expertise across multiple disciplines that no single team member possessed. I organized a collaborative framework that encouraged knowledge sharing while respecting different methodological approaches. By establishing shared vocabulary and goals early in the process, we avoided the communication pitfalls that often undermine interdisciplinary work. The resulting research benefited from diverse perspectives, identifying novel connections that would have been missed in a more siloed approach. This experience has fundamentally changed how I approach complex research challenges.', type: 'journal' },
+        { id: 'j13', title: 'Mentoring Junior Team Members', content: 'When three new graduates joined our team simultaneously, I recognized an opportunity to develop a more structured mentoring approach. Rather than simply answering questions as they arose, I created a progressive skill development roadmap for their first six months. I scheduled regular one-on-one sessions focused not just on technical skills but also on navigating organizational culture and building professional confidence. By documenting common challenges and effective teaching approaches, I\'ve created a mentoring framework that has since been adopted across the department, standardizing the onboarding experience while still allowing for personalization.', type: 'journal' },
+        { id: 'j14', title: 'Learning New Technologies', content: 'When our team decided to migrate to a new technology stack, I volunteered to lead the transition despite having limited experience with the new tools. I immersed myself in learning resources, built relationships with experts in the field, and created small proof-of-concept projects to test my understanding. Instead of focusing solely on my learning, I developed documentation and training sessions to bring the team along on the journey. This collaborative approach to learning accelerated our collective progress and created a culture where continuous technical education is now viewed as a shared responsibility rather than an individual burden.', type: 'journal' },
+        { id: 'j15', title: 'Conflict Resolution', content: 'A disagreement between two senior team members was creating a tense atmosphere and impeding project progress. Rather than hoping the situation would resolve itself, I facilitated a structured conversation focused on understanding the underlying concerns rather than the surface-level disagreement. By establishing ground rules for the discussion and carefully guiding the conversation toward shared goals, I helped transform a potential escalation into a productive dialogue. The resolution process not only solved the immediate issue but strengthened the relationship between these key team members, leading to more effective collaboration on subsequent projects.', type: 'journal' },
+        { id: 'j16', title: 'Crisis Management', content: 'A critical system failure occurred during peak usage hours, affecting thousands of users. I immediately assembled a cross-functional response team and established clear roles for addressing both the technical issues and customer communication. While engineers diagnosed and fixed the underlying problem, I ensured transparent updates were provided to stakeholders and customers. After resolving the immediate crisis, I led a comprehensive post-mortem that identified both technical and process improvements. The incident response playbook we developed has since become a valuable resource, turning a difficult situation into an opportunity for organizational learning and system strengthening.', type: 'journal' },
+        { id: 'j17', title: 'Innovation Workshop', content: 'Our product had maintained market share but was no longer seen as innovative in an increasingly competitive landscape. I designed and facilitated a two-day innovation workshop that deliberately disrupted our normal thinking patterns. Using a combination of design thinking methodologies, constraint-based creativity exercises, and cross-industry inspiration sessions, I guided the team through a structured ideation process. The workshop generated over 200 initial concepts that were refined into three significant product innovations, two of which have since been developed into successful features. More importantly, the experience changed how our team approaches problem-solving, introducing new creative tools that continue to influence our work.', type: 'journal' },
+        { id: 'j18', title: 'Customer Empathy', content: 'Following feedback about our product being technically sound but difficult to use, I initiated a customer empathy project. I arranged for team members across departments to observe and interview users in their natural environments, focusing on their experiences rather than feature requests. These sessions revealed unexpected usage patterns and pain points that our internal testing had missed. By documenting these insights and creating user personas with emotional journeys, I helped shift our organization\'s perspective from feature-centric to user-centric development. This approach not only improved our current product usability but has fundamentally changed how we evaluate success in all new initiatives.', type: 'journal' },
+        { id: 'j19', title: 'Process Improvement', content: 'Our client onboarding process had evolved over years without deliberate design, resulting in inconsistent experiences and unnecessary complexity. I took ownership of reimagining this critical process by first mapping the current state in detail and identifying pain points from both internal and client perspectives. After researching best practices across industries, I designed a streamlined workflow with clear ownership transitions and communication checkpoints. By involving stakeholders throughout the redesign and implementing changes incrementally, I managed resistance to change and built confidence in the new approach. The improved process has reduced onboarding time by 60% while simultaneously increasing client satisfaction scores.', type: 'journal' },
+        { id: 'j20', title: 'Public Speaking', content: 'Being invited to speak at an industry conference represented both an honor and a significant challenge given my discomfort with public speaking. Rather than delivering a standard presentation, I decided to approach it as a storytelling opportunity, structuring my technical content around a compelling narrative arc. I invested time in understanding the audience\'s background and concerns to ensure relevance, and practiced extensively using video recordings to refine my delivery. The presentation received exceptional feedback, with attendees particularly noting how the narrative approach made complex concepts accessible. This experience transformed my relationship with public speaking from a source of anxiety to a valued professional skill.', type: 'journal' }
+      ];
+      
+      // Combine all nodes
+      const nodes = [...qualityNodes, ...journalNodes];
+      
+      // Define links between nodes (more connections for a richer graph)
+      const links = [
+        // Resilience connections
+        { source: 'q1', target: 'j1' },
+        { source: 'q1', target: 'j4' },
+        { source: 'q1', target: 'j16' },
+        { source: 'q1', target: 'j8' },
+        { source: 'q1', target: 'j19' },
+        
+        // Creativity connections
+        { source: 'q2', target: 'j2' },
+        { source: 'q2', target: 'j17' },
+        { source: 'q2', target: 'j6' },
+        { source: 'q2', target: 'j9' },
+        { source: 'q2', target: 'j12' },
+        
+        // Empathy connections
+        { source: 'q3', target: 'j3' },
+        { source: 'q3', target: 'j15' },
+        { source: 'q3', target: 'j18' },
+        { source: 'q3', target: 'j13' },
+        { source: 'q3', target: 'j5' },
+        
+        // Leadership connections
+        { source: 'q4', target: 'j5' },
+        { source: 'q4', target: 'j13' },
+        { source: 'q4', target: 'j16' },
+        { source: 'q4', target: 'j10' },
+        { source: 'q4', target: 'j20' },
+        
+        // Problem Solving connections
+        { source: 'q5', target: 'j6' },
+        { source: 'q5', target: 'j9' },
+        { source: 'q5', target: 'j19' },
+        { source: 'q5', target: 'j1' },
+        { source: 'q5', target: 'j2' },
+        
+        // Communication connections
+        { source: 'q6', target: 'j7' },
+        { source: 'q6', target: 'j15' },
+        { source: 'q6', target: 'j20' },
+        { source: 'q6', target: 'j3' },
+        { source: 'q6', target: 'j18' },
+        
+        // Adaptability connections
+        { source: 'q7', target: 'j4' },
+        { source: 'q7', target: 'j8' },
+        { source: 'q7', target: 'j14' },
+        { source: 'q7', target: 'j5' },
+        { source: 'q7', target: 'j16' },
+        
+        // Critical Thinking connections
+        { source: 'q8', target: 'j9' },
+        { source: 'q8', target: 'j19' },
+        { source: 'q8', target: 'j11' },
+        { source: 'q8', target: 'j12' },
+        { source: 'q8', target: 'j6' },
+        
+        // Time Management connections
+        { source: 'q9', target: 'j10' },
+        { source: 'q9', target: 'j14' },
+        { source: 'q9', target: 'j1' },
+        { source: 'q9', target: 'j19' },
+        { source: 'q9', target: 'j8' },
+        
+        // Integrity connections
+        { source: 'q10', target: 'j11' },
+        { source: 'q10', target: 'j15' },
+        { source: 'q10', target: 'j3' },
+        { source: 'q10', target: 'j13' },
+        { source: 'q10', target: 'j18' }
+      ];
+      
+      // Create scene
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x111122);
+      
+      // Create camera
+      const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 2000);
+      camera.position.z = 200;
+      
+      // Create renderer
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+      
+      // Add OrbitControls
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      
+      // Add lighting
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+      scene.add(ambientLight);
+      
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+      directionalLight.position.set(1, 1, 1).normalize();
+      scene.add(directionalLight);
+      
+      // Create 3D positions for nodes
+      
+      // Quality nodes in center sphere formation
+      const centerRadius = 30;
+      qualityNodes.forEach((node, i) => {
+        // Fibonacci sphere distribution for even spacing
+        const phi = Math.acos(-1 + (2 * i) / qualityNodes.length);
+        const theta = Math.sqrt(qualityNodes.length * Math.PI) * phi;
+        
+        node.x = centerRadius * Math.cos(theta) * Math.sin(phi);
+        node.y = centerRadius * Math.sin(theta) * Math.sin(phi);
+        node.z = centerRadius * Math.cos(phi);
+      });
+      
+      // Journal nodes in outer sphere
+      const outerRadius = 100;
+      journalNodes.forEach((node, i) => {
+        // Fibonacci sphere distribution
+        const phi = Math.acos(-1 + (2 * i) / journalNodes.length);
+        const theta = Math.sqrt(journalNodes.length * Math.PI) * phi;
+        
+        node.x = outerRadius * Math.cos(theta) * Math.sin(phi);
+        node.y = outerRadius * Math.sin(theta) * Math.sin(phi);
+        node.z = outerRadius * Math.cos(phi);
+      });
+      
+      // Create node objects
+      const nodeObjects = {};
+      const allObjects = [];
+      const labelElements = {};
+      const journalLabelElements = {};
+      
+      // Create quality nodes (spheres)
+      qualityNodes.forEach(node => {
+        const geometry = new THREE.SphereGeometry(5, 32, 32);
+        const material = new THREE.MeshPhongMaterial({ 
+          color: 0xff7f50,  // Orange
+          shininess: 100,
+          emissive: 0x331a00,
+          emissiveIntensity: 0.2
+        });
+        const mesh = new THREE.Mesh(geometry, material);
+        
+        // Position based on our spherical distribution
+        mesh.position.set(node.x, node.y, node.z);
+        mesh.userData = node;
+        
+        scene.add(mesh);
+        nodeObjects[node.id] = mesh;
+        allObjects.push(mesh);
+        
+        // Create HTML label for quality node
+        const labelElement = document.createElement('div');
+        labelElement.className = 'label';
+        labelElement.textContent = node.name;
+        labelElement.style.display = 'block';
+        document.body.appendChild(labelElement);
+        labelElements[node.id] = labelElement;
+      });
+      
+      // Create journal nodes (cubes)
+      journalNodes.forEach(node => {
+        const geometry = new THREE.BoxGeometry(6, 6, 6);
+        const material = new THREE.MeshPhongMaterial({ 
+          color: 0x6495ed,  // Blue
+          shininess: 100,
+          emissive: 0x0a1a3d,
+          emissiveIntensity: 0.2
+        });
+        const mesh = new THREE.Mesh(geometry, material);
+        
+        // Position based on our spherical distribution
+        mesh.position.set(node.x, node.y, node.z);
+        mesh.userData = node;
+        
+        scene.add(mesh);
+        nodeObjects[node.id] = mesh;
+        allObjects.push(mesh);
+        
+        // Create HTML label for journal entries (initially hidden)
+        const journalLabelElement = document.createElement('div');
+        journalLabelElement.className = 'journal-label';
+        journalLabelElement.innerHTML = `<strong>${node.title}</strong><br>${node.content}`;
+        journalLabelElement.style.display = 'none';
+        document.body.appendChild(journalLabelElement);
+        journalLabelElements[node.id] = journalLabelElement;
+      });
+      
+      // Setup for dynamic edges
+      let currentEdges = [];
+      let activeJournalLabels = [];
+      
+      function clearEdges() {
+        currentEdges.forEach(edge => {
+          scene.remove(edge);
+          edge.geometry.dispose();
+          edge.material.dispose();
+        });
+        currentEdges = [];
+        
+        // Hide all journal labels
+        Object.values(journalLabelElements).forEach(label => {
+          label.style.display = 'none';
+        });
+        activeJournalLabels = [];
+      }
+      
+      function showEdgesForNode(nodeId) {
+        clearEdges();
+        
+        // Find all links connected to this node
+        const connectedLinks = links.filter(link => 
+          link.source === nodeId || 
+          (typeof link.source === 'object' && link.source.id === nodeId) ||
+          link.target === nodeId || 
+          (typeof link.target === 'object' && link.target.id === nodeId)
+        );
+        
+        // Get the node we're hovering over
+        const currentNode = nodeObjects[nodeId];
+        const isQualityNode = currentNode && currentNode.userData.type === 'quality';
+        const isJournalNode = currentNode && currentNode.userData.type === 'journal';
+        const connectedJournalNodes = [];
+        const connectedQualityNodes = [];
+        
+        // Create visible lines for each link
+        connectedLinks.forEach(link => {
+          const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+          const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+          
+          const sourceObj = nodeObjects[sourceId];
+          const targetObj = nodeObjects[targetId];
+          
+          if (sourceObj && targetObj) {
+            const points = [
+              sourceObj.position,
+              targetObj.position
+            ];
+            
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const material = new THREE.LineBasicMaterial({ 
+              color: 0xffffff,
+              transparent: true,
+              opacity: 0.7
+            });
+            
+            const line = new THREE.Line(geometry, material);
+            scene.add(line);
+            currentEdges.push(line);
+            
+            // Show journal labels if we're hovering over a quality node
+            if (sourceObj.userData.type === 'quality' && targetObj.userData.type === 'journal') {
+              const journalId = targetObj.userData.id;
+              const journalLabel = journalLabelElements[journalId];
+              if (journalLabel) {
+                journalLabel.style.display = 'block';
+                activeJournalLabels.push(journalId);
+              }
+              
+              // Change journal node color to green when connected to hovered quality
+              if (isQualityNode && sourceId === nodeId) {
+                targetObj.material.color.set(0x00cc66); // Bright green
+                targetObj.material.emissive.set(0x003311); // Dark green emissive
+                connectedJournalNodes.push(targetObj);
+              }
+              
+              // Change quality node color to yellow when connected to hovered journal
+              if (isJournalNode && targetId === nodeId) {
+                sourceObj.material.color.set(0xffdd44); // Bright yellow
+                sourceObj.material.emissive.set(0x332200); // Dark yellow emissive
+                connectedQualityNodes.push(sourceObj);
+              }
+            } else if (sourceObj.userData.type === 'journal' && targetObj.userData.type === 'quality') {
+              const journalId = sourceObj.userData.id;
+              const journalLabel = journalLabelElements[journalId];
+              if (journalLabel) {
+                journalLabel.style.display = 'block';
+                activeJournalLabels.push(journalId);
+              }
+              
+              // Change journal node color to green when connected to hovered quality
+              if (isQualityNode && targetId === nodeId) {
+                sourceObj.material.color.set(0x00cc66); // Bright green
+                sourceObj.material.emissive.set(0x003311); // Dark green emissive
+                connectedJournalNodes.push(sourceObj);
+              }
+              
+              // Change quality node color to yellow when connected to hovered journal
+              if (isJournalNode && sourceId === nodeId) {
+                targetObj.material.color.set(0xffdd44); // Bright yellow
+                targetObj.material.emissive.set(0x332200); // Dark yellow emissive
+                connectedQualityNodes.push(targetObj);
+              }
+            }
+          }
+        });
+        
+        // Store connected nodes for restoration later
+        currentIntersect.userData.connectedJournalNodes = connectedJournalNodes;
+        currentIntersect.userData.connectedQualityNodes = connectedQualityNodes;
+      }
+      
+      // Function to update label positions
+      function updateLabels() {
+        // Update quality node labels
+        qualityNodes.forEach(node => {
+          const mesh = nodeObjects[node.id];
+          const labelElement = labelElements[node.id];
+          
+          if (mesh && labelElement) {
+            // Convert 3D position to screen position
+            const position = mesh.position.clone();
+            position.project(camera);
+            
+            // Convert normalized device coordinates to screen coordinates
+            const x = (position.x * 0.5 + 0.5) * window.innerWidth;
+            const y = (-position.y * 0.5 + 0.5) * window.innerHeight;
+            
+            // Update label position
+            labelElement.style.left = x + 'px';
+            labelElement.style.top = y + 'px';
+            
+            // Adjust opacity based on z-position (objects behind others are less visible)
+            const opacity = position.z < 0 ? 0.3 : 1;
+            labelElement.style.opacity = opacity.toString();
+          }
+        });
+        
+        // Update visible journal labels
+        activeJournalLabels.forEach(journalId => {
+          const mesh = nodeObjects[journalId];
+          const labelElement = journalLabelElements[journalId];
+          
+          if (mesh && labelElement && labelElement.style.display !== 'none') {
+            // Convert 3D position to screen position
+            const position = mesh.position.clone();
+            position.project(camera);
+            
+            // Convert normalized device coordinates to screen coordinates
+            const x = (position.x * 0.5 + 0.5) * window.innerWidth;
+            const y = (-position.y * 0.5 + 0.5) * window.innerHeight;
+            
+            // Update label position (offset slightly to not overlap the node)
+            labelElement.style.left = (x + 15) + 'px';
+            labelElement.style.top = (y - 10) + 'px';
+            
+            // Adjust opacity based on z-position
+            const opacity = position.z < 0 ? 0.3 : 0.9;
+            labelElement.style.opacity = opacity.toString();
+          }
+        });
+      }
+      
+      // Setup raycaster for mouse interaction
+      const raycaster = new THREE.Raycaster();
+      const mouse = new THREE.Vector2();
+      const tooltip = document.getElementById('tooltip');
+      let currentIntersect = null;
+      
+      // Mouse move event handler
+      function onMouseMove(event) {
+        // Calculate mouse position in normalized device coordinates
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        
+        // Update raycaster
+        raycaster.setFromCamera(mouse, camera);
+        
+        // Find intersections
+        const intersects = raycaster.intersectObjects(allObjects);
+        
+        // Handle mouse over/out events
+        if (intersects.length > 0) {
+          // Mouse is over an object
+          const intersectedObject = intersects[0].object;
+          
+          // Position tooltip near mouse
+          tooltip.style.left = event.clientX + 15 + 'px';
+          tooltip.style.top = event.clientY + 'px';
+          
+          // Update tooltip content based on node type
+          const data = intersectedObject.userData;
+          if (data.type === 'quality') {
+            tooltip.innerHTML = `<strong>Quality: ${data.name}</strong>`;
+            tooltip.style.opacity = 1;
+          } else if (data.type === 'journal') {
+            tooltip.innerHTML = `<strong>${data.title}</strong>`;
+            tooltip.style.opacity = 1;
+          }
+          
+          // Highlight object if it's new
+          if (currentIntersect !== intersectedObject) {
+            // Restore previous object if exists
+            if (currentIntersect) {
+              currentIntersect.material.emissive = currentIntersect.userData.type === 'quality' ? 
+                new THREE.Color(0x331a00) : new THREE.Color(0x0a1a3d);
+              currentIntersect.scale.set(1, 1, 1);
+              
+              // Restore connected journal nodes color
+              if (currentIntersect.userData.connectedJournalNodes) {
+                currentIntersect.userData.connectedJournalNodes.forEach(node => {
+                  node.material.color.set(0x6495ed); // Restore to blue
+                  node.material.emissive.set(0x0a1a3d); // Restore original emissive
+                });
+              }
+              
+              // Restore connected quality nodes color
+              if (currentIntersect.userData.connectedQualityNodes) {
+                currentIntersect.userData.connectedQualityNodes.forEach(node => {
+                  node.material.color.set(0xff7f50); // Restore to orange
+                  node.material.emissive.set(0x331a00); // Restore original emissive
+                });
+              }
+            }
+            
+            // Highlight new object
+            intersectedObject.material.emissive = new THREE.Color(0x555555);
+            intersectedObject.scale.set(1.2, 1.2, 1.2);
+            currentIntersect = intersectedObject;
+            
+            // Show edges connected to this node
+            showEdgesForNode(data.id);
+          }
+        } else {
+          // Mouse is not over an object
+          tooltip.style.opacity = 0;
+          
+          // Restore previous object if exists
+          if (currentIntersect) {
+            currentIntersect.material.emissive = currentIntersect.userData.type === 'quality' ? 
+              new THREE.Color(0x331a00) : new THREE.Color(0x0a1a3d);
+            currentIntersect.scale.set(1, 1, 1);
+            
+            // Restore connected journal nodes color
+            if (currentIntersect.userData.connectedJournalNodes) {
+              currentIntersect.userData.connectedJournalNodes.forEach(node => {
+                node.material.color.set(0x6495ed); // Restore to blue
+                node.material.emissive.set(0x0a1a3d); // Restore original emissive
+              });
+            }
+            
+            // Restore connected quality nodes color
+            if (currentIntersect.userData.connectedQualityNodes) {
+              currentIntersect.userData.connectedQualityNodes.forEach(node => {
+                node.material.color.set(0xff7f50); // Restore to orange
+                node.material.emissive.set(0x331a00); // Restore original emissive
+              });
+            }
+            
+            currentIntersect = null;
+            
+            // Clear all edges
+            clearEdges();
+          }
+        }
+      }
+      
+      // Add mouse move event listener
+      window.addEventListener('mousemove', onMouseMove);
+      
+      // Gentle rotation of the entire structure
+      let rotationSpeed = 0.0005;
+      let autoRotate = true;
+      
+      // Add key event for toggling rotation
+      window.addEventListener('keydown', (event) => {
+        if (event.key === 'r' || event.key === 'R') {
+          autoRotate = !autoRotate;
+        }
+      });
+      
+      // Animation loop
+      function animate() {
+        requestAnimationFrame(animate);
+        
+        // Gentle auto-rotation of the scene
+        if (autoRotate) {
+          allObjects.forEach(obj => {
+            obj.position.applyAxisAngle(new THREE.Vector3(0, 1, 0), rotationSpeed);
+          });
+        }
+        
+        // Update label positions
+        updateLabels();
+        
+        // Update controls
+        controls.update();
+        
+        // Render the scene
+        renderer.render(scene, camera);
+      }
+      
+      // Start animation
+      animate();
+      
+      // Handle window resize
+      window.addEventListener('resize', function() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+      
+      console.log("3D globe bipartite graph visualization complete");
+      console.log("Press 'R' to toggle auto-rotation");
+    };
+  </script>
+</body>
+</html>
