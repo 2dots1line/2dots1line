@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2Dots1Line - 互动问答</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+            background-color: #F6F8FB;
+            color: #444444;
+        }
+        .ios-status-bar {
+            height: 44px;
+            background-color: #ffffff;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .primary-button {
+            background-color: #74C69D;
+            transition: all 0.3s ease;
+        }
+        .primary-button:hover, .primary-button:focus {
+            background-color: #5db589;
+            transform: translateY(-2px);
+        }
+        .app-container {
+            max-width: 414px; /* iPhone 15 width */
+            height: 100vh;
+            margin: 0 auto;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+            border-radius: 40px;
+            background-color: #F6F8FB;
+        }
+        .chat-bubble {
+            border-radius: 20px;
+            max-width: 85%;
+            animation: fadeIn 0.5s ease-out;
+            margin-bottom: 16px;
+        }
+        .ai-bubble {
+            background-color: #6CCFF6;
+            color: white;
+        }
+        .user-bubble {
+            background-color: #74C69D;
+            color: white;
+            margin-left: auto;
+        }
+        .highlight-text {
+            font-weight: 600;
+            color: #fff;
+            background-color: rgba(255, 255, 255, 0.2);
+            padding: 0 4px;
+            border-radius: 4px;
+        }
+        .question-card {
+            border-radius: 20px;
+            background-color: white;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+        .input-container {
+            border-radius: 16px;
+            border: 1px solid #E5E7EB;
+            transition: all 0.3s ease;
+        }
+        .input-container:focus-within {
+            border-color: #74C69D;
+            box-shadow: 0 0 0 2px rgba(116, 198, 157, 0.2);
+        }
+        .input-area {
+            resize: none;
+            min-height: 100px;
+            border: none;
+            outline: none;
+            font-size: 16px;
+        }
+        .input-tools {
+            border-top: 1px solid #E5E7EB;
+        }
+        .word-count {
+            color: #9CA3AF;
+            font-size: 12px;
+        }
+        .tag {
+            display: inline-block;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 14px;
+            background-color: #F3F4F6;
+            color: #4B5563;
+            margin-right: 8px;
+            margin-bottom: 8px;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .tag:hover {
+            background-color: #E5E7EB;
+        }
+        .tag.selected {
+            background-color: #74C69D;
+            color: white;
+        }
+        .level-option {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            border-radius: 12px;
+            background-color: white;
+            border: 2px solid transparent;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .level-option:hover {
+            background-color: #F9FAFB;
+        }
+        .level-option.selected {
+            border-color: #74C69D;
+            background-color: #F0FFF4;
+        }
+        .level-option.selected .level-check {
+            opacity: 1;
+        }
+        .level-check {
+            color: #74C69D;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container flex flex-col">
+        <!-- iOS 状态栏 -->
+        <div class="ios-status-bar flex items-center justify-between px-4">
+            <div class="time">9:41</div>
+            <div class="icons flex space-x-2">
+                <i class="fas fa-signal"></i>
+                <i class="fas fa-wifi"></i>
+                <i class="fas fa-battery-full"></i>
+            </div>
+        </div>
+        
+        <!-- 顶部导航栏 -->
+        <div class="flex items-center p-4 bg-white border-b border-gray-200">
+            <a href="view3c.html" class="mr-4">
+                <i class="fas fa-arrow-left text-gray-600"></i>
+            </a>
+            <div class="flex items-center">
+                <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                    <i class="fas fa-robot text-green-500"></i>
+                </div>
+                <h1 class="ml-2 text-lg font-semibold">2Dots1Line 助手</h1>
+            </div>
+        </div>
+        
+        <!-- 主要内容区域 -->
+        <div class="flex-grow overflow-y-auto p-4">
+            <div class="chat-bubble ai-bubble p-4">
+                <p class="leading-relaxed">您提到孩子有真正热爱的特长，这是非常宝贵的！真正的热情是申请中最能打动招生官的因素之一。能否分享一下，这项特长是什么，以及孩子是如何发展这项热爱的呢？</p>
+            </div>
+            
+            <div class="question-card p-5 my-4 animation-delay-300">
+                <h3 class="text-lg font-semibold mb-3">孩子的特长领域</h3>
+                <p class="text-gray-600 mb-4">请选择孩子最热爱的特长领域（可多选）</p>
+                
+                <div class="flex flex-wrap mb-5">
+                    <span class="tag" data-value="music">音乐</span>
+                    <span class="tag" data-value="art">美术/设计</span>
+                    <span class="tag" data-value="dance">舞蹈/表演</span>
+                    <span class="tag" data-value="writing">写作/文学</span>
+                    <span class="tag" data-value="sports">体育运动</span>
+                    <span class="tag" data-value="science">科学研究</span>
+                    <span class="tag" data-value="tech">科技/编程</span>
+                    <span class="tag" data-value="debate">辩论/演讲</span>
+                    <span class="tag" data-value="leadership">领导力/组织</span>
+                    <span class="tag" data-value="social">社会服务</span>
+                    <span class="tag" data-value="other">其他</span>
+                </div>
+                
+                <div id="specific-talents" class="mt-4 mb-5 hidden">
+                    <h3 class="text-lg font-semibold mb-3">具体特长</h3>
+                    
+                    <!-- 音乐特长选项，默认隐藏 -->
+                    <div class="talent-section hidden" id="music-options">
+                        <div class="flex flex-wrap mb-3">
+                            <span class="tag" data-value="piano">钢琴</span>
+                            <span class="tag" data-value="violin">小提琴</span>
+                            <span class="tag" data-value="guitar">吉他</span>
+                            <span class="tag" data-value="vocal">声乐</span>
+                            <span class="tag" data-value="composition">作曲</span>
+                            <span class="tag" data-value="other-music">其他乐器</span>
+                        </div>
+                    </div>
+                    
+                    <!-- 体育特长选项，默认隐藏 -->
+                    <div class="talent-section hidden" id="sports-options">
+                        <div class="flex flex-wrap mb-3">
+                            <span class="tag" data-value="soccer">足球</span>
+                            <span class="tag" data-value="basketball">篮球</span>
+                            <span class="tag" data-value="tennis">网球</span>
+                            <span class="tag" data-value="swimming">游泳</span>
+                            <span class="tag" data-value="track">田径</span>
+                            <span class="tag" data-value="golf">高尔夫</span>
+                            <span class="tag" data-value="fencing">击剑</span>
+                            <span class="tag" data-value="other-sports">其他运动</span>
+                        </div>
+                    </div>
+                    
+                    <!-- 科技特长选项，默认隐藏 -->
+                    <div class="talent-section hidden" id="tech-options">
+                        <div class="flex flex-wrap mb-3">
+                            <span class="tag" data-value="coding">编程</span>
+                            <span class="tag" data-value="robotics">机器人</span>
+                            <span class="tag" data-value="ai">人工智能</span>
+                            <span class="tag" data-value="game-dev">游戏开发</span>
+                            <span class="tag" data-value="app-dev">应用开发</span>
+                            <span class="tag" data-value="other-tech">其他技术</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <h3 class="text-lg font-semibold mb-3">特长水平</h3>
+                <p class="text-gray-600 mb-4">请选择孩子在这方面的水平</p>
+                
+                <div class="level-options mb-5">
+                    <div class="level-option" data-value="school">
+                        <div class="flex-grow">
+                            <div class="font-medium">校内活跃</div>
+                            <div class="text-sm text-gray-500">在学校内积极参与相关活动</div>
+                        </div>
+                        <i class="fas fa-check level-check ml-3"></i>
+                    </div>
+                    
+                    <div class="level-option" data-value="city">
+                        <div class="flex-grow">
+                            <div class="font-medium">市/区级水平</div>
+                            <div class="text-sm text-gray-500">在市区级比赛或活动中有所表现</div>
+                        </div>
+                        <i class="fas fa-check level-check ml-3"></i>
+                    </div>
+                    
+                    <div class="level-option" data-value="province">
+                        <div class="flex-grow">
+                            <div class="font-medium">省级水平</div>
+                            <div class="text-sm text-gray-500">在省级比赛或活动中取得过成绩</div>
+                        </div>
+                        <i class="fas fa-check level-check ml-3"></i>
+                    </div>
+                    
+                    <div class="level-option" data-value="national">
+                        <div class="flex-grow">
+                            <div class="font-medium">国家级水平</div>
+                            <div class="text-sm text-gray-500">参与过全国性比赛或获得过国家级认可</div>
+                        </div>
+                        <i class="fas fa-check level-check ml-3"></i>
+                    </div>
+                    
+                    <div class="level-option" data-value="international">
+                        <div class="flex-grow">
+                            <div class="font-medium">国际级水平</div>
+                            <div class="text-sm text-gray-500">参与过国际比赛或有国际级认可</div>
+                        </div>
+                        <i class="fas fa-check level-check ml-3"></i>
+                    </div>
+                </div>
+                
+                <h3 class="text-lg font-semibold mb-3">特长故事</h3>
+                <p class="text-gray-600 mb-4">请分享一个展现孩子对这项特长热爱的小故事或例子</p>
+                
+                <div class="input-container mb-5">
+                    <textarea class="input-area w-full p-4" placeholder="例如：孩子如何开始对这项特长产生兴趣、克服了什么困难、取得过什么成就，或者表现出怎样的热情..." id="talent-story"></textarea>
+                    <div class="input-tools p-2 flex justify-end items-center">
+                        <div class="word-count">0/300字</div>
+                    </div>
+                </div>
+                
+                <h3 class="text-lg font-semibold mb-3">对未来的规划</h3>
+                <p class="text-gray-600 mb-4">孩子是否希望在大学继续发展这项特长？</p>
+                
+                <div class="level-options mb-5">
+                    <div class="level-option" data-future="major">
+                        <div class="flex-grow">
+                            <div class="font-medium">希望相关专业深造</div>
+                            <div class="text-sm text-gray-500">计划在大学选择与该特长相关的专业</div>
+                        </div>
+                        <i class="fas fa-check level-check ml-3"></i>
+                    </div>
+                    
+                    <div class="level-option" data-future="minor">
+                        <div class="flex-grow">
+                            <div class="font-medium">作为辅修/第二专业</div>
+                            <div class="text-sm text-gray-500">主修其他领域，但希望继续发展这项特长</div>
+                        </div>
+                        <i class="fas fa-check level-check ml-3"></i>
+                    </div>
+                    
+                    <div class="level-option" data-future="hobby">
+                        <div class="flex-grow">
+                            <div class="font-medium">作为爱好继续</div>
+                            <div class="text-sm text-gray-500">在校园社团或课余时间继续这项爱好</div>
+                        </div>
+                        <i class="fas fa-check level-check ml-3"></i>
+                    </div>
+                    
+                    <div class="level-option" data-future="unsure">
+                        <div class="flex-grow">
+                            <div class="font-medium">尚未确定</div>
+                            <div class="text-sm text-gray-500">对未来规划还在思考中</div>
+                        </div>
+                        <i class="fas fa-check level-check ml-3"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex space-x-3 mt-6 mb-8">
+                <button id="save-draft" class="flex-grow py-4 border border-gray-300 rounded-xl text-gray-700 font-medium">
+                    保存草稿
+                </button>
+                <button id="next-button" class="primary-button flex-grow py-4 text-white rounded-xl font-medium">
+                    继续
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 标签选择逻辑
+        const tags = document.querySelectorAll('.tag');
+        const talentSections = document.querySelectorAll('.talent-section');
+        const specificTalents = document.getElementById('specific-talents');
+        
+        let selectedTalents = [];
+        
+        tags.forEach(tag => {
+            tag.addEventListener('click', function() {
+                const value = this.getAttribute('data-value');
+                
+                // 检查是否在主分类中
+                if (['music', 'sports', 'tech'].includes(value)) {
+                    this.classList.toggle('selected');
+                    
+                    // 显示或隐藏对应的子分类
+                    const optionsId = `${value}-options`;
+                    const optionsElement = document.getElementById(optionsId);
+                    
+                    if (this.classList.contains('selected')) {
+                        specificTalents.classList.remove('hidden');
+                        optionsElement.classList.remove('hidden');
+                    } else {
+                        optionsElement.classList.add('hidden');
+                        // 检查是否还有其他选中的主分类
+                        const anySelected = Array.from(tags).some(t => 
+                            ['music', 'sports', 'tech'].includes(t.getAttribute('data-value')) && 
+                            t.classList.contains('selected')
+                        );
+                        if (!anySelected) {
+                            specificTalents.classList.add('hidden');
+                        }
+                    }
+                } else {
+                    // 子分类标签处理
+                    this.classList.toggle('selected');
+                }
+                
+                // 更新选中的特长
+                updateSelectedTalents();
+            });
+        });
+        
+        function updateSelectedTalents() {
+            selectedTalents = [];
+            tags.forEach(tag => {
+                if (tag.classList.contains('selected')) {
+                    selectedTalents.push(tag.getAttribute('data-value'));
+                }
+            });
+        }
+        
+        // 水平选择逻辑
+        const levelOptions = document.querySelectorAll('.level-option[data-value]');
+        let selectedLevel = null;
+        
+        levelOptions.forEach(option => {
+            option.addEventListener('click', function() {
+                levelOptions.forEach(o => o.classList.remove('selected'));
+                this.classList.add('selected');
+                selectedLevel = this.getAttribute('data-value');
+            });
+        });
+        
+        // 未来规划选择逻辑
+        const futureOptions = document.querySelectorAll('.level-option[data-future]');
+        let selectedFuture = null;
+        
+        futureOptions.forEach(option => {
+            option.addEventListener('click', function() {
+                futureOptions.forEach(o => o.classList.remove('selected'));
+                this.classList.add('selected');
+                selectedFuture = this.getAttribute('data-future');
+            });
+        });
+        
+        // 文本区域字数统计
+        const talentStory = document.getElementById('talent-story');
+        const wordCount = document.querySelector('.word-count');
+        
+        talentStory.addEventListener('input', function() {
+            const count = this.value.length;
+            wordCount.textContent = `${count}/300字`;
+            
+            if (count > 300) {
+                wordCount.classList.add('text-red-500');
+            } else {
+                wordCount.classList.remove('text-red-500');
+            }
+        });
+        
+        // 下一步按钮点击事件
+        document.getElementById('next-button').addEventListener('click', function() {
+            // 这里可以添加表单验证逻辑
+            
+            // 收集所有数据
+            const formData = {
+                talents: selectedTalents,
+                level: selectedLevel,
+                story: talentStory.value,
+                future: selectedFuture
+            };
+            
+            // 可以将数据保存到 localStorage 或通过其他方式传递
+            localStorage.setItem('talentData', JSON.stringify(formData));
+            
+            // 跳转到下一页
+            window.location.href = 'viewOpen1.html';
+        });
+        
+        // 保存草稿按钮点击事件
+        document.getElementById('save-draft').addEventListener('click', function() {
+            alert('草稿已保存，您可以稍后继续完成。');
+        });
+    </script>
+</body>
+</html> 

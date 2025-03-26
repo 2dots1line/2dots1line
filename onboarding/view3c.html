@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2Dots1Line - 互动问答</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+            background-color: #F6F8FB;
+            color: #444444;
+        }
+        .ios-status-bar {
+            height: 44px;
+            background-color: #ffffff;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .primary-button {
+            background-color: #74C69D;
+            transition: all 0.3s ease;
+        }
+        .primary-button:hover {
+            background-color: #5db589;
+            transform: translateY(-2px);
+        }
+        .app-container {
+            max-width: 414px; /* iPhone 15 width */
+            height: 100vh;
+            margin: 0 auto;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+            border-radius: 40px;
+            background-color: #F6F8FB;
+        }
+        .safe-area {
+            padding-top: 59px; /* iPhone 15 top safe area */
+            padding-bottom: 34px; /* iPhone 15 bottom safe area */
+        }
+        .chat-bubble {
+            border-radius: 20px;
+            max-width: 85%;
+            animation: fadeIn 0.5s ease-out;
+            margin-bottom: 16px;
+        }
+        .ai-bubble {
+            background-color: #6CCFF6;
+            color: white;
+        }
+        .user-bubble {
+            background-color: #74C69D;
+            color: white;
+            margin-left: auto;
+        }
+        .highlight-text {
+            font-weight: 600;
+            color: #fff;
+            background-color: rgba(255, 255, 255, 0.2);
+            padding: 0 4px;
+            border-radius: 4px;
+        }
+        .quick-reply {
+            border-radius: 16px;
+            transition: all 0.3s ease;
+            border: 2px solid #74C69D;
+        }
+        .quick-reply:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            background-color: #74C69D;
+            color: white;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .typing-animation span {
+            width: 8px;
+            height: 8px;
+            background: #fff;
+            display: inline-block;
+            border-radius: 50%;
+            margin: 0 1px;
+            animation: typing 1.5s infinite ease-in-out;
+        }
+        .typing-animation span:nth-child(2) {
+            animation-delay: 0.3s;
+        }
+        .typing-animation span:nth-child(3) {
+            animation-delay: 0.6s;
+        }
+        @keyframes typing {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+        .chat-bubble.delayed-1 {
+            animation-delay: 0.5s;
+            opacity: 0;
+            animation-fill-mode: forwards;
+        }
+        .chat-bubble.delayed-2 {
+            animation-delay: 1.5s;
+            opacity: 0;
+            animation-fill-mode: forwards;
+        }
+        .chat-bubble.delayed-3 {
+            animation-delay: 2.5s;
+            opacity: 0;
+            animation-fill-mode: forwards;
+        }
+        .options-container {
+            animation: fadeIn 3.5s forwards;
+            opacity: 0;
+            animation-fill-mode: forwards;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container flex flex-col">
+        <!-- iOS 状态栏 -->
+        <div class="ios-status-bar flex items-center justify-between px-4">
+            <div class="time">9:41</div>
+            <div class="icons flex space-x-2">
+                <i class="fas fa-signal"></i>
+                <i class="fas fa-wifi"></i>
+                <i class="fas fa-battery-full"></i>
+            </div>
+        </div>
+        
+        <!-- 顶部导航栏 -->
+        <div class="flex items-center p-4 bg-white border-b border-gray-200">
+            <a href="view2.html" class="mr-4">
+                <i class="fas fa-arrow-left text-gray-600"></i>
+            </a>
+            <div class="flex items-center">
+                <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                    <i class="fas fa-robot text-green-500"></i>
+                </div>
+                <h1 class="ml-2 text-lg font-semibold">2Dots1Line 助手</h1>
+            </div>
+        </div>
+        
+        <!-- 聊天区域 -->
+        <div class="flex-grow overflow-y-auto p-4" id="chat-container">
+            <div class="chat-bubble ai-bubble p-4">
+                <p class="leading-relaxed">有个问题我特别想听听您的看法：</p>
+                <p class="leading-relaxed">您觉得来自中国大陆的、最终成功申请到美国名校本科的学生，他们身上最关键的成功因素到底是什么呢？</p>
+            </div>
+            
+            <div class="chat-bubble user-bubble p-4">
+                <p class="leading-relaxed">才艺特长，比如音乐、体育、艺术、科创等，能够展现出学生的独特性和专注力</p>
+            </div>
+            
+            <div class="chat-bubble ai-bubble p-4 delayed-1">
+                <p class="leading-relaxed">您提到了一个非常有价值的角度！特长和才艺确实能让申请脱颖而出。</p>
+                <p class="leading-relaxed">美国大学非常看重学生的独特性和多样性，一项深度发展的特长可以展示学生的专注力和热情。</p>
+            </div>
+            
+            <div class="chat-bubble ai-bubble p-4 delayed-2">
+                <p class="leading-relaxed">不过我们的研究发现，真正打动招生官的不仅是才艺的水平，而是学生在培养这项才艺过程中表现出的<span class="highlight-text">热爱和坚持</span>。</p>
+                <p class="leading-relaxed">一位斯坦福的招生官曾说："我们不是在寻找专业的音乐家或运动员，而是寻找那些通过才艺展现出自己价值观和内在驱动力的人。"</p>
+            </div>
+            
+            <div class="chat-bubble ai-bubble p-4 delayed-3">
+                <p class="leading-relaxed">您的观点非常有深度。确实，真正的热情与才华是最难被伪造的，也是最容易被招生官感知到的。</p>
+                <p class="leading-relaxed">想进一步了解如何帮助有特长的孩子在申请中脱颖而出吗？</p>
+            </div>
+            
+            <div class="options-container mt-8">
+                <div class="space-y-3">
+                    <div class="quick-reply bg-white p-4 flex items-center justify-between cursor-pointer shadow-sm" onclick="window.location.href='viewTalentFollow.html?previous=7'">
+                        <div>
+                            <div class="font-medium">是的，我想了解更多</div>
+                            <div class="text-sm text-gray-500">如何帮助有特长的孩子申请</div>
+                        </div>
+                        <i class="fas fa-chevron-right text-green-500"></i>
+                    </div>
+                    
+                    <div class="quick-reply bg-white p-4 flex items-center justify-between cursor-pointer shadow-sm" onclick="window.location.href='viewOpen1.html?previous=8'">
+                        <div>
+                            <div class="font-medium">想了解其他因素</div>
+                            <div class="text-sm text-gray-500">探索更多申请成功要素</div>
+                        </div>
+                        <i class="fas fa-chevron-right text-green-500"></i>
+                    </div>
+                    
+                    <div class="quick-reply bg-white p-4 flex items-center justify-between cursor-pointer shadow-sm" onclick="window.location.href='viewOpen1.html?previous=9'">
+                        <div>
+                            <div class="font-medium">不确定孩子有什么特长</div>
+                            <div class="text-sm text-gray-500">如何发掘孩子的潜力</div>
+                        </div>
+                        <i class="fas fa-chevron-right text-green-500"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 确保滚动到底部以查看最新消息
+        function scrollToBottom() {
+            const chatContainer = document.getElementById('chat-container');
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+        
+        // 页面加载后自动滚动
+        window.onload = function() {
+            setTimeout(scrollToBottom, 100);
+            
+            // 每次新消息出现后也滚动
+            setTimeout(scrollToBottom, 600);
+            setTimeout(scrollToBottom, 1600);
+            setTimeout(scrollToBottom, 2600);
+            setTimeout(scrollToBottom, 3600);
+        };
+    </script>
+</body>
+</html> 

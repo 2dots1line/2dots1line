@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>两点一线 - 首页</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+            background-color: #F6F8FB;
+            color: #444444;
+        }
+        .ios-status-bar {
+            height: 44px;
+            background-color: #ffffff;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .app-container {
+            max-width: 414px; /* iPhone 15 width */
+            height: 100vh;
+            margin: 0 auto;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+            border-radius: 40px;
+            background-color: #F6F8FB;
+        }
+        .primary-bg {
+            background-color: #74C69D;
+        }
+        .secondary-bg {
+            background-color: #6CCFF6;
+        }
+        .feature-card {
+            background-color: white;
+            border-radius: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        }
+        .nav-item {
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        .nav-item.active:before {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 30px;
+            height: 3px;
+            background-color: #74C69D;
+            border-radius: 3px;
+        }
+        .nav-item.active {
+            color: #74C69D;
+        }
+        .logo-pulse {
+            animation: pulsate 2s infinite;
+        }
+        .logo-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin: 0 2px;
+        }
+        .logo-dot-1 {
+            background-color: #6CCFF6;
+        }
+        .logo-dot-2 {
+            background-color: #74C69D;
+        }
+        @keyframes pulsate {
+            0% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.05);
+            }
+            100% {
+                transform: scale(1);
+            }
+        }
+        .feature-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container flex flex-col">
+        <!-- iOS 状态栏 -->
+        <div class="ios-status-bar flex items-center justify-between px-4">
+            <div class="time">9:41</div>
+            <div class="icons flex space-x-2">
+                <i class="fas fa-signal"></i>
+                <i class="fas fa-wifi"></i>
+                <i class="fas fa-battery-full"></i>
+            </div>
+        </div>
+        
+        <!-- 顶部导航栏 -->
+        <div class="flex items-center p-4 bg-white border-b border-gray-200">
+            <div class="flex items-center">
+                <div class="logo-pulse flex items-center">
+                    <span class="logo-dot logo-dot-1"></span>
+                    <span class="logo-dot logo-dot-2"></span>
+                    <span class="ml-1 text-lg font-bold">两点一线</span>
+                </div>
+            </div>
+            <div class="ml-auto flex space-x-3">
+                <button class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                    <i class="fas fa-bell text-gray-500"></i>
+                </button>
+                <button class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                    <i class="fas fa-cog text-gray-500"></i>
+                </button>
+            </div>
+        </div>
+        
+        <!-- 主要内容区域 -->
+        <div class="flex-grow overflow-y-auto p-4">
+            <!-- 欢迎横幅 -->
+            <div class="bg-gradient-to-r from-green-400 to-blue-400 rounded-2xl p-6 text-white mb-6">
+                <h2 class="text-xl font-bold mb-2">欢迎回来，张先生</h2>
+                <p class="mb-4 opacity-90">今天是您孩子申请规划的第12天</p>
+                <div class="flex items-center">
+                    <div class="flex-grow">
+                        <div class="text-sm mb-1">规划完成度</div>
+                        <div class="w-full bg-white bg-opacity-30 rounded-full h-2">
+                            <div class="bg-white rounded-full h-2" style="width: 35%"></div>
+                        </div>
+                    </div>
+                    <span class="ml-3 text-lg font-bold">35%</span>
+                </div>
+            </div>
+            
+            <!-- 功能卡片 -->
+            <h3 class="text-lg font-semibold mb-4">推荐功能</h3>
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <a href="#" class="feature-card p-4">
+                    <div class="feature-icon primary-bg mb-4">
+                        <i class="fas fa-file-alt"></i>
+                    </div>
+                    <h4 class="font-medium mb-1">文书评估</h4>
+                    <p class="text-sm text-gray-500">获取专业文书反馈</p>
+                </a>
+                
+                <a href="#" class="feature-card p-4">
+                    <div class="feature-icon secondary-bg mb-4">
+                        <i class="fas fa-calendar-alt"></i>
+                    </div>
+                    <h4 class="font-medium mb-1">申请规划</h4>
+                    <p class="text-sm text-gray-500">制定个性化计划</p>
+                </a>
+                
+                <a href="#" class="feature-card p-4">
+                    <div class="feature-icon secondary-bg mb-4">
+                        <i class="fas fa-graduation-cap"></i>
+                    </div>
+                    <h4 class="font-medium mb-1">学校匹配</h4>
+                    <p class="text-sm text-gray-500">发现最适合的学校</p>
+                </a>
+                
+                <a href="#" class="feature-card p-4">
+                    <div class="feature-icon primary-bg mb-4">
+                        <i class="fas fa-comments"></i>
+                    </div>
+                    <h4 class="font-medium mb-1">咨询顾问</h4>
+                    <p class="text-sm text-gray-500">预约专业咨询师</p>
+                </a>
+            </div>
+            
+            <!-- 任务列表 -->
+            <h3 class="text-lg font-semibold mb-4">今日任务</h3>
+            <div class="bg-white rounded-2xl p-5 mb-6">
+                <div class="flex items-center mb-4 pb-4 border-b border-gray-100">
+                    <div class="w-6 h-6 rounded-full border-2 border-green-500 flex items-center justify-center mr-4">
+                        <i class="fas fa-check text-xs text-green-500"></i>
+                    </div>
+                    <div class="flex-grow">
+                        <h4 class="font-medium">完成基本信息填写</h4>
+                        <p class="text-sm text-gray-500">已完成</p>
+                    </div>
+                </div>
+                
+                <div class="flex items-center mb-4 pb-4 border-b border-gray-100">
+                    <div class="w-6 h-6 rounded-full border-2 border-green-500 flex items-center justify-center mr-4">
+                        <i class="fas fa-check text-xs text-green-500"></i>
+                    </div>
+                    <div class="flex-grow">
+                        <h4 class="font-medium">分享申请问题</h4>
+                        <p class="text-sm text-gray-500">已完成</p>
+                    </div>
+                </div>
+                
+                <div class="flex items-center mb-4 pb-4 border-b border-gray-100">
+                    <div class="w-6 h-6 rounded-full border-2 border-blue-500 flex items-center justify-center mr-4">
+                        <div class="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    </div>
+                    <div class="flex-grow">
+                        <h4 class="font-medium">上传成绩单</h4>
+                        <p class="text-sm text-gray-500">进行中</p>
+                    </div>
+                </div>
+                
+                <div class="flex items-center">
+                    <div class="w-6 h-6 rounded-full border-2 border-gray-300 mr-4"></div>
+                    <div class="flex-grow">
+                        <h4 class="font-medium text-gray-400">预约咨询顾问</h4>
+                        <p class="text-sm text-gray-400">未开始</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 最近活动 -->
+            <h3 class="text-lg font-semibold mb-4">最近活动</h3>
+            <div class="bg-white rounded-2xl p-5 mb-8">
+                <div class="flex items-center mb-4 pb-4 border-b border-gray-100">
+                    <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mr-4">
+                        <i class="fas fa-file-alt text-blue-500"></i>
+                    </div>
+                    <div class="flex-grow">
+                        <h4 class="font-medium">文书样例生成完成</h4>
+                        <p class="text-sm text-gray-500">2小时前</p>
+                    </div>
+                    <i class="fas fa-angle-right text-gray-400"></i>
+                </div>
+                
+                <div class="flex items-center">
+                    <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center mr-4">
+                        <i class="fas fa-user-plus text-green-500"></i>
+                    </div>
+                    <div class="flex-grow">
+                        <h4 class="font-medium">张老师已接受您的咨询请求</h4>
+                        <p class="text-sm text-gray-500">昨天</p>
+                    </div>
+                    <i class="fas fa-angle-right text-gray-400"></i>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 底部导航 -->
+        <div class="flex bg-white border-t border-gray-200 p-2">
+            <a href="#" class="flex-grow flex flex-col items-center py-2 nav-item active">
+                <i class="fas fa-home text-lg mb-1"></i>
+                <span class="text-xs">首页</span>
+            </a>
+            <a href="#" class="flex-grow flex flex-col items-center py-2 nav-item">
+                <i class="fas fa-search text-lg mb-1"></i>
+                <span class="text-xs">探索</span>
+            </a>
+            <a href="#" class="flex-grow flex flex-col items-center py-2 nav-item">
+                <i class="fas fa-clipboard-list text-lg mb-1"></i>
+                <span class="text-xs">任务</span>
+            </a>
+            <a href="#" class="flex-grow flex flex-col items-center py-2 nav-item">
+                <i class="fas fa-user text-lg mb-1"></i>
+                <span class="text-xs">我的</span>
+            </a>
+        </div>
+    </div>
+    
+    <script>
+        // 显示当前时间
+        function updateTime() {
+            const timeElement = document.querySelector('.time');
+            const now = new Date();
+            const hours = now.getHours().toString().padStart(2, '0');
+            const minutes = now.getMinutes().toString().padStart(2, '0');
+            timeElement.textContent = `${hours}:${minutes}`;
+        }
+        
+        // 页面加载时更新时间，并设置定时器每分钟更新一次
+        updateTime();
+        setInterval(updateTime, 60000);
+        
+        // 检查用户是否已登录，如果没有则重定向到登录页面
+        window.onload = function() {
+            // 实际应用中，这里应该检查本地存储或Cookie中的登录状态
+            // 这里使用模拟登录检查，始终重定向到登录页面
+            const isLoggedIn = localStorage.getItem('isLoggedIn');
+            
+            if (!isLoggedIn) {
+                window.location.href = 'login.html';
+            }
+        };
+    </script>
+</body>
+</html> 

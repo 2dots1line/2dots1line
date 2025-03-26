@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2Dots1Line - 您的教育经历</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+            background-color: #F6F8FB;
+            color: #444444;
+        }
+        .ios-status-bar {
+            height: 44px;
+            background-color: #ffffff;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .primary-button {
+            background-color: #74C69D;
+            transition: all 0.3s ease;
+        }
+        .primary-button:hover, .primary-button:focus {
+            background-color: #5db589;
+            transform: translateY(-2px);
+        }
+        .secondary-button {
+            background-color: #F3F4F6;
+            transition: all 0.3s ease;
+        }
+        .secondary-button:hover, .secondary-button:focus {
+            background-color: #E5E7EB;
+            transform: translateY(-2px);
+        }
+        .app-container {
+            max-width: 414px; /* iPhone 15 width */
+            height: 100vh;
+            margin: 0 auto;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+            border-radius: 40px;
+            background-color: #F6F8FB;
+        }
+        .question-card {
+            border-radius: 20px;
+            background-color: white;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            animation: fadeIn 0.5s ease-out;
+        }
+        .input-container {
+            border-radius: 16px;
+            border: 1px solid #E5E7EB;
+            transition: all 0.3s ease;
+        }
+        .input-container:focus-within {
+            border-color: #74C69D;
+            box-shadow: 0 0 0 2px rgba(116, 198, 157, 0.2);
+        }
+        .input-area {
+            resize: none;
+            min-height: 100px;
+            border: none;
+            outline: none;
+            font-size: 16px;
+        }
+        .input-tools {
+            border-top: 1px solid #E5E7EB;
+        }
+        .word-count {
+            color: #9CA3AF;
+            font-size: 12px;
+        }
+        .tip-card {
+            border-radius: 16px;
+            background-color: #F0FFF4;
+            border-left: 4px solid #74C69D;
+        }
+        .memory-card {
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+        }
+        .memory-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+        }
+        .memory-header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+        .memory-regret-header {
+            background: linear-gradient(135deg, #ff9a9e 0%, #fad0c4 100%);
+            color: white;
+        }
+        .emotion-tag {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            background-color: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+        .option-button {
+            border-radius: 12px;
+            border: 1px solid #E5E7EB;
+            background-color: white;
+            transition: all 0.3s ease;
+        }
+        .option-button:hover, .option-button.selected {
+            background-color: #F0FFF4;
+            border-color: #74C69D;
+        }
+        .option-button.selected .option-checkmark {
+            visibility: visible;
+        }
+        .option-checkmark {
+            visibility: hidden;
+            color: #74C69D;
+        }
+        .radio-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .custom-radio {
+            appearance: none;
+            width: 22px;
+            height: 22px;
+            border: 2px solid #D1D5DB;
+            border-radius: 50%;
+            margin-right: 12px;
+            position: relative;
+            cursor: pointer;
+        }
+        .custom-radio:checked {
+            border-color: #74C69D;
+        }
+        .custom-radio:checked::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 12px;
+            height: 12px;
+            background-color: #74C69D;
+            border-radius: 50%;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container flex flex-col">
+        <!-- iOS 状态栏 -->
+        <div class="ios-status-bar flex items-center justify-between px-4">
+            <div class="time">9:41</div>
+            <div class="icons flex space-x-2">
+                <i class="fas fa-signal"></i>
+                <i class="fas fa-wifi"></i>
+                <i class="fas fa-battery-full"></i>
+            </div>
+        </div>
+        
+        <!-- 顶部导航栏 -->
+        <div class="flex items-center p-4 bg-white border-b border-gray-200">
+            <a href="viewOpen2.html" class="mr-4">
+                <i class="fas fa-arrow-left text-gray-600"></i>
+            </a>
+            <div class="flex items-center">
+                <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                    <i class="fas fa-robot text-green-500"></i>
+                </div>
+                <h1 class="ml-2 text-lg font-semibold">2Dots1Line 助手</h1>
+            </div>
+            <div class="ml-auto text-sm text-gray-500">
+                <span>3/4</span>
+            </div>
+        </div>
+        
+        <!-- 主要内容区域 -->
+        <div class="flex-grow overflow-y-auto p-4">
+            <div class="question-card p-5 mb-5">
+                <h2 class="text-xl font-bold mb-3">您的教育经历与反思</h2>
+                <p class="text-gray-700 mb-5">
+                    我们每个人的教育经历往往影响着我们对孩子教育的期待和选择。接下来的问题会帮助我们更好地了解您的教育观念。
+                </p>
+                
+                <!-- 教育高光 -->
+                <div class="memory-card mb-6">
+                    <div class="memory-header p-4">
+                        <div class="flex justify-between items-center mb-2">
+                            <h3 class="font-bold">您的教育高光时刻</h3>
+                            <span class="emotion-tag">自豪</span>
+                        </div>
+                        <p class="text-sm text-white opacity-80">
+                            在您的求学经历中，最值得骄傲、最美好或最有意义的时刻是什么？
+                        </p>
+                    </div>
+                    <div class="p-4 bg-white">
+                        <div class="input-container">
+                            <textarea class="input-area w-full p-4" placeholder="分享您教育经历中的高光时刻..." id="highlight-input"></textarea>
+                            <div class="input-tools p-2 flex justify-end items-center">
+                                <div class="word-count">0/300字</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 教育遗憾 -->
+                <div class="memory-card mb-6">
+                    <div class="memory-regret-header p-4">
+                        <div class="flex justify-between items-center mb-2">
+                            <h3 class="font-bold">您的教育遗憾</h3>
+                            <span class="emotion-tag">反思</span>
+                        </div>
+                        <p class="text-sm text-white opacity-80">
+                            如果能重来，您最希望在教育过程中做出哪些不同的选择？
+                        </p>
+                    </div>
+                    <div class="p-4 bg-white">
+                        <div class="input-container">
+                            <textarea class="input-area w-full p-4" placeholder="分享您的教育遗憾或后悔的选择..." id="regret-input"></textarea>
+                            <div class="input-tools p-2 flex justify-end items-center">
+                                <div class="word-count">0/300字</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 如果现在是孩子年龄 -->
+                <div class="mb-6">
+                    <h3 class="font-semibold text-gray-700 mb-3">如果您回到孩子现在的年龄，您会怎么规划自己的教育？</h3>
+                    
+                    <div class="space-y-3 mb-4">
+                        <div class="option-button p-4 flex items-center" data-option="1">
+                            <div class="flex-grow">
+                                <div class="font-medium">全力冲刺顶尖学术成绩</div>
+                                <div class="text-sm text-gray-500">专注于提高GPA、标化考试分数和学科竞赛</div>
+                            </div>
+                            <div class="option-checkmark">
+                                <i class="fas fa-check-circle text-xl"></i>
+                            </div>
+                        </div>
+                        
+                        <div class="option-button p-4 flex items-center" data-option="2">
+                            <div class="flex-grow">
+                                <div class="font-medium">平衡发展，注重社交与领导力</div>
+                                <div class="text-sm text-gray-500">在保持良好成绩的同时，积极参与社团和志愿活动</div>
+                            </div>
+                            <div class="option-checkmark">
+                                <i class="fas fa-check-circle text-xl"></i>
+                            </div>
+                        </div>
+                        
+                        <div class="option-button p-4 flex items-center" data-option="3">
+                            <div class="flex-grow">
+                                <div class="font-medium">深耕一项特长或兴趣</div>
+                                <div class="text-sm text-gray-500">找到真正热爱的领域，并将其发展到专业水平</div>
+                            </div>
+                            <div class="option-checkmark">
+                                <i class="fas fa-check-circle text-xl"></i>
+                            </div>
+                        </div>
+                        
+                        <div class="option-button p-4 flex items-center" data-option="4">
+                            <div class="flex-grow">
+                                <div class="font-medium">注重实践与创新能力</div>
+                                <div class="text-sm text-gray-500">参与实习、创业或研究项目，培养解决实际问题的能力</div>
+                            </div>
+                            <div class="option-checkmark">
+                                <i class="fas fa-check-circle text-xl"></i>
+                            </div>
+                        </div>
+                        
+                        <div class="option-button p-4 flex items-center" data-option="5">
+                            <div class="flex-grow">
+                                <div class="font-medium">培养国际视野</div>
+                                <div class="text-sm text-gray-500">注重语言学习，积极参与国际交流和文化体验</div>
+                            </div>
+                            <div class="option-checkmark">
+                                <i class="fas fa-check-circle text-xl"></i>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <h3 class="font-semibold text-gray-700 mb-3">您是否曾希望自己能出国留学？</h3>
+                    <div class="mb-3">
+                        <div class="radio-container">
+                            <input type="radio" id="study-abroad-yes" name="study-abroad" class="custom-radio">
+                            <label for="study-abroad-yes">是的，当时非常希望但没有机会</label>
+                        </div>
+                        <div class="radio-container">
+                            <input type="radio" id="study-abroad-somewhat" name="study-abroad" class="custom-radio">
+                            <label for="study-abroad-somewhat">有想过，但也不是特别强烈的愿望</label>
+                        </div>
+                        <div class="radio-container">
+                            <input type="radio" id="study-abroad-no" name="study-abroad" class="custom-radio" checked>
+                            <label for="study-abroad-no">不太想，更愿意在国内发展</label>
+                        </div>
+                        <div class="radio-container">
+                            <input type="radio" id="study-abroad-did" name="study-abroad" class="custom-radio">
+                            <label for="study-abroad-did">我曾经出国留学过</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 工作中用到的能力 -->
+                <div>
+                    <h3 class="font-semibold text-gray-700 mb-3">您现在的工作中，哪些重要能力是在学生时代就开始萌发的？</h3>
+                    <div class="input-container">
+                        <textarea class="input-area w-full p-4" placeholder="例如：分析能力、沟通能力、创新思维..." id="skills-input"></textarea>
+                        <div class="input-tools p-2 flex justify-end items-center">
+                            <div class="word-count">0/300字</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 提示卡片 -->
+            <div class="tip-card p-4 mb-5">
+                <div class="flex items-start">
+                    <i class="fas fa-heart text-green-600 mt-1 mr-3"></i>
+                    <div>
+                        <h3 class="font-medium text-green-800 mb-1">研究表明</h3>
+                        <p class="text-sm text-gray-600">
+                            父母的教育经历和未实现的愿望往往会影响他们对孩子教育的期望和决策。理解这一点，能帮助家长更自觉地区分"自己的梦想"和"孩子的需求"，从而做出更适合孩子的教育选择。
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 下一步按钮 -->
+            <div class="flex space-x-3 mb-8">
+                <button class="secondary-button flex-grow py-4 rounded-xl font-medium">保存草稿</button>
+                <button id="next-button" class="primary-button flex-grow py-4 text-white rounded-xl font-medium">
+                    继续
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 文字计数
+        const textAreas = document.querySelectorAll('textarea');
+        const wordCounts = document.querySelectorAll('.word-count');
+        
+        textAreas.forEach((textarea, index) => {
+            textarea.addEventListener('input', function() {
+                const count = this.value.length;
+                const maxCount = 300;
+                wordCounts[index].textContent = count + '/' + maxCount + '字';
+                
+                if (count > maxCount) {
+                    wordCounts[index].classList.add('text-red-500');
+                } else {
+                    wordCounts[index].classList.remove('text-red-500');
+                }
+            });
+        });
+        
+        // 选项按钮
+        const optionButtons = document.querySelectorAll('.option-button');
+        
+        optionButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                // 移除所有按钮的选中状态
+                optionButtons.forEach(btn => btn.classList.remove('selected'));
+                
+                // 选中当前按钮
+                this.classList.add('selected');
+            });
+        });
+        
+        // 下一步按钮逻辑
+        document.getElementById('next-button').addEventListener('click', function() {
+            // 这里应该有表单验证逻辑
+            
+            // 导航到最后一个问题页面
+            window.location.href = 'viewOpen4.html';
+        });
+    </script>
+</body>
+</html> 

@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2Dots1Line - 个性化洞察</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+            background-color: #F6F8FB;
+            color: #444444;
+        }
+        .ios-status-bar {
+            height: 44px;
+            background-color: #ffffff;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .primary-button {
+            background-color: #74C69D;
+            transition: all 0.3s ease;
+        }
+        .primary-button:hover, .primary-button:focus {
+            background-color: #5db589;
+            transform: translateY(-2px);
+        }
+        .secondary-button {
+            background-color: #F3F4F6;
+            transition: all 0.3s ease;
+        }
+        .secondary-button:hover, .secondary-button:focus {
+            background-color: #E5E7EB;
+            transform: translateY(-2px);
+        }
+        .app-container {
+            max-width: 414px; /* iPhone 15 width */
+            height: 100vh;
+            margin: 0 auto;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+            border-radius: 40px;
+            background-color: #F6F8FB;
+        }
+        .insight-card {
+            border-radius: 20px;
+            background-color: white;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            animation: fadeIn 0.5s ease-out;
+        }
+        .insight-header {
+            border-radius: 20px 20px 0 0;
+            background: linear-gradient(135deg, #74C69D 0%, #41B3A3 100%);
+            color: white;
+        }
+        .strength-card {
+            border-radius: 16px;
+            background-color: #F0FFF4;
+            border-left: 4px solid #74C69D;
+        }
+        .challenge-card {
+            border-radius: 16px;
+            background-color: #FEF2F2;
+            border-left: 4px solid #F87171;
+        }
+        .opportunity-card {
+            border-radius: 16px;
+            background-color: #EFF6FF;
+            border-left: 4px solid #60A5FA;
+        }
+        .recommendation-card {
+            border-radius: 16px;
+            border: 1px solid #E5E7EB;
+            transition: all 0.3s ease;
+        }
+        .recommendation-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+        }
+        .step-number {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background-color: #74C69D;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        .progress-container {
+            height: 8px;
+            background-color: #E5E7EB;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #74C69D 0%, #41B3A3 100%);
+            border-radius: 4px;
+            width: 85%;
+            animation: progressAnimation 1s ease-out;
+        }
+        .tag {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            background-color: #F3F4F6;
+            color: #4B5563;
+            margin-right: 8px;
+            margin-bottom: 8px;
+        }
+        .tag.active {
+            background-color: #D1FAE5;
+            color: #065F46;
+        }
+        .plan-section {
+            border-radius: 16px;
+            border: 1px solid #E5E7EB;
+            background-color: white;
+        }
+        .service-card {
+            border-radius: 16px;
+            border: 1px solid #E5E7EB;
+            transition: all 0.3s ease;
+        }
+        .service-card:hover {
+            border-color: #74C69D;
+            transform: translateY(-4px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+        }
+        .service-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            background-color: #F0FFF4;
+            color: #74C69D;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+        .confetti {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            z-index: 1000;
+            pointer-events: none;
+            display: none;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes progressAnimation {
+            from { width: 0; }
+            to { width: 85%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container flex flex-col">
+        <!-- iOS 状态栏 -->
+        <div class="ios-status-bar flex items-center justify-between px-4">
+            <div class="time">9:41</div>
+            <div class="icons flex space-x-2">
+                <i class="fas fa-signal"></i>
+                <i class="fas fa-wifi"></i>
+                <i class="fas fa-battery-full"></i>
+            </div>
+        </div>
+        
+        <!-- 顶部导航栏 -->
+        <div class="flex items-center p-4 bg-white border-b border-gray-200">
+            <a href="viewOpen3.html" class="mr-4">
+                <i class="fas fa-arrow-left text-gray-600"></i>
+            </a>
+            <div class="flex items-center">
+                <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                    <i class="fas fa-lightbulb text-green-500"></i>
+                </div>
+                <h1 class="ml-2 text-lg font-semibold">您的定制化洞察</h1>
+            </div>
+            <div class="ml-auto text-sm text-gray-500">
+                <span>4/4</span>
+            </div>
+        </div>
+        
+        <!-- 主要内容区域 -->
+        <div class="flex-grow overflow-y-auto p-4">
+            <!-- 洞察摘要卡 -->
+            <div class="insight-card mb-6">
+                <div class="insight-header p-5">
+                    <h2 class="text-xl font-bold mb-1">定制化教育洞察摘要</h2>
+                    <p class="text-white opacity-80 text-sm">
+                        基于您分享的信息，我们为您的孩子提供了以下洞察与建议
+                    </p>
+                    <!-- 配置文件完成度 -->
+                    <div class="mt-4">
+                        <div class="flex justify-between items-center text-sm mb-2">
+                            <span>配置文件完成度</span>
+                            <span>85%</span>
+                        </div>
+                        <div class="progress-container">
+                            <div class="progress-bar"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="p-5">
+                    <!-- 标签云 -->
+                    <div class="mb-6">
+                        <h3 class="text-lg font-semibold mb-3">您孩子的关键特质</h3>
+                        <div>
+                            <span class="tag active">目标导向</span>
+                            <span class="tag active">学习主动性</span>
+                            <span class="tag active">独立思考</span>
+                            <span class="tag">逻辑思维</span>
+                            <span class="tag">人际沟通</span>
+                            <span class="tag">创造力</span>
+                            <span class="tag">抗挫折能力</span>
+                            <span class="tag">团队协作</span>
+                            <span class="tag">跨文化适应</span>
+                        </div>
+                    </div>
+                    
+                    <!-- 洞察分析 -->
+                    <div class="mb-6">
+                        <h3 class="text-lg font-semibold mb-3">个性化洞察</h3>
+                        
+                        <!-- 优势洞察 -->
+                        <div class="strength-card p-4 mb-4">
+                            <div class="flex items-start">
+                                <i class="fas fa-star text-green-600 mt-1 mr-3"></i>
+                                <div>
+                                    <h4 class="font-medium text-green-800 mb-1">核心优势：自我驱动与目标感</h4>
+                                    <p class="text-sm text-gray-600">
+                                        您的孩子展现出了明确的学习目标和内在驱动力，这是申请美国名校的关键因素。数据显示，超过85%的常春藤盟校录取的学生都具备清晰的自我定位和长期规划能力。这种特质有助于孩子在申请文书中展现真实的热情和独特性。
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 挑战洞察 -->
+                        <div class="challenge-card p-4 mb-4">
+                            <div class="flex items-start">
+                                <i class="fas fa-exclamation-circle text-red-500 mt-1 mr-3"></i>
+                                <div>
+                                    <h4 class="font-medium text-red-800 mb-1">发展方向：系统性学术规划</h4>
+                                    <p class="text-sm text-gray-600">
+                                        根据您的反馈，孩子的学术规划可能需要更系统的指导。特别是在标准化考试准备和选择适合的高级课程方面，建立清晰的时间表和目标对于平衡学业压力和成果至关重要。
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 机会洞察 -->
+                        <div class="opportunity-card p-4">
+                            <div class="flex items-start">
+                                <i class="fas fa-lightbulb text-blue-500 mt-1 mr-3"></i>
+                                <div>
+                                    <h4 class="font-medium text-blue-800 mb-1">潜在机会：结合家庭教育背景</h4>
+                                    <p class="text-sm text-gray-600">
+                                        您分享的教育经历反映了对教育的深度思考，这是宝贵的家庭资源。研究表明，家长将自身教育经验中的积极元素与反思转化为对孩子的支持时，能显著提升孩子的学习动力和自我认知。建议您将这些反思融入与孩子的日常交流中。
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 行动计划 -->
+                    <div>
+                        <h3 class="text-lg font-semibold mb-3">个性化行动计划</h3>
+                        
+                        <div class="plan-section mb-4">
+                            <div class="p-4 border-b border-gray-100">
+                                <div class="flex items-center">
+                                    <div class="step-number mr-3">1</div>
+                                    <h4 class="font-medium">深入探索学术兴趣</h4>
+                                </div>
+                            </div>
+                            <div class="p-4 text-sm text-gray-600">
+                                <p class="mb-2">根据您孩子的目标导向特质，我们建议：</p>
+                                <ul class="list-disc pl-5 space-y-2">
+                                    <li>探索2-3个潜在的学术领域深度项目（如研究、竞赛或社区项目）</li>
+                                    <li>安排与相关领域大学生或专业人士的交流机会</li>
+                                    <li>记录孩子在探索过程中的反应和兴趣点</li>
+                                </ul>
+                                <button class="mt-4 w-full py-2 border border-green-300 text-green-600 rounded-lg hover:bg-green-50 transition">
+                                    查看详细指南 <i class="fas fa-angle-right ml-1"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="plan-section mb-6">
+                            <div class="p-4 border-b border-gray-100">
+                                <div class="flex items-center">
+                                    <div class="step-number mr-3">2</div>
+                                    <h4 class="font-medium">建立个性化学术规划</h4>
+                                </div>
+                            </div>
+                            <div class="p-4 text-sm text-gray-600">
+                                <p class="mb-2">为了强化学术发展方向，我们推荐：</p>
+                                <ul class="list-disc pl-5 space-y-2">
+                                    <li>评估现有课程与未来申请方向的匹配度</li>
+                                    <li>制定标准化考试的合理时间表</li>
+                                    <li>寻找能体现您孩子特长的校内外活动</li>
+                                </ul>
+                                <button class="mt-4 w-full py-2 border border-green-300 text-green-600 rounded-lg hover:bg-green-50 transition">
+                                    预约规划咨询 <i class="fas fa-angle-right ml-1"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 服务推荐 -->
+            <h3 class="text-lg font-semibold mb-3">量身定制的服务</h3>
+            
+            <div class="grid grid-cols-2 gap-3 mb-6">
+                <div class="service-card p-4">
+                    <div class="service-icon mb-3">
+                        <i class="fas fa-comments-alt"></i>
+                    </div>
+                    <h4 class="font-medium mb-1">AI教育顾问</h4>
+                    <p class="text-xs text-gray-500 mb-2">
+                        随时解答您的留学规划问题
+                    </p>
+                    <div class="text-green-600 text-sm font-medium">
+                        免费使用 <i class="fas fa-arrow-right ml-1"></i>
+                    </div>
+                </div>
+                
+                <div class="service-card p-4">
+                    <div class="service-icon mb-3">
+                        <i class="fas fa-file-chart-line"></i>
+                    </div>
+                    <h4 class="font-medium mb-1">深度评估报告</h4>
+                    <p class="text-xs text-gray-500 mb-2">
+                        提供全面的申请竞争力分析
+                    </p>
+                    <div class="text-green-600 text-sm font-medium">
+                        查看样例 <i class="fas fa-arrow-right ml-1"></i>
+                    </div>
+                </div>
+                
+                <div class="service-card p-4">
+                    <div class="service-icon mb-3">
+                        <i class="fas fa-calendar-alt"></i>
+                    </div>
+                    <h4 class="font-medium mb-1">规划咨询</h4>
+                    <p class="text-xs text-gray-500 mb-2">
+                        制定个性化留学申请时间表
+                    </p>
+                    <div class="text-green-600 text-sm font-medium">
+                        立即预约 <i class="fas fa-arrow-right ml-1"></i>
+                    </div>
+                </div>
+                
+                <div class="service-card p-4">
+                    <div class="service-icon mb-3">
+                        <i class="fas fa-user-graduate"></i>
+                    </div>
+                    <h4 class="font-medium mb-1">导师匹配</h4>
+                    <p class="text-xs text-gray-500 mb-2">
+                        连接您与理想大学的校友
+                    </p>
+                    <div class="text-green-600 text-sm font-medium">
+                        了解更多 <i class="fas fa-arrow-right ml-1"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 下一步按钮 -->
+            <div class="flex space-x-3 mb-8">
+                <button class="secondary-button flex-grow py-4 rounded-xl font-medium">
+                    保存报告
+                </button>
+                <button id="complete-button" class="primary-button flex-grow py-4 text-white rounded-xl font-medium">
+                    完成并开始使用
+                </button>
+            </div>
+            
+            <!-- 完成后的彩色纸屑效果 -->
+            <canvas id="confetti-canvas" class="confetti"></canvas>
+        </div>
+    </div>
+    
+    <script>
+        // 服务卡点击效果
+        document.querySelectorAll('.service-card').forEach(card => {
+            card.addEventListener('click', function() {
+                // 在实际应用中，这里可以添加跳转或弹窗逻辑
+                alert('此功能将在应用完整版中提供');
+            });
+        });
+        
+        // 标签点击效果
+        document.querySelectorAll('.tag').forEach(tag => {
+            tag.addEventListener('click', function() {
+                this.classList.toggle('active');
+            });
+        });
+        
+        // 完成按钮逻辑与彩色纸屑效果
+        document.getElementById('complete-button').addEventListener('click', function() {
+            const canvas = document.getElementById('confetti-canvas');
+            canvas.style.display = 'block';
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            
+            const ctx = canvas.getContext('2d');
+            const confetti = [];
+            const confettiCount = 150;
+            const gravity = 0.5;
+            const terminalVelocity = 5;
+            let lastTime = Date.now();
+            
+            // 初始化彩色纸屑
+            for (let i = 0; i < confettiCount; i++) {
+                confetti.push({
+                    color: `rgba(${Math.floor(Math.random() * 256)}, ${Math.floor(Math.random() * 256)}, ${Math.floor(Math.random() * 256)}, ${Math.random() * 0.5 + 0.5})`,
+                    dimensions: {
+                        x: Math.random() * 10 + 5,
+                        y: Math.random() * 10 + 5
+                    },
+                    position: {
+                        x: Math.random() * canvas.width,
+                        y: 0 - (Math.random() * 100)
+                    },
+                    rotation: Math.random() * 2 * Math.PI,
+                    scale: {
+                        x: 1,
+                        y: 1
+                    },
+                    velocity: {
+                        x: Math.random() * 2 - 1,
+                        y: Math.random() * 5 + 5
+                    }
+                });
+            }
+            
+            // 动画循环
+            function render() {
+                const now = Date.now();
+                const delta = now - lastTime;
+                
+                // 清除画布
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // 更新和绘制每个彩色纸屑
+                confetti.forEach((confetto, index) => {
+                    // 应用重力
+                    confetto.velocity.y = Math.min(confetto.velocity.y + gravity * (delta / 1000), terminalVelocity);
+                    confetto.velocity.x = Math.random() > 0.5 ? Math.min(confetto.velocity.x + 0.1, 1) : Math.max(confetto.velocity.x - 0.1, -1);
+                    
+                    // 更新位置
+                    confetto.position.x += confetto.velocity.x * (delta / 100);
+                    confetto.position.y += confetto.velocity.y * (delta / 100);
+                    confetto.rotation += 0.01 * delta;
+                    
+                    // 如果纸屑超出画布底部，重置位置
+                    if (confetto.position.y >= canvas.height) {
+                        confetti[index].position.y = 0 - confetto.dimensions.y;
+                        confetti[index].position.x = Math.random() * canvas.width;
+                    }
+                    
+                    // 绘制纸屑
+                    ctx.save();
+                    ctx.translate(confetto.position.x, confetto.position.y);
+                    ctx.rotate(confetto.rotation);
+                    ctx.fillStyle = confetto.color;
+                    ctx.fillRect(-confetto.dimensions.x / 2, -confetto.dimensions.y / 2, confetto.dimensions.x, confetto.dimensions.y);
+                    ctx.restore();
+                });
+                
+                lastTime = now;
+                
+                // 3秒后结束动画并转到主界面
+                setTimeout(() => {
+                    window.location.href = '../index.html'; // 假设主界面为 index.html
+                }, 3000);
+                
+                // 继续动画循环
+                requestAnimationFrame(render);
+            }
+            
+            // 开始动画
+            render();
+        });
+    </script>
+</body>
+</html> 

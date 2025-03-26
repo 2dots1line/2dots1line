@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2Dots1Line - 深入了解</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+            background-color: #F6F8FB;
+            color: #444444;
+        }
+        .ios-status-bar {
+            height: 44px;
+            background-color: #ffffff;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .primary-button {
+            background-color: #74C69D;
+            transition: all 0.3s ease;
+        }
+        .primary-button:hover, .primary-button:focus {
+            background-color: #5db589;
+            transform: translateY(-2px);
+        }
+        .secondary-button {
+            background-color: #F3F4F6;
+            transition: all 0.3s ease;
+        }
+        .secondary-button:hover, .secondary-button:focus {
+            background-color: #E5E7EB;
+            transform: translateY(-2px);
+        }
+        .app-container {
+            max-width: 414px; /* iPhone 15 width */
+            height: 100vh;
+            margin: 0 auto;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+            border-radius: 40px;
+            background-color: #F6F8FB;
+        }
+        .question-card {
+            border-radius: 20px;
+            background-color: white;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            animation: fadeIn 0.5s ease-out;
+        }
+        .input-container {
+            border-radius: 16px;
+            border: 1px solid #E5E7EB;
+            transition: all 0.3s ease;
+        }
+        .input-container:focus-within {
+            border-color: #74C69D;
+            box-shadow: 0 0 0 2px rgba(116, 198, 157, 0.2);
+        }
+        .input-area {
+            resize: none;
+            min-height: 150px;
+            border: none;
+            outline: none;
+            font-size: 16px;
+        }
+        .input-tools {
+            border-top: 1px solid #E5E7EB;
+        }
+        .tool-button {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+        .tool-button:hover, .tool-button:focus {
+            background-color: #F3F4F6;
+        }
+        .recording-indicator {
+            background-color: #FEE2E2;
+            color: #EF4444;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.7;
+            }
+        }
+        .word-count {
+            color: #9CA3AF;
+            font-size: 12px;
+        }
+        .tip-card {
+            border-radius: 16px;
+            background-color: #F0FFF4;
+            border-left: 4px solid #74C69D;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .input-method-tabs {
+            display: flex;
+            border-bottom: 1px solid #E5E7EB;
+            margin-bottom: 12px;
+        }
+        .input-tab {
+            padding: 8px 16px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+        .input-tab.active {
+            border-bottom-color: #74C69D;
+            color: #74C69D;
+            font-weight: 500;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.3s ease-out;
+        }
+        .upload-area {
+            border: 2px dashed #E5E7EB;
+            border-radius: 12px;
+            min-height: 150px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .upload-area:hover {
+            border-color: #74C69D;
+            background-color: #F0FFF4;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container flex flex-col">
+        <!-- iOS 状态栏 -->
+        <div class="ios-status-bar flex items-center justify-between px-4">
+            <div class="time">9:41</div>
+            <div class="icons flex space-x-2">
+                <i class="fas fa-signal"></i>
+                <i class="fas fa-wifi"></i>
+                <i class="fas fa-battery-full"></i>
+            </div>
+        </div>
+        
+        <!-- 顶部导航栏 -->
+        <div class="flex items-center p-4 bg-white border-b border-gray-200">
+            <a href="viewTalentFollow.html" class="mr-4">
+                <i class="fas fa-arrow-left text-gray-600"></i>
+            </a>
+            <div class="flex items-center">
+                <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                    <i class="fas fa-robot text-green-500"></i>
+                </div>
+                <h1 class="ml-2 text-lg font-semibold">2Dots1Line 助手</h1>
+            </div>
+            <div class="ml-auto text-sm text-gray-500">
+                <span>1/4</span>
+            </div>
+        </div>
+        
+        <!-- 主要内容区域 -->
+        <div class="flex-grow overflow-y-auto p-4">
+            <div class="chat-bubble ai-bubble p-4">
+                <p class="leading-relaxed">感谢您分享孩子的特长信息，这对我们了解孩子的兴趣和潜力非常有帮助。</p>
+                <p class="leading-relaxed mt-3">接下来，我想请您分享一个孩子的具体经历，这将帮助我们发掘孩子的独特品质，这些品质对大学申请可能有重要价值。</p>
+            </div>
+
+            <div class="question-card p-5 my-4">
+                <h3 class="text-lg font-semibold mb-3">您是否曾注意到孩子在面对挑战时表现出的与众不同的特质？</h3>
+                <p class="text-gray-600 mb-5">请分享一个日常生活中的具体例子，展示了孩子处理困难或解决问题的方式</p>
+                <div class="input-method-tabs">
+                    <div class="input-tab active" data-tab="text">文字输入</div>
+                    <div class="input-tab" data-tab="voice">语音记录</div>
+                    <div class="input-tab" data-tab="photo">照片上传</div>
+                </div>
+                
+                <!-- 文字输入 -->
+                <div class="tab-content active" id="text-content">
+                    <div class="input-container">
+                        <textarea class="input-area w-full p-4" placeholder="请描述一下这个特别的事件或特质，越具体越好..." id="text-input"></textarea>
+                        <div class="input-tools p-2 flex justify-between items-center">
+                            <div class="flex space-x-2">
+                                <button class="tool-button" title="添加表情">
+                                    <i class="far fa-smile text-gray-500"></i>
+                                </button>
+                                <button class="tool-button" title="添加图片">
+                                    <i class="far fa-image text-gray-500"></i>
+                                </button>
+                            </div>
+                            <div class="word-count">0/500字</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 语音记录 -->
+                <div class="tab-content" id="voice-content">
+                    <div class="flex flex-col items-center justify-center py-6">
+                        <div id="record-button" class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4 cursor-pointer transform transition hover:scale-105">
+                            <i class="fas fa-microphone text-2xl text-gray-600"></i>
+                        </div>
+                        <div id="recording-status" class="hidden">
+                            <div class="recording-indicator px-4 py-2 rounded-full flex items-center mb-2">
+                                <i class="fas fa-circle text-xs mr-2"></i>
+                                <span>正在录音...</span>
+                            </div>
+                            <div class="text-sm text-gray-500" id="recording-time">00:00</div>
+                        </div>
+                        <div id="record-instructions" class="text-center text-sm text-gray-500">
+                            点击麦克风图标开始录音<br>再次点击结束
+                        </div>
+                        <div id="voice-preview" class="hidden w-full mt-4">
+                            <div class="bg-gray-100 rounded-lg p-3 flex items-center">
+                                <i class="fas fa-play-circle text-gray-600 mr-3"></i>
+                                <div class="flex-grow">
+                                    <div class="h-2 bg-gray-200 rounded-full">
+                                        <div class="h-full bg-green-500 rounded-full" style="width: 30%"></div>
+                                    </div>
+                                </div>
+                                <span class="text-sm text-gray-500 ml-3">00:42</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 照片上传 -->
+                <div class="tab-content" id="photo-content">
+                    <div class="upload-area" id="upload-area">
+                        <i class="fas fa-cloud-upload-alt text-3xl text-gray-400 mb-3"></i>
+                        <p class="text-center text-gray-500 mb-1">点击上传照片或视频</p>
+                        <p class="text-center text-xs text-gray-400">或拖放文件到此处</p>
+                        <input type="file" id="file-input" class="hidden" accept="image/*,video/*">
+                    </div>
+                    <div id="upload-preview" class="hidden mt-4">
+                        <div class="relative">
+                            <img src="https://via.placeholder.com/350x200" alt="Preview" class="w-full h-auto rounded-lg">
+                            <button class="absolute top-2 right-2 bg-white rounded-full w-8 h-8 flex items-center justify-center shadow-md">
+                                <i class="fas fa-times text-gray-600"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 提示卡片 -->
+            <div class="tip-card p-4 mb-5">
+                <div class="flex items-start">
+                    <i class="fas fa-lightbulb text-green-600 mt-1 mr-3"></i>
+                    <div>
+                        <h3 class="font-medium text-green-800 mb-1">提示</h3>
+                        <p class="text-sm text-gray-600">
+                            分享具体的小故事比笼统的描述更有助于我们了解您孩子的真实特质。这些独特点往往是申请文书中的亮点素材，能让招生官记住您的孩子。
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 示例 -->
+            <div class="bg-white rounded-lg p-4 mb-5">
+                <h3 class="font-medium text-gray-700 mb-2 flex items-center">
+                    <i class="fas fa-quote-left text-gray-400 mr-2"></i>
+                    参考例子
+                </h3>
+                <p class="text-sm text-gray-600 italic">
+                    "10岁那年，孩子在一次家庭旅行中看到一位外国游客迷路，主动用自己刚学了半年的英语帮助对方找到目的地。让我惊讶的不仅是他敢于开口说英语，更是他当时表现出的同理心和解决问题的冷静思路。回来后，他主动开始学习更多语言相关的内容..."
+                </p>
+            </div>
+            
+            <!-- 下一步按钮 -->
+            <div class="flex space-x-3 mb-8">
+                <button class="secondary-button flex-grow py-4 rounded-xl font-medium">保存草稿</button>
+                <button id="submit-btn" class="primary-button flex-grow py-4 text-white rounded-xl font-medium">
+                    继续
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 切换输入方式选项卡
+        const inputTabs = document.querySelectorAll('.input-tab');
+        const tabContents = document.querySelectorAll('.tab-content');
+        
+        // 预填充文本区域，以便于测试
+        window.onload = function() {
+            const textInput = document.getElementById('text-input');
+            textInput.value = "我儿子五岁的时候春游的时候跟我在公园的公厕小便。这时候一个刚才在外面跟他打闹的孩子趁他上厕所踹了他一脚。我儿子面不改色，把尿撒干净，还洗了个手，然后才跑出去收拾那小子。我当时就觉得我儿子有定力。";
+            
+            // 更新字数统计
+            const wordCount = document.querySelector('.word-count');
+            wordCount.textContent = textInput.value.length + '/500字';
+        };
+        
+        inputTabs.forEach(tab => {
+            tab.addEventListener('click', function() {
+                // 移除所有选项卡的激活状态
+                inputTabs.forEach(t => t.classList.remove('active'));
+                tabContents.forEach(c => c.classList.remove('active'));
+                
+                // 激活当前选项卡
+                this.classList.add('active');
+                const tabId = this.getAttribute('data-tab') + '-content';
+                document.getElementById(tabId).classList.add('active');
+            });
+        });
+        
+        // 文字计数
+        const textInput = document.getElementById('text-input');
+        const wordCount = document.querySelector('.word-count');
+        
+        textInput.addEventListener('input', function() {
+            const count = this.value.length;
+            wordCount.textContent = count + '/500字';
+            
+            if (count > 500) {
+                wordCount.classList.add('text-red-500');
+            } else {
+                wordCount.classList.remove('text-red-500');
+            }
+        });
+        
+        // 录音功能模拟
+        const recordButton = document.getElementById('record-button');
+        const recordingStatus = document.getElementById('recording-status');
+        const recordInstructions = document.getElementById('record-instructions');
+        const voicePreview = document.getElementById('voice-preview');
+        let isRecording = false;
+        
+        recordButton.addEventListener('click', function() {
+            if (!isRecording) {
+                // 开始录音
+                recordingStatus.classList.remove('hidden');
+                recordInstructions.classList.add('hidden');
+                this.classList.add('bg-red-100');
+                this.querySelector('i').classList.add('text-red-500');
+                isRecording = true;
+                
+                // 模拟录音计时
+                let seconds = 0;
+                recordingTimer = setInterval(() => {
+                    seconds++;
+                    const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+                    const secs = (seconds % 60).toString().padStart(2, '0');
+                    document.getElementById('recording-time').textContent = `${mins}:${secs}`;
+                }, 1000);
+            } else {
+                // 结束录音
+                recordingStatus.classList.add('hidden');
+                this.classList.remove('bg-red-100');
+                this.querySelector('i').classList.remove('text-red-500');
+                clearInterval(recordingTimer);
+                isRecording = false;
+                
+                // 显示录音预览
+                voicePreview.classList.remove('hidden');
+            }
+        });
+        
+        // 文件上传功能
+        const uploadArea = document.getElementById('upload-area');
+        const fileInput = document.getElementById('file-input');
+        const uploadPreview = document.getElementById('upload-preview');
+        
+        uploadArea.addEventListener('click', function() {
+            fileInput.click();
+        });
+        
+        fileInput.addEventListener('change', function(e) {
+            if (e.target.files.length > 0) {
+                uploadArea.classList.add('hidden');
+                uploadPreview.classList.remove('hidden');
+                
+                // 在实际应用中，这里会处理预览图片或视频
+            }
+        });
+        
+        // 下一步按钮逻辑 - 确保正确连接
+        const submitBtn = document.getElementById('submit-btn');
+        
+        submitBtn.addEventListener('click', function() {
+            console.log("继续按钮被点击");
+            const selectedMethod = document.querySelector('.input-tab.active').getAttribute('data-tab');
+            let userInput = '';
+            
+            if (selectedMethod === 'text') {
+                userInput = document.getElementById('text-input').value;
+            } else if (selectedMethod === 'voice') {
+                userInput = '用户通过语音输入了内容';
+            } else if (selectedMethod === 'photo') {
+                userInput = '用户上传了照片';
+            }
+            
+            console.log("用户输入:", userInput);
+            
+            if (userInput.trim() !== '') {
+                // 保存用户输入
+                localStorage.setItem('uniqueExperience', userInput);
+                
+                // 跳转到下一页
+                console.log("正在跳转到viewExample2.html");
+                window.location.href = 'viewExample2.html';
+            } else {
+                alert('请输入或录制内容后再继续');
+            }
+        });
+    </script>
+</body>
+</html> 

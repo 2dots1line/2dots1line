@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2Dots1Line - 教育投入</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+            background-color: #F6F8FB;
+            color: #444444;
+        }
+        .ios-status-bar {
+            height: 44px;
+            background-color: #ffffff;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .primary-button {
+            background-color: #74C69D;
+            transition: all 0.3s ease;
+        }
+        .primary-button:hover, .primary-button:focus {
+            background-color: #5db589;
+            transform: translateY(-2px);
+        }
+        .secondary-button {
+            background-color: #F3F4F6;
+            transition: all 0.3s ease;
+        }
+        .secondary-button:hover, .secondary-button:focus {
+            background-color: #E5E7EB;
+            transform: translateY(-2px);
+        }
+        .app-container {
+            max-width: 414px; /* iPhone 15 width */
+            height: 100vh;
+            margin: 0 auto;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+            border-radius: 40px;
+            background-color: #F6F8FB;
+        }
+        .question-card {
+            border-radius: 20px;
+            background-color: white;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            animation: fadeIn 0.5s ease-out;
+        }
+        .input-container {
+            border-radius: 16px;
+            border: 1px solid #E5E7EB;
+            transition: all 0.3s ease;
+        }
+        .input-container:focus-within {
+            border-color: #74C69D;
+            box-shadow: 0 0 0 2px rgba(116, 198, 157, 0.2);
+        }
+        .input-area {
+            resize: none;
+            min-height: 100px;
+            border: none;
+            outline: none;
+            font-size: 16px;
+        }
+        .input-tools {
+            border-top: 1px solid #E5E7EB;
+        }
+        .tool-button {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+        .tool-button:hover, .tool-button:focus {
+            background-color: #F3F4F6;
+        }
+        .word-count {
+            color: #9CA3AF;
+            font-size: 12px;
+        }
+        .tip-card {
+            border-radius: 16px;
+            background-color: #F0FFF4;
+            border-left: 4px solid #74C69D;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .slider-container {
+            width: 100%;
+            margin: 24px 0 12px;
+        }
+        .slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: #E5E7EB;
+            outline: none;
+        }
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #74C69D;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
+        .slider::-moz-range-thumb {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #74C69D;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
+        .slider-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            font-size: 14px;
+            color: #6B7280;
+        }
+        .time-input-group {
+            display: flex;
+            margin-bottom: 16px;
+        }
+        .time-input-box {
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #E5E7EB;
+            border-radius: 12px;
+            margin-right: 8px;
+            font-size: 20px;
+            font-weight: 500;
+            color: #1F2937;
+            background-color: white;
+            transition: all 0.3s ease;
+        }
+        .time-input-box:focus {
+            border-color: #74C69D;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(116, 198, 157, 0.2);
+        }
+        .time-input-label {
+            font-size: 14px;
+            color: #6B7280;
+            margin-top: 4px;
+            text-align: center;
+        }
+        .time-input-separator {
+            display: flex;
+            align-items: center;
+            margin: 0 4px;
+            font-size: 20px;
+            color: #9CA3AF;
+        }
+        .select-container {
+            position: relative;
+        }
+        .custom-select {
+            appearance: none;
+            padding: 12px 16px;
+            width: 100%;
+            border: 1px solid #E5E7EB;
+            border-radius: 12px;
+            background-color: white;
+            font-size: 16px;
+            color: #1F2937;
+            cursor: pointer;
+        }
+        .select-arrow {
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            pointer-events: none;
+            color: #9CA3AF;
+        }
+        .tag-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 12px 0;
+        }
+        .tag {
+            padding: 8px 16px;
+            background-color: #E5E7EB;
+            border-radius: 20px;
+            font-size: 14px;
+            color: #4B5563;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .tag:hover {
+            background-color: #D1D5DB;
+        }
+        .tag.selected {
+            background-color: #74C69D;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container flex flex-col">
+        <!-- iOS 状态栏 -->
+        <div class="ios-status-bar flex items-center justify-between px-4">
+            <div class="time">9:41</div>
+            <div class="icons flex space-x-2">
+                <i class="fas fa-signal"></i>
+                <i class="fas fa-wifi"></i>
+                <i class="fas fa-battery-full"></i>
+            </div>
+        </div>
+        
+        <!-- 顶部导航栏 -->
+        <div class="flex items-center p-4 bg-white border-b border-gray-200">
+            <a href="viewOpen1.html" class="mr-4">
+                <i class="fas fa-arrow-left text-gray-600"></i>
+            </a>
+            <div class="flex items-center">
+                <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                    <i class="fas fa-robot text-green-500"></i>
+                </div>
+                <h1 class="ml-2 text-lg font-semibold">2Dots1Line 助手</h1>
+            </div>
+            <div class="ml-auto text-sm text-gray-500">
+                <span>2/4</span>
+            </div>
+        </div>
+        
+        <!-- 主要内容区域 -->
+        <div class="flex-grow overflow-y-auto p-4">
+            <div class="chat-bubble ai-bubble p-4 mb-5">
+                <p class="leading-relaxed">感谢您分享孩子的独特经历！我们已经收集到一些关于孩子性格和特质的重要信息。</p>
+                <p class="leading-relaxed mt-2">接下来，我想请您分享一些关于您在孩子教育上的投入与回报，这将帮助我们更全面地了解您的情况和需求。</p>
+            </div>
+            
+            <div class="question-card p-5 mb-5">
+                <h2 class="text-xl font-bold mb-3">教育投入与回报</h2>
+                <p class="text-gray-700 mb-5">
+                    作为家长，过去一年您为孩子教育花了多少时间和金钱？哪些投入您觉得很值得，哪些可能有些遗憾？
+                </p>
+                
+                <!-- 时间投入部分 -->
+                <div class="mb-6">
+                    <h3 class="font-semibold text-gray-700 mb-3">每周陪伴孩子学习的时间大概是：</h3>
+                    <div class="time-input-group">
+                        <div class="flex flex-col items-center">
+                            <input type="number" class="time-input-box" min="0" max="24" value="2">
+                            <div class="time-input-label">小时</div>
+                        </div>
+                        <div class="time-input-separator">:</div>
+                        <div class="flex flex-col items-center">
+                            <input type="number" class="time-input-box" min="0" max="59" value="30">
+                            <div class="time-input-label">分钟</div>
+                        </div>
+                        <span class="ml-3 self-center font-medium">/天</span>
+                    </div>
+                    
+                    <h3 class="font-semibold text-gray-700 mb-3 mt-5">一周中您全程陪伴孩子学习的天数：</h3>
+                    <div class="slider-container">
+                        <input type="range" min="0" max="7" value="3" class="slider" id="supervision-days">
+                        <div class="slider-labels">
+                            <span>0天</span>
+                            <span>7天</span>
+                        </div>
+                    </div>
+                    <div class="text-center font-medium text-green-600 mt-2" id="days-value">3天</div>
+                </div>
+                
+                <!-- 金钱投入部分 -->
+                <div class="mb-6">
+                    <h3 class="font-semibold text-gray-700 mb-3">去年教育总支出大约是：</h3>
+                    <div class="select-container mb-4">
+                        <select class="custom-select">
+                            <option value="">请选择金额范围</option>
+                            <option value="1">5万元以下</option>
+                            <option value="2">5-10万元</option>
+                            <option value="3" selected>10-20万元</option>
+                            <option value="4">20-30万元</option>
+                            <option value="5">30万元以上</option>
+                        </select>
+                        <div class="select-arrow">
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                    </div>
+                    
+                    <h3 class="font-semibold text-gray-700 mb-3">花费最多的三个项目是：</h3>
+                    <div class="tag-container">
+                        <div class="tag">课外辅导班</div>
+                        <div class="tag selected">兴趣培养</div>
+                        <div class="tag">出国夏校</div>
+                        <div class="tag selected">国际学校学费</div>
+                        <div class="tag">竞赛培训</div>
+                        <div class="tag">语言学习</div>
+                        <div class="tag selected">留学规划咨询</div>
+                        <div class="tag">学习设备</div>
+                    </div>
+                </div>
+                
+                <!-- 价值感知部分 -->
+                <div class="mb-6">
+                    <h3 class="font-semibold text-gray-700 mb-3">最值得的投入是什么？为什么？</h3>
+                    <div class="input-container">
+                        <textarea class="input-area w-full p-4" placeholder="请分享您认为最有价值的教育投入..." id="value-input"></textarea>
+                        <div class="input-tools p-2 flex justify-end items-center">
+                            <div class="word-count">0/300字</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div>
+                    <h3 class="font-semibold text-gray-700 mb-3">有哪些课程或活动您觉得效果不如预期？</h3>
+                    <div class="input-container">
+                        <textarea class="input-area w-full p-4" placeholder="有没有哪些投入让您觉得有些遗憾或后悔..." id="regret-input"></textarea>
+                        <div class="input-tools p-2 flex justify-end items-center">
+                            <div class="word-count">0/300字</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 提示卡片 -->
+            <div class="tip-card p-4 mb-5">
+                <div class="flex items-start">
+                    <i class="fas fa-lightbulb text-green-600 mt-1 mr-3"></i>
+                    <div>
+                        <h3 class="font-medium text-green-800 mb-1">专家提示</h3>
+                        <p class="text-sm text-gray-600">
+                            许多家长担心自己的投入不够，但研究表明，投入的质量往往比数量更重要。一个针对性强、符合孩子兴趣和特质的规划，效果通常优于盲目的大量投入。
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 下一步按钮 -->
+            <div class="flex space-x-3 mb-8">
+                <button class="secondary-button flex-grow py-4 rounded-xl font-medium">保存草稿</button>
+                <button id="next-button" class="primary-button flex-grow py-4 text-white rounded-xl font-medium">
+                    继续
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 滑块值显示
+        const supervisionSlider = document.getElementById('supervision-days');
+        const daysValue = document.getElementById('days-value');
+        
+        supervisionSlider.addEventListener('input', function() {
+            daysValue.textContent = this.value + '天';
+        });
+        
+        // 文字计数
+        const textAreas = document.querySelectorAll('textarea');
+        const wordCounts = document.querySelectorAll('.word-count');
+        
+        textAreas.forEach((textarea, index) => {
+            textarea.addEventListener('input', function() {
+                const count = this.value.length;
+                const maxCount = 300;
+                wordCounts[index].textContent = count + '/' + maxCount + '字';
+                
+                if (count > maxCount) {
+                    wordCounts[index].classList.add('text-red-500');
+                } else {
+                    wordCounts[index].classList.remove('text-red-500');
+                }
+            });
+        });
+        
+        // 标签选择
+        const tags = document.querySelectorAll('.tag');
+        
+        tags.forEach(tag => {
+            tag.addEventListener('click', function() {
+                this.classList.toggle('selected');
+                
+                // 限制最多选择3个
+                const selectedTags = document.querySelectorAll('.tag.selected');
+                if (selectedTags.length > 3) {
+                    this.classList.remove('selected');
+                }
+            });
+        });
+        
+        // 下一步按钮逻辑
+        document.getElementById('next-button').addEventListener('click', function() {
+            // 这里应该有表单验证逻辑
+            
+            // 导航到下一个问题页面
+            window.location.href = 'viewOpen3.html';
+        });
+    </script>
+</body>
+</html> 

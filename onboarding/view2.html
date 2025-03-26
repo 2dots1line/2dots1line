@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2Dots1Line - 互动问答</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+            background-color: #F6F8FB;
+            color: #444444;
+        }
+        .ios-status-bar {
+            height: 44px;
+            background-color: #ffffff;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .primary-button {
+            background-color: #74C69D;
+            transition: all 0.3s ease;
+        }
+        .primary-button:hover {
+            background-color: #5db589;
+            transform: translateY(-2px);
+        }
+        .app-container {
+            max-width: 414px; /* iPhone 15 width */
+            height: 100vh;
+            margin: 0 auto;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+            border-radius: 40px;
+            background-color: #F6F8FB;
+        }
+        .safe-area {
+            padding-top: 59px; /* iPhone 15 top safe area */
+            padding-bottom: 34px; /* iPhone 15 bottom safe area */
+        }
+        .chat-bubble {
+            border-radius: 20px;
+            max-width: 85%;
+            animation: fadeIn 0.5s ease-out;
+            margin-bottom: 16px;
+        }
+        .option-card {
+            border-radius: 16px;
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            margin-bottom: 12px;
+        }
+        .option-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        .option-card.selected {
+            border-color: #74C69D;
+            background-color: #F0FFF4;
+        }
+        .option-card.selected .option-number {
+            background-color: #74C69D;
+            color: white;
+        }
+        .option-number {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background-color: #E5E7EB;
+            color: #4B5563;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 500;
+            margin-right: 12px;
+            transition: all 0.3s ease;
+            flex-shrink: 0;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .typing-animation span {
+            width: 8px;
+            height: 8px;
+            background: rgba(107, 114, 128, 0.7);
+            display: inline-block;
+            border-radius: 50%;
+            margin: 0 1px;
+            animation: typing 1.5s infinite ease-in-out;
+        }
+        .typing-animation span:nth-child(2) {
+            animation-delay: 0.3s;
+        }
+        .typing-animation span:nth-child(3) {
+            animation-delay: 0.6s;
+        }
+        @keyframes typing {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container flex flex-col">
+        <!-- iOS 状态栏 -->
+        <div class="ios-status-bar flex items-center justify-between px-4">
+            <div class="time">9:41</div>
+            <div class="icons flex space-x-2">
+                <i class="fas fa-signal"></i>
+                <i class="fas fa-wifi"></i>
+                <i class="fas fa-battery-full"></i>
+            </div>
+        </div>
+        
+        <!-- 顶部导航栏 -->
+        <div class="flex items-center p-4 bg-white border-b border-gray-200">
+            <a href="view1.html" class="mr-4">
+                <i class="fas fa-arrow-left text-gray-600"></i>
+            </a>
+            <div class="flex items-center">
+                <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                    <i class="fas fa-robot text-green-500"></i>
+                </div>
+                <h1 class="ml-2 text-lg font-semibold">2Dots1Line 助手</h1>
+            </div>
+        </div>
+        
+        <!-- 聊天区域 -->
+        <div class="flex-grow overflow-y-auto p-4">
+            <div class="chat-bubble bg-gray-100 p-4 rounded-tr-xl rounded-bl-xl rounded-br-xl">
+                <p class="leading-relaxed">有个问题我特别想听听您的看法：</p>
+                <p class="leading-relaxed">您觉得来自中国大陆的、最终成功申请到美国名校本科的学生，他们身上最关键的成功因素到底是什么呢？</p>
+            </div>
+            
+            <div class="mt-4 mb-3 text-sm text-gray-500">请选择一个您认为最重要的因素：</div>
+            
+            <!-- 选项卡片 -->
+            <div class="option-card bg-white p-4 flex items-center" data-option="1">
+                <div class="option-number">1</div>
+                <div>
+                    <div class="font-medium">学术表现</div>
+                    <div class="text-sm text-gray-500">包括GPA、标化考试成绩（托福、SAT、ACT等）以及AP课程等</div>
+                </div>
+            </div>
+            
+            <div class="option-card bg-white p-4 flex items-center" data-option="2">
+                <div class="option-number">2</div>
+                <div>
+                    <div class="font-medium">竞赛成绩</div>
+                    <div class="text-sm text-gray-500">各类学科竞赛或比赛的获奖经历和成就</div>
+                </div>
+            </div>
+            
+            <div class="option-card bg-white p-4 flex items-center" data-option="3">
+                <div class="option-number">3</div>
+                <div>
+                    <div class="font-medium">才艺特长</div>
+                    <div class="text-sm text-gray-500">比如音乐、体育、艺术、科创等，能够展现出学生的独特性和专注力</div>
+                </div>
+            </div>
+            
+            <div class="option-card bg-white p-4 flex items-center" data-option="4">
+                <div class="option-number">4</div>
+                <div>
+                    <div class="font-medium">家庭资源</div>
+                    <div class="text-sm text-gray-500">父母的教育背景、经济能力、人脉资源等</div>
+                </div>
+            </div>
+            
+            <div class="option-card bg-white p-4 flex items-center" data-option="5">
+                <div class="option-number">5</div>
+                <div>
+                    <div class="font-medium">专业指导</div>
+                    <div class="text-sm text-gray-500">得到了经验丰富的留学顾问或名校校友等专业人士的指导</div>
+                </div>
+            </div>
+            
+            <div class="option-card bg-white p-4 flex items-center selected" data-option="6">
+                <div class="option-number">6</div>
+                <div>
+                    <div class="font-medium">明确而长期的目标感</div>
+                    <div class="text-sm text-gray-500">非常相信自己选择出国留学这条路是正确的，并且不论困难如何，都坚持到底</div>
+                </div>
+            </div>
+            
+            <!-- 下一步按钮 -->
+            <div class="mt-6 mb-8">
+                <button id="nextButton" class="primary-button w-full py-4 text-white font-medium rounded-xl" disabled>
+                    下一步
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 处理选项选择
+        const optionCards = document.querySelectorAll('.option-card');
+        const nextButton = document.getElementById('nextButton');
+        let selectedOption = '6'; // 默认选中的选项
+        
+        // 初始化页面时启用下一步按钮
+        nextButton.disabled = false;
+        
+        optionCards.forEach(card => {
+            card.addEventListener('click', function() {
+                // 移除所有卡片的选中状态
+                optionCards.forEach(c => c.classList.remove('selected'));
+                
+                // 添加当前卡片的选中状态
+                this.classList.add('selected');
+                
+                // 保存选中的选项
+                selectedOption = this.dataset.option;
+                
+                // 启用下一步按钮
+                nextButton.disabled = false;
+            });
+        });
+        
+        // 处理下一步按钮点击
+        nextButton.addEventListener('click', function() {
+            // 根据选择的选项导航到不同的页面
+            switch(selectedOption) {
+                case '1':  // 学术表现
+                    window.location.href = 'view3b.html';
+                    break;
+                case '3':  // 才艺特长
+                    window.location.href = 'view3c.html';
+                    break;
+                case '6':  // 明确而长期的目标感
+                    window.location.href = 'view3a.html';
+                    break;
+                default:
+                    // 其他选项均导向目标感页面(可自行调整)
+                    window.location.href = 'view3a.html';
+            }
+        });
+    </script>
+</body>
+</html> 

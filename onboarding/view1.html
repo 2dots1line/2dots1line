@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2Dots1Line - 欢迎</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+            background-color: #F6F8FB;
+            color: #444444;
+        }
+        .ios-status-bar {
+            height: 44px;
+            background-color: #ffffff;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .primary-button {
+            background-color: #74C69D;
+            transition: all 0.3s ease;
+        }
+        .primary-button:hover {
+            background-color: #5db589;
+            transform: translateY(-2px);
+        }
+        .app-container {
+            max-width: 414px; /* iPhone 15 width */
+            height: 100vh;
+            margin: 0 auto;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+            border-radius: 40px;
+            background-color: #F6F8FB;
+        }
+        .safe-area {
+            padding-top: 59px; /* iPhone 15 top safe area */
+            padding-bottom: 34px; /* iPhone 15 bottom safe area */
+        }
+        .splash-image {
+            width: 180px;
+            height: 180px;
+            margin: 0 auto;
+            animation: float 6s ease-in-out infinite;
+        }
+        @keyframes float {
+            0% {
+                transform: translateY(0px);
+            }
+            50% {
+                transform: translateY(-10px);
+            }
+            100% {
+                transform: translateY(0px);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container flex flex-col">
+        <!-- iOS 状态栏 -->
+        <div class="ios-status-bar flex items-center justify-between px-4">
+            <div class="time">9:41</div>
+            <div class="icons flex space-x-2">
+                <i class="fas fa-signal"></i>
+                <i class="fas fa-wifi"></i>
+                <i class="fas fa-battery-full"></i>
+            </div>
+        </div>
+        
+        <!-- 主要内容区域 -->
+        <div class="flex-grow flex flex-col justify-center items-center px-8 safe-area">
+            <div class="splash-image mb-10">
+                <img src="https://via.placeholder.com/180/74C69D/FFFFFF?text=2D1L" alt="2Dots1Line Logo" class="rounded-full shadow-lg">
+            </div>
+            
+            <h1 class="text-3xl font-bold text-center mb-4 text-gray-800">欢迎加入 2Dots1Line</h1>
+            
+            <p class="text-center text-gray-600 mb-12">
+                我们很高兴能和您聊聊孩子的成长和未来
+            </p>
+            
+            <a href="view2.html" class="primary-button text-white py-4 px-10 rounded-full font-bold text-lg shadow-md w-full text-center">
+                开始互动
+            </a>
+        </div>
+    </div>
+</body>
+</html> 

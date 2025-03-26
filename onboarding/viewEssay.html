@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2Dots1Line - 示例申请文书</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+            background-color: #F6F8FB;
+            color: #444444;
+        }
+        .ios-status-bar {
+            height: 44px;
+            background-color: #ffffff;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .app-container {
+            max-width: 414px; /* iPhone 15 width */
+            height: 100vh;
+            margin: 0 auto;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+            border-radius: 40px;
+            background-color: #F6F8FB;
+        }
+        .essay-panel {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #fff;
+            z-index: 50;
+            transform: translateY(100%);
+            transition: transform 0.5s ease;
+            display: flex;
+            flex-direction: column;
+        }
+        .essay-panel.show {
+            transform: translateY(0);
+        }
+        .essay-header {
+            padding: 16px;
+            border-bottom: 1px solid #eaeaea;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #fff;
+        }
+        .essay-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            line-height: 1.8;
+            background-color: #fff;
+        }
+        .essay-footer {
+            padding: 16px;
+            border-top: 1px solid #eaeaea;
+            display: flex;
+            justify-content: space-between;
+            background-color: #fff;
+        }
+        .primary-button {
+            background-color: #74C69D;
+            transition: all 0.3s ease;
+        }
+        .primary-button:hover, .primary-button:focus {
+            background-color: #5db589;
+        }
+        .section-header {
+            margin-top: 20px;
+            margin-bottom: 8px;
+            color: #6B7280;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .highlight {
+            background-color: rgba(116, 198, 157, 0.1);
+            border-bottom: 2px solid #74C69D;
+            padding: 0 2px;
+        }
+        .note-card {
+            background-color: #F9FAFB;
+            border-left: 4px solid #74C69D;
+            padding: 12px 16px;
+            margin: 20px 0;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .tag {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            background-color: #F3F4F6;
+            color: #4B5563;
+            margin-right: 6px;
+            margin-bottom: 6px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container flex flex-col">
+        <!-- iOS 状态栏 -->
+        <div class="ios-status-bar flex items-center justify-between px-4">
+            <div class="time">9:41</div>
+            <div class="icons flex space-x-2">
+                <i class="fas fa-signal"></i>
+                <i class="fas fa-wifi"></i>
+                <i class="fas fa-battery-full"></i>
+            </div>
+        </div>
+        
+        <!-- 顶部导航栏 -->
+        <div class="flex items-center p-4 bg-white border-b border-gray-200">
+            <a href="viewExample2.html" class="mr-4">
+                <i class="fas fa-arrow-left text-gray-600"></i>
+            </a>
+            <div class="flex items-center">
+                <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                    <i class="fas fa-file-alt text-green-500"></i>
+                </div>
+                <h1 class="ml-2 text-lg font-semibold">示例申请文书</h1>
+            </div>
+        </div>
+        
+        <!-- 主要内容区域 -->
+        <div class="flex-grow overflow-y-auto p-4">
+            <div class="bg-white rounded-xl shadow-sm p-4 mb-4">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-lg font-semibold">大学申请文书示例</h2>
+                    <button id="open-essay" class="text-sm text-blue-500 font-medium">查看全文</button>
+                </div>
+                <p class="text-gray-600 text-sm mb-4">
+                    基于您分享的孩子经历，我们生成了一篇示例文书，展示如何将这些珍贵的个人特质转化为打动招生官的文章。
+                </p>
+                <div class="flex flex-wrap mb-3">
+                    <span class="tag">情绪控制</span>
+                    <span class="tag">策略思考</span>
+                    <span class="tag">心理韧性</span>
+                    <span class="tag">成长心态</span>
+                </div>
+                <p class="text-gray-700 italic text-sm">
+                    "...在那场看似不可能翻盘的网球比赛中，我学到了人生最重要的一课：调整心态和分析对手是获胜的关键..."
+                </p>
+            </div>
+            
+            <div class="bg-white rounded-xl shadow-sm p-4 mb-4">
+                <h2 class="text-lg font-semibold mb-3">文书亮点分析</h2>
+                <div class="flex items-start mb-4">
+                    <div class="w-10 h-10 rounded-full bg-blue-100 flex-shrink-0 flex items-center justify-center mr-3">
+                        <i class="fas fa-lightbulb text-blue-500"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-medium">情绪自控与策略思考</h3>
+                        <p class="text-gray-600 text-sm">文书展示了孩子面对挑战时的冷静思考能力和策略性思维，这些品质对于大学学业和社交环境至关重要。</p>
+                    </div>
+                </div>
+                <div class="flex items-start mb-4">
+                    <div class="w-10 h-10 rounded-full bg-purple-100 flex-shrink-0 flex items-center justify-center mr-3">
+                        <i class="fas fa-brain text-purple-500"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-medium">元认知能力展示</h3>
+                        <p class="text-gray-600 text-sm">通过具体例子展示孩子如何反思自己的思维过程并调整策略，这种元认知能力是顶尖大学非常看重的特质。</p>
+                    </div>
+                </div>
+                <div class="flex items-start">
+                    <div class="w-10 h-10 rounded-full bg-green-100 flex-shrink-0 flex items-center justify-center mr-3">
+                        <i class="fas fa-seedling text-green-500"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-medium">成长心态的体现</h3>
+                        <p class="text-gray-600 text-sm">文书表达了孩子如何从挑战中学习和成长，体现出面对困难时的韧性和持续改进的态度。</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-xl shadow-sm p-4 mb-4">
+                <h2 class="text-lg font-semibold mb-3">专家建议</h2>
+                <p class="text-gray-600 text-sm mb-4">
+                    这篇示例文书展示了如何将日常生活中的小事转化为展现个人品质的有力例证。以下是一些针对您孩子特质的进一步建议：
+                </p>
+                <ul class="list-disc pl-5 text-gray-700 text-sm space-y-2">
+                    <li>鼓励孩子继续记录类似的生活经历，尤其是展现<span class="highlight">心理韧性</span>和<span class="highlight">策略思考</span>的例子</li>
+                    <li>帮助孩子反思这些经历如何塑造了他的价值观和人生目标</li>
+                    <li>在申请中突出这些特质如何使他在未来的学习和职业中受益</li>
+                </ul>
+            </div>
+            
+            <div class="flex space-x-3 mt-6 mb-8">
+                <button id="save-essay" class="flex-grow py-4 border border-gray-300 rounded-xl text-gray-700 font-medium flex items-center justify-center">
+                    <i class="far fa-save mr-2"></i>
+                    保存文书
+                </button>
+                <button id="contact-us" class="primary-button flex-grow py-4 text-white rounded-xl font-medium flex items-center justify-center">
+                    <i class="far fa-comments mr-2"></i>
+                    咨询顾问
+                </button>
+            </div>
+            
+            <button onclick="window.location.href='index.html'" class="w-full py-3 text-center text-gray-600 font-medium flex items-center justify-center mb-4">
+                <i class="fas fa-home mr-2"></i>
+                返回主页
+            </button>
+        </div>
+    </div>
+    
+    <!-- 文书全屏面板 -->
+    <div id="essay-panel" class="essay-panel">
+        <div class="essay-header">
+            <button id="close-essay" class="text-gray-600">
+                <i class="fas fa-times"></i>
+            </button>
+            <h2 class="text-lg font-semibold">The Power of Pause</h2>
+            <div class="w-4"></div> <!-- 占位 -->
+        </div>
+        
+        <div class="essay-content">
+            <div class="section-header">普通申请文书 COMMON APP ESSAY</div>
+            <h2 class="text-2xl font-bold mb-4">The Power of Pause</h2>
+            
+            <div class="flex flex-wrap mb-4">
+                <span class="tag">650字/650字上限</span>
+                <span class="tag">通用prompts选项7</span>
+                <span class="tag">个人成长主题</span>
+            </div>
+            
+            <p class="mb-4">
+                When I was five years old, a seemingly trivial moment in a public restroom taught me a lesson I've carried with me ever since. While using the facilities with my father nearby, another child who had been playing roughly with me earlier kicked me unprovoked. Instead of retaliating immediately, I calmly finished what I was doing, washed my hands thoroughly, and only then went to confront the aggressor. My father later told me he noticed something unusual about me that day – a certain composure that seemed beyond my years.
+            </p>
+            
+            <p class="mb-4">
+                This ability to pause before reacting has shaped me in ways I never anticipated. Years later, during a tennis match that seemed impossible to win after losing the first set 0-6, this same quality emerged in a different context. As my opponent dominated the court, I found myself stepping back mentally – not in defeat, but in analysis. While my coach expected me to crumble under pressure, I instead took a moment between sets to reassess my strategy.
+            </p>
+            
+            <p class="mb-4">
+                I noticed my opponent's powerful forehand but underdeveloped backhand. I observed how he struggled when pulled away from the baseline. These insights weren't immediately obvious in the heat of competition, but became clear in that moment of deliberate pause. Shifting my tactics to exploit these weaknesses, I forced him to play to his limitations rather than his strengths. Point by point, I clawed back, eventually winning the match 0-6, 6-4, 6-3.
+            </p>
+            
+            <p class="mb-4">
+                My father calls this quality "emotional restraint," my tennis coach terms it "strategic thinking," and my psychology teacher describes it as "metacognition" – the ability to think about my own thinking. Whatever the name, this capacity to create space between stimulus and response has become my greatest strength.
+            </p>
+            
+            <p class="mb-4">
+                In classroom debates, I've learned to listen fully before formulating my response, often finding unexpected common ground with those holding opposing views. As student council president, I've defused tense situations by first understanding all perspectives before proposing solutions. Even in personal conflicts, my instinct to pause before reacting has preserved friendships that might otherwise have fractured under misunderstandings.
+            </p>
+            
+            <p class="mb-4">
+                This isn't always easy. Our digital world rewards immediate reactions, and sometimes my measured approach is mistaken for indecision or lack of passion. There are moments when I envy those who can express their emotions instantly and authentically. Yet I've come to appreciate that my natural tendency to pause reflects not hesitation, but a deeply internalized value for thoughtfulness.
+            </p>
+            
+            <p class="mb-4">
+                As I prepare for college, I recognize how this quality will serve me in new environments where quick judgments can lead to missed opportunities for growth and connection. In rigorous academic discussions, in navigating diverse social circles, and in making decisions about my future, this ability to create space between observation and action will be invaluable.
+            </p>
+            
+            <p class="mb-4">
+                That five-year-old boy in the restroom didn't know he was practicing a skill that would define his approach to challenges throughout his life. He simply followed an instinct to respond deliberately rather than reactively. Now, as I stand at the threshold of adulthood, I carry this power of pause as both a shield against impulsivity and a tool for deeper understanding – of myself, of others, and of the complex world I hope to impact positively.
+            </p>
+            
+            <div class="note-card mt-8">
+                <h3 class="font-medium mb-2">招生官评语</h3>
+                <p class="text-gray-600 text-sm">
+                    这篇文书成功地将两个看似简单的生活事件转化为展示申请人深度自我认知的强有力例证。作者展示了情绪控制、策略思考和元认知能力，同时反思了这些品质如何塑造了他的人生观。文章语言简洁有力，结构清晰，并展示了申请人如何将这种能力应用到不同场景，预示了他在大学环境中的潜力。
+                </p>
+            </div>
+        </div>
+        
+        <div class="essay-footer">
+            <button class="flex items-center justify-center py-3 px-5 border border-gray-300 rounded-xl text-gray-700 text-sm">
+                <i class="far fa-save mr-2"></i>
+                保存
+            </button>
+            <button class="flex items-center justify-center py-3 px-5 border border-gray-300 rounded-xl text-gray-700 text-sm">
+                <i class="far fa-copy mr-2"></i>
+                复制
+            </button>
+            <button class="flex items-center justify-center py-3 px-5 border border-gray-300 rounded-xl text-gray-700 text-sm">
+                <i class="fas fa-share-alt mr-2"></i>
+                分享
+            </button>
+            <button class="flex items-center justify-center py-3 px-5 bg-blue-500 text-white rounded-xl text-sm">
+                <i class="fas fa-edit mr-2"></i>
+                定制
+            </button>
+        </div>
+    </div>
+    
+    <script>
+        // 打开文书面板
+        document.getElementById('open-essay').addEventListener('click', function() {
+            document.getElementById('essay-panel').classList.add('show');
+            document.body.style.overflow = 'hidden'; // 防止背景滚动
+        });
+        
+        // 关闭文书面板
+        document.getElementById('close-essay').addEventListener('click', function() {
+            document.getElementById('essay-panel').classList.remove('show');
+            document.body.style.overflow = ''; // 恢复滚动
+        });
+        
+        // 保存文书按钮
+        document.getElementById('save-essay').addEventListener('click', function() {
+            alert('文书已保存到您的账户中');
+        });
+        
+        // 咨询顾问按钮
+        document.getElementById('contact-us').addEventListener('click', function() {
+            window.location.href = 'index.html';
+        });
+    </script>
+</body>
+</html> 

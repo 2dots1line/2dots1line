@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>两点一线 - 登录</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+            background-color: #F6F8FB;
+            color: #444444;
+        }
+        .ios-status-bar {
+            height: 44px;
+            background-color: #ffffff;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .app-container {
+            max-width: 414px; /* iPhone 15 width */
+            height: 100vh;
+            margin: 0 auto;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+            border-radius: 40px;
+            background-color: #F6F8FB;
+        }
+        .primary-button {
+            background-color: #74C69D;
+            transition: all 0.3s ease;
+        }
+        .primary-button:hover, .primary-button:focus {
+            background-color: #5db589;
+            transform: translateY(-2px);
+        }
+        .input-container {
+            border-radius: 16px;
+            border: 1px solid #E5E7EB;
+            transition: all 0.3s ease;
+        }
+        .input-container:focus-within {
+            border-color: #74C69D;
+            box-shadow: 0 0 0 2px rgba(116, 198, 157, 0.2);
+        }
+        .social-login-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            background-color: white;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+        }
+        .social-login-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
+        }
+        .logo-animation {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.05);
+            }
+            100% {
+                transform: scale(1);
+            }
+        }
+        .form-appear {
+            animation: fadeUp 0.8s ease-out;
+        }
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container flex flex-col">
+        <!-- iOS 状态栏 -->
+        <div class="ios-status-bar flex items-center justify-between px-4">
+            <div class="time">9:41</div>
+            <div class="icons flex space-x-2">
+                <i class="fas fa-signal"></i>
+                <i class="fas fa-wifi"></i>
+                <i class="fas fa-battery-full"></i>
+            </div>
+        </div>
+        
+        <!-- 主要内容区域 -->
+        <div class="flex-grow overflow-y-auto p-6 flex flex-col">
+            <!-- Logo 和欢迎文字 -->
+            <div class="flex flex-col items-center justify-center mt-10 mb-12">
+                <div class="w-24 h-24 rounded-full bg-white flex items-center justify-center shadow-md mb-6 logo-animation">
+                    <div class="text-3xl font-bold text-green-500">
+                        <span class="text-blue-500">2·</span>1
+                    </div>
+                </div>
+                <h1 class="text-2xl font-bold text-center">两点一线</h1>
+                <p class="text-gray-500 text-center mt-2">找到孩子成功的必经之路</p>
+            </div>
+            
+            <!-- 登录表单 -->
+            <div class="form-appear">
+                <div class="mb-8">
+                    <h2 class="text-xl font-semibold mb-2">欢迎回来</h2>
+                    <p class="text-gray-500">请登录您的账户继续</p>
+                </div>
+                
+                <form action="welcome.html" class="mb-6">
+                    <div class="mb-4">
+                        <label class="block text-gray-700 text-sm font-medium mb-2" for="email">
+                            邮箱 / 手机号
+                        </label>
+                        <div class="input-container">
+                            <input class="appearance-none w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none" id="email" type="text" placeholder="请输入您的邮箱或手机号">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-6">
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="block text-gray-700 text-sm font-medium" for="password">
+                                密码
+                            </label>
+                            <a href="forgot-password.html" class="text-sm text-green-500 hover:text-green-600">忘记密码?</a>
+                        </div>
+                        <div class="input-container">
+                            <input class="appearance-none w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none" id="password" type="password" placeholder="请输入您的密码">
+                        </div>
+                    </div>
+                    
+                    <button class="primary-button w-full py-4 text-white font-medium rounded-xl" type="submit">
+                        登录
+                    </button>
+                </form>
+            </div>
+            
+            <!-- 社交媒体登录 -->
+            <div class="flex flex-col items-center mt-4 mb-8">
+                <div class="w-full flex items-center justify-center mb-6">
+                    <div class="flex-grow h-0.5 bg-gray-200"></div>
+                    <span class="px-4 text-gray-500 text-sm">快速登录</span>
+                    <div class="flex-grow h-0.5 bg-gray-200"></div>
+                </div>
+                
+                <div class="flex space-x-6">
+                    <a href="#" class="social-login-btn">
+                        <i class="fab fa-weixin text-green-500"></i>
+                    </a>
+                    <a href="#" class="social-login-btn">
+                        <i class="fas fa-mobile-alt text-blue-500"></i>
+                    </a>
+                    <a href="#" class="social-login-btn">
+                        <i class="fab fa-apple text-gray-800"></i>
+                    </a>
+                </div>
+            </div>
+            
+            <!-- 注册链接 -->
+            <div class="text-center mt-auto mb-8">
+                <p class="text-gray-600">
+                    还没有账户? 
+                    <a href="register.html" class="text-green-500 font-medium">立即注册</a>
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 显示当前时间
+        function updateTime() {
+            const timeElement = document.querySelector('.time');
+            const now = new Date();
+            const hours = now.getHours().toString().padStart(2, '0');
+            const minutes = now.getMinutes().toString().padStart(2, '0');
+            timeElement.textContent = `${hours}:${minutes}`;
+        }
+        
+        // 页面加载时更新时间，并设置定时器每分钟更新一次
+        updateTime();
+        setInterval(updateTime, 60000);
+        
+        // 表单提交处理
+        document.querySelector('form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            if (email && password) {
+                // 在实际应用中，这里应该有验证和API调用
+                // 现在我们只是简单地重定向
+                window.location.href = 'view1.html';
+            } else {
+                alert('请输入邮箱/手机号和密码');
+            }
+        });
+    </script>
+</body>
+</html> 

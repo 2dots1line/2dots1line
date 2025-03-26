@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>两点一线 - 注册</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+            background-color: #F6F8FB;
+            color: #444444;
+        }
+        .ios-status-bar {
+            height: 44px;
+            background-color: #ffffff;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .app-container {
+            max-width: 414px; /* iPhone 15 width */
+            height: 100vh;
+            margin: 0 auto;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+            border-radius: 40px;
+            background-color: #F6F8FB;
+        }
+        .primary-button {
+            background-color: #74C69D;
+            transition: all 0.3s ease;
+        }
+        .primary-button:hover, .primary-button:focus {
+            background-color: #5db589;
+            transform: translateY(-2px);
+        }
+        .input-container {
+            border-radius: 16px;
+            border: 1px solid #E5E7EB;
+            transition: all 0.3s ease;
+        }
+        .input-container:focus-within {
+            border-color: #74C69D;
+            box-shadow: 0 0 0 2px rgba(116, 198, 157, 0.2);
+        }
+        .social-login-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            background-color: white;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+        }
+        .social-login-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
+        }
+        .form-appear {
+            animation: fadeUp 0.8s ease-out;
+        }
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .custom-checkbox {
+            position: relative;
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 6px;
+            background-color: white;
+            border: 2px solid #E5E7EB;
+            cursor: pointer;
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+        .custom-checkbox.checked {
+            background-color: #74C69D;
+            border-color: #74C69D;
+        }
+        .custom-checkbox.checked::before {
+            content: '✓';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container flex flex-col">
+        <!-- iOS 状态栏 -->
+        <div class="ios-status-bar flex items-center justify-between px-4">
+            <div class="time">9:41</div>
+            <div class="icons flex space-x-2">
+                <i class="fas fa-signal"></i>
+                <i class="fas fa-wifi"></i>
+                <i class="fas fa-battery-full"></i>
+            </div>
+        </div>
+        
+        <!-- 顶部导航栏 -->
+        <div class="flex items-center p-4 bg-white border-b border-gray-200">
+            <a href="login.html" class="mr-4">
+                <i class="fas fa-arrow-left text-gray-600"></i>
+            </a>
+            <div class="flex items-center">
+                <h1 class="ml-2 text-lg font-semibold">创建账户</h1>
+            </div>
+        </div>
+        
+        <!-- 主要内容区域 -->
+        <div class="flex-grow overflow-y-auto p-6 flex flex-col">
+            <!-- 注册表单 -->
+            <div class="form-appear">
+                <div class="mb-6">
+                    <h2 class="text-xl font-semibold mb-2">加入两点一线</h2>
+                    <p class="text-gray-500">开启您孩子成功的新旅程</p>
+                </div>
+                
+                <form action="welcome.html" class="mb-6">
+                    <div class="mb-4">
+                        <label class="block text-gray-700 text-sm font-medium mb-2" for="name">
+                            姓名
+                        </label>
+                        <div class="input-container">
+                            <input class="appearance-none w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none" id="name" type="text" placeholder="请输入您的真实姓名">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="block text-gray-700 text-sm font-medium mb-2" for="email">
+                            邮箱 / 手机号
+                        </label>
+                        <div class="input-container">
+                            <input class="appearance-none w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none" id="email" type="text" placeholder="请输入您的邮箱或手机号">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="block text-gray-700 text-sm font-medium mb-2" for="password">
+                            密码
+                        </label>
+                        <div class="input-container">
+                            <input class="appearance-none w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none" id="password" type="password" placeholder="请设置8位以上密码">
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">密码需包含字母、数字和符号</p>
+                    </div>
+                    
+                    <div class="mb-6 flex items-center">
+                        <div id="terms-checkbox" class="custom-checkbox mr-3"></div>
+                        <label class="text-sm text-gray-600" for="terms-checkbox">
+                            我已阅读并同意 <a href="#" class="text-green-500">用户协议</a> 和 <a href="#" class="text-green-500">隐私政策</a>
+                        </label>
+                    </div>
+                    
+                    <button id="register-btn" class="primary-button w-full py-4 text-white font-medium rounded-xl opacity-50 cursor-not-allowed" type="submit" disabled>
+                        注册
+                    </button>
+                </form>
+            </div>
+            
+            <!-- 社交媒体注册 -->
+            <div class="flex flex-col items-center mt-4 mb-8">
+                <div class="w-full flex items-center justify-center mb-6">
+                    <div class="flex-grow h-0.5 bg-gray-200"></div>
+                    <span class="px-4 text-gray-500 text-sm">快速注册</span>
+                    <div class="flex-grow h-0.5 bg-gray-200"></div>
+                </div>
+                
+                <div class="flex space-x-6">
+                    <a href="#" class="social-login-btn">
+                        <i class="fab fa-weixin text-green-500"></i>
+                    </a>
+                    <a href="#" class="social-login-btn">
+                        <i class="fas fa-mobile-alt text-blue-500"></i>
+                    </a>
+                    <a href="#" class="social-login-btn">
+                        <i class="fab fa-apple text-gray-800"></i>
+                    </a>
+                </div>
+            </div>
+            
+            <!-- 登录链接 -->
+            <div class="text-center mt-auto mb-8">
+                <p class="text-gray-600">
+                    已有账户? 
+                    <a href="login.html" class="text-green-500 font-medium">立即登录</a>
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 显示当前时间
+        function updateTime() {
+            const timeElement = document.querySelector('.time');
+            const now = new Date();
+            const hours = now.getHours().toString().padStart(2, '0');
+            const minutes = now.getMinutes().toString().padStart(2, '0');
+            timeElement.textContent = `${hours}:${minutes}`;
+        }
+        
+        // 页面加载时更新时间，并设置定时器每分钟更新一次
+        updateTime();
+        setInterval(updateTime, 60000);
+        
+        // 复选框交互
+        const termsCheckbox = document.getElementById('terms-checkbox');
+        const registerBtn = document.getElementById('register-btn');
+        let termsAccepted = false;
+        
+        termsCheckbox.addEventListener('click', function() {
+            termsAccepted = !termsAccepted;
+            
+            if (termsAccepted) {
+                this.classList.add('checked');
+                registerBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                registerBtn.removeAttribute('disabled');
+            } else {
+                this.classList.remove('checked');
+                registerBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                registerBtn.setAttribute('disabled', 'disabled');
+            }
+        });
+        
+        // 表单提交处理
+        document.querySelector('form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            if (name && email && password && termsAccepted) {
+                // 在实际应用中，这里应该有验证和API调用
+                // 现在我们只是简单地重定向
+                window.location.href = 'view1.html';
+            } else {
+                alert('请填写所有必填字段并同意用户协议');
+            }
+        });
+    </script>
+</body>
+</html> 

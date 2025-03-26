@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2Dots1Line - 互动问答</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+            background-color: #F6F8FB;
+            color: #444444;
+        }
+        .ios-status-bar {
+            height: 44px;
+            background-color: #ffffff;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .primary-button {
+            background-color: #74C69D;
+            transition: all 0.3s ease;
+        }
+        .primary-button:hover {
+            background-color: #5db589;
+            transform: translateY(-2px);
+        }
+        .app-container {
+            max-width: 414px; /* iPhone 15 width */
+            height: 100vh;
+            margin: 0 auto;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+            border-radius: 40px;
+            background-color: #F6F8FB;
+        }
+        .safe-area {
+            padding-top: 59px; /* iPhone 15 top safe area */
+            padding-bottom: 34px; /* iPhone 15 bottom safe area */
+        }
+        .chat-bubble {
+            border-radius: 20px;
+            max-width: 85%;
+            animation: fadeIn 0.5s ease-out;
+            margin-bottom: 16px;
+        }
+        .ai-bubble {
+            background-color: #6CCFF6;
+            color: white;
+        }
+        .user-bubble {
+            background-color: #74C69D;
+            color: white;
+            margin-left: auto;
+        }
+        .highlight-text {
+            font-weight: 600;
+            color: #fff;
+            background-color: rgba(255, 255, 255, 0.2);
+            padding: 0 4px;
+            border-radius: 4px;
+        }
+        .quick-reply {
+            border-radius: 16px;
+            transition: all 0.3s ease;
+            border: 2px solid #74C69D;
+        }
+        .quick-reply:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            background-color: #74C69D;
+            color: white;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .typing-animation span {
+            width: 8px;
+            height: 8px;
+            background: #fff;
+            display: inline-block;
+            border-radius: 50%;
+            margin: 0 1px;
+            animation: typing 1.5s infinite ease-in-out;
+        }
+        .typing-animation span:nth-child(2) {
+            animation-delay: 0.3s;
+        }
+        .typing-animation span:nth-child(3) {
+            animation-delay: 0.6s;
+        }
+        @keyframes typing {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+        .chat-bubble.delayed-1 {
+            animation-delay: 0.5s;
+            opacity: 0;
+            animation-fill-mode: forwards;
+        }
+        .chat-bubble.delayed-2 {
+            animation-delay: 1.5s;
+            opacity: 0;
+            animation-fill-mode: forwards;
+        }
+        .chat-bubble.delayed-3 {
+            animation-delay: 2.5s;
+            opacity: 0;
+            animation-fill-mode: forwards;
+        }
+        .options-container {
+            animation: fadeIn 3.5s forwards;
+            opacity: 0;
+            animation-fill-mode: forwards;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container flex flex-col">
+        <!-- iOS 状态栏 -->
+        <div class="ios-status-bar flex items-center justify-between px-4">
+            <div class="time">9:41</div>
+            <div class="icons flex space-x-2">
+                <i class="fas fa-signal"></i>
+                <i class="fas fa-wifi"></i>
+                <i class="fas fa-battery-full"></i>
+            </div>
+        </div>
+        
+        <!-- 顶部导航栏 -->
+        <div class="flex items-center p-4 bg-white border-b border-gray-200">
+            <a href="view2.html" class="mr-4">
+                <i class="fas fa-arrow-left text-gray-600"></i>
+            </a>
+            <div class="flex items-center">
+                <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                    <i class="fas fa-robot text-green-500"></i>
+                </div>
+                <h1 class="ml-2 text-lg font-semibold">2Dots1Line 助手</h1>
+            </div>
+        </div>
+        
+        <!-- 聊天区域 -->
+        <div class="flex-grow overflow-y-auto p-4" id="chat-container">
+            <div class="chat-bubble ai-bubble p-4">
+                <p class="leading-relaxed">有个问题我特别想听听您的看法：</p>
+                <p class="leading-relaxed">您觉得来自中国大陆的、最终成功申请到美国名校本科的学生，他们身上最关键的成功因素到底是什么呢？</p>
+            </div>
+            
+            <div class="chat-bubble user-bubble p-4">
+                <p class="leading-relaxed">学术表现，包括GPA、标化考试成绩（托福、SAT、ACT等）以及AP课程等</p>
+            </div>
+            
+            <div class="chat-bubble ai-bubble p-4 delayed-1">
+                <p class="leading-relaxed">这是一个很好的切入点！学术表现确实是留学申请中的一个基础条件。</p>
+                <p class="leading-relaxed">顶尖的GPA和标化考试成绩为学生打开了申请的大门，这是不可否认的。</p>
+            </div>
+            
+            <div class="chat-bubble ai-bubble p-4 delayed-2">
+                <p class="leading-relaxed">不过，有趣的是，在我们分析成功案例时发现，那些最终被名校录取的学生中，很多并不是分数最高的。他们往往有一个共同点：<span class="highlight-text">强烈的自我驱动力和坚定的信念</span>。</p>
+                <p class="leading-relaxed">正是这种信念让他们能够持之以恒地努力学习，在面对挑战时不轻易放弃。</p>
+            </div>
+            
+            <div class="chat-bubble ai-bubble p-4 delayed-3">
+                <p class="leading-relaxed">您的孩子在学业上表现如何？更重要的是，他/她是因为真正热爱学习而努力，还是仅仅为了满足期望？这种内在动力的差异往往决定了他们能走多远。</p>
+            </div>
+            
+            <div class="options-container mt-8">
+                <div class="space-y-3">
+                    <div class="quick-reply bg-white p-4 flex items-center justify-between cursor-pointer shadow-sm" onclick="window.location.href='viewOpen1.html?previous=4'">
+                        <div>
+                            <div class="font-medium">学习成绩很优秀</div>
+                            <div class="text-sm text-gray-500">但还需要其他方面的提升</div>
+                        </div>
+                        <i class="fas fa-chevron-right text-green-500"></i>
+                    </div>
+                    
+                    <div class="quick-reply bg-white p-4 flex items-center justify-between cursor-pointer shadow-sm" onclick="window.location.href='viewOpen1.html?previous=5'">
+                        <div>
+                            <div class="font-medium">学习成绩一般</div>
+                            <div class="text-sm text-gray-500">需要提高学习动力和成绩</div>
+                        </div>
+                        <i class="fas fa-chevron-right text-green-500"></i>
+                    </div>
+                    
+                    <div class="quick-reply bg-white p-4 flex items-center justify-between cursor-pointer shadow-sm" onclick="window.location.href='viewOpen1.html?previous=6'">
+                        <div>
+                            <div class="font-medium">对学习有自己的热情</div>
+                            <div class="text-sm text-gray-500">但不知如何转化为申请优势</div>
+                        </div>
+                        <i class="fas fa-chevron-right text-green-500"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 确保滚动到底部以查看最新消息
+        function scrollToBottom() {
+            const chatContainer = document.getElementById('chat-container');
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+        
+        // 页面加载后自动滚动
+        window.onload = function() {
+            setTimeout(scrollToBottom, 100);
+            
+            // 每次新消息出现后也滚动
+            setTimeout(scrollToBottom, 600);
+            setTimeout(scrollToBottom, 1600);
+            setTimeout(scrollToBottom, 2600);
+            setTimeout(scrollToBottom, 3600);
+        };
+    </script>
+</body>
+</html> 

@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2Dots1Line - 示例文书</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+            background-color: #F6F8FB;
+            color: #444444;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .app-container {
+            max-width: 414px; /* iPhone 15 width */
+            height: 100vh;
+            margin: 0 auto;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+            border-radius: 40px;
+            background-color: #F6F8FB;
+        }
+        
+        .status-bar {
+            height: 44px;
+            background-color: #ffffff;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .chat-bubble {
+            border-radius: 20px;
+            max-width: 85%;
+            margin-bottom: 16px;
+            animation: fadeIn 0.5s ease-out;
+        }
+        
+        .ai-bubble {
+            background-color: #6CCFF6;
+            color: white;
+        }
+        
+        .user-bubble {
+            background-color: #74C69D;
+            color: white;
+            margin-left: auto;
+        }
+        
+        .highlight-text {
+            font-weight: 600;
+            color: #fff;
+            background-color: rgba(255, 255, 255, 0.2);
+            padding: 0 4px;
+            border-radius: 4px;
+        }
+        
+        .primary-button {
+            background-color: #74C69D;
+            transition: all 0.3s ease;
+        }
+        
+        .primary-button:hover, .primary-button:focus {
+            background-color: #5db589;
+            transform: translateY(-2px);
+        }
+        
+        .option-button {
+            transition: all 0.3s ease;
+        }
+        
+        .option-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .delayed-1 {
+            opacity: 0;
+            animation: fadeIn 0.5s ease-out 0.5s forwards;
+        }
+        
+        .delayed-2 {
+            opacity: 0;
+            animation: fadeIn 0.5s ease-out 1.5s forwards;
+        }
+        
+        .delayed-3 {
+            opacity: 0;
+            animation: fadeIn 0.5s ease-out 2.5s forwards;
+        }
+        
+        /* Slide-up panel, Claude style */
+        .slide-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.4);
+            z-index: 50;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease;
+        }
+        
+        .slide-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .slide-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            max-width: 414px;
+            margin: 0 auto;
+            height: 80%;
+            background-color: white;
+            border-top-left-radius: 20px;
+            border-top-right-radius: 20px;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .slide-panel.active {
+            transform: translateY(0);
+        }
+        
+        .slide-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #E5E7EB;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .slide-handle {
+            position: absolute;
+            top: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 40px;
+            height: 5px;
+            background-color: #E5E7EB;
+            border-radius: 3px;
+        }
+        
+        .slide-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        
+        .essay-highlight {
+            background-color: #F0FFF4;
+            border-left: 3px solid #74C69D;
+            padding: 2px 6px;
+            border-radius: 0 4px 4px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Status Bar -->
+        <div class="status-bar flex items-center justify-between px-4">
+            <div class="time">12:22</div>
+            <div class="icons flex space-x-2">
+                <i class="fas fa-signal"></i>
+                <i class="fas fa-wifi"></i>
+                <i class="fas fa-battery-full"></i>
+            </div>
+        </div>
+        
+        <!-- Nav Bar -->
+        <div class="flex items-center p-4 bg-white border-b border-gray-200">
+            <a href="viewOpen1.html" class="mr-4">
+                <i class="fas fa-arrow-left text-gray-600"></i>
+            </a>
+            <div class="flex items-center">
+                <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                    <i class="fas fa-robot text-green-500"></i>
+                </div>
+                <h1 class="ml-2 text-lg font-semibold">2Dots1Line 助手</h1>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="overflow-y-auto p-4" style="height: calc(100vh - 105px);">
+            <div class="chat-bubble user-bubble p-4 mb-5">
+                <p class="leading-relaxed">去年他参加了一场网球比赛，第一盘以0-6惨败。休息时，他没有沮丧或发脾气，而是拿出随身带的物理书翻了几页，说要调整一下心态。第二盘比赛开始后，我发现他完全改变了策略，不再硬拼对手的强项，而是专找对手的反手弱点进攻。最后他居然逆转赢了比赛，成绩是0-6、6-4、6-3。赛后他告诉我，他在第一盘就发现了对手的弱点，但自己太紧张发挥不出来，所以休息时看书是为了让自己冷静下来，然后有针对性地调整策略。</p>
+            </div>
+            
+            <div class="chat-bubble ai-bubble p-4 delayed-1">
+                <p class="mb-3">这是非常令人印象深刻的例子！在这场网球比赛中，您的孩子展现了卓越的：</p>
+                <ul class="list-disc pl-5 mb-3">
+                    <li><span class="highlight-text">心理韧性</span> - 在第一盘0-6落后的情况下保持冷静</li>
+                    <li><span class="highlight-text">元认知能力</span> - 能够反思自己的思维过程并调整策略</li>
+                    <li><span class="highlight-text">分析能力</span> - 识别对手弱点并制定针对性策略</li>
+                </ul>
+                <p class="mb-3">这些品质在顶尖大学如哈佛、斯坦福都极为看重，因为它们预示着学生能在充满挑战的环境中取得成功。</p>
+            </div>
+            
+            <div class="chat-bubble ai-bubble p-4 delayed-2">
+                <p class="leading-relaxed">从心理学角度看，他展现出色的"成长型思维模式"(Growth Mindset)——不将失败视为能力的限制，而是视为需要调整策略的信号。特别是在比赛中通过看书来调整心态，这种自我调节能力非常罕见，尤其是在青少年中。</p>
+                <p class="leading-relaxed">结合前面的例子，我们可以看到一个明确的模式：您的孩子具有强大的<span class="highlight-text">情绪自控能力</span>和<span class="highlight-text">策略性思考</span>，这些品质与他五岁时的表现一脉相承。</p>
+            </div>
+            
+            <div class="chat-bubble ai-bubble p-4 delayed-3">
+                <p class="leading-relaxed">您知道吗？顶尖大学的招生官特别关注能展示"面对挫折的反应"的例子。每年有成千上万的"完美申请者"有着优秀的成绩和活动，但能够像您孩子这样展现出真实的心理韧性和策略性思维的申请人却很少见。</p>
+                <p class="leading-relaxed">这两个例子连在一起，讲述了一个关于定力、自控和战略思维的成长故事。您愿意看一下，如果把这些宝贵的真实经历融入大学申请文书，会是什么效果吗？</p>
+            </div>
+            
+            <div class="mt-8 mb-6">
+                <button id="open-essay-btn" class="option-button primary-button text-white py-3 px-5 rounded-full text-sm mb-3 w-full text-left flex justify-between items-center">
+                    <span>是的，我想看看示例文书</span>
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+                <button class="option-button bg-white text-gray-700 py-3 px-5 rounded-full text-sm w-full text-left flex justify-between items-center shadow-sm border border-gray-200" onclick="window.location.href='index.html'">
+                    <span>不了，我想了解其他服务</span>
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Slide-up Panel Overlay -->
+    <div class="slide-overlay" id="overlay"></div>
+    
+    <!-- Essay Slide-up Panel (Claude Style) -->
+    <div class="slide-panel" id="essay-panel">
+        <div class="slide-handle"></div>
+        <div class="slide-header">
+            <h3 class="text-lg font-semibold">Sample College Application Essay</h3>
+            <div class="flex space-x-4">
+                <button id="view-full-btn" class="text-blue-500 text-sm">查看全文</button>
+                <button id="close-panel-btn" class="text-gray-500">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+        <div class="slide-content">
+            <h2 class="text-xl font-bold mb-3">五岁的策略家</h2>
+            
+            <p class="text-gray-700 mb-4 leading-relaxed">
+                我的人生第一课发生在我五岁那年的一个春日，在公园的洗手间内。当一个比我高大的男孩突然从后面踹我一脚时，我没有立即反应。我记得当时我的第一想法不是疼痛或愤怒，而是一种奇怪的清晰：<span class="essay-highlight">"我必须先完成手头的事。"</span>我平静地继续我的"任务"，甚至记得洗手，然后才转身去处理那个麻烦。这看似微不足道的一刻，却定义了我看待挑战的方式。
+            </p>
+            
+            <p class="text-gray-700 mb-4 leading-relaxed">
+                十二年后，这种与生俱来的冷静被放大到了校际网球赛的舞台上。第一盘0-6惨败后，教练的眼神中充满了怀疑，队友的安慰听起来像是提前的告别。比赛暂停时，我做了一件所有人都认为荒谬的事——我拿出物理课本阅读了两页关于动量守恒的内容。
+            </p>
+            
+            <p class="text-gray-700 mb-4 leading-relaxed">
+                那一刻，我想起了五岁时学到的那一课：<span class="essay-highlight">当面临突如其来的压力，先调整自己，而不是立即反应</span>。物理公式的规则和秩序平静了我的心情，也让我意识到网球比赛同样需要分析思考。当我重返赛场，我开始观察对手的模式——他强大的正手但相对较弱的反手，他在长距离奔跑后容易犯的错误。我的策略从盲目还击变成了有计划的部署，最终以6-4和6-3逆转获胜。
+            </p>
+            
+            <h3 class="text-lg font-semibold mt-6 mb-2">The Power of Pause</h3>
+            
+            <p class="text-gray-700 mb-4 leading-relaxed">
+                When I was five years old, a seemingly trivial moment in a public restroom taught me a lesson I've carried with me ever since. While using the facilities with my father nearby, another child who had been playing roughly with me earlier kicked me unprovoked. Instead of retaliating immediately, I calmly finished what I was doing, washed my hands thoroughly, and only then went to confront the aggressor. My father later told me he noticed something unusual about me that day – a certain composure that seemed beyond my years.
+            </p>
+            
+            <p class="text-gray-700 mb-4 leading-relaxed">
+                This ability to pause before reacting has shaped me in ways I never anticipated. Years later, during a tennis match that seemed impossible to win after losing the first set 0-6, this same quality emerged in a different context. As my opponent dominated the court, I found myself stepping back mentally – not in defeat, but in analysis. While my coach expected me to crumble under pressure, I instead took a moment between sets to reassess my strategy.
+            </p>
+            
+            <div class="mt-8 mb-4">
+                <h3 class="text-lg font-semibold text-gray-800 mb-2">我们的洞察</h3>
+                <p class="text-gray-700 leading-relaxed text-base">
+                    我们将两个看似不相关的个人经历——五岁时的厕所冲突和高中的网球比赛——连接起来，展现了您孩子性格中最核心、最与众不同的特质。这种连接展示了他如何将早期的本能发展成为一种成熟的能力，这正是招生官们所寻找的个人成长证据。
+                </p>
+                <p class="text-gray-700 leading-relaxed text-base mt-2">
+                    <span class="font-semibold">2Dots1Line的核心理念是</span>：通过连接看似不相关的点，我们能获得成长轨迹的珍贵洞察。许多家长往往忽视了日常生活中那些看似微不足道的瞬间，但恰恰是这些真实的小事件才最能揭示孩子的核心价值观和独特品质。
+                </p>
+            </div>
+            
+            <div class="flex space-x-3 mt-8">
+                <button id="save-essay-btn" class="flex-grow py-3 border border-gray-300 rounded-xl text-gray-700 font-medium text-sm flex items-center justify-center">
+                    <i class="far fa-save mr-2"></i>
+                    保存文书
+                </button>
+                <button id="customize-essay-btn" class="flex-grow py-3 bg-blue-500 text-white rounded-xl font-medium text-sm flex items-center justify-center">
+                    <i class="fas fa-pencil-alt mr-2"></i>
+                    定制文书
+                </button>
+            </div>
+            
+            <div class="mt-6 mb-10">
+                <button class="w-full py-3 bg-green-600 text-white rounded-xl font-medium" onclick="window.location.href='viewOpen2.html'">
+                    继续探索
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Scroll to bottom on load to show latest messages
+        function scrollToBottom() {
+            const chatContainer = document.querySelector('.overflow-y-auto');
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+        
+        // Set up panel functionality
+        window.onload = function() {
+            // 确保网球比赛的故事直接显示
+            const userBubbleElement = document.querySelector('.user-bubble p');
+            if (userBubbleElement) {
+                userBubbleElement.textContent = "去年他参加了一场网球比赛，第一盘以0-6惨败。休息时，他没有沮丧或发脾气，而是拿出随身带的物理书翻了几页，说要调整一下心态。第二盘比赛开始后，我发现他完全改变了策略，不再硬拼对手的强项，而是专找对手的反手弱点进攻。最后他居然逆转赢了比赛，成绩是0-6、6-4、6-3。赛后他告诉我，他在第一盘就发现了对手的弱点，但自己太紧张发挥不出来，所以休息时看书是为了让自己冷静下来，然后有针对性地调整策略。";
+            }
+            
+            // Scroll chat to bottom
+            setTimeout(scrollToBottom, 100);
+            setTimeout(scrollToBottom, 600);
+            setTimeout(scrollToBottom, 1600);
+            setTimeout(scrollToBottom, 2600);
+            
+            // Get elements
+            const overlay = document.getElementById('overlay');
+            const essayPanel = document.getElementById('essay-panel');
+            const openButton = document.getElementById('open-essay-btn');
+            const closeButton = document.getElementById('close-panel-btn');
+            const viewFullButton = document.getElementById('view-full-btn');
+            const saveButton = document.getElementById('save-essay-btn');
+            const customizeButton = document.getElementById('customize-essay-btn');
+            const panelHandle = document.querySelector('.slide-handle');
+            
+            // Open panel
+            openButton.addEventListener('click', function() {
+                overlay.classList.add('active');
+                essayPanel.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            });
+            
+            // Close panel
+            closeButton.addEventListener('click', function() {
+                overlay.classList.remove('active');
+                essayPanel.classList.remove('active');
+                document.body.style.overflow = '';
+            });
+            
+            // Click overlay to close
+            overlay.addEventListener('click', function() {
+                overlay.classList.remove('active');
+                essayPanel.classList.remove('active');
+                document.body.style.overflow = '';
+            });
+            
+            // View full essay
+            viewFullButton.addEventListener('click', function() {
+                window.location.href = 'viewEssay.html';
+            });
+            
+            // Save essay
+            saveButton.addEventListener('click', function() {
+                alert('文书已保存到您的账户');
+            });
+            
+            // Customize essay
+            customizeButton.addEventListener('click', function() {
+                window.location.href = 'viewEssay.html';
+            });
+            
+            // Handle drag to dismiss
+            let startY;
+            let startTransform;
+            
+            // Touch events for mobile
+            panelHandle.addEventListener('touchstart', function(e) {
+                startY = e.touches[0].clientY;
+                const transform = window.getComputedStyle(essayPanel).transform;
+                startTransform = transform !== 'none' ? new WebKitCSSMatrix(transform).m42 : 0;
+                
+                document.addEventListener('touchmove', handleTouchMove);
+                document.addEventListener('touchend', handleTouchEnd);
+                e.preventDefault();
+            });
+            
+            function handleTouchMove(e) {
+                if (!startY) return;
+                
+                const currentY = e.touches[0].clientY;
+                const diff = currentY - startY;
+                
+                if (diff > 0) {  // Only allow drag down
+                    essayPanel.style.transform = `translateY(${diff}px)`;
+                    // Adjust overlay opacity
+                    const opacity = 1 - (diff / (window.innerHeight / 2));
+                    overlay.style.opacity = Math.max(0.1, opacity);
+                }
+            }
+            
+            function handleTouchEnd() {
+                if (!startY) return;
+                
+                const transform = window.getComputedStyle(essayPanel).transform;
+                const currentTransform = transform !== 'none' ? new WebKitCSSMatrix(transform).m42 : 0;
+                
+                if (currentTransform > 150) {  // If dragged more than 150px
+                    overlay.classList.remove('active');
+                    essayPanel.classList.remove('active');
+                    document.body.style.overflow = '';
+                } else {
+                    // Reset position
+                    essayPanel.style.transform = '';
+                    overlay.style.opacity = '';
+                }
+                
+                startY = null;
+                document.removeEventListener('touchmove', handleTouchMove);
+                document.removeEventListener('touchend', handleTouchEnd);
+            }
+            
+            // Mouse events for desktop
+            panelHandle.addEventListener('mousedown', function(e) {
+                startY = e.clientY;
+                const transform = window.getComputedStyle(essayPanel).transform;
+                startTransform = transform !== 'none' ? new WebKitCSSMatrix(transform).m42 : 0;
+                panelHandle.style.cursor = 'grabbing';
+                
+                document.addEventListener('mousemove', handleMouseMove);
+                document.addEventListener('mouseup', handleMouseUp);
+            });
+            
+            function handleMouseMove(e) {
+                if (!startY) return;
+                
+                const currentY = e.clientY;
+                const diff = currentY - startY;
+                
+                if (diff > 0) {  // Only allow drag down
+                    essayPanel.style.transform = `translateY(${diff}px)`;
+                    // Adjust overlay opacity
+                    const opacity = 1 - (diff / (window.innerHeight / 2));
+                    overlay.style.opacity = Math.max(0.1, opacity);
+                }
+            }
+            
+            function handleMouseUp() {
+                if (!startY) return;
+                
+                const transform = window.getComputedStyle(essayPanel).transform;
+                const currentTransform = transform !== 'none' ? new WebKitCSSMatrix(transform).m42 : 0;
+                
+                if (currentTransform > 150) {  // If dragged more than 150px
+                    overlay.classList.remove('active');
+                    essayPanel.classList.remove('active');
+                    document.body.style.overflow = '';
+                } else {
+                    // Reset position
+                    essayPanel.style.transform = '';
+                    overlay.style.opacity = '';
+                }
+                
+                panelHandle.style.cursor = '';
+                startY = null;
+                document.removeEventListener('mousemove', handleMouseMove);
+                document.removeEventListener('mouseup', handleMouseUp);
+            }
+        };
+    </script>
+</body>
+</html> 

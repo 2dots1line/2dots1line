@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2Dots1Line - 互动问答</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+            background-color: #F6F8FB;
+            color: #444444;
+        }
+        .ios-status-bar {
+            height: 44px;
+            background-color: #ffffff;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .app-container {
+            max-width: 414px; /* iPhone 15 width */
+            height: 100vh;
+            margin: 0 auto;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+            border-radius: 40px;
+            background-color: #F6F8FB;
+        }
+        .primary-button {
+            background-color: #74C69D;
+            transition: all 0.3s ease;
+        }
+        .primary-button:hover, .primary-button:focus {
+            background-color: #5db589;
+            transform: translateY(-2px);
+        }
+        .chat-bubble {
+            border-radius: 20px;
+            max-width: 85%;
+            animation: fadeIn 0.5s ease-out;
+            margin-bottom: 16px;
+        }
+        .ai-bubble {
+            background-color: #6CCFF6;
+            color: white;
+        }
+        .user-bubble {
+            background-color: #74C69D;
+            color: white;
+            margin-left: auto;
+        }
+        .highlight-text {
+            font-weight: 600;
+            color: #fff;
+            background-color: rgba(255, 255, 255, 0.2);
+            padding: 0 4px;
+            border-radius: 4px;
+        }
+        .option-button {
+            transition: all 0.3s ease;
+        }
+        .option-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .typing-indicator {
+            display: inline-flex;
+            align-items: center;
+        }
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            margin: 0 1px;
+            background-color: white;
+            border-radius: 50%;
+            opacity: 0.6;
+            animation: typingAnimation 1.4s infinite both;
+        }
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        @keyframes typingAnimation {
+            0%, 100% { opacity: 0.6; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.2); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .delayed-1 {
+            animation-delay: 0.5s;
+            opacity: 0;
+            animation: fadeIn 0.5s ease-out 0.5s forwards;
+        }
+        .delayed-2 {
+            animation-delay: 1.5s;
+            opacity: 0;
+            animation: fadeIn 0.5s ease-out 1.5s forwards;
+        }
+        .delayed-3 {
+            animation-delay: 2.5s;
+            opacity: 0;
+            animation: fadeIn 0.5s ease-out 2.5s forwards;
+        }
+        .quality-card {
+            border-radius: 16px;
+            background-color: rgba(255, 255, 255, 0.15);
+            padding: 12px 16px;
+            margin-bottom: 12px;
+        }
+        .quality-card-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background-color: rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container flex flex-col">
+        <!-- iOS 状态栏 -->
+        <div class="ios-status-bar flex items-center justify-between px-4">
+            <div class="time">9:41</div>
+            <div class="icons flex space-x-2">
+                <i class="fas fa-signal"></i>
+                <i class="fas fa-wifi"></i>
+                <i class="fas fa-battery-full"></i>
+            </div>
+        </div>
+        
+        <!-- 顶部导航栏 -->
+        <div class="flex items-center p-4 bg-white border-b border-gray-200">
+            <a href="viewOpen1.html" class="mr-4">
+                <i class="fas fa-arrow-left text-gray-600"></i>
+            </a>
+            <div class="flex items-center">
+                <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                    <i class="fas fa-robot text-green-500"></i>
+                </div>
+                <h1 class="ml-2 text-lg font-semibold">2Dots1Line 助手</h1>
+            </div>
+        </div>
+        
+        <!-- 主要内容区域 -->
+        <div class="flex-grow overflow-y-auto p-4">
+            <div class="chat-bubble ai-bubble p-4 mb-5">
+                <p class="leading-relaxed">在了解孩子的特长和水平后，我想请您分享一个孩子生活中的特别例子，展示了他/她的某种独特品质或特点，这可能是处理挫折、解决问题或与他人互动的方式。</p>
+            </div>
+            
+            <div class="chat-bubble user-bubble p-4 mb-5">
+                <p class="leading-relaxed">我儿子五岁的时候春游的时候跟我在公园的公厕小便。这时候一个刚才在外面跟他打闹的孩子趁他上厕所踹了他一脚。我儿子面不改色，把尿撒干净，还洗了个手，然后才跑出去收拾那小子。我当时就觉得我儿子有定力。</p>
+            </div>
+            
+            <div class="chat-bubble ai-bubble p-4 delayed-1">
+                <p class="leading-relaxed">这个故事非常精彩！您的观察很独到——在这个看似普通的事件中，您捕捉到了孩子身上一个非常珍贵的品质：<span class="highlight-text">情绪自控能力</span>和<span class="highlight-text">策略思考</span>。</p>
+                
+                <div class="quality-card flex items-center mt-4">
+                    <div class="quality-card-icon">
+                        <i class="fas fa-brain"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-medium">延迟满足能力</h3>
+                        <p class="text-sm mt-1">在五岁这个年龄，通常孩子会立即做出反应，但您的孩子能够控制冲动，完成当前任务后再处理冲突。</p>
+                    </div>
+                </div>
+                
+                <div class="quality-card flex items-center">
+                    <div class="quality-card-icon">
+                        <i class="fas fa-chess"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-medium">战略思维</h3>
+                        <p class="text-sm mt-1">他不是盲目反应，而是有意识地选择最佳时机，这种思考模式非常难得。</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="chat-bubble ai-bubble p-4 delayed-2">
+                <p class="leading-relaxed">从心理发展角度看，这种行为表明您的孩子在<span class="highlight-text">前额叶皮质</span>（负责执行功能和自我控制）的发展方面可能超过同龄人。这一特质很可能与他的学习能力和社交能力呈正相关。</p>
+                <p class="leading-relaxed mt-3">这种"先平静处理当前事务，再解决问题"的模式展示了他不仅拥有自控力，还有清晰的优先级排序能力——这是顶尖大学和未来职场都极其看重的特质。</p>
+            </div>
+            
+            <div class="chat-bubble ai-bubble p-4 delayed-3">
+                <p class="leading-relaxed">您能否再分享一个孩子在其他情境下展现出这种<span class="highlight-text">自控力</span>和<span class="highlight-text">策略思考</span>能力的例子吗？也许是在学习、竞赛或者面对其他压力情境时？</p>
+                <p class="leading-relaxed mt-3">这样的例子对于理解孩子的核心优势和如何在申请中突显这些特质非常有价值。</p>
+            </div>
+            
+            <div class="user-options mt-4 mb-6">
+                <button class="option-button primary-button text-white py-3 px-5 rounded-full text-sm mb-3 w-full text-left flex justify-between items-center" onclick="window.location.href='viewExample2.html'">
+                    <span>分享另一个例子</span>
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+                <button class="option-button bg-white text-gray-700 py-3 px-5 rounded-full text-sm mb-3 w-full text-left flex justify-between items-center shadow-sm border border-gray-200" onclick="window.location.href='index.html'">
+                    <span>稍后再分享</span>
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 直接设置故事内容，不再依赖localStorage
+        window.onload = function() {
+            // 固定的故事内容
+            const story = "我儿子五岁的时候春游的时候跟我在公园的公厕小便。这时候一个刚才在外面跟他打闹的孩子趁他上厕所踹了他一脚。我儿子面不改色，把尿撒干净，还洗了个手，然后才跑出去收拾那小子。我当时就觉得我儿子有定力。";
+            
+            // 直接设置故事内容，不再检查localStorage
+            const userBubbleElement = document.querySelector('.user-bubble p');
+            if (userBubbleElement) {
+                userBubbleElement.textContent = story;
+            }
+            
+            // 添加动画效果的延迟
+            setTimeout(function() {
+                const delayedElements = document.querySelectorAll('.delayed-1, .delayed-2, .delayed-3');
+                delayedElements.forEach(el => {
+                    el.style.opacity = '1';
+                });
+            }, 500);
+        };
+    </script>
+</body>
+</html> 
