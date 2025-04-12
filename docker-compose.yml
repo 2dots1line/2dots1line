@@ -1,0 +1,101 @@
+version: '3'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:14
+    container_name: postgres-2dots1line
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=2dots1line
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - 2dots1line
+
+  # Neo4j Graph Database
+  neo4j:
+    image: neo4j:5.9.0
+    container_name: neo4j-2dots1line
+    ports:
+      - "7474:7474"  # HTTP
+      - "7687:7687"  # Bolt
+    environment:
+      - NEO4J_AUTH=neo4j/password123  # Default credentials - CHANGE THIS!
+      - NEO4J_apoc_export_file_enabled=true
+      - NEO4J_apoc_import_file_enabled=true
+      - NEO4J_apoc_import_file_use__neo4j__config=true
+      - NEO4J_PLUGINS=["apoc"]  # Enable APOC plugin for advanced operations
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+      - neo4j_import:/var/lib/neo4j/import
+      - neo4j_plugins:/plugins
+    networks:
+      - 2dots1line
+
+  # Milvus Vector Database
+  milvus:
+    image: milvusdb/milvus:v2.3.3
+    container_name: milvus-2dots1line
+    ports:
+      - "19530:19530"  # gRPC port
+      - "9091:9091"    # API port
+    environment:
+      - ETCD_ENDPOINTS=etcd:2379
+      - MINIO_ADDRESS=minio:9000
+    depends_on:
+      - "etcd"
+      - "minio"
+    networks:
+      - 2dots1line
+
+  # Etcd (required by Milvus)
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.5
+    container_name: milvus-etcd
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    volumes:
+      - etcd_data:/etcd
+    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    networks:
+      - 2dots1line
+
+  # MinIO (required by Milvus)
+  minio:
+    image: minio/minio:RELEASE.2023-11-15T20-43-25Z
+    container_name: milvus-minio
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    volumes:
+      - minio_data:/minio_data
+    command: minio server /minio_data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - 2dots1line
+
+networks:
+  2dots1line:
+
+volumes:
+  postgres_data:
+  neo4j_data:
+  neo4j_logs:
+  neo4j_import:
+  neo4j_plugins:
+  etcd_data:
+  minio_data:
+
+# Note: Ensure Docker Desktop (or equivalent) is running with sufficient memory allocated. 

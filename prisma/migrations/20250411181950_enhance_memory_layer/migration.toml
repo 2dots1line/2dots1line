@@ -1,0 +1,4 @@
+# This is a manually created migration
+
+migration_name = "enhance_memory_layer"
+checksum = "7a9de76d3f5fccab4c6ccb31960a4a5d00c9fabe44d9eb50f49c9d28df6cfd1c" 

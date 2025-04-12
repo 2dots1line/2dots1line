@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Thought" ADD COLUMN     "confidence" DOUBLE PRECISION NOT NULL DEFAULT 1.0;

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Profile - 2Dots1Line</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://unpkg.com/feather-icons"></script>
+</head>
+<body>
+  <div class="container">
+    <!-- Navigation -->
+    <nav class="navbar">
+      <div class="logo">
+        <i data-feather="zap" class="logo-icon"></i> 
+        2Dots1Line
+      </div>
+      
+      <div class="nav-links">
+        <a href="/">Home</a>
+        <a href="/#features">Features</a>
+        <a href="/#about">About</a>
+        <a href="/#contact">Contact</a>
+      </div>
+      
+      <div id="auth-buttons" class="auth-buttons">
+        <!-- This will be dynamically updated by auth.js -->
+      </div>
+    </nav>
+    
+    <!-- Profile Content -->
+    <section class="auth-container" style="min-height: auto;">
+      <div class="form-card" style="max-width: 800px;">
+        <div class="form-header">
+          <h2>Your Profile</h2>
+          <p>Manage your account and personal information</p>
+        </div>
+        
+        <div id="profile-response" class="response-message" style="display: none;"></div>
+        
+        <!-- Profile Information -->
+        <div id="profile-info" style="margin-bottom: 2rem;">
+          <h3>Personal Information</h3>
+          <div class="card" style="margin-top: 1rem;">
+            <div id="user-details">
+              <p><strong>Loading user information...</strong></p>
+            </div>
+          </div>
+        </div>
+        
+        <!-- User Stats -->
+        <div id="user-stats" style="margin-bottom: 2rem;">
+          <h3>Your Activity</h3>
+          <div class="card-container" style="margin-top: 1rem;">
+            <div class="card">
+              <i data-feather="activity" class="card-icon"></i>
+              <h3 class="card-title">Interactions</h3>
+              <p class="card-description">0 interactions recorded</p>
+            </div>
+            
+            <div class="card">
+              <i data-feather="layers" class="card-icon"></i>
+              <h3 class="card-title">Cards</h3>
+              <p class="card-description">0 insight cards generated</p>
+            </div>
+            
+            <div class="card">
+              <i data-feather="map" class="card-icon"></i>
+              <h3 class="card-title">Decks</h3>
+              <p class="card-description">0 strategic decks created</p>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Account Actions -->
+        <div id="account-actions">
+          <h3>Account Management</h3>
+          <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+            <button id="logout-btn" class="btn btn-outline">
+              <i data-feather="log-out" style="width: 16px; height: 16px; margin-right: 0.5rem;"></i> Logout
+            </button>
+            <button id="edit-profile-btn" class="btn btn-primary">
+              <i data-feather="edit" style="width: 16px; height: 16px; margin-right: 0.5rem;"></i> Edit Profile
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    // Initialize Feather icons
+    document.addEventListener('DOMContentLoaded', () => {
+      feather.replace();
+    });
+  </script>
+  <script src="js/auth.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Check if user is logged in
+      const isLoggedIn = checkAuth();
+      if (!isLoggedIn) {
+        window.location.href = '/#auth';
+        return;
+      }
+      
+      // Display user information
+      const user = JSON.parse(sessionStorage.getItem('user') || '{}');
+      const userDetails = document.getElementById('user-details');
+      
+      if (userDetails) {
+        userDetails.innerHTML = `
+          <p><strong>Name:</strong> ${user.first_name || ''} ${user.last_name || ''}</p>
+          <p><strong>Email:</strong> ${user.email || ''}</p>
+          <p><strong>Member since:</strong> ${new Date(user.signup_timestamp).toLocaleDateString() || ''}</p>
+        `;
+      }
+      
+      // Attach logout event
+      const logoutBtn = document.getElementById('logout-btn');
+      if (logoutBtn) {
+        logoutBtn.addEventListener('click', handleLogout);
+      }
+      
+      // Placeholder for edit profile button
+      const editProfileBtn = document.getElementById('edit-profile-btn');
+      if (editProfileBtn) {
+        editProfileBtn.addEventListener('click', () => {
+          alert('Edit profile feature coming soon!');
+        });
+      }
+    });
+  </script>
+</body>
+</html> 

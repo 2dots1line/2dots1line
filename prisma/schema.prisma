@@ -1,0 +1,303 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  user_id           String         @id @default(uuid()) @db.Uuid
+  first_name        String?
+  last_name         String?
+  email             String         @unique
+  phone             String?
+  wechat_id         String?
+  password_hash     String
+  signup_timestamp  DateTime       @default(now())
+  subscription_plan String?
+  gender            String?
+  age               Int?
+  city              String?
+  cards             Card[]
+  decks             Deck[]
+  interactions      Interaction[]
+  perspectives      Perspective[]
+  rawData           RawData[]
+  thoughts          Thought[]
+  memoryMetrics     MemoryMetrics?
+}
+
+model RawData {
+  id                 String   @id @default(cuid())
+  content            String // The actual content
+  contentType        String // 'user_chat', 'uploaded_file', 'image', etc.
+  createdAt          DateTime @default(now())
+  userId             String   @db.Uuid
+  sessionId          String // To group related interactions
+  perspectiveOwnerId String   @db.Uuid // Who provided this data
+  subjectId          String? // Who this data is about
+  importanceScore    Float? // Determined during processing
+  processedFlag      Boolean  @default(false)
+
+  // Relationships
+  user       User            @relation(fields: [userId], references: [user_id])
+  chunks     SemanticChunk[]
+  thoughts   Thought[]
+  embeddings Embedding[]
+
+  @@index([userId])
+  @@index([sessionId])
+  @@index([perspectiveOwnerId])
+}
+
+model SemanticChunk {
+  id                 String   @id @default(cuid())
+  rawDataId          String
+  content            String // The chunk content
+  summary            String? // Optional summary
+  chunkIndex         Int // Position in sequence
+  importanceScore    Float? // Determined during processing
+  createdAt          DateTime @default(now())
+  perspectiveOwnerId String   @db.Uuid // Who provided this data
+  subjectId          String? // Who this chunk is about
+
+  // Relationships
+  rawData    RawData     @relation(fields: [rawDataId], references: [id], onDelete: Cascade)
+  embeddings Embedding[]
+  thoughts   Thought[]
+
+  @@unique([rawDataId, chunkIndex])
+  @@index([rawDataId])
+  @@index([perspectiveOwnerId])
+}
+
+model Embedding {
+  id              String   @id @default(cuid())
+  vector          Float[] // The actual embedding vector
+  dimension       Int // Vector dimensions (e.g., 768, 1536)
+  content         String // The text that was embedded
+  summary         String // Summarized content
+  importanceScore Float // Relevance score
+  confidence      Float    @default(1.0)
+  embeddingType   String // 'raw', 'chunk', 'thought', 'entity', etc.
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Source tracking
+  rawDataId String?
+  chunkId   String?
+
+  // Context and perspective
+  perspectiveOwnerId String  @db.Uuid // Who provided this data
+  subjectId          String? // Who this embedding is about
+
+  // Graph connectivity
+  linkedNodeIds String[] // IDs of related knowledge graph nodes
+
+  // Vector database metadata
+  vectorCollection String // Collection name in vector DB
+  vectorId         String // ID in vector database
+  isIncremental    Boolean @default(false)
+
+  // Relationships
+  rawData       RawData?          @relation(fields: [rawDataId], references: [id])
+  chunk         SemanticChunk?    @relation(fields: [chunkId], references: [id])
+  thoughts      Thought[]
+  updateHistory EmbeddingUpdate[]
+
+  @@index([rawDataId])
+  @@index([chunkId])
+  @@index([perspectiveOwnerId])
+}
+
+model EmbeddingUpdate {
+  id              String    @id @default(cuid())
+  embeddingId     String
+  previousVector  Float[]
+  updateReason    String
+  similarityScore Float
+  sourceId        String
+  createdAt       DateTime  @default(now())
+  embedding       Embedding @relation(fields: [embeddingId], references: [id], onDelete: Cascade)
+
+  @@index([embeddingId])
+}
+
+model Thought {
+  id         String   @id @default(cuid())
+  title      String // Brief title
+  content    String // The full thought content
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  confidence Float    @default(1.0)
+  vector     Float[] // Embedding vector for the thought
+
+  // Categorization
+  subjectType String // 'user_trait', 'user_goal', etc.
+  subjectName String // The specific subject
+
+  // Source tracking
+  rawDataId     String?
+  chunkId       String?
+  embeddingId   String?
+  interactionId String? @db.Uuid
+
+  // Context and perspective
+  userId             String  @db.Uuid // User who owns this thought
+  perspectiveOwnerId String? @db.Uuid // Who provided this thought (nullable for migration)
+  subjectId          String? // Who this thought is about
+
+  // Graph connectivity
+  linkedNodeIds String[] // IDs of related knowledge graph nodes
+
+  // Relationships
+  user        User           @relation(fields: [userId], references: [user_id])
+  rawData     RawData?       @relation(fields: [rawDataId], references: [id])
+  chunk       SemanticChunk? @relation(fields: [chunkId], references: [id])
+  embedding   Embedding?     @relation(fields: [embeddingId], references: [id])
+  interaction Interaction?   @relation(fields: [interactionId], references: [interaction_id])
+
+  @@index([userId])
+  @@index([rawDataId])
+  @@index([chunkId])
+  @@index([embeddingId])
+  @@index([interactionId])
+  @@index([perspectiveOwnerId])
+}
+
+model Perspective {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  userId      String   @db.Uuid
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [user_id])
+
+  @@index([userId])
+}
+
+model OntologyVersion {
+  id          String     @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime   @default(now())
+  isCurrent   Boolean    @default(false)
+  edgeTypes   EdgeType[]
+  nodeTypes   NodeType[]
+}
+
+model NodeType {
+  id                String          @id @default(cuid())
+  name              String
+  description       String?
+  parentType        String?
+  ontologyVersionId String
+  createdAt         DateTime        @default(now())
+  isCore            Boolean         @default(false)
+  properties        Json?
+  ontologyVersion   OntologyVersion @relation(fields: [ontologyVersionId], references: [id])
+
+  @@index([ontologyVersionId])
+}
+
+model EdgeType {
+  id                String          @id @default(cuid())
+  name              String
+  description       String?
+  sourceNodeTypes   String[]
+  targetNodeTypes   String[]
+  ontologyVersionId String
+  createdAt         DateTime        @default(now())
+  isCore            Boolean         @default(false)
+  properties        Json?
+  ontologyVersion   OntologyVersion @relation(fields: [ontologyVersionId], references: [id])
+
+  @@index([ontologyVersionId])
+}
+
+model OntologyChangeProposal {
+  id                 String    @id @default(cuid())
+  type               String
+  description        String
+  proposedDefinition Json
+  justification      String
+  examples           String[]
+  supportingCount    Int?
+  status             String    @default("pending")
+  createdAt          DateTime  @default(now())
+  reviewedAt         DateTime?
+  reviewedBy         String?
+}
+
+model Interaction {
+  interaction_id   String    @id @default(uuid()) @db.Uuid
+  user_id          String    @db.Uuid
+  session_id       String    @db.Uuid
+  interaction_type String
+  raw_data         Json
+  timestamp        DateTime  @default(now())
+  metadata         Json?
+  processed_flag   Boolean   @default(false)
+  processing_notes String?
+  user             User      @relation(fields: [user_id], references: [user_id])
+  thoughts         Thought[]
+}
+
+model Card {
+  card_id          String        @id @default(uuid()) @db.Uuid
+  user_id          String        @db.Uuid
+  input_sources    String[]      @db.Uuid
+  template_used    String?
+  card_type        String
+  card_content     Json
+  timestamp        DateTime      @default(now())
+  user_reaction    String?
+  related_card_ids String[]      @db.Uuid
+  needs_refresh    Boolean       @default(false)
+  display_context  Json?
+  user_labels      String[]
+  deck_ids         String[]      @db.Uuid
+  user             User          @relation(fields: [user_id], references: [user_id])
+  decks            CardDeckMap[]
+}
+
+model Deck {
+  deck_id        String        @id @default(uuid()) @db.Uuid
+  user_id        String        @db.Uuid
+  title          String
+  purpose        String?
+  card_ids       String[]      @db.Uuid
+  tree_structure Json
+  ai_summary     String?
+  last_updated   DateTime      @updatedAt
+  cards          CardDeckMap[]
+  user           User          @relation(fields: [user_id], references: [user_id])
+}
+
+model CardDeckMap {
+  card_id       String   @db.Uuid
+  deck_id       String   @db.Uuid
+  added_on      DateTime @default(now())
+  added_by      String?
+  node_position String?
+  card          Card     @relation(fields: [card_id], references: [card_id])
+  deck          Deck     @relation(fields: [deck_id], references: [deck_id])
+
+  @@id([card_id, deck_id])
+}
+
+model MemoryMetrics {
+  id                 String   @id @default(cuid())
+  userId             String   @unique @db.Uuid
+  user               User     @relation(fields: [userId], references: [user_id])
+  rawDataProcessed   Int      @default(0)
+  chunksCreated      Int      @default(0)
+  thoughtsProcessed  Int      @default(0)
+  thoughtsCreated    Int      @default(0)
+  thoughtsSkipped    Int      @default(0)
+  lastUpdated        DateTime @default(now())
+
+  @@index([userId])
+}

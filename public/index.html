@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2Dots1Line - Hybrid AI Companion</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://unpkg.com/feather-icons"></script>
+</head>
+<body>
+  <div class="container">
+    <!-- Navigation -->
+    <nav class="navbar">
+      <div class="logo">
+        <i data-feather="zap" class="logo-icon"></i> 
+        2Dots1Line
+      </div>
+      
+      <div class="nav-links">
+        <a href="/">Home</a>
+        <a href="#features">Features</a>
+        <a href="/newchat">Chat with Dot</a>
+        <a href="#about">About</a>
+        <a href="#contact">Contact</a>
+      </div>
+      
+      <div id="auth-buttons" class="auth-buttons">
+        <a href="#auth" class="btn btn-outline">Login</a>
+        <a href="#auth" class="btn btn-primary">Sign Up</a>
+      </div>
+    </nav>
+    
+    <!-- Welcome Message (hidden by default) -->
+    <p id="welcome-message" style="display: none; text-align: center; font-size: 1.2rem; font-weight: 500; margin-bottom: 2rem;"></p>
+    
+    <!-- Hero Section -->
+    <section class="hero">
+      <div class="hero-content">
+        <h1 class="hero-title">AI-Powered Memory & Insights</h1>
+        <p class="hero-subtitle">Your emotionally intelligent AI companion for storytelling, memory formation, and strategic planning.</p>
+        <div>
+          <a href="#auth" class="btn btn-primary">Get Started</a>
+          <a href="#features" class="btn btn-outline">Learn More</a>
+        </div>
+      </div>
+      
+      <div class="hero-image">
+        <img src="images/hero.jpeg" alt="2Dots1Line AI Visualization">
+      </div>
+    </section>
+    
+    <!-- Features Section -->
+    <section id="features">
+      <h2 class="text-center" style="margin-bottom: 2rem; font-size: 2rem;">Our Features</h2>
+      <div class="card-container">
+        <div class="card">
+          <i data-feather="cpu" class="card-icon"></i>
+          <h3 class="card-title">Semantic Memory</h3>
+          <p class="card-description">Store and retrieve memories based on meaning and context, not just keywords.</p>
+        </div>
+        
+        <div class="card">
+          <i data-feather="git-branch" class="card-icon"></i>
+          <h3 class="card-title">Knowledge Graph</h3>
+          <p class="card-description">Build a connected network of your knowledge, relationships, and insights.</p>
+        </div>
+        
+        <div class="card">
+          <i data-feather="layers" class="card-icon"></i>
+          <h3 class="card-title">Insight Cards</h3>
+          <p class="card-description">Generate powerful insights from your memories and knowledge base.</p>
+        </div>
+        
+        <div class="card">
+          <i data-feather="map" class="card-icon"></i>
+          <h3 class="card-title">Strategic Decks</h3>
+          <p class="card-description">Organize your thoughts into structured thinking maps for planning and decision-making.</p>
+        </div>
+      </div>
+    </section>
+    
+    <!-- Auth Section -->
+    <section id="auth" class="auth-container">
+      <div class="form-card">
+        <div class="auth-tabs">
+          <div id="login-tab" class="auth-tab active">Login</div>
+          <div id="signup-tab" class="auth-tab">Sign Up</div>
+        </div>
+        
+        <!-- Login Form -->
+        <form id="login-form" class="auth-form active">
+          <div class="form-header">
+            <h2>Welcome Back</h2>
+            <p>Login to access your memories and insights</p>
+          </div>
+          
+          <div id="login-response" class="response-message" style="display: none;"></div>
+          
+          <div class="form-group">
+            <label for="login-email" class="form-label">Email</label>
+            <input type="email" id="login-email" class="form-input" placeholder="Enter your email">
+          </div>
+          
+          <div class="form-group">
+            <label for="login-password" class="form-label">Password</label>
+            <input type="password" id="login-password" class="form-input" placeholder="Enter your password">
+          </div>
+          
+          <button type="submit" class="btn btn-primary" style="width: 100%;">Login</button>
+          
+          <div class="form-footer">
+            Don't have an account? <a href="#" id="switch-to-signup">Sign up now</a>
+          </div>
+        </form>
+        
+        <!-- Signup Form -->
+        <form id="signup-form" class="auth-form">
+          <div class="form-header">
+            <h2>Create Account</h2>
+            <p>Join our community and start building your memory palace</p>
+          </div>
+          
+          <div id="signup-response" class="response-message" style="display: none;"></div>
+          
+          <div class="form-group">
+            <label for="signup-firstname" class="form-label">First Name</label>
+            <input type="text" id="signup-firstname" class="form-input" placeholder="Enter your first name">
+          </div>
+          
+          <div class="form-group">
+            <label for="signup-lastname" class="form-label">Last Name</label>
+            <input type="text" id="signup-lastname" class="form-input" placeholder="Enter your last name">
+          </div>
+          
+          <div class="form-group">
+            <label for="signup-email" class="form-label">Email</label>
+            <input type="email" id="signup-email" class="form-input" placeholder="Enter your email">
+          </div>
+          
+          <div class="form-group">
+            <label for="signup-password" class="form-label">Password</label>
+            <input type="password" id="signup-password" class="form-input" placeholder="Create a password">
+          </div>
+          
+          <button type="submit" class="btn btn-primary" style="width: 100%;">Sign Up</button>
+          
+          <div class="form-footer">
+            Already have an account? <a href="#" id="switch-to-login">Login instead</a>
+          </div>
+        </form>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    // Initialize Feather icons
+    document.addEventListener('DOMContentLoaded', () => {
+      feather.replace();
+      
+      // Additional tab switching from links
+      document.getElementById('switch-to-signup').addEventListener('click', (e) => {
+        e.preventDefault();
+        document.getElementById('signup-tab').click();
+      });
+      
+      document.getElementById('switch-to-login').addEventListener('click', (e) => {
+        e.preventDefault();
+        document.getElementById('login-tab').click();
+      });
+    });
+  </script>
+  <script src="js/auth.js"></script>
+</body>
+</html> 

@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat with Dot - 2Dots1Line</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/chat.css">
+  <script src="https://unpkg.com/feather-icons"></script>
+  <style>
+    .chat-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem 1rem;
+      background-color: #f8f9fa;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    
+    .chat-nav a {
+      color: #4f46e5;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    
+    .chat-nav a:hover {
+      text-decoration: underline;
+    }
+    
+    .chat-nav .logo {
+      display: flex;
+      align-items: center;
+      font-weight: 600;
+      font-size: 1.25rem;
+    }
+    
+    .chat-nav .logo-icon {
+      width: 1.5rem;
+      height: 1.5rem;
+      margin-right: 0.5rem;
+      color: #4f46e5;
+    }
+
+    /* File upload and attachment styles */
+    .chat-input-container {
+      position: relative;
+    }
+
+    .chat-actions {
+      display: flex;
+      align-items: center;
+      padding: 0.5rem;
+      border-top: 1px solid #e2e8f0;
+      background-color: #f8f9fa;
+    }
+
+    .chat-action-button {
+      background: none;
+      border: none;
+      color: #4f46e5;
+      margin-right: 0.5rem;
+      padding: 0.5rem;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .chat-action-button:hover {
+      background-color: #e8eafd;
+    }
+
+    .chat-action-button:disabled {
+      color: #a0aec0;
+      cursor: not-allowed;
+    }
+
+    .file-input {
+      display: none;
+    }
+
+    .attachment-preview {
+      display: flex;
+      align-items: center;
+      padding: 0.5rem;
+      margin-bottom: 0.5rem;
+      background-color: #f8f9fa;
+      border-radius: 0.5rem;
+      font-size: 0.875rem;
+    }
+
+    .attachment-preview img {
+      max-width: 100px;
+      max-height: 100px;
+      border-radius: 0.25rem;
+      margin-right: 0.5rem;
+    }
+
+    .attachment-preview .file-name {
+      flex-grow: 1;
+      margin-right: 0.5rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .attachment-preview .remove-button {
+      background: none;
+      border: none;
+      color: #e53e3e;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.25rem;
+    }
+
+    .attachment-preview .remove-button:hover {
+      background-color: #fed7d7;
+      border-radius: 50%;
+    }
+
+    .attachments-container {
+      padding: 0 1rem;
+    }
+
+    /* Voice recording indicator */
+    .recording-indicator {
+      display: none;
+      align-items: center;
+      padding: 0.5rem;
+      color: #e53e3e;
+      font-size: 0.875rem;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+
+    /* Message with image */
+    .message-image {
+      max-width: 250px;
+      max-height: 250px;
+      border-radius: 0.5rem;
+      margin-top: 0.5rem;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    .message-image:hover {
+      transform: scale(1.05);
+    }
+
+    /* File attachment in message */
+    .message-file {
+      display: flex;
+      align-items: center;
+      padding: 0.5rem;
+      background-color: #f8f9fa;
+      border-radius: 0.5rem;
+      margin-top: 0.5rem;
+      font-size: 0.875rem;
+      max-width: 250px;
+    }
+
+    .message-file-icon {
+      color: #4f46e5;
+      margin-right: 0.5rem;
+    }
+
+    .message-file-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .message-file-download {
+      margin-left: auto;
+      color: #4f46e5;
+      cursor: pointer;
+    }
+
+    .message-file-download:hover {
+      color: #3730a3;
+    }
+
+    /* Add styles for system messages */
+    .system-message {
+      background-color: #f3f4f6;
+      border-left: 3px solid #4b5563;
+      font-style: italic;
+    }
+    
+    .system-message .message-content {
+      color: #4b5563;
+    }
+    
+    /* --- ADD CSS for Processing Status Bar --- */
+    .processing-indicator {
+      display: flex;
+      align-items: center;
+      padding: 0.5rem 1rem; /* Match system message padding */
+    }
+
+    .processing-bar-container {
+      width: 100%;
+      height: 8px;
+      background-color: #e5e7eb; /* Light gray background */
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .processing-bar {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      background: linear-gradient(
+        -45deg, 
+        #a78bfa, /* Violet */
+        #7c3aed, /* Purple */
+        #4f46e5, /* Indigo */
+        #3b82f6  /* Blue */
+      );
+      background-size: 400% 400%;
+      animation: gradientShift 3s ease infinite;
+    }
+
+    @keyframes gradientShift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    /* --- END CSS --- */
+  </style>
+</head>
+<body>
+  <!-- Simple Navigation -->
+  <div class="chat-nav">
+    <div class="logo">
+      <i data-feather="zap" class="logo-icon"></i> 
+      2Dots1Line
+    </div>
+    <a href="/">Back to Home</a>
+  </div>
+
+  <div class="chat-container">
+    <!-- Chat Header -->
+    <div class="chat-header">
+      <img src="images/dotai.jpeg" alt="Dot AI" class="bot-avatar">
+      <div class="bot-info">
+        <h2>Dot</h2>
+        <p>Your AI Companion</p>
+      </div>
+    </div>
+    
+    <!-- Chat Messages -->
+    <div id="chat-messages" class="chat-messages">
+      <!-- Messages will be added dynamically -->
+      <div class="message bot-message">
+        <img src="images/dotai.jpeg" alt="Dot" class="message-avatar">
+        <div>
+          <div class="message-content">
+            <p>Hi there! I'm Dot, your AI companion for 2Dots1Line. I can help you explore your memories, create insights, and build strategic thinking maps. What would you like to do today?</p>
+          </div>
+          <div class="message-time">Just now</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Attachments Container -->
+    <div id="attachments-container" class="attachments-container"></div>
+
+    <!-- Recording Indicator -->
+    <div id="recording-indicator" class="recording-indicator">
+      <i data-feather="mic" style="margin-right: 0.5rem;"></i>
+      Recording... Click the microphone again to stop.
+    </div>
+    
+    <!-- Chat Input Actions -->
+    <div class="chat-actions">
+      <button id="attach-file-button" class="chat-action-button" title="Attach file">
+        <i data-feather="paperclip"></i>
+      </button>
+      <input type="file" id="file-input" class="file-input" accept="image/*,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+
+      <button id="attach-image-button" class="chat-action-button" title="Attach image">
+        <i data-feather="image"></i>
+      </button>
+      <input type="file" id="image-input" class="file-input" accept="image/*">
+
+      <button id="voice-input-button" class="chat-action-button" title="Voice input">
+        <i data-feather="mic"></i>
+      </button>
+    </div>
+    
+    <!-- Chat Input -->
+    <div class="chat-input-container">
+      <input 
+        type="text" 
+        id="chat-input" 
+        class="chat-input" 
+        placeholder="Type your message..." 
+        autocomplete="off"
+      >
+      <button id="send-button" class="send-button" disabled>
+        <i data-feather="send"></i>
+      </button>
+    </div>
+  </div>
+  
+  <!-- Load voice recognition script -->
+  <script src="js/voice-recognition.js"></script>
+  
+  <script>
+    // Initialize Feather icons
+    document.addEventListener('DOMContentLoaded', () => {
+      feather.replace();
+      
+      // Helper function to generate a session ID
+      function generateSessionId() {
+        // Generate a simple UUID for session tracking
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          const r = Math.random() * 16 | 0;
+          const v = c === 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      }
+      
+      // Get the API base URL dynamically based on the current window location
+      const apiBaseUrl = `${window.location.protocol}//${window.location.hostname}:${window.location.port}/api`;
+      
+      // DOM Elements
+      const chatMessages = document.getElementById('chat-messages');
+      const chatInput = document.getElementById('chat-input');
+      const sendButton = document.getElementById('send-button');
+      const fileInput = document.getElementById('file-input');
+      const imageInput = document.getElementById('image-input'); 
+      const attachFileButton = document.getElementById('attach-file-button');
+      const attachImageButton = document.getElementById('attach-image-button');
+      const voiceInputButton = document.getElementById('voice-input-button');
+      const attachmentsContainer = document.getElementById('attachments-container');
+      const recordingIndicator = document.getElementById('recording-indicator');
+      
+      // Token management
+      const token = sessionStorage.getItem('token');
+      const sessionId = sessionStorage.getItem('sessionId') || generateSessionId();
+      sessionStorage.setItem('sessionId', sessionId);
+      
+      console.log('Auth check - Token exists:', !!token);
+      console.log('Auth check - Session ID:', sessionId);
+      
+      // If there's no token, redirect to login
+      if (!token) {
+        console.error('No authentication token found - redirecting to login');
+        alert('Please login first to access the chat feature.');
+        window.location.href = 'index.html#auth'; // Redirect to login with auth anchor
+        return;
+      }
+      
+      // State variables
+      let currentAttachment = null;
+      
+      // Enable/disable send button based on input
+      chatInput.addEventListener('input', () => {
+        sendButton.disabled = chatInput.value.trim() === '' && !currentAttachment;
+      });
+      
+      // File attachment handling
+      attachFileButton.addEventListener('click', () => {
+        fileInput.click();
+      });
+      
+      fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+          handleFileSelection(e.target.files[0], 'file');
+        }
+      });
+      
+      // Image attachment handling
+      attachImageButton.addEventListener('click', () => {
+        imageInput.click();
+      });
+      
+      imageInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+          handleFileSelection(e.target.files[0], 'image');
+        }
+      });
+      
+      // Voice input is now handled by voice-recognition.js
+      // No need to add a listener here as it's handled in the voice-recognition.js script
+      
+      // Handle file selection
+      function handleFileSelection(file, type) {
+        // Clear previous attachment if any
+        if (currentAttachment) {
+          removeAttachment();
+        }
+        
+        currentAttachment = {
+          file: file,
+          type: type
+        };
+        
+        const previewElement = document.createElement('div');
+        previewElement.className = 'attachment-preview';
+        
+        if (type === 'image' && file.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            previewElement.innerHTML = `
+              <img src="${e.target.result}" alt="Image preview">
+              <div class="file-name">${file.name}</div>
+              <button class="remove-button" id="remove-attachment">
+                <i data-feather="x"></i>
+              </button>
+            `;
+            attachmentsContainer.appendChild(previewElement);
+            feather.replace();
+            document.getElementById('remove-attachment').addEventListener('click', removeAttachment);
+          };
+          reader.readAsDataURL(file);
+        } else {
+          const fileIcon = file.type.includes('pdf') ? 'file-text' : 
+                          file.type.includes('word') ? 'file' : 
+                          'paperclip';
+          
+          previewElement.innerHTML = `
+            <i data-feather="${fileIcon}" style="margin-right: 0.5rem;"></i>
+            <div class="file-name">${file.name}</div>
+            <button class="remove-button" id="remove-attachment">
+              <i data-feather="x"></i>
+            </button>
+          `;
+          attachmentsContainer.appendChild(previewElement);
+          feather.replace();
+          document.getElementById('remove-attachment').addEventListener('click', removeAttachment);
+        }
+        
+        // Enable send button since we have an attachment
+        sendButton.disabled = false;
+      }
+      
+      // Remove attachment
+      function removeAttachment() {
+        currentAttachment = null;
+        attachmentsContainer.innerHTML = '';
+        sendButton.disabled = chatInput.value.trim() === '';
+        fileInput.value = '';
+        imageInput.value = '';
+      }
+      
+      // Handle sending messages
+      const sendMessage = async () => {
+        const messageText = chatInput.value.trim();
+        const attachmentToSend = currentAttachment; // Capture attachment state
+        currentAttachment = null; // Clear attachment state immediately
+        attachmentsContainer.innerHTML = ''; // Clear preview
+        const originalInputText = chatInput.value; // Capture input text
+        chatInput.value = ''; // Clear input field
+        sendButton.disabled = true; // Disable send button
+        
+        // Don't proceed if both message and attachment are empty
+        if (!messageText && !attachmentToSend) {
+             // Re-enable button if needed, or just return
+             // Consider re-enabling based on input field content if needed
+             chatInput.value = originalInputText; // Restore input if nothing sent
+             currentAttachment = attachmentToSend; // Restore attachment state if nothing sent
+             // Re-render preview if needed
+             return; 
+        }
+
+        // 1. Display User's Message immediately
+        if (messageText || attachmentToSend) { // Display if there's text OR an attachment being sent
+            let attachmentPreviewUrl = null;
+            let attachmentFileInfo = null;
+            if(attachmentToSend) {
+                attachmentFileInfo = {
+                    name: attachmentToSend.file.name,
+                    type: attachmentToSend.file.type,
+                    size: attachmentToSend.file.size
+                };
+                // Generate preview URL only for images shown inline
+                if (attachmentToSend.type === 'image' && attachmentToSend.file.type.startsWith('image/')) {
+                     // Need to read it again or store the Data URL if preview needed
+                     // For simplicity now, we won't re-display the image preview in the final user message bubble
+                }
+            }
+            addMessage(messageText, 'user', attachmentPreviewUrl, attachmentFileInfo);
+        }
+
+        // 2. Handle File Upload IF an attachment exists
+        if (attachmentToSend) {
+            // --- Use Processing Bar Indicator --- 
+            const processingIndicator = addProcessingIndicator();
+            try {
+                const formData = new FormData();
+                formData.append('file', attachmentToSend.file);
+                formData.append('session_id', sessionId);
+                formData.append('message', messageText); // Send context message
+
+                const uploadResponse = await fetch(`${apiBaseUrl}/upload/file`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}` 
+                    },
+                    body: formData
+                });
+
+                // Remove indicator on success or failure
+                chatMessages.removeChild(processingIndicator); 
+
+                if (!uploadResponse.ok) {
+                    // Try to get error from body
+                    let errorData = { message: `File upload failed with status ${uploadResponse.status}` };
+                    try { errorData = await uploadResponse.json(); } catch(e) { /* Ignore parsing error */ }
+                    throw new Error(errorData.error || errorData.message || 'File upload failed');
+                }
+                
+                const uploadResult = await uploadResponse.json();
+                console.log('Upload successful. Backend returned:', uploadResult);
+
+                // --- DISPLAY ANALYSIS DIRECTLY --- 
+                if (uploadResult.analysis) {
+                    addMessage(uploadResult.analysis, 'bot');
+                } else {
+                    // Fallback if analysis is somehow missing but upload succeeded
+                    addMessage('File processed, but no analysis was returned.', 'system');
+                }
+                // --- END DISPLAY ANALYSIS ---
+
+                // File processing done, exit sendMessage function
+                return; 
+
+            } catch (error) {
+                // Remove indicator on error
+                if(processingIndicator && chatMessages.contains(processingIndicator)) { 
+                    chatMessages.removeChild(processingIndicator); 
+                }
+                console.error('Error during file upload and processing:', error);
+                addMessage('Error processing file: ' + (error.message || "Unknown error"), 'system'); 
+                return; // Stop processing
+            }
+            // --- End Use Processing Bar --- 
+        }
+        
+        // 3. Handle TEXT ONLY message (if no attachment was processed)
+        if (!attachmentToSend && messageText) {
+            const typingIndicator = addTypingIndicator();
+            try {
+              // Send text message to server 
+              const response = await fetch(`${apiBaseUrl}/interactions`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                  session_id: sessionId,
+                  interaction_type: 'chat', 
+                  raw_data: {
+                    message: messageText,
+                    source: 'chat_interface',
+                    attachment: null // Explicitly null for text only
+                  },
+                  metadata: { timestamp: new Date().toISOString(), has_attachment: false }
+                })
+              });
+              
+              const data = await response.json();
+              if (typingIndicator) { chatMessages.removeChild(typingIndicator); }
+              
+              if (response.ok && data.aiResponse && data.aiResponse.text) {
+                addMessage(data.aiResponse.text, 'bot');
+                // Don't fetch history after message exchange
+                // setTimeout(() => fetchAndDisplaySessionHistory(sessionId, token), 500); 
+              } else {
+                 console.error('Error response from /api/interactions (text message):', data);
+                 addMessage(data.error || 'Sorry, I encountered an error processing your request.', 'bot');
+              }
+            } catch (error) {
+              if (typingIndicator) { chatMessages.removeChild(typingIndicator); }
+              console.error('Error sending text message:', error);
+              addMessage('Sorry, there was an error connecting to the server. Please try again.', 'bot');
+            }
+        }
+      };
+      
+      // Add event listeners for sending messages
+      sendButton.addEventListener('click', sendMessage);
+      chatInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') sendMessage();
+      });
+      
+      // Helper functions
+      function addMessage(text, sender, imageUrl = null, fileInfo = null) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${sender}-message`;
+        
+        const avatar = sender === 'user' 
+          ? '<div class="message-avatar" style="background-color: #6366f1; display: flex; align-items: center; justify-content: center; color: white;"><i data-feather="user" style="width: 20px; height: 20px;"></i></div>'
+          : (sender === 'bot' 
+             ? `<img src="images/dotai.jpeg" alt="Dot" class="message-avatar">`
+             : `<div class="message-avatar" style="background-color: #4b5563; display: flex; align-items: center; justify-content: center; color: white;"><i data-feather="info" style="width: 20px; height: 20px;"></i></div>`);
+        
+        const messageTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        
+        let messageContent = `<p>${formatMessageText(text || '')}</p>`;
+        
+        // Add image if provided
+        if (imageUrl) {
+          messageContent += `<img src="${imageUrl}" alt="Attached image" class="message-image">`;
+        }
+        
+        // Add file info if provided
+        if (fileInfo) {
+          const fileIcon = fileInfo.type.includes('pdf') ? 'file-text' : 
+                          fileInfo.type.includes('word') ? 'file' : 
+                          fileInfo.type.includes('audio') ? 'mic' :
+                          'paperclip';
+                          
+          const fileSizeFormatted = formatFileSize(fileInfo.size);
+          
+          messageContent += `
+            <div class="message-file">
+              <i data-feather="${fileIcon}" class="message-file-icon"></i>
+              <div class="message-file-name">${fileInfo.name}</div>
+              <div class="message-file-size">${fileSizeFormatted}</div>
+            </div>
+          `;
+        }
+        
+        messageDiv.innerHTML = `
+          ${sender === 'user' ? '' : avatar}
+          <div>
+            <div class="message-content">
+              ${messageContent}
+            </div>
+            <div class="message-time">${messageTime}</div>
+          </div>
+          ${sender === 'user' ? avatar : ''}
+        `;
+        
+        chatMessages.appendChild(messageDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        
+        // Initialize Feather icons for new elements
+        feather.replace();
+        
+        return messageDiv;
+      }
+      
+      function addTypingIndicator() {
+        const indicatorDiv = document.createElement('div');
+        indicatorDiv.className = 'message bot-message typing-indicator';
+        indicatorDiv.innerHTML = `
+          <img src="images/dotai.jpeg" alt="Dot" class="message-avatar">
+          <div class="message-content">
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+          </div>
+        `;
+        
+        chatMessages.appendChild(indicatorDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        
+        return indicatorDiv;
+      }
+      
+      function formatMessageText(text) {
+        // Convert markdown bold (**text**) to <strong>
+        let formattedText = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        // Convert line breaks to HTML breaks
+        formattedText = formattedText.replace(/\n/g, '<br>');
+        return formattedText;
+      }
+      
+      function formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+        else return (bytes / 1048576).toFixed(1) + ' MB';
+      }
+      
+      // Make addMessage function globally accessible
+      window.addMessage = addMessage;
+      // --- ADDITION: Expose formatMessageText globally ---
+      window.formatMessageText = formatMessageText;
+      // --- END ADDITION ---
+      
+      // Focus input field on load
+      chatInput.focus();
+    });
+    
+    // --- MODIFIED FUNCTION: Fetch and display history ---
+    async function fetchAndDisplaySessionHistory(currentSessionId, authToken, showHistory = false) { 
+        console.log(`[DEBUG][History] Attempting to fetch history for session: ${currentSessionId}`); 
+        if (!authToken) {
+            console.error("[ERROR][History] Auth token is missing!");
+            addMessage('Authentication error. Cannot load history.', 'system');
+            return;
+        }
+        try {
+            const response = await fetch(`${apiBaseUrl}/interactions?session_id=${currentSessionId}&limit=5`, { 
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${authToken}` 
+                }
+            });
+            if (!response.ok) {
+                console.error(`[ERROR][History] Fetch failed: ${response.status} ${response.statusText}`);
+                throw new Error(`Failed to fetch history: ${response.statusText}`);
+            }
+            const data = await response.json();
+            console.log(`[DEBUG][History] Received ${data.interactions?.length || 0} interactions. Data:`, data);
+            
+            // Only display messages if showHistory flag is true
+            if (!showHistory) {
+                return; // Skip displaying messages
+            }
+
+            // --- SIMPLIFIED CLEARING --- 
+            const chatMessages = document.getElementById('chat-messages');
+            // Remove the logic trying to preserve the welcome message
+            // const welcomeMessage = chatMessages.querySelector('.bot-message'); 
+            chatMessages.innerHTML = ''; // Just clear everything
+            // if (welcomeMessage) { chatMessages.appendChild(welcomeMessage); }
+            // --- END SIMPLIFIED CLEARING ---
+
+            // Sort interactions by timestamp (oldest first) 
+            const sortedInteractions = data.interactions.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+            // Add messages to UI
+            sortedInteractions.forEach((interaction, index) => {
+                console.log(`[DEBUG][History] Rendering interaction ${index + 1}: type=${interaction.interaction_type}, text="${(interaction.raw_data?.message || interaction.raw_data?.text || '').substring(0,30)}..."`);
+                
+                let sender = 'system';
+                let messageText = interaction.raw_data?.message || interaction.raw_data?.text || "(empty message)";
+                let imageUrl = null;
+                let fileInfo = null;
+
+                if (interaction.interaction_type === 'chat' || interaction.interaction_type === 'text_message') {
+                    sender = 'user';
+                    // Check if this user message included an attachment preview (display purpose only)
+                    if(interaction.raw_data?.attachment) {
+                         fileInfo = { 
+                             name: interaction.raw_data.attachment.fileName, 
+                             type: interaction.raw_data.attachment.fileType, 
+                             size: interaction.raw_data.attachment.fileSize 
+                         };
+                         // If it was an image, we need the data URL used for preview
+                         // This info isn't stored, so we can't easily re-render image previews in user messages from history yet.
+                    } 
+                } else if (interaction.interaction_type === 'ai_response') {
+                    sender = 'bot';
+                    console.log(`[DEBUG][History] Rendering BOT message content: "${messageText.substring(0, 100)}..."`);
+                    // --- ADD SPECIFIC CHECK for Analysis Result ---
+                    if (interaction.metadata?.source === 'file_analysis_result') {
+                        console.log(`[DEBUG][History] FOUND Analysis message in history render loop. Content: "${messageText.substring(0, 100)}..."`);
+                    }
+                    // --- END SPECIFIC CHECK ---
+                } else if (interaction.interaction_type === 'image_upload' || interaction.interaction_type === 'document_upload') {
+                    // Don't display the raw upload interactions themselves, 
+                    // the relevant info is in the AI analysis response.
+                    return; // Skip rendering this interaction type
+                }
+                
+                // Re-use addMessage, but need to reconstruct time etc.
+                // For simplicity, just add the content for now.
+                 const messageDiv = document.createElement('div');
+                 messageDiv.className = `message ${sender}-message`;
+                 const avatar = sender === 'user' ? '<div class="message-avatar" style="background-color: #6366f1; display: flex; align-items: center; justify-content: center; color: white;"><i data-feather="user" style="width: 20px; height: 20px;"></i></div>' : `<img src="images/dotai.jpeg" alt="Dot" class="message-avatar">`;
+                 const messageTime = new Date(interaction.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                 messageDiv.innerHTML = `
+                     ${sender === 'user' ? '' : avatar}
+                     <div>
+                       <div class="message-content">
+                         <p>${window.formatMessageText(messageText)}</p>
+                         ${fileInfo ? `<div class="message-file"><i data-feather="${fileInfo.type.includes('pdf') ? 'file-text' : 'paperclip'}" class="message-file-icon"></i><div class="message-file-name">${fileInfo.name}</div></div>` : ''}
+                       </div>
+                       <div class="message-time">${messageTime}</div>
+                     </div>
+                     ${sender === 'user' ? avatar : ''}
+                 `;
+                chatMessages.appendChild(messageDiv);
+            });
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            feather.replace(); 
+
+        } catch (error) {
+             console.error('[ERROR][History] Error fetching or displaying history:', error);
+             window.addMessage('Error loading message history: ' + error.message, 'system');
+        }
+    }
+    // --- END MODIFIED FUNCTION --- 
+
+    // --- Add Helper for Processing Indicator --- 
+    function addProcessingIndicator() {
+      const chatMessages = document.getElementById('chat-messages'); // Get element reference here
+      const indicatorDiv = document.createElement('div');
+      indicatorDiv.className = 'processing-indicator'; // Use the new CSS class
+      indicatorDiv.innerHTML = `
+          <div class="message-avatar" style="background-color: #d1d5db; display: flex; align-items: center; justify-content: center;">
+            <i data-feather="loader" style="width: 20px; height: 20px; color: #4b5563; animation: spin 1s linear infinite;"></i>
+          </div>
+          <div class="processing-bar-container">
+            <div class="processing-bar"></div>
+          </div>
+      `;
+      chatMessages.appendChild(indicatorDiv);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+      feather.replace(); // Apply loader icon
+      return indicatorDiv;
+    }
+    // --- End Helper --- 
+
+  </script>
+</body>
+</html> 

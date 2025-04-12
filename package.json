@@ -1,0 +1,38 @@
+{
+  "name": "2dots1line",
+  "version": "1.0.0",
+  "description": "Hybrid AI System + Unified Admin Panel",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.0",
+    "@prisma/client": "^5.10.0",
+    "axios": "^1.8.4",
+    "bcrypt": "^5.1.1",
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "form-data": "^4.0.2",
+    "fs-extra": "^11.3.0",
+    "jsonwebtoken": "^9.0.2",
+    "mammoth": "^1.9.0",
+    "multer": "^1.4.5-lts.2",
+    "neo4j-driver": "^5.28.1",
+    "node-fetch": "^2.7.0",
+    "pdf-parse": "^1.1.1",
+    "uuid": "^9.0.1",
+    "weaviate-ts-client": "^2.2.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "prisma": "^5.10.0"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  }
+}
