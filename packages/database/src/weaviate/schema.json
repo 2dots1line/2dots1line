@@ -1,0 +1,357 @@
+{
+  "classes": [
+    {
+      "class": "UserConcept",
+      "description": "User-specific concepts extracted from content with vector embeddings for semantic search",
+      "vectorizer": "none",
+      "vectorIndexType": "hnsw",
+      "vectorIndexConfig": {
+        "skip": false,
+        "cleanupIntervalSeconds": 300,
+        "maxConnections": 64,
+        "efConstruction": 128,
+        "ef": -1,
+        "dynamicEfMin": 100,
+        "dynamicEfMax": 500,
+        "dynamicEfFactor": 8,
+        "vectorCacheMaxObjects": 1000000000000,
+        "flatSearchCutoff": 40000,
+        "distance": "cosine"
+      },
+      "properties": [
+        {
+          "name": "externalId",
+          "dataType": ["uuid"],
+          "description": "Reference to concept_id in PostgreSQL",
+          "indexInverted": true
+        },
+        {
+          "name": "userId",
+          "dataType": ["string"],
+          "description": "User ID this concept belongs to",
+          "indexInverted": true
+        },
+        {
+          "name": "name",
+          "dataType": ["text"],
+          "description": "Concept name for vectorization",
+          "indexInverted": true
+        },
+        {
+          "name": "description",
+          "dataType": ["text"],
+          "description": "Concept description for vectorization",
+          "indexInverted": false
+        },
+        {
+          "name": "type",
+          "dataType": ["string"],
+          "description": "Concept type (person, location, value, etc.)",
+          "indexInverted": true
+        },
+        {
+          "name": "confidence",
+          "dataType": ["number"],
+          "description": "AI confidence in concept extraction (0.0-1.0)",
+          "indexInverted": false
+        },
+        {
+          "name": "createdAt",
+          "dataType": ["date"],
+          "description": "Concept creation timestamp",
+          "indexInverted": true
+        },
+        {
+          "name": "metadata",
+          "dataType": ["text"],
+          "description": "Additional concept metadata stored as JSON string",
+          "indexInverted": false
+        },
+        {
+          "name": "embeddingModelVersion",
+          "dataType": ["string"],
+          "description": "Version of external model used for vector generation",
+          "indexInverted": true
+        }
+      ]
+    },
+    {
+      "class": "UserMemory",
+      "description": "User memory units (journal entries, conversations, documents) with vector embeddings for semantic search",
+      "vectorizer": "none",
+      "vectorIndexType": "hnsw",
+      "vectorIndexConfig": {
+        "skip": false,
+        "cleanupIntervalSeconds": 300,
+        "maxConnections": 64,
+        "efConstruction": 128,
+        "ef": -1,
+        "dynamicEfMin": 100,
+        "dynamicEfMax": 500,
+        "dynamicEfFactor": 8,
+        "vectorCacheMaxObjects": 1000000000000,
+        "flatSearchCutoff": 40000,
+        "distance": "cosine"
+      },
+      "properties": [
+        {
+          "name": "externalId",
+          "dataType": ["uuid"],
+          "description": "Reference to muid in PostgreSQL memory_units table",
+          "indexInverted": true
+        },
+        {
+          "name": "userId",
+          "dataType": ["string"],
+          "description": "User ID this memory belongs to",
+          "indexInverted": true
+        },
+        {
+          "name": "title",
+          "dataType": ["text"],
+          "description": "Memory unit title for vectorization",
+          "indexInverted": true
+        },
+        {
+          "name": "content",
+          "dataType": ["text"],
+          "description": "Memory unit content for vectorization",
+          "indexInverted": false
+        },
+        {
+          "name": "sourceType",
+          "dataType": ["string"],
+          "description": "Type of memory source (journal_entry, conversation, document, etc.)",
+          "indexInverted": true
+        },
+        {
+          "name": "memoryType",
+          "dataType": ["string"],
+          "description": "Classification of memory content",
+          "indexInverted": true
+        },
+        {
+          "name": "importanceScore",
+          "dataType": ["number"],
+          "description": "AI-calculated importance score (0.0-1.0)",
+          "indexInverted": false
+        },
+        {
+          "name": "occurredAt",
+          "dataType": ["date"],
+          "description": "When the memory event occurred",
+          "indexInverted": true
+        },
+        {
+          "name": "createdAt",
+          "dataType": ["date"],
+          "description": "When the memory was ingested",
+          "indexInverted": true
+        },
+        {
+          "name": "emotions",
+          "dataType": ["string[]"],
+          "description": "Detected emotions in the memory",
+          "indexInverted": true
+        },
+        {
+          "name": "people",
+          "dataType": ["string[]"],
+          "description": "People mentioned in the memory",
+          "indexInverted": true
+        },
+        {
+          "name": "location",
+          "dataType": ["object"],
+          "description": "Location data (lat, lng, name)",
+          "indexInverted": false,
+          "nestedProperties": [
+            {
+              "name": "latitude",
+              "dataType": ["number"],
+              "description": "Location latitude"
+            },
+            {
+              "name": "longitude", 
+              "dataType": ["number"],
+              "description": "Location longitude"
+            },
+            {
+              "name": "name",
+              "dataType": ["text"],
+              "description": "Location name or address"
+            }
+          ]
+        },
+        {
+          "name": "embeddingModelVersion",
+          "dataType": ["string"],
+          "description": "Version of external model used for vector generation",
+          "indexInverted": true
+        }
+      ]
+    },
+    {
+      "class": "UserArtifact",
+      "description": "User-generated or AI-derived artifacts (insights, summaries, hypotheses) with vector embeddings for semantic search",
+      "vectorizer": "none",
+      "vectorIndexType": "hnsw",
+      "vectorIndexConfig": {
+        "skip": false,
+        "cleanupIntervalSeconds": 300,
+        "maxConnections": 64,
+        "efConstruction": 128,
+        "ef": -1,
+        "dynamicEfMin": 100,
+        "dynamicEfMax": 500,
+        "dynamicEfFactor": 8,
+        "vectorCacheMaxObjects": 1000000000000,
+        "flatSearchCutoff": 40000,
+        "distance": "cosine"
+      },
+      "properties": [
+        {
+          "name": "externalId",
+          "dataType": ["uuid"],
+          "description": "Reference to artifact_id in PostgreSQL derived_artifacts table",
+          "indexInverted": true
+        },
+        {
+          "name": "userId",
+          "dataType": ["string"],
+          "description": "User ID this artifact belongs to",
+          "indexInverted": true
+        },
+        {
+          "name": "title",
+          "dataType": ["text"],
+          "description": "Artifact title for vectorization",
+          "indexInverted": true
+        },
+        {
+          "name": "summary",
+          "dataType": ["text"],
+          "description": "Artifact summary/content for vectorization",
+          "indexInverted": false
+        },
+        {
+          "name": "artifactType",
+          "dataType": ["string"],
+          "description": "Type of artifact (insight, summary, hypothesis, etc.)",
+          "indexInverted": true
+        },
+        {
+          "name": "generatedByAgent",
+          "dataType": ["string"],
+          "description": "Name of the AI agent that generated this artifact",
+          "indexInverted": true
+        },
+        {
+          "name": "userFeedbackScore",
+          "dataType": ["int"],
+          "description": "User rating of artifact quality",
+          "indexInverted": false
+        },
+        {
+          "name": "createdAt",
+          "dataType": ["date"],
+          "description": "Artifact creation timestamp",
+          "indexInverted": true
+        },
+        {
+          "name": "embeddingModelVersion",
+          "dataType": ["string"],
+          "description": "Version of external model used for vector generation",
+          "indexInverted": true
+        }
+      ]
+    },
+    {
+      "class": "ConversationChunk",
+      "description": "Conversation message chunks with vector embeddings for semantic search and retrieval",
+      "vectorizer": "none",
+      "vectorIndexType": "hnsw",
+      "vectorIndexConfig": {
+        "skip": false,
+        "cleanupIntervalSeconds": 300,
+        "maxConnections": 64,
+        "efConstruction": 128,
+        "ef": -1,
+        "dynamicEfMin": 100,
+        "dynamicEfMax": 500,
+        "dynamicEfFactor": 8,
+        "vectorCacheMaxObjects": 1000000000000,
+        "flatSearchCutoff": 40000,
+        "distance": "cosine"
+      },
+      "properties": [
+        {
+          "name": "externalId",
+          "dataType": ["uuid"],
+          "description": "Reference to cid in PostgreSQL chunks table",
+          "indexInverted": true
+        },
+        {
+          "name": "userId",
+          "dataType": ["string"],
+          "description": "User ID this chunk belongs to",
+          "indexInverted": true
+        },
+        {
+          "name": "memoryUnitId",
+          "dataType": ["string"],
+          "description": "Parent memory unit ID",
+          "indexInverted": true
+        },
+        {
+          "name": "textContent",
+          "dataType": ["text"],
+          "description": "Chunk text content for vectorization",
+          "indexInverted": false
+        },
+        {
+          "name": "sequenceOrder",
+          "dataType": ["int"],
+          "description": "Order within parent memory unit",
+          "indexInverted": true
+        },
+        {
+          "name": "role",
+          "dataType": ["string"],
+          "description": "Role in conversation (user, assistant, system)",
+          "indexInverted": true
+        },
+        {
+          "name": "chunkType",
+          "dataType": ["string"],
+          "description": "Type of chunk (paragraph, dialogue, code_block, etc.)",
+          "indexInverted": true
+        },
+        {
+          "name": "createdAt",
+          "dataType": ["date"],
+          "description": "Chunk creation timestamp",
+          "indexInverted": true
+        },
+        {
+          "name": "conceptIds",
+          "dataType": ["string[]"],
+          "description": "Concept IDs mentioned in this chunk",
+          "indexInverted": true
+        },
+        {
+          "name": "metadata",
+          "dataType": ["text"],
+          "description": "Additional chunk metadata stored as JSON string (page number, context, etc.)",
+          "indexInverted": false
+        },
+        {
+          "name": "embeddingModelVersion",
+          "dataType": ["string"],
+          "description": "Version of external model used for vector generation",
+          "indexInverted": true
+        }
+      ]
+    }
+  ]
+} 

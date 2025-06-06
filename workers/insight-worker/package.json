@@ -1,0 +1,27 @@
+{
+  "name": "@2dots1line/insight-worker",
+  "version": "0.1.0",
+  "description": "Insight generation worker for 2dots1line V4",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "rm -rf dist && tsc -b tsconfig.json --verbose --force",
+    "lint": "eslint src --ext .ts",
+    "test": "jest",
+    "clean": "rimraf dist",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@2dots1line/shared-types": "workspace:^0.1.0",
+    "@2dots1line/database": "workspace:^0.1.0",
+    "@2dots1line/cognitive-hub": "workspace:^1.0.0",
+    "@2dots1line/utils": "workspace:^0.1.0",
+    "bullmq": "^4.14.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "@types/node": "^18.0.0",
+    "rimraf": "^5.0.1",
+    "typescript": "^5.3.3"
+  }
+} 

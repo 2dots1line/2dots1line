@@ -1,0 +1,75 @@
+{
+  "strategic_entity_types": [
+    "PERSON",
+    "ORGANIZATION", 
+    "LOCATION",
+    "DATE",
+    "emotion",
+    "value",
+    "goal",
+    "skill",
+    "interest",
+    "struggle",
+    "life_event_theme"
+  ],
+  "metadata_entity_types": [
+    "EMAIL",
+    "PHONE", 
+    "URL"
+  ],
+  "entity_type_mappings": {
+    "PERSON": "person",
+    "ORGANIZATION": "organization",
+    "LOCATION": "location",
+    "DATE": "date",
+    "emotion": "emotion",
+    "value": "value",
+    "goal": "goal",
+    "skill": "skill",
+    "interest": "interest",
+    "struggle": "struggle",
+    "life_event_theme": "life_event"
+  },
+  "concept_growth_mappings": {
+    "person": [
+      { "dimKey": "world_act", "delta": 0.1 }
+    ],
+    "emotion": [
+      { "dimKey": "self_know", "delta": 0.15 }
+    ],
+    "value": [
+      { "dimKey": "self_know", "delta": 0.2 }
+    ],
+    "goal": [
+      { "dimKey": "self_show", "delta": 0.15 },
+      { "dimKey": "world_act", "delta": 0.1 }
+    ],
+    "skill": [
+      { "dimKey": "self_act", "delta": 0.15 }
+    ],
+    "struggle": [
+      { "dimKey": "self_know", "delta": 0.1 }
+    ],
+    "life_event": [
+      { "dimKey": "self_show", "delta": 0.1 }
+    ],
+    "organization": [
+      { "dimKey": "world_know", "delta": 0.08 }
+    ],
+    "location": [
+      { "dimKey": "world_know", "delta": 0.05 }
+    ],
+    "date": [
+      { "dimKey": "world_know", "delta": 0.03 }
+    ]
+  },
+  "default_growth_mapping": [
+    { "dimKey": "world_know", "delta": 0.05 }
+  ],
+  "metadata": {
+    "version": "1.0.0",
+    "last_updated": "2025-01-26T10:30:00Z",
+    "created_by": "system",
+    "description": "NER entity type configuration and growth mappings for IngestionAnalyst"
+  }
+} 

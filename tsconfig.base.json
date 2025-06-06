@@ -1,0 +1,38 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": ["es2020", "dom"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "composite": true,
+    "downlevelIteration": true,
+    "baseUrl": ".",
+    "paths": {
+      "@2dots1line/shared-types": ["packages/shared-types/src"],
+      "@2dots1line/database": ["packages/database/src"],
+      "@2dots1line/cognitive-hub": ["services/cognitive-hub/src"],
+      "@2dots1line/agent-framework": ["packages/agent-framework/src"],
+      "@2dots1line/ai-clients": ["packages/ai-clients/src"],
+      "@2dots1line/core-utils": ["packages/core-utils/src"],
+      "@2dots1line/tool-registry": ["packages/tool-registry/src"],
+      "@2dots1line/canvas-core": ["packages/canvas-core/src"],
+      "@2dots1line/orb-core": ["packages/orb-core/src"],
+      "@2dots1line/shader-lib": ["packages/shader-lib/src"],
+      "@2dots1line/ui-components": ["packages/ui-components/src"],
+      "@2dots1line/utils": ["packages/utils/src"],
+      "@2dots1line/document-tool": ["packages/document-tool/src"],
+      "@2dots1line/text-tool": ["packages/text-tool/src"],
+      "@2dots1line/vision-tool": ["packages/vision-tool/src"]
+    }
+  },
+  "exclude": ["node_modules", "**/*.test.ts", "**/*.spec.ts", "**/dist", "**/build", "**/.turbo", "postgres_data", "redis_data", "weaviate_data", "neo4j_data", "archive", "docs"]
+} 

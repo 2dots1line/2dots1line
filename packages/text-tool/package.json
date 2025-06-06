@@ -1,0 +1,27 @@
+{
+  "name": "@2dots1line/text-tool",
+  "version": "0.1.0",
+  "description": "Text processing and NER tools for 2dots1line V7",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b tsconfig.json --verbose --force",
+    "clean": "rimraf dist",
+    "test": "jest",
+    "lint": "eslint src/**/*.ts",
+    "dev": "tsc -w"
+  },
+  "dependencies": {
+    "@2dots1line/shared-types": "workspace:^0.1.0",
+    "@2dots1line/tool-registry": "workspace:^0.1.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.5",
+    "@types/node": "^18.18.0",
+    "eslint": "^8.49.0",
+    "jest": "^29.7.0",
+    "rimraf": "^5.0.5",
+    "ts-jest": "^29.1.1",
+    "typescript": "^5.2.2"
+  }
+} 

@@ -1,0 +1,30 @@
+packages:
+  - apps/web-app
+  - apps/api-gateway
+  - apps/backend-api
+  - apps/storybook
+  - packages/shared-types
+  - packages/database
+  - packages/core-utils
+  - packages/utils
+  - packages/ai-clients
+  - packages/agent-framework
+  - packages/tool-registry
+  - packages/canvas-core
+  - packages/orb-core
+  - packages/shader-lib
+  - packages/document-tool
+  - packages/text-tool
+  - packages/vision-tool
+  - packages/ui-components
+  - services/*
+  - workers/*
+  - 3d-assets/*
+onlyBuiltDependencies:
+  - '@prisma/client'
+  - '@prisma/engines'
+  - esbuild
+  - msgpackr-extract
+  - prisma
+  - sharp
+  - unrs-resolver

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GlassmorphicPanel Demo - 2Dots1Line V7</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+                'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+                sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        
+        .glassmorphic-panel {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+    </style>
+</head>
+<body>
+    <div class="container mx-auto max-w-4xl">
+        <h1 class="text-4xl font-bold text-white mb-8 text-center">
+            GlassmorphicPanel Component Demo
+        </h1>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Default Panel -->
+            <div class="glassmorphic-panel w-full">
+                <h3 class="text-xl font-semibold mb-2 text-white">Default Panel</h3>
+                <p class="text-gray-200">This is a basic glassmorphic panel with default styling. Notice the blur effect and semi-transparent background.</p>
+            </div>
+            
+            <!-- Custom Styled Panel -->
+            <div class="glassmorphic-panel w-full shadow-xl border-purple-500/50">
+                <h3 class="text-xl font-semibold mb-2 text-white">Custom Styled Panel</h3>
+                <p class="text-sm text-gray-200">This panel has custom styling with a purple border and enhanced shadow effects.</p>
+                <div class="mt-4">
+                    <button class="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded transition-colors">
+                        Interactive Button
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Larger Panel -->
+            <div class="glassmorphic-panel w-full h-80 p-10 md:col-span-2 lg:col-span-1">
+                <h3 class="text-xl font-semibold mb-4 text-white">Larger Panel</h3>
+                <p class="text-gray-200 mb-4">This panel is larger and has more padding. It demonstrates how the glassmorphic effect scales with different sizes.</p>
+                <ul class="text-gray-300 space-y-2">
+                    <li>• Semi-transparent background</li>
+                    <li>• Backdrop blur effect</li>
+                    <li>• Subtle border</li>
+                    <li>• Elegant shadow</li>
+                </ul>
+            </div>
+            
+            <!-- Content Rich Panel -->
+            <div class="glassmorphic-panel w-full md:col-span-2">
+                <h3 class="text-2xl font-bold mb-4 text-white">Content Rich Panel</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <h4 class="text-lg font-semibold text-white mb-2">Features</h4>
+                        <ul class="text-gray-300 space-y-1">
+                            <li>✨ Glassmorphism design</li>
+                            <li>🎨 Tailwind CSS integration</li>
+                            <li>📱 Responsive layout</li>
+                            <li>🔧 Customizable styling</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4 class="text-lg font-semibold text-white mb-2">Use Cases</h4>
+                        <ul class="text-gray-300 space-y-1">
+                            <li>🃏 Card components</li>
+                            <li>📋 Modal dialogs</li>
+                            <li>📊 Dashboard panels</li>
+                            <li>🎯 Feature highlights</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="mt-8 text-center">
+            <div class="glassmorphic-panel inline-block">
+                <p class="text-white font-semibold">
+                    🎉 GlassmorphicPanel Component Successfully Implemented!
+                </p>
+                <p class="text-gray-300 text-sm mt-2">
+                    Ready for integration into 2Dots1Line V7 UI components
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 

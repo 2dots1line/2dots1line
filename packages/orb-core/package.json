@@ -1,0 +1,24 @@
+{
+  "name": "@2dots1line/orb-core",
+  "version": "0.1.0",
+  "description": "Shared Orb implementations for 2dots1line V7",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "rm -rf dist && tsc -b tsconfig.json --verbose --force",
+    "lint": "eslint src --ext .ts,.tsx",
+    "test": "jest",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "@2dots1line/shared-types": "workspace:^0.1.0",
+    "three": "^0.160.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "@types/node": "^18.0.0",
+    "@types/three": "^0.160.0",
+    "rimraf": "^5.0.1",
+    "typescript": "^5.3.3"
+  }
+} 

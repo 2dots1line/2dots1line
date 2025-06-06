@@ -1,0 +1,158 @@
+# docker-compose.yml
+# No version needed at the top for modern Docker Compose
+
+networks:
+  2d1l_network:
+    external: true # Reminder: Run 'docker network create 2d1l_network' once manually if it doesn't exist.
+
+services:
+  postgres: # You confirmed this is working
+    image: postgres:15
+    container_name: postgres-2d1l
+    ports:
+      - "${POSTGRES_HOST_PORT:-5433}:5432" # Host:Container
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB_NAME}
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    networks:
+      - 2d1l_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  neo4j:
+    image: neo4j:5.18 # Specify a recent, stable version
+    container_name: neo4j-2d1l
+    ports:
+      - "${NEO4J_HTTP_HOST_PORT:-7474}:7474"   # For Neo4j Browser
+      - "${NEO4J_BOLT_HOST_PORT:-7687}:7687"    # For application connections
+    networks:
+      - 2d1l_network
+    environment:
+      # NEO4J_AUTH format is user/password
+      NEO4J_AUTH: "${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-password123}" # Ensure NEO4J_USER and NEO4J_PASSWORD are in your .env
+      # Optional: Increase memory if needed, especially for graph algorithms later
+      # NEO4J_server_memory_heap_initial__size: "512m"
+      # NEO4J_server_memory_heap_max__size: "2G"
+    volumes:
+      - ./neo4j_data/data:/data             # Mounts the data directory
+      - ./neo4j_data/logs:/logs             # Mounts the logs directory
+      - ./neo4j_data/import:/var/lib/neo4j/import # For CSV imports if needed
+      - ./neo4j_data/plugins:/plugins       # For APOC or other plugins
+    restart: unless-stopped
+    healthcheck: # Basic healthcheck for Neo4j
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:7474 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s # Give Neo4j time to start up
+
+  weaviate:
+    image: semitechnologies/weaviate:1.25.3 # Or latest stable
+    container_name: weaviate-2d1l
+    ports:
+      - "${WEAVIATE_HOST_PORT:-8080}:8080" # HTTP
+      - "50051:50051"                     # gRPC
+    networks:
+      - 2d1l_network
+    environment:
+      QUERY_DEFAULTS_LIMIT: "25"
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true" # For local dev; consider auth for staging/prod
+      DEFAULT_VECTORIZER_MODULE: "none" # As per our decision
+      ENABLE_MODULES: ""                # No inference modules needed if vectorizer is none
+      PERSISTENCE_DATA_PATH: "/var/lib/weaviate"
+      CLUSTER_HOSTNAME: 'node1' # Important for Weaviate
+      # GOOGLE_API_KEY: "${GOOGLE_API_KEY}" # Only needed if Weaviate itself were doing Gemini embeddings
+    volumes:
+      - ./weaviate_data:/var/lib/weaviate
+    restart: on-failure:0 # Or 'unless-stopped'
+    healthcheck: # Basic healthcheck for Weaviate
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/v1/.well-known/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s # Give Weaviate time to start
+
+  redis:
+    image: redis:7-alpine # Using a specific alpine version for smaller size
+    container_name: redis-2d1l
+    ports:
+      - "${REDIS_HOST_PORT:-6379}:6379"
+    networks:
+      - 2d1l_network
+    # If you set REDIS_PASSWORD in .env, uncomment and use it here:
+    # command: redis-server --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - ./redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  api-gateway: # Assuming this is your main backend app for now
+    build:
+      context: . # Build from the monorepo root
+      dockerfile: ./apps/api-gateway/Dockerfile
+    container_name: api-gateway-2d1l
+    ports:
+      - "${API_GATEWAY_HOST_PORT:-3001}:${API_GATEWAY_CONTAINER_PORT:-3001}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy # Changed to service_healthy assuming healthcheck works
+      weaviate:
+        condition: service_healthy # Changed to service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - 2d1l_network
+    environment:
+      - PORT=${API_GATEWAY_CONTAINER_PORT:-3001}
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST_FOR_APP_IN_DOCKER}:${POSTGRES_PORT_FOR_APP_IN_DOCKER}/${POSTGRES_DB_NAME}
+      - NEO4J_URI=${NEO4J_URI_DOCKER} # e.g., neo4j://neo4j:7687
+      - NEO4J_USERNAME=${NEO4J_USER}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+      - WEAVIATE_SCHEME=${WEAVIATE_SCHEME:-http} # Default to http if not in .env
+      - WEAVIATE_HOST=${WEAVIATE_HOST_DOCKER}     # e.g., weaviate:8080
+      - REDIS_HOST=${REDIS_HOST_DOCKER:-redis}
+      - REDIS_PORT=${REDIS_CONTAINER_PORT:-6379}
+      # - REDIS_PASSWORD=${REDIS_PASSWORD} # Uncomment if used
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-1d}
+      - NODE_ENV=${NODE_ENV:-development}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      # - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+    # volumes: # For development hot-reloading if your Dockerfile doesn't handle it
+    #   - ./apps/api-gateway/src:/usr/src/app/src
+    #   - /usr/src/app/node_modules # Prevent host node_modules overwriting container's
+    restart: unless-stopped
+
+  # Add cognitive-hub service similarly if it's a separate Dockerized service
+  # cognitive-hub:
+  #   build:
+  #     context: .
+  #     dockerfile: ./services/cognitive-hub/Dockerfile
+  #   container_name: cognitive-hub-2d1l
+  #   # ... similar environment variables and depends_on as api-gateway for DBs ...
+  #   networks:
+  #     - 2d1l_network
+  #   restart: unless-stopped
+
+# Define persistent named volumes (optional, Docker creates anonymous ones by default for ./paths)
+# volumes:
+#   postgres_data:
+#   neo4j_data_data: # neo4j image uses /data
+#   neo4j_data_logs:
+#   neo4j_data_import:
+#   neo4j_data_plugins:
+#   weaviate_data:
+#   redis_data:

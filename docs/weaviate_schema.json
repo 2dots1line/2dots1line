@@ -1,0 +1,46 @@
+{
+  "classes": [
+    {
+      "class": "Chunk",
+      "description": "Represents a chunk of text content for semantic search and retrieval. Linked to Neo4j Chunk node.",
+      "vectorizer": "none",
+      "properties": [
+        {
+          "name": "chunkId",
+          "dataType": ["text"],
+          "description": "Primary key, UUID. Corresponds to chunkId in Neo4j."
+        },
+        {
+          "name": "memoryUnitId",
+          "dataType": ["text"],
+          "description": "UUID of the parent MemoryUnit in Neo4j."
+        },
+        {
+          "name": "userId",
+          "dataType": ["text"],
+          "description": "UUID of the user associated with this chunk."
+        },
+        {
+          "name": "textContent",
+          "dataType": ["text"],
+          "description": "The actual text content of the chunk to be vectorized and searched."
+        },
+        {
+          "name": "sourceUri",
+          "dataType": ["text"],
+          "description": "Optional URI of the original source document."
+        },
+        {
+          "name": "createdAt",
+          "dataType": ["date"],
+          "description": "Timestamp of chunk creation."
+        },
+        {
+          "name": "updatedAt",
+          "dataType": ["date"],
+          "description": "Timestamp of last chunk update."
+        }
+      ]
+    }
+  ]
+} 

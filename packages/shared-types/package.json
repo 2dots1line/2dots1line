@@ -1,0 +1,22 @@
+{
+  "name": "@2dots1line/shared-types",
+  "version": "0.1.0",
+  "description": "Shared TypeScript types for 2dots1line V4",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "rm -rf dist && tsc -b tsconfig.json --verbose --force",
+    "lint": "eslint src --ext .ts,.tsx",
+    "test": "jest",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^20.11.24",
+    "eslint": "^8.57.0",
+    "jest": "^29.7.0",
+    "rimraf": "^5.0.5",
+    "typescript": "^5.3.3"
+  }
+} 

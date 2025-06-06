@@ -1,0 +1,22 @@
+# .dockerignore
+.git
+node_modules
+**/node_modules
+.turbo
+**/.turbo
+*.log
+.env
+.env.*
+!apps/web-app/.env.local # If you want to include this specific one for web-app build
+# Add any large data directories, IDE specific folders, etc.
+# e.g., .vscode, .idea
+# If you have build outputs you don't want in the context (though multi-stage builds handle this better)
+dist
+archive/
+# .next
+# coverage
+postgres_data/
+neo4j_data/
+weaviate_data/
+redis_data/
+apps/archive/

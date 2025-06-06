@@ -1,0 +1,7 @@
+{
+  "name": "@2dots1line/3d-env-maps",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/index.js",
+  "types": "src/index.d.ts"
+} 

@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Font Families based on V7DesignToken.md */
+  --sys-typescale-brand-font-family: 'General Sans', sans-serif;
+  --sys-typescale-plain-font-family: 'Inter', sans-serif;
+
+  /* Shape System (Corner Radius) */
+  --sys-shape-corner-none: 0px;
+  --sys-shape-corner-extra-small: 4px;
+  --sys-shape-corner-small: 8px;
+  --sys-shape-corner-medium: 12px;
+  --sys-shape-corner-large: 16px;
+  --sys-shape-corner-extra-large: 28px;
+  --sys-shape-corner-full: 9999px;
+
+  /* Spacing System */
+  --sys-spacing-xxs: 4px;
+  --sys-spacing-xs: 8px;
+  --sys-spacing-sm: 12px;
+  --sys-spacing-md: 16px;
+  --sys-spacing-lg: 24px;
+  --sys-spacing-xl: 32px;
+  --sys-spacing-xxl: 48px;
+  --sys-spacing-xxxl: 64px;
+  
+  /* Z-Index */
+  --sys-zIndex-canvas: 0;
+  --sys-zIndex-modalBackdrop: 700;
+  --sys-zIndex-modal: 800;
+  --sys-zIndex-hud: 900;
+  --sys-zIndex-orb: 1000;
+
+  /* Dark Theme Colors (KGO Palette inspired from V7DesignToken.md) */
+  --sys-color-primary: 230 190 138; /* ref.palette.accent.journeyGold */
+  --sys-color-onPrimary: 3 0 28; /* ref.palette.neutral.deepCosmos */
+  --sys-color-background: 3 0 28; /* ref.palette.neutral.deepCosmos (#03001C) */
+  --sys-color-onBackground: 240 235 244; /* ref.palette.neutral.alabaster (#F0EBF4) */
+  --sys-color-surface: 16 0 43; /* ref.palette.primary.kgo (#10002B) */
+  --sys-color-onSurface: 240 235 244; /* ref.palette.neutral.alabaster */
+  --sys-color-outline: 169 169 169; /* ref.palette.neutral.midGray */
+
+  /* Glassmorphism */
+  --sys-color-glass-background-rgb: 30, 30, 40;
+  --sys-color-glass-border-rgb: 80, 80, 100;
+}
+
+body {
+  color: rgb(var(--sys-color-onBackground));
+  background: rgb(var(--sys-color-background));
+  font-family: var(--sys-typescale-plain-font-family);
+}
+
+.font-brand {
+  font-family: var(--sys-typescale-brand-font-family);
+}
+
+.glass-panel {
+  background-color: rgba(var(--sys-color-glass-background-rgb), 0.25);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(var(--sys-color-glass-border-rgb), 0.2);
+}
+
+/* Custom Scrollbar for Glassmorphic Modals */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* Firefox */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) rgba(255, 255, 255, 0.1);
+} 

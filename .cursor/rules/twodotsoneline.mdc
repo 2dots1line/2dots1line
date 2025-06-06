@@ -1,0 +1,179 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+**2dots1line V7 - Cursor Project Rules & Guidelines**
+
+**I. General Principles & Communication:**
+
+1.  **Primary Reference:** Always refer to the `@V7UltimateSpec` document as the primary source of truth for requirements, architecture, and design. If specific details are better found in the original `V4TechSpec.md`, `V7MonoRepoDesign.md`, `V7DataSchemaDesign.md`, `v7UIUXDesign.md`, or `v7TechSpec.md`, cite the specific document and section.
+2.  **Clarity in Prompts:** When requesting code generation or modification, provide clear, concise prompts. Include:
+    *   The specific file(s) to be modified (full path from monorepo root).
+    *   The exact section of the `@V7UltimateSpec` (or other spec document) that details the requirement.
+    *   Expected inputs and outputs for functions/components.
+    *   Any specific technologies or libraries to be used (e.g., "Use Prisma for this database interaction," "Implement this UI component using React Three Fiber and Drei utilities").
+3.  **Incremental Commits:** AI agents should be instructed to make small, logical commits with clear messages that reference the Task ID (e.g., "feat(W6-S5.T4): Implement CardService getCards method"). Human engineers will review and merge PRs.
+4.  **Ask for Clarification:** If a prompt is ambiguous or conflicts with existing code/specifications, the AI agent should state the ambiguity and ask for clarification rather than making assumptions.
+5.  **Adherence to Linters & Formatters:** All generated code must pass ESLint and Prettier checks configured in the project (as per S0.T1). AI should be reminded to run these tools or integrate them into its generation workflow.
+6.  **Testing is Mandatory:** For any new functionality or significant change, AI agents must be prompted to write relevant tests (unit, integration, or specify if E2E stubs are needed) as per the task description.
+7.  **Documentation Updates:** If a code change impacts how a module works or introduces a new feature, prompt the AI to suggest updates to relevant `README.md` files or inline code comments.
+
+**II. Code Style & Structure:**
+
+8.  **Monorepo Structure:** Strictly adhere to the directory structure defined in `@V7UltimateSpec Section 8.1` (from `V7MonoRepoDesign.md`). Place new files in their designated package or application directory.
+9.  **TypeScript First:** All new JavaScript/TypeScript code must use TypeScript with strict type checking enabled. Utilize types from `packages/shared-types/` where applicable.
+10. **Modularity & Reusability:**
+    *   Frontend: Create reusable React components in `packages/ui-components/` or `apps/web-app/src/components/common/` as appropriate.
+    *   Backend: Create reusable utility functions in `packages/core-utils/` or service-specific utility directories.
+    *   3D: Shared 3D utilities, shaders, and core logic should reside in `packages/canvas-core/` and `packages/shader-lib/`.
+11. **Configuration Management:**
+    *   Avoid hardcoding values. Use environment variables for API keys, database credentials, service URLs, etc. Load these via a centralized config module if appropriate.
+    *   For UI/UX related constants (like growth dimension names, colors not in tokens), use configuration files or constants modules, not hardcoded strings in components.
+12. **Comments:** Write clear and concise comments for complex logic, public APIs, and any non-obvious decisions. JSDoc/TSDoc for functions and classes is encouraged.
+13. **Error Handling:**
+    *   Implement robust error handling in both frontend and backend code.
+    *   Use specific error types where possible.
+    *   Provide user-friendly error messages in the UI.
+    *   Log errors comprehensively on the backend (as per S10.T6).
+14. **Asynchronous Operations:** Use `async/await` for all asynchronous operations. Handle promises correctly with `try/catch` blocks.
+
+**III. Backend Specific Rules:**
+
+15. **Database Interactions (Prisma):**
+    *   All direct PostgreSQL interactions should go through Prisma Client.
+    *   Preferably, encapsulate Prisma calls within dedicated Repository classes in `packages/database/src/repositories/`.
+    *   Use Prisma migrations for all schema changes. Always generate a migration file.
+16. **Neo4j Interactions:**
+    *   Use the official `neo4j-driver`. Encapsulate Cypher queries in repository methods.
+    *   Parameterize Cypher queries to prevent injection vulnerabilities.
+    *   Use transactions for multi-statement operations where atomicity is required.
+17. **Weaviate Interactions:**
+    *   Use the official `weaviate-ts-client`. Encapsulate Weaviate calls in repository/service methods.
+    *   Ensure class and property names match the defined Weaviate schema.
+18. **API Endpoint Design (API Gateway):**
+    *   Follow RESTful principles for resource naming and HTTP methods where applicable (unless GraphQL/tRPC is chosen for specific interfaces).
+    *   Implement versioning (e.g., `/api/v1/...`) as per S15.T7.
+    *   Validate request payloads and parameters rigorously (e.g., using Zod).
+    *   Return consistent JSON response structures, including standardized error responses.
+19. **Agent Logic:**
+    *   Agents should be stateless where possible, relying on input parameters and persisted state.
+    *   Complex decision-making logic should be broken down into smaller, testable functions or tools.
+    *   Clearly define input/output contracts for agent methods.
+
+**IV. Frontend Specific Rules:**
+
+20. **Component Design:**
+    *   Follow React best practices (e.g., functional components with hooks).
+    *   Break down complex UI into smaller, reusable components.
+    *   Use design tokens from `@V7UltimateSpec Section 7.7` for styling (colors, typography, spacing, etc.) via Tailwind CSS utility classes or themed components.
+21. **State Management (Zustand):**
+    *   Organize state into logical stores as defined (SceneStore, OrbStore, etc.).
+    *   Use Immer for immutable updates within Zustand stores.
+    *   Selectors should be used to access specific pieces of state to optimize re-renders.
+22. **3D Scene Development (R3F):**
+    *   Optimize for performance: use instancing, LODs, texture compression, and dispose of unused Three.js objects.
+    *   Encapsulate scene-specific logic within its respective component (e.g., `CloudScene.tsx`).
+    *   Use shared utilities from `packages/canvas-core/` and shaders from `packages/shader-lib/` where possible.
+23. **Accessibility (A11Y):**
+    *   Ensure all interactive elements are keyboard navigable.
+    *   Provide ARIA attributes where necessary.
+    *   Maintain good color contrast (can be checked with tools).
+    *   Provide text alternatives for non-text content where applicable.
+    *   Consider users with motion sensitivity when designing animations.
+24. **API Calls:**
+    *   Use TanStack Query (React Query) for data fetching, caching, and state synchronization with the server.
+    *   Centralize API call logic in service files or custom hooks.
+
+**V. Testing Rules:**
+
+25. **Unit Tests:** Every new function, component (non-trivial UI logic), and class method should have corresponding unit tests. Aim for good coverage of logic paths.
+26. **Integration Tests:** Test interactions between components/modules, especially between services and repositories, or agent and tools.
+27. **API Tests:** Test API Gateway endpoints for correct request handling, authentication, validation, and response structure.
+28. **E2E Tests:** Cover critical user flows. These should be stable and run as part of the CI pipeline.
+29. **Test Naming Conventions:** Use descriptive names for tests (e.g., `should return user when valid id is provided`).
+30. **Mocking:** Use mocking libraries (e.g., Jest mocks) appropriately to isolate units under test.
+
+**VI. Task Execution & Completion by AI:**
+
+31. **Understand Scope:** Before starting, confirm understanding of the task's scope and its relation to the overall specification.
+32. **File Context:** Clearly state which files are being modified or created. If creating new files, specify the exact path within the monorepo.
+33. **Code Blocks:** Present generated code in clear, well-formatted markdown code blocks, specifying the language (e.g., ```typescript).
+34. **Verification Steps:** After generating code, explicitly state how the AI has tested its own code (e.g., "I have run `npm run test` in the `packages/database` directory and all tests pass.") or what manual steps a human should take if direct AI testing isn't possible.
+35. **Assumptions:** If any assumptions were made due to ambiguities in the prompt or spec, state them clearly.
+36. **Follow-up Questions:** If part of a task requires external information or a decision not covered, ask for it rather than proceeding with a guess on critical items.
+
+**Human Engineer Responsibilities:**
+
+*   **Prompt Engineering:** Provide clear, detailed prompts that leverage these rules.
+*   **Code Review:** Thoroughly review all AI-generated code for correctness, adherence to specs and rules, performance, and security.
+*   **Integration:** Merge PRs and handle any complex integration challenges.
+*   **Complex Problem Solving:** Tackle architectural decisions, complex algorithms, or issues the AI struggles with.
+*   **Manual Verification:** Perform the "Human Verification" steps outlined in the roadmap.
+*   **Iterative Refinement:** Provide feedback to the AI to improve its output over time.
+
+Yes, the "V4 Coding Standards & Best Practices" document provides several excellent points that can be incorporated into or reinforce the "Cursor Project Rules" for 2dots1line V7. The goal is to have a single, comprehensive set of guidelines.
+
+Here's how we can integrate the key ideas, merging them into the existing structure or adding new relevant sections:
+
+**Additions/Refinements to "Cursor Project Rules & Guidelines":**
+
+**I. General Principles & Communication:**
+
+*   **New Rule 1.A (from V4 I.1): Agent Design Philosophy:**
+    *   "Each cognitive agent (DialogueAgent, IngestionAnalyst, etc.) **MUST** have a single, clearly defined responsibility as outlined in `@V7UltimateSpec`.
+    *   Agents **MUST** define explicit input/output contracts for their primary `process` methods using TypeScript interfaces (as detailed in `@V7UltimateSpec Section 3` for each agent).
+    *   Agents **MUST NOT** directly access databases; they **MUST** use Repository classes from `packages/database/src/repositories/` or specialized tools for data interaction.
+    *   All significant agent prompts, system messages, and configurations for LLM interactions **MUST** be stored in version-controlled configuration files (e.g., in `services/cognitive-hub/config/` or a dedicated `packages/config/`) and **NOT** hardcoded within agent logic. These should be loadable at runtime."
+*   **Reinforce/Expand Rule 1.6 (Testing):**
+    *   "Testing is Mandatory: For any new functionality or significant change, AI agents must be prompted to write relevant tests. This includes unit tests for tools and agent logic, integration tests for service interactions, and stubs/guidance for E2E tests. **LLM behavior tests (testing various prompts and evaluating response quality) are crucial for agents interacting with LLMs.**"
+
+**II. Code Style & Structure:**
+*   **New Rule II.A (from V4 II.Human-Friendly Code.1): Function Length & Clarity:**
+    *   "Break down complex logic into smaller, well-named functions. Aim for functions to be concise and focused, generally **not exceeding 30-50 lines of code** where practical, to enhance readability and testability."
+*   **Reinforce/Expand Rule II.3 (Comments):**
+    *   "Prioritize self-documenting code through clear naming and structure. Add meaningful comments primarily to explain the 'WHY' of complex logic or non-obvious decisions, not just 'WHAT' the code is doing."
+*   **New Rule II.B (from V4 II.Human-Friendly Code.3): Documentation for Non-Technical Collaborators:**
+    *   "While AI agents focus on code, human engineers are responsible for ensuring key documentation understandable by non-technical collaborators is maintained. This includes high-level overviews in package `README.md` files, workflow diagrams (`/docs/workflows/`), a decision log (`/docs/decisions/`), and a glossary (`/docs/glossary.md`) as specified in `@V7UltimateSpec Section XI` (referencing V4 Coding Standards)." *(This clarifies human vs. AI responsibility here)*
+*   **Reinforce/Expand Rule II.5 (Coding Style):**
+    *   "Follow standard TypeScript conventions: `camelCase` for variables, functions, methods; `PascalCase` for classes, interfaces, types, enums; `UPPER_CASE` for constants. Prefer named exports over default exports for better tree-shakability and clarity. Prefer `async/await` over raw Promises for asynchronous code."
+
+**III. Backend Specific Rules:**
+
+*   **New Rule III.A (from V4 I.2): Deterministic Tools Layer Standards:**
+    *   "Tools in the Deterministic Tools Layer **MUST** be stateless functions or classes with clearly defined input/output contracts (TypeScript interfaces).
+    *   Tools **MUST** implement comprehensive error handling and aim for graceful degradation where possible (e.g., returning a default value or a specific error object instead of crashing).
+    *   Implement basic telemetry stubs or logging for tool usage (timing, success/failure). For critical tools, consider circuit breaker patterns (can be stubbed initially).
+    *   Tools intended for use in multiple regions **MUST** be designed to accommodate region-specific configurations or service endpoints (e.g., different LLM providers)."
+*   **Reinforce/Expand Rule III.1 (Database Interactions - Prisma):**
+    *   "All direct PostgreSQL interactions **MUST** go through Prisma Client, preferably encapsulated within Repository classes in `packages/database/src/repositories/`. **NO** direct SQL query strings in agent or service logic unless absolutely necessary and approved. Use Prisma migrations for all schema changes."
+*   **New Rule III.B (from V4 I.3): Persistence Layer Access & Transactions:**
+    *   "Direct database client usage (raw `pg`, `ioredis`, etc.) outside of the `DatabaseService` and specific repository modules is prohibited.
+    *   When operations span multiple database writes *within the same service call* that need to be atomic, utilize the `DatabaseService.withTransaction` method for PostgreSQL. For cross-service or cross-database (e.g., PG and Neo4j) atomicity, design for eventual consistency or implement saga patterns. Explicit sync mechanisms should be documented if needed."
+*   **New Rule III.C (from V4 I.5): API Contracts & Long-Running Operations:**
+    *   "For API endpoints in the `api-gateway` that trigger potentially long-running operations (e.g., complex insight generation, large data ingestion), consider an asynchronous pattern: return a `202 Accepted` response immediately with a job ID, and provide a separate status endpoint (e.g., `/api/jobs/:jobId/status`) for the client to poll. Alternatively, use WebSockets for progress updates."
+*   **Reinforce/Expand Rule II.B (from V4 I.4) and Monorepo Rule (from V7MonorepoDesign):**
+    *   **Module Organization & Dependency Hierarchy:** "Strictly follow the monorepo structure defined in `@V7UltimateSpec Section 8.1`. Related functionality MUST be grouped in cohesive packages. Respect the dependency hierarchy: `packages/shared-types` -> `packages/core-utils` -> `packages/database` / `packages/ai-clients` / `packages/agent-framework` -> `services/*` / `workers/*` -> `apps/*`. **AVOID circular dependencies between packages at all costs.** Use Turborepo's dependency graph visualization to verify."
+
+**IV. Frontend Specific Rules:**
+
+*(No direct additions from this V4 doc as it's more backend/architecture focused, but the principles of clarity and consistency apply)*
+
+**V. Testing Rules:**
+
+*   **New Rule V.A (from V4 III.When to Implement UI Testing): Decision Tree for UI Testing:**
+    *   "While AI will primarily focus on unit and integration tests, human engineers will guide the implementation of UI E2E tests.
+    *   Use terminal-based tests (Jest, Vitest) for: individual tool functions, repository methods, agent logic (with mocks), simple API endpoint behavior.
+    *   REQUIRE UI E2E testing (Playwright/Cypress) for: key user-facing features (chat, card interactions, graph navigation), complex interaction flows, features involving real-time UI updates, and core mobile functionality."
+*   **New Rule V.B (from V4 III.Monorepo Testing Configuration): Jest & TSConfig for Workspaces:**
+    *   "Each package within the monorepo **MUST** have its own Jest configuration, tailored to its needs (e.g., `testEnvironment` for Node.js or JSDOM).
+    *   Configure `moduleDirectories` in Jest configs to correctly resolve `node_modules` within the monorepo structure (e.g., `['node_modules', '<rootDir>/../../node_modules']`).
+    *   Utilize `pathsToModuleNameMapper` from `ts-jest` to align Jest module resolution with TypeScript path aliases defined in `tsconfig.base.json`.
+    *   Use relative import paths within test files that are consistent with source file imports within the same package.
+    *   Ensure `isolatedModules: true` is set in `tsconfig.json` for test file scopes if not globally."
+*   **New Rule V.C (from V4 III.Monorepo Testing Configuration): Workspace Dependencies in Tests:**
+    *   "When testing code that depends on other local packages within the monorepo, ensure Turborepo task dependencies (`dependsOn: ["^build"]` for `test` scripts) are correctly configured in `turbo.json` so that dependencies are built before tests are run."
+
+**VI. Task Execution & Completion by AI:**
+
+*   **Reinforce Rule VI.5 (Assumptions):** "If the specifications or existing code present contradictions or ambiguities, the AI agent **MUST** highlight

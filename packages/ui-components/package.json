@@ -1,0 +1,42 @@
+{
+  "name": "@2dots1line/ui-components",
+  "version": "0.1.0",
+  "description": "Shared UI components for 2dots1line V4",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "sideEffects": false,
+  "scripts": {
+    "build": "rm -rf dist && tsc -b tsconfig.json --verbose --force",
+    "dev": "tsc --watch",
+    "lint": "eslint src --ext .ts,.tsx",
+    "test": "jest",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "clsx": "^2.1.0",
+    "lucide-react": "^0.513.0",
+    "mlly": "^1.7.4",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "tailwind-merge": "^2.2.0",
+    "ufo": "^1.6.1"
+  },
+  "devDependencies": {
+    "@storybook/react": "^7.6.0",
+    "@types/jest": "^29.5.0",
+    "@types/node": "^18.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "autoprefixer": "^10.4.16",
+    "load-tsconfig": "^0.2.5",
+    "magic-string": "^0.30.0",
+    "mlly": "^1.7.3",
+    "postcss": "^8.4.31",
+    "rimraf": "^5.0.1",
+    "tailwindcss": "^3.4.0",
+    "tsup": "^8.0.1",
+    "typescript": "^5.3.3",
+    "ufo": "^1.5.4"
+  }
+}

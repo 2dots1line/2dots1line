@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "composite": true,
+    "noEmit": false,
+    "module": "NodeNext",
+    "moduleResolution": "nodenext",
+    "paths": {},
+    "typeRoots": ["./node_modules/@types", "./src/types"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.d.ts"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts"],
+  "references": [
+    { "path": "../../packages/database/tsconfig.json" },
+    { "path": "../../services/cognitive-hub/tsconfig.json" },
+    { "path": "../../packages/shared-types/tsconfig.json" },
+    { "path": "../../packages/tool-registry/tsconfig.build.json" }
+  ]
+} 

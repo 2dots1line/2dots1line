@@ -1,0 +1,28 @@
+name: Lint and Format Check
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  lint-format:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18' # Or your project's node version
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run ESLint via Turbo
+      run: npm run lint # This should execute "turbo run lint"
+
+    - name: Run Prettier Check via Turbo
+      run: npm run format:check # This should execute "prettier --check ..." 

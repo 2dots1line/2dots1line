@@ -1,0 +1,68 @@
+{
+  "name": "@2dots1line/v7-monorepo",
+  "version": "7.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/web-app",
+    "apps/api-gateway", 
+    "apps/backend-api",
+    "apps/storybook",
+    "packages/shared-types",
+    "packages/database",
+    "packages/core-utils",
+    "packages/utils",
+    "packages/ai-clients",
+    "packages/agent-framework",
+    "packages/tool-registry",
+    "packages/canvas-core",
+    "packages/orb-core",
+    "packages/shader-lib",
+    "packages/document-tool",
+    "packages/text-tool",
+    "packages/vision-tool",
+    "services/*",
+    "workers/*",
+    "3d-assets/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "storybook": "turbo run storybook",
+    "format": "prettier --write \"**/*.{ts,tsx,md,glsl}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,md,glsl}\"",
+    "prepare": "npx husky install",
+    "process-assets": "node scripts/asset-processing/process-assets.js",
+    "db:schema:apply-weaviate": "ts-node scripts/setup/apply_weaviate_schema.ts",
+    "gen:noise": "node scripts/gen-noise.js"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@typescript-eslint/eslint-plugin": "^8.15.0",
+    "@typescript-eslint/parser": "^8.15.0",
+    "dotenv": "^16.4.5",
+    "eslint": "^8.57.1",
+    "eslint-config-prettier": "^10.1.5",
+    "eslint-plugin-import": "^2.29.1",
+    "eslint-plugin-react": "^7.33.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "fs-extra": "^11.2.0",
+    "glslify": "^7.1.1",
+    "husky": "^9.0.11",
+    "lint-staged": "^15.2.2",
+    "prettier": "^3.2.5",
+    "ts-node": "^10.9.2",
+    "turbo": "^2.1.0",
+    "typescript": "^5.3.3",
+    "weaviate-ts-client": "^2.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "packageManager": "pnpm@10.11.1",
+  "dependencies": {
+    "@prisma/client": "^6.9.0",
+    "prisma": "^6.9.0"
+  }
+}
