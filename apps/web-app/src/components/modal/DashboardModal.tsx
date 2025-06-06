@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import { GlassmorphicPanel, GlassButton } from '@2dots1line/ui-components';
 import { 
   X, 
   TrendingUp, 
@@ -12,7 +12,7 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
-import { GlassmorphicPanel, GlassButton } from '@2dots1line/ui-components';
+import React from 'react';
 
 interface DashboardModalProps {
   isOpen: boolean;

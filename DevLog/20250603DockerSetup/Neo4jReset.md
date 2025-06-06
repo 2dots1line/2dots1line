@@ -583,7 +583,7 @@ This is often the most reliable way.
 ```bash
 NEO4J_USER_ENV=$(grep NEO4J_USER .env | cut -d '=' -f2)
 NEO4J_PASSWORD_ENV=$(grep NEO4J_PASSWORD .env | cut -d '=' -f2)
-docker exec -i neo4j-2d1l cypher-shell -u "$NEO4J_USER_ENV" -p "$NEO4J_PASSWORD_ENV" < ./packages/database/src/neo4j/schema.cypher
+docker exec -i neo4j-2d1l cypher-shell -u "$NEO4J_USER_ENV" -p "$NEO4J_PASSWORD_ENV" < ./packages/database/scripts/schema.cypher
 ```
 *(This assumes `NEO4J_USER` and `NEO4J_PASSWORD` are defined in your root `.env` file. Adjust the grep if needed or just hardcode for a one-time run if simpler, but using env vars is better practice).*
 

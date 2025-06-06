@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { GlassmorphicPanel, GlassButton, DragHandle, MinimizeToggle } from '@2dots1line/ui-components';
 import { 
   BarChart3, 
   MessageCircle, 
@@ -8,7 +8,8 @@ import {
   Network, 
   Settings 
 } from 'lucide-react';
-import { GlassmorphicPanel, GlassButton, DragHandle, MinimizeToggle } from '@2dots1line/ui-components';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+
 import { useHUDStore, ModalType } from '../../stores/HUDStore';
 
 interface HUDContainerProps {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import { GlassmorphicPanel, GlassButton } from '@2dots1line/ui-components';
 import { 
   X, 
   Send, 
@@ -8,10 +8,9 @@ import {
   Paperclip, 
   Mic, 
   MicOff,
-  Smile,
   MoreVertical
 } from 'lucide-react';
-import { GlassmorphicPanel, GlassButton, InputField } from '@2dots1line/ui-components';
+import React, { useState, useRef } from 'react';
 
 interface ChatModalProps {
   isOpen: boolean;
@@ -185,6 +184,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
                 className="p-2 hover:bg-white/20"
                 title="Upload image"
               >
+                {/* eslint-disable-next-line jsx-a11y/alt-text */}
                 <Image size={18} className="stroke-current" strokeWidth={1.5} />
               </GlassButton>
               <GlassButton

@@ -1,16 +1,14 @@
 'use client';
 
+import { GlassmorphicPanel, GlassButton } from '@2dots1line/ui-components';
 import React, { useState, useEffect, useCallback } from 'react';
 
-import { GlassmorphicPanel, GlassButton } from '@2dots1line/ui-components';
-
-import LoginModal from '../components/modal/LoginModal';
-import SignupModal from '../components/modal/SignupModal';
 import { HUDContainer } from '../components/hud';
 import { ModalContainer } from '../components/modal';
-
-import { useUserStore } from '../stores/UserStore';
+import LoginModal from '../components/modal/LoginModal';
+import SignupModal from '../components/modal/SignupModal';
 import { useHUDStore } from '../stores/HUDStore';
+import { useUserStore } from '../stores/UserStore';
 
 const HomePage = () => {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);

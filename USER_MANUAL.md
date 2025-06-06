@@ -168,7 +168,7 @@ SELECT user_id, email, name, created_at, account_status FROM "User";
 - **Cognitive Hub (if needed)**: http://localhost:8000
 - **Prisma Studio**: http://localhost:5555
 - **PostgreSQL**: localhost:5433
-- **Neo4j**: localhost:7687 (Bolt), localhost:7474 (Browser)
+- **Neo4j**: localhost:7688 (Bolt), localhost:7475 (Browser)
 - **Weaviate**: localhost:8080
 - **Redis**: localhost:6379
 

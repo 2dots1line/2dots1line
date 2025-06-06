@@ -1,11 +1,13 @@
 'use client';
 
-import React from 'react';
-import { X } from 'lucide-react';
-import { useHUDStore, ModalType } from '../../stores/HUDStore';
-import DashboardModal from './DashboardModal';
-import ChatModal from './ChatModal';
 import { GlassmorphicPanel, GlassButton } from '@2dots1line/ui-components';
+import { X } from 'lucide-react';
+import React from 'react';
+
+import { useHUDStore } from '../../stores/HUDStore';
+
+import ChatModal from './ChatModal';
+import DashboardModal from './DashboardModal';
 
 interface ModalContainerProps {
   className?: string;
