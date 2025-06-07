@@ -14,9 +14,13 @@
   },
   "dependencies": {
     "@2dots1line/agent-framework": "workspace:^0.1.0",
+    "@2dots1line/ai-clients": "workspace:^0.1.0",
     "@2dots1line/database": "workspace:^0.1.0",
+    "@2dots1line/document-tool": "workspace:^0.1.0",
     "@2dots1line/shared-types": "workspace:^0.1.0",
+    "@2dots1line/text-tool": "workspace:^0.1.0",
     "@2dots1line/tool-registry": "workspace:^0.1.0",
+    "@2dots1line/vision-tool": "workspace:^0.1.0",
     "@google/generative-ai": "^0.2.1",
     "dotenv": "^16.4.5",
     "uuid": "^9.0.0"

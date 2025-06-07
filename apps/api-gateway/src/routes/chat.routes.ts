@@ -5,6 +5,8 @@
 
 import { Router } from 'express';
 import { ChatController } from '../controllers/chat.controller';
+import { authMiddleware } from '../middleware/auth.middleware';
+import { uploadSingle, handleUploadError } from '../middleware/upload.middleware';
 
 const router: Router = Router();
 const chatController = new ChatController();
@@ -14,21 +16,21 @@ const chatController = new ChatController();
  * Send a text message to DialogueAgent for conversation
  * Requires authentication middleware
  */
-router.post('/message', chatController.sendMessage);
+router.post('/message', authMiddleware, chatController.sendMessage);
 
 /**
  * POST /api/chat/upload
  * Upload a file (image, document) for analysis by DialogueAgent
  * Requires authentication and file upload middleware (multer)
  */
-router.post('/upload', chatController.uploadFile);
+router.post('/upload', authMiddleware, uploadSingle, handleUploadError, chatController.uploadFile);
 
 /**
  * GET /api/chat/history
  * Get conversation history for the authenticated user
  * Optional query parameters: conversation_id, limit, offset
  */
-router.get('/history', chatController.getHistory);
+router.get('/history', authMiddleware, chatController.getHistory);
 
 /**
  * GET /api/chat/health

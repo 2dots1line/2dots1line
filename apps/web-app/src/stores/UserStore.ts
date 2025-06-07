@@ -36,7 +36,7 @@ export interface UserState {
 }
 
 // API base URL - updated to use the correct port where API Gateway is running
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || `http://localhost:${process.env.API_GATEWAY_HOST_PORT || '3001'}`;
 
 export const useUserStore = create<UserState>()(
   persist(

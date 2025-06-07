@@ -425,3 +425,151 @@ docker-compose down
 ```
 
 **Important**: Don't stop Docker containers unless troubleshooting - they're designed to run continuously during development. 
+
+
+## AI diagnostic commands
+
+# Check what's actually in the database
+cd /Users/danniwang/Documents/GitHub/202506062D1L/2D1L
+
+# Check conversations (this should have data)
+npx prisma studio
+# Or via SQL:
+psql -h localhost -U your_username -d your_database -c "SELECT COUNT(*) FROM conversations;"
+
+# Check sessions (this will be empty - that's normal)
+psql -h localhost -U your_username -d your_database -c "SELECT COUNT(*) FROM sessions;"
+
+
+Excellent! 🎉 Let me help you with those three questions:
+
+## **1. Safe to Remove cognitive-hub/src/tools Subdirectories**
+
+**YES, it's safe to remove the tool subdirectories, but let me guide you through what to check first:**
+
+**Check what's currently there:**
+```bash
+ls -la /Users/danniwang/Documents/GitHub/202506062D1L/2D1L/services/cognitive-hub/src/tools/
+```
+
+**What you should see and can safely remove:**
+- `llm-tools/` directory (moved to `packages/ai-clients`)
+- `document-tools/` directory (moved to `packages/document-tool`) 
+- `text-tools/` directory (moved to `packages/text-tool`)
+- `vision-tools/` directory (moved to `packages/vision-tool`)
+
+**What you should KEEP:**
+- `index.ts` file (this imports from packages and registers tools)
+
+**Safe removal commands:**
+```bash
+cd /Users/danniwang/Documents/GitHub/202506062D1L/2D1L/services/cognitive-hub/src/tools/
+rm -rf llm-tools/
+rm -rf document-tools/
+rm -rf text-tools/
+rm -rf vision-tools/
+# Keep index.ts!
+```
+
+## **2. Updating the System Prompt**
+
+**File location:** `/Users/danniwang/Documents/GitHub/202506062D1L/2D1L/services/cognitive-hub/config/dot_system_prompt.json`
+
+**To reflect changes after editing:**
+```bash
+# You need to restart the API Gateway
+cd /Users/danniwang/Documents/GitHub/202506062D1L/2D1L
+pkill -f "api-gateway"
+sleep 3
+cd apps/api-gateway && pnpm dev
+```
+
+**Why:** The DialogueAgent loads the system prompt once during initialization in its constructor. It doesn't watch for file changes, so you need to restart the service.
+
+**Pro tip:** You can also just edit the JSON file and test immediately - the changes will take effect on the next API Gateway restart.
+
+## **3. Viewing Data in Weaviate and Neo4j**
+
+### **Weaviate Data Exploration:**
+
+**Option A: Weaviate Console (Web UI)**
+```bash
+# Weaviate should be running on port 8080
+open http://localhost:8080/v1/meta
+```
+
+**Option B: Query via API**
+```bash
+# See all classes
+curl http://localhost:8080/v1/schema
+
+# Query UserMemory objects
+curl "http://localhost:8080/v1/objects?class=UserMemory&limit=10"
+
+# Query ConversationChunk objects  
+curl "http://localhost:8080/v1/objects?class=ConversationChunk&limit=10"
+```
+
+**Option C: Weaviate Client Console (if installed)**
+```bash
+pip install weaviate-client
+python3 -c "
+import weaviate
+client = weaviate.Client('http://localhost:8080')
+print('Schema:', client.schema.get())
+print('UserMemory count:', client.query.aggregate('UserMemory').with_meta_count().do())
+"
+```
+
+### **Neo4j Data Exploration:**
+
+**Option A: Neo4j Browser (Web UI)**
+```bash
+# Open Neo4j Browser
+open http://localhost:7474/browser/
+# Login: neo4j / password (check your .env file)
+```
+
+**Option B: Cypher Queries via Browser**
+```cypher
+# See all node labels
+CALL db.labels() YIELD label RETURN label;
+
+# See all relationship types
+CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType;
+
+# Count all nodes
+MATCH (n) RETURN count(n);
+
+# See sample data (first 25 nodes)
+MATCH (n) RETURN n LIMIT 25;
+
+# See user concepts
+MATCH (c:Concept) RETURN c LIMIT 10;
+
+# See memories and relationships
+MATCH (m:Memory)-[r]->(c:Concept) RETURN m, r, c LIMIT 10;
+```
+
+**Option C: Command Line (if neo4j client installed)**
+```bash
+# If you have cypher-shell installed
+cypher-shell -a bolt://localhost:7687 -u neo4j -p yourpassword
+```
+
+### **Quick Data Check Commands:**
+
+**See if data is being created:**
+```bash
+# Check Weaviate objects
+curl -s "http://localhost:8080/v1/objects?limit=5" | jq '.objects | length'
+
+# Check Neo4j nodes  
+echo "MATCH (n) RETURN count(n);" | cypher-shell -a bolt://localhost:7687 -u neo4j -p yourpassword
+```
+
+**Expected to see:**
+- **Weaviate**: UserMemory, ConversationChunk, UserConcept, UserArtifact objects
+- **Neo4j**: User, Memory, Concept nodes with relationships
+
+The data should start appearing after you have meaningful conversations with Dot (the IngestionAnalyst creates memories when conversations are deemed "memory-worthy").

@@ -1,25 +1,78 @@
 /**
  * LLM Chat Tool
  * Handles AI conversation through Gemini API
- * Adapted from legacy ai.service.js and moved to packages for reusability
+ * Adapted from legacy ai.service.js
  */
 
-import { 
-  Tool, 
-  TToolInput, 
-  TToolOutput,
-  LLMChatInputPayload,
-  LLMChatResult
-} from '@2dots1line/shared-types';
+import { TToolInput, TToolOutput } from '@2dots1line/shared-types';
+import type { IToolManifest, IExecutableTool } from '@2dots1line/tool-registry';
 import { GoogleGenerativeAI, GenerativeModel, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 
-export type LLMChatToolInput = TToolInput<LLMChatInputPayload>;
-export type LLMChatToolOutput = TToolOutput<LLMChatResult>;
+export interface LLMChatInputPayload {
+  userId: string;
+  sessionId: string;
+  systemPrompt: string;
+  history: Array<{
+    role: 'user' | 'assistant';
+    content: string;
+    timestamp?: string;
+  }>;
+  userMessage: string;
+  memoryContextBlock?: string;
+  temperature?: number;
+  maxTokens?: number;
+}
 
-export class LLMChatTool implements Tool<LLMChatToolInput, LLMChatToolOutput> {
-  public name = 'llm_chat';
-  public description = 'AI conversation tool using Gemini for DialogueAgent';
-  public version = '1.0.0';
+export interface LLMChatResult {
+  text: string;
+  usage?: {
+    input_tokens: number;
+    output_tokens: number;
+    total_tokens: number;
+  };
+  model_used: string;
+  finish_reason?: string;
+}
+
+export type LLMChatInput = TToolInput<LLMChatInputPayload>;
+export type LLMChatOutput = TToolOutput<LLMChatResult>;
+
+// Tool manifest for registry discovery
+const manifest: IToolManifest<LLMChatInputPayload, LLMChatResult> = {
+  name: 'llm.chat',
+  description: 'AI conversation tool using Gemini for DialogueAgent',
+  version: '1.0.0',
+  availableRegions: ['us', 'cn'],
+  categories: ['ai', 'llm', 'conversation'],
+  capabilities: ['chat', 'conversation', 'text_generation'],
+  validateInput: (input: LLMChatInput) => {
+    const valid = !!input?.payload?.userId && !!input?.payload?.userMessage && typeof input.payload.userMessage === 'string';
+    return { 
+      valid, 
+      errors: valid ? [] : ['Missing userId or userMessage in payload'] 
+    };
+  },
+  validateOutput: (output: LLMChatOutput) => {
+    const valid = !!(output?.result?.text && typeof output.result.text === 'string');
+    return { 
+      valid, 
+      errors: valid ? [] : ['Missing text in result'] 
+    };
+  },
+  performance: {
+    avgLatencyMs: 2000,
+    isAsync: true,
+    isIdempotent: false
+  },
+  limitations: [
+    'Requires GOOGLE_API_KEY environment variable',
+    'Uses Gemini 1.5 Flash model',
+    'Rate limited by Google API quotas'
+  ]
+};
+
+class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatResult> {
+  manifest = manifest;
   
   private genAI: GoogleGenerativeAI;
   private model: GenerativeModel;
@@ -32,7 +85,7 @@ export class LLMChatTool implements Tool<LLMChatToolInput, LLMChatToolOutput> {
     
     this.genAI = new GoogleGenerativeAI(apiKey);
     this.model = this.genAI.getGenerativeModel({ 
-      model: 'gemini-pro',
+      model: 'gemini-1.5-flash',
       generationConfig: {
         temperature: 0.7,
         topK: 40,
@@ -63,29 +116,47 @@ export class LLMChatTool implements Tool<LLMChatToolInput, LLMChatToolOutput> {
   /**
    * Execute LLM chat conversation
    */
-  async execute(input: LLMChatToolInput): Promise<LLMChatToolOutput> {
+  async execute(input: LLMChatInput): Promise<LLMChatOutput> {
     try {
       const startTime = performance.now();
 
-      // Construct the full prompt following legacy pattern
-      const fullPrompt = this.constructPrompt(
-        input.payload.systemPrompt,
-        input.payload.history,
-        input.payload.memoryContextBlock,
-        input.payload.userMessage
-      );
+      // Format conversation history for Gemini
+      const formattedHistory = this.formatHistoryForGemini(input.payload.history);
+      
+      // Add system prompt as the first message if no history exists
+      if (formattedHistory.length === 0) {
+        formattedHistory.unshift({
+          role: 'user',
+          parts: [{ text: 'Please introduce yourself and explain your role.' }]
+        });
+        formattedHistory.push({
+          role: 'model',
+          parts: [{ text: input.payload.systemPrompt }]
+        });
+      }
 
-      // Start chat session with history
+      // Start chat session with history including system context
       const chat = this.model.startChat({
-        history: this.formatHistoryForGemini(input.payload.history),
+        history: formattedHistory,
         generationConfig: {
-          temperature: input.payload.modelConfig?.temperature || 0.7,
-          maxOutputTokens: input.payload.modelConfig?.maxTokens || 2048,
+          temperature: input.payload.temperature || 0.7,
+          maxOutputTokens: input.payload.maxTokens || 2048,
         },
       });
 
+      // Construct the current message with context
+      let currentMessage = input.payload.userMessage;
+      
+      // Add memory context if provided
+      if (input.payload.memoryContextBlock) {
+        currentMessage = `RELEVANT CONTEXT FROM USER'S PAST:\n${input.payload.memoryContextBlock}\n\nCURRENT MESSAGE: ${currentMessage}`;
+      }
+      
+      // Add system reminder for consistency
+      currentMessage += '\n\nPlease respond as Dot, keeping in mind the user\'s growth journey and the Six-Dimensional Growth Model.';
+
       // Send the current message
-      const result = await chat.sendMessage(input.payload.userMessage);
+      const result = await chat.sendMessage(currentMessage);
       const response = await result.response;
       const text = response.text();
 
@@ -97,18 +168,16 @@ export class LLMChatTool implements Tool<LLMChatToolInput, LLMChatToolOutput> {
         result: {
           text,
           usage: {
-            inputTokens: this.estimateTokens(fullPrompt),
-            outputTokens: this.estimateTokens(text),
-            totalTokens: this.estimateTokens(fullPrompt + text)
+            input_tokens: this.estimateTokens(currentMessage),
+            output_tokens: this.estimateTokens(text),
+            total_tokens: this.estimateTokens(currentMessage + text)
           },
-          modelUsed: 'gemini-pro',
-          metadata: {
-            finishReason: response.candidates?.[0]?.finishReason || 'stop'
-          }
+          model_used: 'gemini-1.5-flash',
+          finish_reason: response.candidates?.[0]?.finishReason || 'stop'
         },
         metadata: {
           processing_time_ms: Math.round(processingTime),
-          model_used: 'gemini-pro'
+          model_used: 'gemini-1.5-flash'
         }
       };
 
@@ -120,53 +189,14 @@ export class LLMChatTool implements Tool<LLMChatToolInput, LLMChatToolOutput> {
         error: {
           code: 'LLM_EXECUTION_ERROR',
           message: error instanceof Error ? error.message : 'Unknown LLM error',
-          details: { tool: this.name }
+          details: { tool: this.manifest.name }
         },
         metadata: {
           processing_time_ms: 0,
-          model_used: 'gemini-pro'
+          model_used: 'gemini-1.5-flash'
         }
       };
     }
-  }
-
-  /**
-   * Construct full prompt with system instructions, context, and history
-   * Adapted from legacy ai.service.js pattern
-   */
-  private constructPrompt(
-    systemPrompt: string,
-    history: Array<{ role: string; content: string; timestamp?: string }>,
-    memoryContextBlock?: string,
-    userMessage?: string
-  ): string {
-    let prompt = systemPrompt + '\n\n';
-
-    // Add memory context if provided
-    if (memoryContextBlock) {
-      prompt += `RELEVANT CONTEXT FROM USER'S PAST:\n${memoryContextBlock}\n\n`;
-    }
-
-    // Add recent conversation history (last 5 exchanges to keep context manageable)
-    if (history.length > 0) {
-      prompt += 'RECENT CONVERSATION:\n';
-      const recentHistory = history.slice(-10); // Last 10 messages
-      
-      for (const msg of recentHistory) {
-        const role = msg.role === 'user' ? 'User' : 'Dot';
-        prompt += `${role}: ${msg.content}\n`;
-      }
-      prompt += '\n';
-    }
-
-    // Add current user message context
-    if (userMessage) {
-      prompt += `Current User Message: ${userMessage}\n\n`;
-    }
-
-    prompt += 'Please respond as Dot, keeping in mind the user\'s growth journey and the context provided above.';
-
-    return prompt;
   }
 
   /**
@@ -180,9 +210,12 @@ export class LLMChatTool implements Tool<LLMChatToolInput, LLMChatToolOutput> {
   }
 
   /**
-   * Estimate token count (rough approximation)
+   * Rough token estimation (4 chars ≈ 1 token for English)
    */
   private estimateTokens(text: string): number {
     return Math.ceil(text.length / 4);
   }
-} 
+}
+
+export const LLMChatTool = new LLMChatToolImpl();
+export default LLMChatTool; 

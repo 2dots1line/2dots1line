@@ -3,15 +3,48 @@
  * Extracts text and metadata from documents
  */
 
-import { Tool, TToolInput, TToolOutput, DocumentExtractInputPayload, DocumentExtractResult } from '@2dots1line/shared-types';
+import { TToolInput, TToolOutput, DocumentExtractInputPayload, DocumentExtractResult } from '@2dots1line/shared-types';
+import type { IToolManifest, IExecutableTool } from '@2dots1line/tool-registry';
 
 export type DocumentExtractToolInput = TToolInput<DocumentExtractInputPayload>;
 export type DocumentExtractToolOutput = TToolOutput<DocumentExtractResult>;
 
-export class DocumentExtractTool implements Tool<DocumentExtractToolInput, DocumentExtractToolOutput> {
-  public name = 'document_extract';
-  public description = 'Extract text and metadata from documents';
-  public version = '1.0.0';
+// Tool manifest for registry discovery
+const manifest: IToolManifest<DocumentExtractInputPayload, DocumentExtractResult> = {
+  name: 'document.extract',
+  description: 'Extract text and metadata from documents',
+  version: '1.0.0',
+  availableRegions: ['us', 'cn'],
+  categories: ['document', 'extraction', 'text_processing'],
+  capabilities: ['text_extraction', 'document_processing', 'metadata_extraction'],
+  validateInput: (input: DocumentExtractToolInput) => {
+    const valid = !!input?.payload?.documentUrl && typeof input.payload.documentUrl === 'string';
+    return { 
+      valid, 
+      errors: valid ? [] : ['Missing or invalid documentUrl in payload'] 
+    };
+  },
+  validateOutput: (output: DocumentExtractToolOutput) => {
+    const valid = !!(output?.result?.extractedText && typeof output.result.extractedText === 'string');
+    return { 
+      valid, 
+      errors: valid ? [] : ['Missing extractedText in result'] 
+    };
+  },
+  performance: {
+    avgLatencyMs: 800,
+    isAsync: true,
+    isIdempotent: true
+  },
+  limitations: [
+    'Stub implementation - replace with actual document processing',
+    'Currently generates contextual placeholder responses',
+    'Supports PDF, DOCX, DOC, and TXT files'
+  ]
+};
+
+class DocumentExtractToolImpl implements IExecutableTool<DocumentExtractInputPayload, DocumentExtractResult> {
+  manifest = manifest;
 
   async execute(input: DocumentExtractToolInput): Promise<DocumentExtractToolOutput> {
     try {
@@ -44,7 +77,7 @@ export class DocumentExtractTool implements Tool<DocumentExtractToolInput, Docum
         error: {
           code: 'DOCUMENT_PROCESSING_ERROR',
           message: error instanceof Error ? error.message : 'Document processing failed',
-          details: { tool: this.name }
+          details: { tool: this.manifest.name }
         },
         metadata: {
           processing_time_ms: 0
@@ -125,4 +158,7 @@ export class DocumentExtractTool implements Tool<DocumentExtractToolInput, Docum
       images: []
     };
   }
-} 
+}
+
+export const DocumentExtractTool = new DocumentExtractToolImpl();
+export default DocumentExtractTool; 

@@ -10,61 +10,91 @@ import {
   MicOff,
   MoreVertical
 } from 'lucide-react';
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+
+import { chatService, type ChatMessage } from '../../services/chatService';
 
 interface ChatModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-interface Message {
-  id: number;
-  type: 'user' | 'bot';
-  content: string;
-  timestamp: Date;
-}
-
 const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
   const [message, setMessage] = useState('');
   const [isRecording, setIsRecording] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([
+  const [isLoading, setIsLoading] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([
     {
-      id: 1,
+      id: '1',
       type: 'bot',
       content: 'Hello! I\'m here to help you explore your thoughts and experiences. What would you like to talk about today?',
       timestamp: new Date()
     }
   ]);
+  const [conversationId, setConversationId] = useState<string>();
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
   if (!isOpen) return null;
 
-  const handleSendMessage = () => {
-    if (!message.trim()) return;
+  const handleSendMessage = async () => {
+    if (!message.trim() || isLoading) return;
     
-    const newMessage: Message = {
-      id: Date.now(),
+    const userMessage: ChatMessage = {
+      id: `user-${Date.now()}`,
       type: 'user',
-      content: message,
-      timestamp: new Date()
+      content: message.trim(),
+      timestamp: new Date(),
+      conversation_id: conversationId
     };
     
-    setMessages(prev => [...prev, newMessage]);
+    setMessages(prev => [...prev, userMessage]);
     setMessage('');
+    setIsLoading(true);
     
-    // Simulate bot response
-    setTimeout(() => {
-      const botResponse: Message = {
-        id: Date.now() + 1,
+    try {
+      const response = await chatService.sendMessage({
+        message: userMessage.content,
+        conversation_id: conversationId,
+        context: {
+          session_id: `session-${Date.now()}`,
+          trigger_background_processing: true
+        }
+      });
+
+      if (response.success && response.data) {
+        const botMessage: ChatMessage = {
+          id: response.data.message_id,
+          type: 'bot',
+          content: response.data.response,
+          timestamp: new Date(response.data.timestamp),
+          conversation_id: response.data.conversation_id
+        };
+        
+        setMessages(prev => [...prev, botMessage]);
+        setConversationId(response.data.conversation_id);
+      } else {
+        throw new Error(response.error || 'Failed to send message');
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      const errorMessage: ChatMessage = {
+        id: `error-${Date.now()}`,
         type: 'bot',
-        content: 'That\'s an interesting perspective. Can you tell me more about what led you to think about this?',
+        content: 'I apologize, but I encountered an error processing your message. Please try again.',
         timestamp: new Date()
       };
-      setMessages(prev => [...prev, botResponse]);
-    }, 1000);
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -85,6 +115,58 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
 
   const handleImageUpload = () => {
     imageInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || isLoading) return;
+
+    setIsLoading(true);
+    
+    try {
+      const response = await chatService.uploadFile(
+        file,
+        `I've uploaded a file: ${file.name}`,
+        conversationId
+      );
+
+      if (response.success && response.data) {
+        const fileMessage: ChatMessage = {
+          id: `file-${Date.now()}`,
+          type: 'user',
+          content: `Uploaded: ${file.name}`,
+          timestamp: new Date()
+        };
+
+        const botMessage: ChatMessage = {
+          id: response.data.message_id,
+          type: 'bot',
+          content: response.data.response,
+          timestamp: new Date(response.data.timestamp),
+          conversation_id: response.data.conversation_id
+        };
+        
+        setMessages(prev => [...prev, fileMessage, botMessage]);
+        setConversationId(response.data.conversation_id);
+      } else {
+        throw new Error(response.error || 'Failed to upload file');
+      }
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      const errorMessage: ChatMessage = {
+        id: `error-${Date.now()}`,
+        type: 'bot',
+        content: 'I apologize, but I encountered an error processing your file. Please try again.',
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
+
+    // Reset file input
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (imageInputRef.current) imageInputRef.current.value = '';
   };
 
   return (
@@ -224,6 +306,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
                   }
                 `}
                 title={isRecording ? 'Stop recording' : 'Start voice recording'}
+                disabled={isLoading}
               >
                 {isRecording ? (
                   <MicOff size={18} className="stroke-current" strokeWidth={1.5} />
@@ -234,14 +317,18 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
               
               <GlassButton
                 onClick={handleSendMessage}
-                disabled={!message.trim()}
+                disabled={!message.trim() || isLoading}
                 className="
                   p-2 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed
                   transition-all duration-200
                 "
                 title="Send message"
               >
-                <Send size={18} className="stroke-current" strokeWidth={1.5} />
+                {isLoading ? (
+                  <div className="animate-spin w-[18px] h-[18px] border-2 border-white/30 border-t-white rounded-full" />
+                ) : (
+                  <Send size={18} className="stroke-current" strokeWidth={1.5} />
+                )}
               </GlassButton>
             </div>
           </GlassmorphicPanel>
@@ -258,20 +345,14 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
         type="file"
         className="hidden"
         accept=".pdf,.doc,.docx,.txt"
-        onChange={(e) => {
-          // Handle file upload
-          console.log('File selected:', e.target.files?.[0]);
-        }}
+        onChange={handleFileChange}
       />
       <input
         ref={imageInputRef}
         type="file"
         className="hidden"
         accept="image/*"
-        onChange={(e) => {
-          // Handle image upload
-          console.log('Image selected:', e.target.files?.[0]);
-        }}
+        onChange={handleFileChange}
       />
     </div>
   );

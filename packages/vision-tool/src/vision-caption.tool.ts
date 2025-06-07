@@ -3,15 +3,47 @@
  * Extracts captions and descriptions from images
  */
 
-import { Tool, TToolInput, TToolOutput, VisionCaptionInputPayload, VisionCaptionResult } from '@2dots1line/shared-types';
+import { TToolInput, TToolOutput, VisionCaptionInputPayload, VisionCaptionResult } from '@2dots1line/shared-types';
+import type { IToolManifest, IExecutableTool } from '@2dots1line/tool-registry';
 
 export type VisionCaptionToolInput = TToolInput<VisionCaptionInputPayload>;
 export type VisionCaptionToolOutput = TToolOutput<VisionCaptionResult>;
 
-export class VisionCaptionTool implements Tool<VisionCaptionToolInput, VisionCaptionToolOutput> {
-  public name = 'vision_caption';
-  public description = 'Extract captions and descriptions from images';
-  public version = '1.0.0';
+// Tool manifest for registry discovery
+const manifest: IToolManifest<VisionCaptionInputPayload, VisionCaptionResult> = {
+  name: 'vision.caption',
+  description: 'Extract captions and descriptions from images',
+  version: '1.0.0',
+  availableRegions: ['us', 'cn'],
+  categories: ['vision', 'ai', 'image_processing'],
+  capabilities: ['image_captioning', 'object_detection', 'scene_analysis'],
+  validateInput: (input: VisionCaptionToolInput) => {
+    const valid = !!input?.payload?.imageUrl && typeof input.payload.imageUrl === 'string';
+    return { 
+      valid, 
+      errors: valid ? [] : ['Missing or invalid imageUrl in payload'] 
+    };
+  },
+  validateOutput: (output: VisionCaptionToolOutput) => {
+    const valid = !!(output?.result?.caption && typeof output.result.caption === 'string');
+    return { 
+      valid, 
+      errors: valid ? [] : ['Missing caption in result'] 
+    };
+  },
+  performance: {
+    avgLatencyMs: 500,
+    isAsync: true,
+    isIdempotent: true
+  },
+  limitations: [
+    'Stub implementation - replace with actual vision processing',
+    'Currently generates contextual placeholder responses'
+  ]
+};
+
+class VisionCaptionToolImpl implements IExecutableTool<VisionCaptionInputPayload, VisionCaptionResult> {
+  manifest = manifest;
 
   async execute(input: VisionCaptionToolInput): Promise<VisionCaptionToolOutput> {
     try {
@@ -48,7 +80,7 @@ export class VisionCaptionTool implements Tool<VisionCaptionToolInput, VisionCap
         error: {
           code: 'VISION_PROCESSING_ERROR',
           message: error instanceof Error ? error.message : 'Vision processing failed',
-          details: { tool: this.name }
+          details: { tool: this.manifest.name }
         },
         metadata: {
           processing_time_ms: 0
@@ -89,4 +121,7 @@ export class VisionCaptionTool implements Tool<VisionCaptionToolInput, VisionCap
       text: 'No text detected in this image type.'
     };
   }
-} 
+}
+
+export const VisionCaptionTool = new VisionCaptionToolImpl();
+export default VisionCaptionTool; 

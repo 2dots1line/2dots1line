@@ -3,8 +3,8 @@
  * Handles scheduling and execution of periodic tasks
  */
 
-import * as cron from 'node-cron';
 import { Queue } from 'bullmq';
+import * as cron from 'node-cron';
 
 // Queue configuration
 const CONNECTION = {
