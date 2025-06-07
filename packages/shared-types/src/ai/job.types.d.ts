@@ -19,6 +19,7 @@ export interface TIngestionJobPayload {
  * Payload for a job to be processed by the Insight Worker.
  */
 export interface TInsightJobPayload {
+    placeholder?: unknown;
 }
 export type EmbeddingJob = TEmbeddingJobPayload;
 export type IngestionJob = TIngestionJobPayload;

@@ -3,8 +3,8 @@
  * Processes the embedding generation queue
  */
 
-import { Worker, Job } from 'bullmq';
 import { EmbeddingJob } from '@2dots1line/shared-types';
+import { Worker, Job } from 'bullmq';
 // import { embeddingTools } from '@2dots1line/embedding-tools'; // Commented out
 
 // Worker configuration

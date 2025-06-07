@@ -1,4 +1,5 @@
 import type { TToolInput, TToolOutput } from '@2dots1line/shared-types';
+
 import type { IExecutableTool, IToolManifest } from '../types';
 
 // Example stub implementation for a generic database operation tool

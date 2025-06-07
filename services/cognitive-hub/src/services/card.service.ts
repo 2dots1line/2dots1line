@@ -3,8 +3,7 @@
  * Business logic for card operations, Six-Dimensional Growth Model integration
  */
 
-import { DatabaseService } from '@2dots1line/database';
-import { CardRepository } from '@2dots1line/database';
+import { DatabaseService , CardRepository } from '@2dots1line/database';
 import type { CardData, CardFilters } from '@2dots1line/database';
 
 export interface Card {

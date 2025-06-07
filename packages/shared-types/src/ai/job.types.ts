@@ -35,6 +35,9 @@ export interface TInsightJobPayload {
   // memory_unit_ids?: string[];
   // concept_ids?: string[];
   // time_range?: { start: string; end: string };
+  
+  // Placeholder to prevent empty interface
+  placeholder?: unknown;
 }
 
 // It seems the workers are importing `EmbeddingJob`, etc. directly.

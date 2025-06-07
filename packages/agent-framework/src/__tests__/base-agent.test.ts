@@ -1,4 +1,4 @@
-import { BaseAgent, TAgentInput, TAgentOutput, TAgentContext, ToolRegistry, DatabaseService } from '../index';
+import { BaseAgent, TAgentInput, TAgentOutput, ToolRegistry, DatabaseService } from '../index';
 
 // Mock dependencies
 jest.mock('@2dots1line/database', () => ({
@@ -28,7 +28,7 @@ class TestAgent extends BaseAgent {
     super('TestAgent', toolRegistry, databaseService);
   }
 
-  public async process(input: TAgentInput, context?: TAgentContext): Promise<TAgentOutput> {
+  public async process(input: TAgentInput): Promise<TAgentOutput> {
     this.log('TestAgent processing', input);
     // Example of using a tool if needed for a test
     // await this.executeTool('someTool', { request_id: 'tool-req', payload: {} });
@@ -36,7 +36,10 @@ class TestAgent extends BaseAgent {
       request_id: input.request_id,
       status: 'success',
       result: { message: 'Processed' },
-      metadata: { agent_used: this.name },
+      metadata: { 
+        agent_used: this.name,
+        processing_time_ms: 100
+      },
     };
   }
 }
@@ -60,7 +63,12 @@ describe('BaseAgent', () => {
   it('should allow calling protected log method from subclass', async () => {
     const agent = new TestAgent(mockToolRegistry, mockDatabaseService);
     const consoleSpy = jest.spyOn(console, 'log');
-    await agent.process({ request_id: 'test-123', payload: {}, user_id: 'test-user' });
+    await agent.process({ 
+      request_id: 'test-123', 
+      payload: {}, 
+      user_id: 'test-user',
+      region: 'us'
+    });
     expect(consoleSpy).toHaveBeenCalledWith(
       expect.stringContaining('[TestAgent Agent]: TestAgent processing'),
       expect.objectContaining({ request_id: 'test-123' })
@@ -79,7 +87,7 @@ describe('BaseAgent', () => {
 
     // Temporarily add a method to TestAgent to directly test executeTool
     (agent as any).testExecute = async () => {
-      return await (agent as any).executeTool('mockTestTool', { request_id: 'test-tool-req', payload: { testInput: 'data'} }, undefined /* explicitly pass context as undefined */);
+      return await (agent as any).executeTool('mockTestTool', { request_id: 'test-tool-req', payload: { testInput: 'data'} });
     }
     // Mock availableTools for this test
     (agent as any).availableTools = new Map();

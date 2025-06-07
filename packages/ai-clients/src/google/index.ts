@@ -1,3 +1,6 @@
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { v4 as uuidv4 } from 'uuid';
+
 import {
   ILLMClient,
   TChatCompletionRequest,
@@ -5,11 +8,8 @@ import {
   TEmbeddingRequest,
   TEmbeddingResponse,
   TEmbeddingData,
-  TMessage,
-  TToolCall
+  TMessage
 } from '../interfaces/common.types';
-import { v4 as uuidv4 } from 'uuid';
-import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 
 export class GoogleAIClient implements ILLMClient {
   private client: GoogleGenerativeAI;

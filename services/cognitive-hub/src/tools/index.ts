@@ -9,12 +9,12 @@
  * This file now serves as a central registry helper for importing tools from packages
  */
 
-import type { ToolRegistry } from '@2dots1line/tool-registry';
 
 // Import tools from their respective packages
 import { LLMChatTool } from '@2dots1line/ai-clients';
 import { DocumentExtractTool } from '@2dots1line/document-tool';
 import { EnhancedNERTool } from '@2dots1line/text-tool';
+import type { ToolRegistry } from '@2dots1line/tool-registry';
 import { VisionCaptionTool } from '@2dots1line/vision-tool';
 
 // Re-export tools for convenience

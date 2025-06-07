@@ -1,18 +1,17 @@
 import React from 'react';
+
 import { cn } from '../utils/cn';
 
 interface MinimizeToggleProps {
   isExpanded: boolean;
   onToggle: () => void;
   className?: string;
-  showOnHover?: boolean;
 }
 
 const MinimizeToggle: React.FC<MinimizeToggleProps> = ({
   isExpanded,
   onToggle,
   className,
-  showOnHover = true,
 }) => {
   return (
     <div

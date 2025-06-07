@@ -1,6 +1,6 @@
-import { ToolRegistry } from '@2dots1line/tool-registry';
 import { DatabaseService } from '@2dots1line/database';
 import { TAgentInput, TAgentOutput, TAgentContext, TToolInput, TToolOutput, Tool } from '@2dots1line/shared-types';
+import { ToolRegistry } from '@2dots1line/tool-registry';
 
 export abstract class BaseAgent<TInput extends TAgentInput = TAgentInput, TOutput extends TAgentOutput = TAgentOutput> {
   public readonly name: string;
@@ -32,9 +32,7 @@ export abstract class BaseAgent<TInput extends TAgentInput = TAgentInput, TOutpu
    */
   protected async executeTool<TInput extends TToolInput<any>, TOutput extends TToolOutput<any>>(
     toolName: string,
-    input: TInput,
-    // context might include things like userId for tool execution context
-    context?: TAgentContext 
+    input: TInput
   ): Promise<TOutput> {
     const tool = this.availableTools.get(toolName);
     if (!tool) {

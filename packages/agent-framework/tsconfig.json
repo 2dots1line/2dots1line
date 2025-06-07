@@ -11,10 +11,11 @@
     "strict": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
+    "types": ["jest"],
     "paths": {}
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "src/__tests__", "**/*.test.ts", "**/*.spec.ts"],
+  "exclude": ["node_modules", "dist"],
   "references": [
     { "path": "../shared-types" },
     { "path": "../database" },

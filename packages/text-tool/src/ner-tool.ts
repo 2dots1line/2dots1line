@@ -13,6 +13,7 @@ import type {
   TExtractedEntity 
 } from '@2dots1line/shared-types';
 import type { IToolManifest, IExecutableTool } from '@2dots1line/tool-registry';
+
 import { EnhancedNER, EntityType, EntityMatch } from './ner';
 
 // Tool manifest for registry discovery

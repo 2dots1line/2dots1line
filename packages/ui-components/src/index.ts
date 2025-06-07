@@ -9,8 +9,6 @@ export * from './hooks';
 export * from './theme';
 export * from './utils/cn';
 
-export { default as Button } from './components/Button';
-
 // Add other component exports here as they are created
 // e.g., export { default as Modal } from './components/Modal';
 

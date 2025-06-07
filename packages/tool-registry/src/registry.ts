@@ -1,7 +1,8 @@
+import type { TToolInput, TToolOutput, Tool } from '@2dots1line/shared-types';
 import { compareVersions } from 'compare-versions';
+
 import type { IExecutableTool, IToolManifest, IToolSearchCriteria } from './types';
 import { ToolExecutionError } from './types';
-import type { TToolInput, TToolOutput, Tool } from '@2dots1line/shared-types';
 
 /**
  * Manages the registration, discovery, and execution of deterministic tools.
@@ -140,7 +141,8 @@ export class ToolRegistry {
           if (compareVersions(manifest.version, criteria.minVersion) < 0) {
             match = false;
           }
-        } catch (e) {
+        } catch {
+          // Ignore version comparison errors and skip version check
           console.warn(`Invalid version format for tool ${manifest.name} (${manifest.version}) or criteria (${criteria.minVersion}). Skipping version check.`);
         }
       }

@@ -3,9 +3,10 @@
  * Manages externalized growth dimension rules and configuration
  */
 
-import { DatabaseService } from '@2dots1line/database';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+
+import { DatabaseService } from '@2dots1line/database';
 
 export interface GrowthDimensionConfig {
   name: string;

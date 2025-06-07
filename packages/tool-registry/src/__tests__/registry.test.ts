@@ -1,7 +1,8 @@
+import type { TToolInput, TTextEmbeddingToolInput, TVectorSearchToolInput } from '@2dots1line/shared-types/ai';
+
 import { ToolRegistry } from '../registry';
 import { StubTextEmbeddingTool, StubVectorSearchTool, StubDbOperationTool } from '../tools';
 import { ToolExecutionError } from '../types';
-import type { TToolInput, TTextEmbeddingToolInput, TVectorSearchToolInput } from '@2dots1line/shared-types/ai';
 
 describe('ToolRegistry', () => {
   let registry: ToolRegistry;

@@ -3,9 +3,8 @@
  * Processes the insight generation queue
  */
 
-import { Worker, Job } from 'bullmq';
 import { InsightJob } from '@2dots1line/shared-types';
-import { InsightEngine } from '@2dots1line/cognitive-hub';
+import { Worker, Job } from 'bullmq';
 
 // Worker configuration
 const QUEUE_NAME = 'insight';

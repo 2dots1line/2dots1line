@@ -84,7 +84,7 @@ export class EnhancedNER {
   // Metadata-only patterns
   private static readonly EMAIL_PATTERN = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
   private static readonly PHONE_PATTERN = /\b(?:\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}\b/g;
-  private static readonly URL_PATTERN = /https?:\/\/(?:[-\w.])+(?:\:[0-9]+)?(?:\/(?:[\w\/_.])*(?:\?(?:[\w&=%.])*)?(?:\#(?:[\w.])*)?)?/g;
+  private static readonly URL_PATTERN = /https?:\/\/(?:[-\w.])+(?::[0-9]+)?(?:\/(?:[\w/_.])*(?:\?(?:[\w&=%.])*)?(?:#(?:[\w.])*)?)?/g;
 
   /**
    * Extract entities from text with growth-oriented focus
@@ -214,11 +214,10 @@ export class EnhancedNER {
     for (const keyword of keywords) {
       const keywordLower = keyword.toLowerCase();
       let startIndex = 0;
+      let index = -1;
       
-      while (true) {
-        const index = textLower.indexOf(keywordLower, startIndex);
-        if (index === -1) break;
-        
+      // eslint-disable-next-line no-constant-condition
+      while ((index = textLower.indexOf(keywordLower, startIndex)) !== -1) {
         // Check for word boundaries
         const beforeChar = index > 0 ? text[index - 1] : ' ';
         const afterChar = index + keyword.length < text.length ? text[index + keyword.length] : ' ';

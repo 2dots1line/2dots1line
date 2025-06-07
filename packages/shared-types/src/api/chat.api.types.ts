@@ -2,6 +2,7 @@
  * API types for Conversation (Chat) interactions
  */
 import type { TConversation, TConversationMessage } from '../entities';
+
 import type { TPaginationInput } from './common.types';
 
 /**
