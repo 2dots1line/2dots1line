@@ -1,10 +1,12 @@
 /**
- * Document Extract Tool (Stub Implementation)
- * Extracts text and metadata from documents
+ * Document Extract Tool (Real Implementation)
+ * Extracts text and metadata from documents using Node.js libraries
  */
 
 import { TToolInput, TToolOutput, DocumentExtractInputPayload, DocumentExtractResult } from '@2dots1line/shared-types';
 import type { IToolManifest, IExecutableTool } from '@2dots1line/tool-registry';
+import * as fs from 'fs';
+import * as path from 'path';
 
 export type DocumentExtractToolInput = TToolInput<DocumentExtractInputPayload>;
 export type DocumentExtractToolOutput = TToolOutput<DocumentExtractResult>;
@@ -12,8 +14,8 @@ export type DocumentExtractToolOutput = TToolOutput<DocumentExtractResult>;
 // Tool manifest for registry discovery
 const manifest: IToolManifest<DocumentExtractInputPayload, DocumentExtractResult> = {
   name: 'document.extract',
-  description: 'Extract text and metadata from documents',
-  version: '1.0.0',
+  description: 'Extract text and metadata from documents (PDF, DOCX, DOC, TXT)',
+  version: '2.0.0',
   availableRegions: ['us', 'cn'],
   categories: ['document', 'extraction', 'text_processing'],
   capabilities: ['text_extraction', 'document_processing', 'metadata_extraction'],
@@ -32,14 +34,14 @@ const manifest: IToolManifest<DocumentExtractInputPayload, DocumentExtractResult
     };
   },
   performance: {
-    avgLatencyMs: 800,
+    avgLatencyMs: 1200,
     isAsync: true,
     isIdempotent: true
   },
   limitations: [
-    'Stub implementation - replace with actual document processing',
-    'Currently generates contextual placeholder responses',
-    'Supports PDF, DOCX, DOC, and TXT files'
+    'Requires document libraries to be installed',
+    'PDF extraction quality depends on document structure',
+    'Large documents may take longer to process'
   ]
 };
 
@@ -47,116 +49,216 @@ class DocumentExtractToolImpl implements IExecutableTool<DocumentExtractInputPay
   manifest = manifest;
 
   async execute(input: DocumentExtractToolInput): Promise<DocumentExtractToolOutput> {
+    const startTime = Date.now();
+    
     try {
-      // STUB IMPLEMENTATION - Replace with actual document processing
       console.log(`DocumentExtractTool: Processing document ${input.payload.documentUrl}`);
       
-      // Simulate processing time
-      await new Promise(resolve => setTimeout(resolve, 800));
+      // Validate file exists
+      if (!fs.existsSync(input.payload.documentUrl)) {
+        throw new Error(`Document file not found: ${input.payload.documentUrl}`);
+      }
       
-      // Generate stub response based on document type
-      const stubContent = this.generateStubContent(input.payload.documentType);
+      // Get file stats and extension
+      const stats = fs.statSync(input.payload.documentUrl);
+      const extension = path.extname(input.payload.documentUrl).toLowerCase();
+      const fileName = path.basename(input.payload.documentUrl);
+      
+      console.log(`DocumentExtractTool: File ${fileName}, size: ${stats.size} bytes, type: ${extension}`);
+      
+      // Extract text based on file type
+      let extractedText = '';
+      let metadata: any = {
+        fileName,
+        fileSize: stats.size,
+        createdDate: stats.birthtime.toISOString(),
+        modifiedDate: stats.mtime.toISOString(),
+        extractedAt: new Date().toISOString()
+      };
+      
+      switch (extension) {
+        case '.pdf':
+          const pdfResult = await this.extractFromPDF(input.payload.documentUrl);
+          extractedText = pdfResult.text;
+          metadata = { ...metadata, ...pdfResult.metadata };
+          break;
+          
+        case '.docx':
+        case '.doc':
+          const docResult = await this.extractFromWord(input.payload.documentUrl);
+          extractedText = docResult.text;
+          metadata = { ...metadata, ...docResult.metadata };
+          break;
+          
+        case '.txt':
+          extractedText = await this.extractFromText(input.payload.documentUrl);
+          metadata.language = this.detectLanguage(extractedText);
+          break;
+          
+        default:
+          throw new Error(`Unsupported document type: ${extension}. Supported types: PDF, DOCX, DOC, TXT`);
+      }
+      
+      // Clean up extracted text
+      extractedText = this.cleanText(extractedText);
+      
+      if (!extractedText || extractedText.trim().length === 0) {
+        throw new Error('No text content could be extracted from the document');
+      }
+      
+      console.log(`DocumentExtractTool: Extracted ${extractedText.length} characters from ${fileName}`);
+      console.log(`DocumentExtractTool: Preview - ${extractedText.substring(0, 200)}...`);
+      
+      const processingTime = Date.now() - startTime;
       
       return {
         status: 'success',
         result: {
-          extractedText: stubContent.text,
-          metadata: stubContent.metadata,
-          extractedImages: stubContent.images
+          extractedText,
+          metadata: {
+            ...metadata,
+            wordCount: this.countWords(extractedText),
+            characterCount: extractedText.length,
+            language: metadata.language || this.detectLanguage(extractedText)
+          },
+          extractedImages: [] // Could be extended for image extraction
         },
         metadata: {
-          processing_time_ms: 800
+          processing_time_ms: processingTime
         }
       };
       
     } catch (error) {
       console.error('DocumentExtractTool error:', error);
       
+      const processingTime = Date.now() - startTime;
+      
       return {
         status: 'error',
         error: {
           code: 'DOCUMENT_PROCESSING_ERROR',
           message: error instanceof Error ? error.message : 'Document processing failed',
-          details: { tool: this.manifest.name }
+          details: { 
+            tool: this.manifest.name,
+            file: input.payload.documentUrl,
+            documentType: input.payload.documentType
+          }
         },
         metadata: {
-          processing_time_ms: 0
+          processing_time_ms: processingTime
         }
       };
     }
   }
 
-  private generateStubContent(documentType: string): {
-    text: string;
-    metadata: {
-      title?: string;
-      author?: string;
-      pageCount?: number;
-      language?: string;
-      createdDate?: string;
-      modifiedDate?: string;
-    };
-    images?: Array<{
-      url: string;
-      caption?: string;
-    }>;
-  } {
-    // Generate contextually appropriate stub responses
-    if (documentType.includes('pdf')) {
+  private async extractFromPDF(filePath: string): Promise<{ text: string; metadata: any }> {
+    try {
+      // Dynamic import for optional dependency
+      const pdf = await import('pdf-parse');
+      const buffer = fs.readFileSync(filePath);
+      
+      console.log(`DocumentExtractTool: Parsing PDF with pdf-parse library...`);
+      const data = await pdf.default(buffer);
+      
       return {
-        text: 'Document content extracted successfully. This PDF document contains text that may be relevant to the user\'s personal growth journey. Full text extraction and analysis capabilities will be implemented to provide detailed insights.',
+        text: data.text,
         metadata: {
-          title: 'Uploaded PDF Document',
+          title: data.info?.Title || 'Unknown',
+          author: data.info?.Author || 'Unknown',
+          creator: data.info?.Creator || 'Unknown',
+          pageCount: data.numpages,
+          language: 'auto-detect'
+        }
+      };
+    } catch (error) {
+      console.error('PDF extraction error:', error);
+      throw new Error(`Failed to extract text from PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async extractFromWord(filePath: string): Promise<{ text: string; metadata: any }> {
+    try {
+      // Dynamic import for optional dependency
+      const mammoth = await import('mammoth');
+      const buffer = fs.readFileSync(filePath);
+      
+      console.log(`DocumentExtractTool: Parsing Word document with mammoth library...`);
+      const result = await mammoth.extractRawText({ buffer });
+      
+      if (result.messages && result.messages.length > 0) {
+        console.warn('DocumentExtractTool: Word extraction warnings:', result.messages);
+      }
+      
+      return {
+        text: result.value,
+        metadata: {
+          title: path.basename(filePath, path.extname(filePath)),
           author: 'Unknown',
-          pageCount: 3,
-          language: 'en',
-          createdDate: new Date().toISOString(),
-          modifiedDate: new Date().toISOString()
-        },
-        images: []
+          language: 'auto-detect',
+          hasWarnings: result.messages.length > 0,
+          warnings: result.messages.map((m: any) => m.message)
+        }
       };
+    } catch (error) {
+      console.error('Word document extraction error:', error);
+      throw new Error(`Failed to extract text from Word document: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async extractFromText(filePath: string): Promise<string> {
+    try {
+      console.log(`DocumentExtractTool: Reading plain text file...`);
+      return fs.readFileSync(filePath, 'utf-8');
+    } catch (error) {
+      console.error('Text file extraction error:', error);
+      throw new Error(`Failed to read text file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private cleanText(text: string): string {
+    return text
+      .replace(/\r\n/g, '\n')        // Normalize line endings
+      .replace(/\r/g, '\n')          // Convert remaining \r to \n
+      .replace(/\n{3,}/g, '\n\n')    // Collapse multiple newlines
+      .replace(/[ \t]{2,}/g, ' ')    // Collapse multiple spaces/tabs
+      .trim();                       // Remove leading/trailing whitespace
+  }
+
+  private countWords(text: string): number {
+    return text.trim().split(/\s+/).length;
+  }
+
+  private detectLanguage(text: string): string {
+    // Simple language detection based on character patterns
+    const sample = text.substring(0, 1000).toLowerCase();
+    
+    // Chinese characters
+    if (/[\u4e00-\u9fff]/.test(sample)) {
+      return 'zh';
     }
     
-    if (documentType.includes('docx') || documentType.includes('doc')) {
-      return {
-        text: 'Microsoft Word document processed. This document likely contains structured text content that could include personal reflections, goals, or other growth-related material. Enhanced document analysis will provide deeper insights.',
-        metadata: {
-          title: 'Uploaded Word Document',
-          author: 'User',
-          pageCount: 2,
-          language: 'en',
-          createdDate: new Date().toISOString(),
-          modifiedDate: new Date().toISOString()
-        },
-        images: []
-      };
+    // Japanese characters (Hiragana, Katakana)
+    if (/[\u3040-\u309f\u30a0-\u30ff]/.test(sample)) {
+      return 'ja';
     }
     
-    if (documentType.includes('txt')) {
-      return {
-        text: 'Plain text document content has been extracted. This text file may contain personal notes, thoughts, or other written content relevant to the user\'s development and growth tracking.',
-        metadata: {
-          title: 'Uploaded Text File',
-          pageCount: 1,
-          language: 'en',
-          createdDate: new Date().toISOString(),
-          modifiedDate: new Date().toISOString()
-        },
-        images: []
-      };
+    // Korean characters
+    if (/[\uac00-\ud7af]/.test(sample)) {
+      return 'ko';
     }
     
-    return {
-      text: 'A document has been uploaded and basic processing completed. Full content extraction and analysis features will be implemented to provide detailed insights.',
-      metadata: {
-        title: 'Uploaded Document',
-        pageCount: 1,
-        language: 'en',
-        createdDate: new Date().toISOString(),
-        modifiedDate: new Date().toISOString()
-      },
-      images: []
-    };
+    // Arabic characters
+    if (/[\u0600-\u06ff]/.test(sample)) {
+      return 'ar';
+    }
+    
+    // Russian/Cyrillic characters
+    if (/[\u0400-\u04ff]/.test(sample)) {
+      return 'ru';
+    }
+    
+    // Default to English for Latin scripts
+    return 'en';
   }
 }
 

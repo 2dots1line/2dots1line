@@ -1,0 +1,160 @@
+/**
+ * Voice Recording Indicator Component Styles
+ * Provides visual feedback during voice recording with animated pulse effect
+ */
+
+.voice-recording-indicator {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(10px);
+  color: white;
+  padding: 12px 20px;
+  border-radius: 25px;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  max-width: 80vw;
+  min-width: 200px;
+}
+
+.recording-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.recording-dot-container {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.recording-dot {
+  width: 8px;
+  height: 8px;
+  background: #ff4444;
+  border-radius: 50%;
+  position: relative;
+  z-index: 2;
+  animation: recordingDotPulse 1.5s ease-in-out infinite;
+}
+
+.recording-pulse {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  background: #ff4444;
+  border-radius: 50%;
+  opacity: 0.3;
+  animation: recordingPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes recordingDotPulse {
+  0%, 100% {
+    transform: scale(1);
+    background: #ff4444;
+  }
+  25% {
+    transform: scale(1.2);
+    background: #ff6666;
+  }
+  50% {
+    transform: scale(1.1);
+    background: #ff8888;
+  }
+  75% {
+    transform: scale(1.15);
+    background: #ff6666;
+  }
+}
+
+@keyframes recordingPulse {
+  0% {
+    transform: translate(-50%, -50%) scale(0.8);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.5);
+    opacity: 0.1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2);
+    opacity: 0;
+  }
+}
+
+.recording-text {
+  color: #fff;
+  font-weight: 500;
+}
+
+.interim-transcript {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.transcript-label {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.transcript-text {
+  color: #4ade80;
+  font-style: italic;
+  animation: textGlow 2s ease-in-out infinite;
+}
+
+@keyframes textGlow {
+  0%, 100% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+    text-shadow: 0 0 8px rgba(74, 222, 128, 0.5);
+  }
+}
+
+.recording-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.1);
+  padding: 8px 12px;
+  border-radius: 15px;
+  border: 1px solid rgba(255, 107, 107, 0.3);
+}
+
+.error-icon {
+  font-size: 16px;
+}
+
+.error-text {
+  font-size: 13px;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .voice-recording-indicator {
+    bottom: 80px;
+    left: 10px;
+    right: 10px;
+    transform: none;
+    max-width: none;
+    min-width: auto;
+  }
+} 

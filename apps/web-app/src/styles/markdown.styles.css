@@ -1,0 +1,149 @@
+/**
+ * Markdown Styling for AI-Generated Content
+ * Based on legacy chat.css but designed for V7 atomic design system
+ * Supports variants: chat, artifact, card, dashboard
+ */
+
+/* Base markdown content styles */
+.markdown-content {
+  color: inherit;
+  font-family: inherit;
+  line-height: 1.6;
+}
+
+.markdown-content strong {
+  font-weight: 600;
+  color: inherit;
+}
+
+.markdown-content em {
+  font-style: italic;
+  color: inherit;
+}
+
+/* Message lists - hierarchical and nested support */
+.markdown-content .message-list {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+  list-style-type: disc;
+}
+
+.markdown-content .message-list ol {
+  list-style-type: decimal;
+}
+
+.markdown-content .message-list li {
+  margin-bottom: 0.25rem;
+  line-height: 1.5;
+}
+
+/* Nested lists with proper indentation */
+.markdown-content .message-list .message-list {
+  margin: 0.25rem 0;
+  padding-left: 1.5rem;
+}
+
+/* Chat variant - optimized for conversation bubbles */
+.markdown-chat {
+  font-size: 0.875rem;
+  max-width: none;
+}
+
+.markdown-chat .message-list {
+  margin: 0.375rem 0;
+  padding-left: 1.25rem;
+}
+
+.markdown-chat .message-list li {
+  margin-bottom: 0.125rem;
+}
+
+/* Artifact variant - for larger content displays */
+.markdown-artifact {
+  font-size: 1rem;
+  max-width: 65ch;
+  margin: 0 auto;
+}
+
+.markdown-artifact .message-list {
+  margin: 0.75rem 0;
+  padding-left: 2rem;
+}
+
+.markdown-artifact .message-list li {
+  margin-bottom: 0.5rem;
+}
+
+/* Card variant - for compact card displays */
+.markdown-card {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.markdown-card .message-list {
+  margin: 0.25rem 0;
+  padding-left: 1rem;
+}
+
+.markdown-card .message-list li {
+  margin-bottom: 0.125rem;
+}
+
+/* Dashboard variant - for analytics and overview displays */
+.markdown-dashboard {
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.markdown-dashboard .message-list {
+  margin: 0.5rem 0;
+  padding-left: 1.25rem;
+}
+
+.markdown-dashboard .message-list li {
+  margin-bottom: 0.25rem;
+}
+
+/* Compact modifier - reduces spacing */
+.markdown-compact {
+  line-height: 1.4;
+}
+
+.markdown-compact .message-list {
+  margin: 0.25rem 0;
+  padding-left: 1rem;
+}
+
+.markdown-compact .message-list li {
+  margin-bottom: 0.1rem;
+}
+
+/* Enhanced styling for better visual hierarchy */
+.markdown-content br + br {
+  display: none; /* Prevent double line breaks */
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .markdown-content .message-list {
+    padding-left: 1rem;
+  }
+  
+  .markdown-artifact {
+    max-width: none;
+    font-size: 0.875rem;
+  }
+}
+
+/* Dark mode support (if using CSS variables) */
+@media (prefers-color-scheme: dark) {
+  .markdown-content {
+    color: inherit;
+  }
+}
+
+/* Hover states for interactive elements */
+.markdown-content .message-list li:hover {
+  opacity: 0.8;
+  transition: opacity 0.2s ease-in-out;
+} 

@@ -254,10 +254,19 @@ Always respond with genuine curiosity, emotional intelligence, and growth-orient
     accompanyingMessage?: string
   ): Promise<TDialogueAgentResult> {
 
+    console.log('🎯 DialogueAgent.handleFileUpload - Starting with:', {
+      mediaType: mediaFile.type,
+      mediaName: mediaFile.name,
+      userId,
+      conversationId,
+      accompanyingMessage
+    });
+
     // Update Orb state to processing file
     this.orbStateManager.setProcessingFile();
 
     // Record media in database
+    console.log('💾 DialogueAgent.handleFileUpload - Creating media record...');
     const mediaRecord = await this.mediaRepo.createMedia({
       user_id: userId,
       type: mediaFile.type.startsWith('image/') ? 'image' : 'document',
@@ -266,6 +275,7 @@ Always respond with genuine curiosity, emotional intelligence, and growth-orient
       mime_type: mediaFile.type,
       file_size_bytes: mediaFile.size
     });
+    console.log('✅ DialogueAgent.handleFileUpload - Media record created:', mediaRecord.id);
 
     let extractedContent = '';
     let extractionError: string | undefined;
@@ -273,22 +283,70 @@ Always respond with genuine curiosity, emotional intelligence, and growth-orient
     try {
       // Route to appropriate tool based on file type
       if (mediaFile.type.startsWith('image/')) {
+        console.log('🖼️ DialogueAgent.handleFileUpload - Processing as image...');
+        
+        // Check if image URL is accessible
+        console.log('🔍 DialogueAgent.handleFileUpload - Image URL:', mediaFile.url);
+        
+        // Read the file and convert to base64 data URL for vision tool
+        const fs = require('fs');
+        let imageUrl = mediaFile.url;
+        
+        try {
+          // If it's a local file path, convert to base64 data URL
+          if (!mediaFile.url.startsWith('http') && !mediaFile.url.startsWith('data:')) {
+            console.log('📁 DialogueAgent.handleFileUpload - Converting local file to base64...');
+            const fileBuffer = fs.readFileSync(mediaFile.url);
+            const base64Data = fileBuffer.toString('base64');
+            imageUrl = `data:${mediaFile.type};base64,${base64Data}`;
+            console.log('✅ DialogueAgent.handleFileUpload - Base64 conversion successful, length:', base64Data.length);
+          }
+        } catch (fileError) {
+          console.error('❌ DialogueAgent.handleFileUpload - File read error:', fileError);
+          throw new Error(`Unable to read image file: ${fileError instanceof Error ? fileError.message : 'Unknown error'}`);
+        }
+        
         // Use vision tool
         const visionInput: TToolInput<VisionCaptionInputPayload> = {
           user_id: userId,
           region: 'us',
           payload: {
-            imageUrl: mediaFile.url,
+            imageUrl: imageUrl,
             imageType: mediaFile.type
           }
         };
 
-        const visionResult = await this.toolRegistry.executeTool('vision_caption', visionInput);
+        console.log('🔍 DialogueAgent.handleFileUpload - Calling vision.caption tool...');
+        console.log('🔍 DialogueAgent.handleFileUpload - Vision input payload:', {
+          imageType: visionInput.payload.imageType,
+          imageUrlPrefix: visionInput.payload.imageUrl.substring(0, 50) + '...'
+        });
+
+        const visionResult = await this.toolRegistry.executeTool('vision.caption', visionInput);
+        
+        console.log('🔍 DialogueAgent.handleFileUpload - Vision tool result status:', visionResult.status);
         
         if (visionResult.status === 'success') {
           extractedContent = visionResult.result?.caption || 'Image processed successfully';
+          console.log('✅ DialogueAgent.handleFileUpload - Vision success, caption length:', extractedContent.length);
+          console.log('🎯 DialogueAgent.handleFileUpload - Vision caption preview:', extractedContent.substring(0, 100));
+          
+          // Add detailed analysis if available
+          if (visionResult.result?.detectedObjects && visionResult.result.detectedObjects.length > 0) {
+            const objects = visionResult.result.detectedObjects.map((obj: { name: string; confidence: number }) => obj.name).join(', ');
+            extractedContent += `\n\nDetected objects: ${objects}`;
+          }
+          
+          if (visionResult.result?.metadata?.scene_description) {
+            extractedContent += `\n\nScene: ${visionResult.result.metadata.scene_description}`;
+          }
+        } else {
+          extractionError = visionResult.error?.message || 'Vision processing failed';
+          console.error('❌ DialogueAgent.handleFileUpload - Vision tool failed:', extractionError);
+          extractedContent = 'I can see that an image has been uploaded, but I had trouble analyzing its visual content. The image is now part of our conversation though!';
         }
       } else {
+        console.log('📄 DialogueAgent.handleFileUpload - Processing as document...');
         // Use document extraction tool
         const docInput: TToolInput<DocumentExtractInputPayload> = {
           user_id: userId,
@@ -299,20 +357,40 @@ Always respond with genuine curiosity, emotional intelligence, and growth-orient
           }
         };
 
-        const docResult = await this.toolRegistry.executeTool('document_extract', docInput);
+        console.log('🔍 DialogueAgent.handleFileUpload - Calling document.extract tool...');
+        const docResult = await this.toolRegistry.executeTool('document.extract', docInput);
+        
+        console.log('🔍 DialogueAgent.handleFileUpload - Document tool result status:', docResult.status);
         
         if (docResult.status === 'success') {
           extractedContent = docResult.result?.extractedText || 'Document processed successfully';
+          console.log('✅ DialogueAgent.handleFileUpload - Document extraction success, content length:', extractedContent.length);
+        } else {
+          extractionError = docResult.error?.message || 'Document processing failed';
+          console.error('❌ DialogueAgent.handleFileUpload - Document tool failed:', extractionError);
+          extractedContent = 'I can see that a document has been uploaded. While I had trouble extracting its text content, I understand that you\'ve shared this file with me.';
         }
       }
     } catch (error) {
       extractionError = error instanceof Error ? error.message : 'Content extraction failed';
+      console.error('❌ DialogueAgent.handleFileUpload - Content extraction error:', extractionError);
+      
+      // Provide graceful fallback
+      if (mediaFile.type.startsWith('image/')) {
+        extractedContent = 'I can see that you\'ve shared an image with me. While I encountered an issue analyzing its visual content, I understand that this image is important to our conversation.';
+      } else {
+        extractedContent = 'I can see that you\'ve shared a document with me. While I had trouble extracting its text content, I understand that this file is part of our discussion.';
+      }
     }
+
+    console.log('📝 DialogueAgent.handleFileUpload - Final extracted content preview:', extractedContent.substring(0, 100));
 
     // Create combined message text
     const fullMessageText = accompanyingMessage 
       ? `${accompanyingMessage}\n\n[File uploaded: ${mediaFile.name}]\nExtracted content: ${extractedContent}`
       : `[File uploaded: ${mediaFile.name}]\nExtracted content: ${extractedContent}`;
+
+    console.log('💬 DialogueAgent.handleFileUpload - Combined message preview:', fullMessageText.substring(0, 150));
 
     // Save user message with file reference
     await this.conversationRepo.addMessage({
@@ -327,11 +405,16 @@ Always respond with genuine curiosity, emotional intelligence, and growth-orient
       }]
     });
 
+    console.log('💬 DialogueAgent.handleFileUpload - User message saved, processing LLM response...');
+
     // Process through normal text flow for LLM response
     const textResult = await this.handleTextMessage(fullMessageText, userId, conversationId);
 
+    console.log('🤖 DialogueAgent.handleFileUpload - LLM response generated, length:', textResult.response_text?.length);
+
     // Trigger content ingestion for the uploaded file
     try {
+      console.log('📚 DialogueAgent.handleFileUpload - Triggering content ingestion...');
       await this.ingestionAnalyst.process({
         user_id: userId,
         region: 'us',
@@ -350,17 +433,22 @@ Always respond with genuine curiosity, emotional intelligence, and growth-orient
           processing_tier: 2
         }
       });
+      console.log('✅ DialogueAgent.handleFileUpload - Content ingestion completed');
     } catch (error) {
-      console.warn('File ingestion failed:', error);
+      console.warn('⚠️ DialogueAgent.handleFileUpload - File ingestion failed:', error);
     }
 
-    return {
+    const finalResult = {
       ...textResult,
       response_media: [{
         type: mediaRecord.type,
         url: mediaRecord.storage_url
       }]
     };
+
+    console.log('✅ DialogueAgent.handleFileUpload - Complete, response preview:', finalResult.response_text?.substring(0, 100));
+
+    return finalResult;
   }
 
   /**

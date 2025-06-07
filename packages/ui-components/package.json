@@ -1,42 +1,31 @@
 {
   "name": "@2dots1line/ui-components",
   "version": "0.1.0",
-  "description": "Shared UI components for 2dots1line V4",
-  "main": "dist/index.js",
-  "module": "dist/index.mjs",
-  "types": "dist/index.d.ts",
-  "sideEffects": false,
+  "description": "Shared UI components for 2dots1line applications",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "rm -rf dist && tsc -b tsconfig.json --verbose --force",
+    "build": "rm -rf dist && tsc -b tsconfig.json --verbose --force && mkdir -p dist/components && cp -r src/components/*.css dist/components/ 2>/dev/null || true && find src/components -name '*.css' -exec cp {} dist/components/ \\; 2>/dev/null || true",
     "dev": "tsc --watch",
-    "lint": "eslint src --ext .ts,.tsx",
-    "test": "jest",
-    "clean": "rm -rf dist"
+    "lint": "eslint src --max-warnings 0",
+    "test": "jest"
   },
+  "keywords": ["ui", "components", "react", "2dots1line"],
+  "author": "2dots1line Team",
+  "license": "MIT",
   "dependencies": {
-    "clsx": "^2.1.0",
-    "lucide-react": "^0.513.0",
-    "mlly": "^1.7.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "tailwind-merge": "^2.2.0",
-    "ufo": "^1.6.1"
+    "clsx": "^2.0.0",
+    "tailwind-merge": "^2.0.0"
   },
   "devDependencies": {
-    "@storybook/react": "^7.6.0",
-    "@types/jest": "^29.5.0",
-    "@types/node": "^18.0.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
-    "autoprefixer": "^10.4.16",
-    "load-tsconfig": "^0.2.5",
-    "magic-string": "^0.30.0",
-    "mlly": "^1.7.3",
-    "postcss": "^8.4.31",
-    "rimraf": "^5.0.1",
-    "tailwindcss": "^3.4.0",
-    "tsup": "^8.0.1",
-    "typescript": "^5.3.3",
-    "ufo": "^1.5.4"
+    "typescript": "^5.3.0"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
   }
 }

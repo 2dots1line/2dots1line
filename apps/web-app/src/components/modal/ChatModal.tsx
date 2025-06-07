@@ -1,6 +1,13 @@
 'use client';
 
-import { GlassmorphicPanel, GlassButton } from '@2dots1line/ui-components';
+import { 
+  GlassmorphicPanel, 
+  GlassButton, 
+  MarkdownRenderer, 
+  FileAttachment,
+  useVoiceRecording,
+  VoiceRecordingIndicator
+} from '@2dots1line/ui-components';
 import { 
   X, 
   Send, 
@@ -8,9 +15,15 @@ import {
   Paperclip, 
   Mic, 
   MicOff,
-  MoreVertical
+  MoreVertical,
+  AlertCircle,
+  Bot,
+  User,
+  Loader2
 } from 'lucide-react';
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { ChatService } from '@/services/ChatService';
+import './ChatModal.css';
 
 import { chatService, type ChatMessage } from '../../services/chatService';
 
@@ -19,11 +32,18 @@ interface ChatModalProps {
   onClose: () => void;
 }
 
+// Enhanced ChatMessage type to support attachments
+interface EnhancedChatMessage extends ChatMessage {
+  attachment?: {
+    file: File;
+    type: 'image' | 'document';
+  };
+}
+
 const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
   const [message, setMessage] = useState('');
-  const [isRecording, setIsRecording] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([
+  const [messages, setMessages] = useState<EnhancedChatMessage[]>([
     {
       id: '1',
       type: 'bot',
@@ -32,10 +52,41 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
     }
   ]);
   const [conversationId, setConversationId] = useState<string>();
+  const [currentAttachment, setCurrentAttachment] = useState<File | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const messageInputRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const voiceClickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const onVoiceError = useCallback((error: string) => {
+    console.error('❌ ChatModal - Voice recording error:', error);
+  }, []);
+
+  // Voice recording functionality
+  const {
+    isRecording,
+    isSupported: isVoiceSupported,
+    transcript,
+    interimTranscript,
+    error: voiceError,
+    toggleRecording,
+    abortRecording,
+    clearTranscript
+  } = useVoiceRecording({
+    onError: onVoiceError
+  });
+
+  // Handle final transcripts from the hook
+  useEffect(() => {
+    if (transcript && transcript.trim()) {
+      console.log('🎤 ChatModal - Final transcript from hook state:', transcript);
+      setMessage(prev => prev + (prev ? ' ' : '') + transcript.trim());
+      clearTranscript();
+      console.log('✅ ChatModal - Voice transcript appended and cleared from hook');
+    }
+  }, [transcript, clearTranscript]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -45,14 +96,20 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   const handleSendMessage = async () => {
-    if (!message.trim() || isLoading) return;
+    if ((!message.trim() && !currentAttachment) || isLoading) return;
     
-    const userMessage: ChatMessage = {
+    const messageContent = message.trim() || (currentAttachment ? `Sharing ${currentAttachment.type.includes('image') ? 'an image' : 'a file'}: ${currentAttachment.name}` : '');
+    
+    const userMessage: EnhancedChatMessage = {
       id: `user-${Date.now()}`,
       type: 'user',
-      content: message.trim(),
+      content: messageContent,
       timestamp: new Date(),
-      conversation_id: conversationId
+      conversation_id: conversationId,
+      attachment: currentAttachment ? {
+        file: currentAttachment,
+        type: currentAttachment.type.startsWith('image/') ? 'image' : 'document'
+      } : undefined
     };
     
     setMessages(prev => [...prev, userMessage]);
@@ -60,17 +117,30 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
     setIsLoading(true);
     
     try {
-      const response = await chatService.sendMessage({
-        message: userMessage.content,
-        conversation_id: conversationId,
-        context: {
-          session_id: `session-${Date.now()}`,
-          trigger_background_processing: true
-        }
-      });
+      let response;
+      
+      if (currentAttachment) {
+        // Handle file upload
+        response = await chatService.uploadFile(
+          currentAttachment,
+          message.trim() || undefined,
+          conversationId
+        );
+        setCurrentAttachment(null); // Clear attachment after sending
+      } else {
+        // Handle text message
+        response = await chatService.sendMessage({
+          message: messageContent,
+          conversation_id: conversationId,
+          context: {
+            session_id: `session-${Date.now()}`,
+            trigger_background_processing: true
+          }
+        });
+      }
 
       if (response.success && response.data) {
-        const botMessage: ChatMessage = {
+        const botMessage: EnhancedChatMessage = {
           id: response.data.message_id,
           type: 'bot',
           content: response.data.response,
@@ -85,7 +155,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
       }
     } catch (error) {
       console.error('Error sending message:', error);
-      const errorMessage: ChatMessage = {
+      const errorMessage: EnhancedChatMessage = {
         id: `error-${Date.now()}`,
         type: 'bot',
         content: 'I apologize, but I encountered an error processing your message. Please try again.',
@@ -104,9 +174,32 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
     }
   };
 
-  const toggleRecording = () => {
-    setIsRecording(!isRecording);
-    // Voice recording logic would go here
+  const handleVoiceToggle = () => {
+    console.log('🎤 ChatModal.handleVoiceToggle - Starting:', {
+      isVoiceSupported,
+      isRecording,
+      voiceError
+    });
+    
+    if (!isVoiceSupported) {
+      console.warn('❌ ChatModal.handleVoiceToggle - Voice not supported');
+      alert('Voice recording is not supported in this browser. Please try Chrome, Edge, or Safari.');
+      return;
+    }
+    
+    // If currently recording and user clicks again, force abort
+    if (isRecording) {
+      console.log('🎤 ChatModal.handleVoiceToggle - Force stopping recording');
+      abortRecording();
+      return;
+    }
+    
+    if (voiceError) {
+      console.log('🎤 ChatModal.handleVoiceToggle - Clearing previous error:', voiceError);
+    }
+    
+    console.log('🎤 ChatModal.handleVoiceToggle - Calling toggleRecording...');
+    toggleRecording();
   };
 
   const handleFileUpload = () => {
@@ -117,60 +210,70 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
     imageInputRef.current?.click();
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelection = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || isLoading) return;
+    if (!file) return;
 
-    setIsLoading(true);
-    
-    try {
-      const response = await chatService.uploadFile(
-        file,
-        `I've uploaded a file: ${file.name}`,
-        conversationId
-      );
-
-      if (response.success && response.data) {
-        const fileMessage: ChatMessage = {
-          id: `file-${Date.now()}`,
-          type: 'user',
-          content: `Uploaded: ${file.name}`,
-          timestamp: new Date()
-        };
-
-        const botMessage: ChatMessage = {
-          id: response.data.message_id,
-          type: 'bot',
-          content: response.data.response,
-          timestamp: new Date(response.data.timestamp),
-          conversation_id: response.data.conversation_id
-        };
-        
-        setMessages(prev => [...prev, fileMessage, botMessage]);
-        setConversationId(response.data.conversation_id);
-      } else {
-        throw new Error(response.error || 'Failed to upload file');
-      }
-    } catch (error) {
-      console.error('Error uploading file:', error);
-      const errorMessage: ChatMessage = {
-        id: `error-${Date.now()}`,
-        type: 'bot',
-        content: 'I apologize, but I encountered an error processing your file. Please try again.',
-        timestamp: new Date()
-      };
-      setMessages(prev => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
+    // Enhanced file validation
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSize) {
+      alert('File is too large. Please select a file under 10MB.');
+      return;
     }
+
+    // Set as current attachment for preview
+    setCurrentAttachment(file);
 
     // Reset file input
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (imageInputRef.current) imageInputRef.current.value = '';
   };
 
+  const clearAttachment = () => {
+    setCurrentAttachment(null);
+  };
+
+  const renderMessageContent = (msg: EnhancedChatMessage) => {
+    return (
+      <div>
+        {/* Render attachment if present */}
+        {msg.attachment && (
+          <div className="mb-2">
+            <FileAttachment
+              file={msg.attachment.file}
+              variant="message"
+              showRemoveButton={false}
+            />
+          </div>
+        )}
+        
+        {/* Render message content with markdown */}
+        {msg.content && (
+          <MarkdownRenderer 
+            content={msg.content}
+            variant="chat"
+            className="text-white/90 text-sm leading-relaxed"
+          />
+        )}
+        
+        <div className="mt-2">
+          <span className="text-xs text-white/50">
+            {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </span>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="fixed inset-4 z-40 flex items-center justify-center pointer-events-none">
+      {/* Voice Recording Indicator (fixed position) */}
+      <VoiceRecordingIndicator
+        isRecording={isRecording}
+        interimTranscript={interimTranscript}
+        error={voiceError}
+      />
+
       {/* Modal Content - Only the modal panel captures pointer events */}
       <GlassmorphicPanel
         variant="glass-panel"
@@ -221,14 +324,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
                     }
                   `}
                 >
-                  <p className="text-white/90 text-sm leading-relaxed">
-                    {msg.content}
-                  </p>
-                  <div className="mt-2">
-                    <span className="text-xs text-white/50">
-                      {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
+                  {renderMessageContent(msg)}
                 </GlassmorphicPanel>
               </div>
               
@@ -253,6 +349,17 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
 
         {/* Input Area */}
         <div className="p-6 border-t border-white/20">
+          {/* File attachment preview */}
+          {currentAttachment && (
+            <div className="mb-4">
+              <FileAttachment
+                file={currentAttachment}
+                variant="preview"
+                onRemove={clearAttachment}
+              />
+            </div>
+          )}
+
           <GlassmorphicPanel
             variant="glass-panel"
             rounded="lg"
@@ -265,14 +372,15 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
                 onClick={handleImageUpload}
                 className="p-2 hover:bg-white/20"
                 title="Upload image"
+                disabled={isLoading}
               >
-                {/* eslint-disable-next-line jsx-a11y/alt-text */}
                 <Image size={18} className="stroke-current" strokeWidth={1.5} />
               </GlassButton>
               <GlassButton
                 onClick={handleFileUpload}
                 className="p-2 hover:bg-white/20"
                 title="Upload file"
+                disabled={isLoading}
               >
                 <Paperclip size={18} className="stroke-current" strokeWidth={1.5} />
               </GlassButton>
@@ -281,6 +389,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
             {/* Message Input */}
             <div className="flex-1">
               <textarea
+                ref={messageInputRef}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 onKeyPress={handleKeyPress}
@@ -291,22 +400,31 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
                   min-h-[40px] max-h-[120px] py-2
                 "
                 rows={1}
+                disabled={isLoading}
               />
             </div>
 
             {/* Voice & Send Buttons */}
             <div className="flex gap-2">
               <GlassButton
-                onClick={toggleRecording}
+                onClick={handleVoiceToggle}
                 className={`
                   p-2 transition-all duration-200
                   ${isRecording 
                     ? 'bg-red-500/30 hover:bg-red-500/40 text-red-200' 
-                    : 'hover:bg-white/20'
+                    : isVoiceSupported 
+                      ? 'hover:bg-white/20'
+                      : 'opacity-50 cursor-not-allowed'
                   }
                 `}
-                title={isRecording ? 'Stop recording' : 'Start voice recording'}
-                disabled={isLoading}
+                title={
+                  !isVoiceSupported 
+                    ? 'Voice recording not supported'
+                    : isRecording 
+                      ? 'Stop recording' 
+                      : 'Start voice recording'
+                }
+                disabled={!isVoiceSupported || isLoading}
               >
                 {isRecording ? (
                   <MicOff size={18} className="stroke-current" strokeWidth={1.5} />
@@ -317,7 +435,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
               
               <GlassButton
                 onClick={handleSendMessage}
-                disabled={!message.trim() || isLoading}
+                disabled={(!message.trim() && !currentAttachment) || isLoading}
                 className="
                   p-2 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed
                   transition-all duration-200
@@ -335,6 +453,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
           
           <p className="text-xs text-white/40 mt-2 text-center">
             Press Enter to send • Shift+Enter for new line
+            {isVoiceSupported && ' • Click mic to record'}
           </p>
         </div>
       </GlassmorphicPanel>
@@ -344,15 +463,15 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
         ref={fileInputRef}
         type="file"
         className="hidden"
-        accept=".pdf,.doc,.docx,.txt"
-        onChange={handleFileChange}
+        accept=".pdf,.doc,.docx,.txt,.csv,.json"
+        onChange={handleFileSelection}
       />
       <input
         ref={imageInputRef}
         type="file"
         className="hidden"
         accept="image/*"
-        onChange={handleFileChange}
+        onChange={handleFileSelection}
       />
     </div>
   );

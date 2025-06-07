@@ -120,40 +120,21 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
     try {
       const startTime = performance.now();
 
-      // Format conversation history for Gemini
-      const formattedHistory = this.formatHistoryForGemini(input.payload.history);
-      
-      // Add system prompt as the first message if no history exists
-      if (formattedHistory.length === 0) {
-        formattedHistory.unshift({
-          role: 'user',
-          parts: [{ text: 'Please introduce yourself and explain your role.' }]
-        });
-        formattedHistory.push({
-          role: 'model',
-          parts: [{ text: input.payload.systemPrompt }]
-        });
-      }
+      const history = [
+        ...this.formatHistoryForGemini(input.payload.history),
+      ];
 
-      // Start chat session with history including system context
+      // Start chat session with history
       const chat = this.model.startChat({
-        history: formattedHistory,
+        history,
         generationConfig: {
           temperature: input.payload.temperature || 0.7,
           maxOutputTokens: input.payload.maxTokens || 2048,
         },
       });
-
-      // Construct the current message with context
-      let currentMessage = input.payload.userMessage;
       
-      // Add memory context if provided
-      if (input.payload.memoryContextBlock) {
-        currentMessage = `RELEVANT CONTEXT FROM USER'S PAST:\n${input.payload.memoryContextBlock}\n\nCURRENT MESSAGE: ${currentMessage}`;
-      }
-      
-      // Add system reminder for consistency
-      currentMessage += '\n\nPlease respond as Dot, keeping in mind the user\'s growth journey and the Six-Dimensional Growth Model.';
+      const systemPrompt = input.payload.systemPrompt;
+      let currentMessage = `${systemPrompt}\n\nRELEVANT CONTEXT FROM USER'S PAST:\n${input.payload.memoryContextBlock || 'No memories provided.'}\n\nCURRENT MESSAGE: ${input.payload.userMessage}`;
 
       // Send the current message
       const result = await chat.sendMessage(currentMessage);

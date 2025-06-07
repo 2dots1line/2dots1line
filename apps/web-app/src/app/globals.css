@@ -89,3 +89,7 @@ body {
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.3) rgba(255, 255, 255, 0.1);
 } 
+
+/* Component-specific styles */
+@import '../styles/VoiceRecordingIndicator.css';
+@import '../styles/markdown.styles.css'; 

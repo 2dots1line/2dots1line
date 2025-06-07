@@ -19,4 +19,13 @@ export { default as GlassmorphicPanel } from './GlassmorphicPanel';
 export { default as DragHandle } from './DragHandle';
 export { default as MinimizeToggle } from './MinimizeToggle';
 
+// New components for markdown rendering and file handling
+export { default as MarkdownRenderer } from './markdown/MarkdownRenderer';
+export type { MarkdownRendererProps } from './markdown/MarkdownRenderer';
+
+export { default as FileAttachment } from './FileAttachment';
+export type { FileAttachmentProps } from './FileAttachment';
+
+export { default as VoiceRecordingIndicator } from './VoiceRecordingIndicator';
+
 // Add other component exports here 
