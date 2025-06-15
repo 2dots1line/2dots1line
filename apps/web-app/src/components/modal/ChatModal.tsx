@@ -15,14 +15,9 @@ import {
   Paperclip, 
   Mic, 
   MicOff,
-  MoreVertical,
-  AlertCircle,
-  Bot,
-  User,
-  Loader2
+  MoreVertical
 } from 'lucide-react';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { ChatService } from '@/services/ChatService';
 import './ChatModal.css';
 
 import { chatService, type ChatMessage } from '../../services/chatService';
@@ -58,7 +53,6 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const messageInputRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const voiceClickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const onVoiceError = useCallback((error: string) => {
     console.error('❌ ChatModal - Voice recording error:', error);
@@ -271,7 +265,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
       <VoiceRecordingIndicator
         isRecording={isRecording}
         interimTranscript={interimTranscript}
-        error={voiceError}
+        error={voiceError ?? undefined}
       />
 
       {/* Modal Content - Only the modal panel captures pointer events */}

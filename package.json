@@ -10,7 +10,6 @@
     "packages/shared-types",
     "packages/database",
     "packages/core-utils",
-    "packages/utils",
     "packages/ai-clients",
     "packages/agent-framework",
     "packages/tool-registry",

@@ -25,7 +25,6 @@
   "files": [],
   "references": [
     { "path": "./packages/shared-types" },
-    { "path": "./packages/core-utils" },
     { "path": "./packages/database" },
     { "path": "./packages/ai-clients" },
     { "path": "./packages/agent-framework" },
@@ -37,12 +36,13 @@
     { "path": "./packages/document-tool" },
     { "path": "./packages/text-tool" },
     { "path": "./packages/vision-tool" },
-    { "path": "./packages/utils" },
+    { "path": "./packages/core-utils" },
     { "path": "./apps/web-app" },
     { "path": "./apps/api-gateway" },
     { "path": "./services/cognitive-hub" },
     { "path": "./workers/embedding-worker" },
     { "path": "./workers/insight-worker" },
     { "path": "./workers/scheduler" }
-  ]
+  ],
+  "exclude": ["node_modules", "packages/utils"]
 } 

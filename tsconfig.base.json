@@ -28,7 +28,6 @@
       "@2dots1line/orb-core": ["packages/orb-core/src"],
       "@2dots1line/shader-lib": ["packages/shader-lib/src"],
       "@2dots1line/ui-components": ["packages/ui-components/src"],
-      "@2dots1line/utils": ["packages/utils/src"],
       "@2dots1line/document-tool": ["packages/document-tool/src"],
       "@2dots1line/text-tool": ["packages/text-tool/src"],
       "@2dots1line/vision-tool": ["packages/vision-tool/src"]
