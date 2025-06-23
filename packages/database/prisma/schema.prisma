@@ -1,5 +1,5 @@
 // packages/database/prisma/schema.prisma
-// Target V7 Schema - UPDATED with CycleReport and Agent Pipeline changes
+// Target V7 Schema - Post Optimization & Redundancy Removal - CORRECTED
 
 generator client {
   provider      = "prisma-client-js"
@@ -42,8 +42,7 @@ model User {
   reflections             Reflection[]
   orb_states_log          OrbState[]
   user_challenges         UserChallenge[]
-  chunks                  Chunk[]
-  cycle_reports           CycleReport[] // Relation to historical cycle reports
+  chunks                  Chunk[] // Added back-relation for Chunk.user
 
   @@map("users")
   @@index([email])
@@ -91,7 +90,7 @@ model MemoryUnit {
   media_links                Media[]
   derived_artifacts_as_source DerivedArtifact[] @relation("DerivedArtifactSourceMemoryUnit")
   reflections                Reflection[]
-  ConversationMessage        ConversationMessage[] @relation("MessageToMemoryUnitLink")
+  ConversationMessage        ConversationMessage[] @relation("MessageToMemoryUnitLink") // Added relation name
 
   @@map("memory_units")
   @@index([user_id, creation_ts(sort: Desc)])
@@ -105,7 +104,7 @@ model Chunk {
   muid                 String
   memory_unit          MemoryUnit @relation(fields: [muid], references: [muid], onDelete: Cascade)
   user_id              String
-  user                 User      @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  user                 User      @relation(fields: [user_id], references: [user_id], onDelete: Cascade) // This was the missing link target
   text_content         String    @map("text")
   sequence_order       Int
   role                 String?
@@ -129,7 +128,6 @@ model Concept {
   user            User      @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
   name            String
   type            String
-  source          String    @default("UNKNOWN") // USER_GENERATED, AI_SUGGESTED
   description     String?
   user_defined    Boolean   @default(false)
   confidence      Float?
@@ -250,152 +248,225 @@ model DerivedArtifactConceptLink {
   derived_artifact    DerivedArtifact @relation(fields: [derived_artifact_id], references: [artifact_id], onDelete: Cascade)
   concept_id          String
   concept             Concept         @relation(fields: [concept_id], references: [concept_id], onDelete: Cascade)
+  relationship_type   String?
   created_at          DateTime          @default(now())
+  metadata            Json?
+
   @@map("derived_artifact_concept_links")
+  @@unique([derived_artifact_id, concept_id, relationship_type])
+  @@index([derived_artifact_id])
+  @@index([concept_id])
 }
 
 model AnnotationConceptLink {
-  id                  String     @id @default(uuid())
-  annotation_id       String
-  annotation          Annotation @relation(fields: [annotation_id], references: [aid], onDelete: Cascade)
-  concept_id          String
-  concept             Concept    @relation(fields: [concept_id], references: [concept_id], onDelete: Cascade)
-  created_at          DateTime   @default(now())
+  id            String      @id @default(uuid())
+  annotation_id String
+  annotation    Annotation  @relation(fields: [annotation_id], references: [aid], onDelete: Cascade)
+  concept_id    String
+  concept       Concept     @relation(fields: [concept_id], references: [concept_id], onDelete: Cascade)
+  created_at    DateTime    @default(now())
+
   @@map("annotation_concept_links")
+  @@unique([annotation_id, concept_id])
 }
 
-// --- GAMIFICATION & LEARNING ---
 model ChallengeTemplate {
-  challenge_id       String    @id @default(uuid())
-  title              String
-  description        String
-  category           String
-  difficulty         Int
-  related_concepts   String[]  @default([])
-  reward_points      Int
-  repeatable_schedule String?
-  is_active          Boolean   @default(true)
-  created_at         DateTime  @default(now())
-  updated_at         DateTime  @updatedAt
-
-  user_challenges UserChallenge[]
-
-  @@map("challenge_templates")
-}
-
-model UserChallenge {
-  user_challenge_id String            @id @default(uuid())
-  user_id           String
-  user              User              @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  challenge_id      String
-  challenge         ChallengeTemplate @relation(fields: [challenge_id], references: [challenge_id], onDelete: Cascade)
-  status            String            @default("not_started") // e.g., 'not_started', 'in_progress', 'completed'
-  started_at        DateTime?
-  completed_at      DateTime?
-  user_notes        Json?
-  created_at        DateTime          @default(now())
-  updated_at        DateTime          @updatedAt
-
-  @@map("user_challenges")
-  @@index([user_id, status])
-}
-
-// --- CONVERSATION MANAGEMENT ---
-model Conversation {
-  id                      String   @id @default(uuid())
-  user_id                 String
-  user                    User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  title                   String?
-  start_time              DateTime @default(now())
-  end_time                DateTime?
-  status                  String   @default("active") // active, processed, archived
-  summary                 String?
-  context_package         Json? // Stores the initial context package (user profile, etc.)
+  template_id             String   @id @default(uuid()) @map("challenge_template_id")
+  name                    String   @unique @map("template_name")
+  description             String
+  category                String?
+  difficulty_level        Int?
+  estimated_duration_days Int?
+  repeatable              Boolean  @default(false)
+  tasks_json              Json
+  rewards_json            Json?
+  dim_keys                String[] @default([])
   created_at              DateTime @default(now())
   updated_at              DateTime @updatedAt
 
-  messages ConversationMessage[]
+  user_challenges         UserChallenge[]
+
+  @@map("challenge_templates")
+  @@index([category])
+}
+
+model UserChallenge {
+  user_challenge_id     String            @id @default(uuid())
+  user_id               String
+  user                  User              @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  challenge_template_id String
+  challenge_template    ChallengeTemplate @relation(fields: [challenge_template_id], references: [template_id], onDelete: Restrict) // Corrected reference
+  status                String            @default("active")
+  start_time            DateTime          @default(now())
+  completion_time       DateTime?
+  progress_json         Json?
+  user_notes            String?
+  created_at            DateTime          @default(now())
+  updated_at            DateTime          @updatedAt
+
+  @@map("user_challenges")
+  @@index([user_id, status])
+  @@index([user_id, challenge_template_id])
+}
+
+// --- CONVERSATION & INTERACTION LOGGING ---
+model Conversation {
+  id                String                  @id @default(uuid()) @map("conversation_id") // Mapped to conversation_id for external consistency if needed
+  user_id           String
+  user              User                    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  session_id        String?                 @unique
+  title             String?
+  start_time        DateTime                @default(now())
+  last_active_time  DateTime                @updatedAt
+  ended_at          DateTime?
+  context_summary   String?
+  metadata          Json?
+
+  messages          ConversationMessage[]
+  orb_states        OrbState[]              @relation("OrbConversationLink") // Ensure this name is unique or not needed if Prisma infers
 
   @@map("conversations")
-  @@index([user_id, start_time(sort: Desc)])
+  @@index([user_id, last_active_time(sort: Desc)])
+  @@index([session_id])
 }
 
 model ConversationMessage {
-  id                String       @id @default(uuid())
-  conversation_id   String
-  conversation      Conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
-  user_id           String
-  sender            User         @relation("MessageSender", fields: [user_id], references: [user_id], onDelete: Cascade)
-  role              String // 'user', 'assistant'
-  content           String?
-  media_id          String?
-  timestamp         DateTime     @default(now())
-  metadata          Json?
-  memory_unit_links MemoryUnit[] @relation("MessageToMemoryUnitLink")
+  id                          String        @id @default(uuid()) @map("message_id")
+  conversation_id             String
+  conversation                Conversation  @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  user_id                     String        // ID of the sender (user's ID or a system ID like 'DOT_AI_ID')
+  message_sender              User?         @relation("MessageSender", fields: [user_id], references: [user_id], onDelete: Cascade)
+  role                        String
+  content                     String        @map("message_text")
+  message_type                String        @default("text")
+  media_ids                   String[]      @default([])
+  suggested_actions           Json?
+  timestamp                   DateTime      @default(now()) @map("created_at")
+  processing_status           String        @default("pending_ingestion")
+  associated_muid             String?
+  memory_unit_link            MemoryUnit?   @relation("MessageToMemoryUnitLink", fields: [associated_muid], references: [muid], onDelete: SetNull) // Added relation name
+  retrieval_context_summary   String?
+  user_feedback_on_response   String?
+  metadata                    Json?
 
   @@map("conversation_messages")
-  @@index([conversation_id])
+  @@index([conversation_id, timestamp])
+  @@index([user_id, timestamp(sort: Desc)])
+  @@index([associated_muid])
 }
 
-// --- GROWTH & REFLECTION ---
 model growth_events {
-  geid             String    @id @default(uuid())
-  user_id          String
-  user             User      @relation("UserGrowthEvents", fields: [user_id], references: [user_id], onDelete: Cascade)
-  growth_dimension String
-  change_delta     Float
-  source_type      String
-  source_id        String
-  description      String?
-  occurred_at      DateTime
-  created_at       DateTime  @default(now())
-  metadata         Json?
+  event_id    String   @id @default(uuid())
+  user_id     String
+  entity_id   String
+  entity_type String
+  dim_key     String
+  delta       Float
+  source      String
+  created_at  DateTime @default(now())
+  details     Json?
+
+  user        User     @relation("UserGrowthEvents", fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@map("growth_events")
-  @@index([user_id, occurred_at(sort: Desc)])
-  @@index([user_id, growth_dimension])
+  @@index([user_id, created_at(sort: Desc)])
+  @@index([user_id, entity_id, entity_type])
+  @@index([user_id, dim_key])
 }
 
 model Reflection {
-  reflection_id  String     @id @default(uuid())
-  user_id        String
-  user           User       @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  title          String?
-  content        String
-  related_muid   String?
-  related_memory MemoryUnit? @relation(fields: [related_muid], references: [muid], onDelete: SetNull)
-  created_at     DateTime   @default(now())
-  updated_at     DateTime   @updatedAt
+  reflection_id    String      @id @default(uuid())
+  user_id          String
+  user             User        @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  memory_unit_id   String?
+  memory_unit      MemoryUnit? @relation(fields: [memory_unit_id], references: [muid], onDelete: SetNull)
+  title            String?
+  content          String      @map("content_text")
+  reflection_type  String      @default("journal_prompt_response")
+  created_at       DateTime    @default(now())
+  updated_at       DateTime    @updatedAt
+  sentiment        Float?
+  insights_json    Json?       @map("insights")
+  tags             String[]    @default([])
+  metadata         Json?
 
   @@map("reflections")
   @@index([user_id, created_at(sort: Desc)])
+  @@index([memory_unit_id])
 }
 
 model OrbState {
-  id           String   @id @default(uuid())
-  user_id      String
-  user         User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  state_name   String
-  parameters   Json?
-  timestamp    DateTime @default(now())
-  source_event String?
+  orb_state_id         String        @id @default(uuid())
+  user_id              String
+  user                 User          @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  conversation_id      String?
+  conversation         Conversation? @relation("OrbConversationLink", fields: [conversation_id], references: [id], onDelete:SetNull) // Explicit relation name
+  timestamp            DateTime      @default(now())
+  visual_state         String?
+  emotional_tone       String?
+  energy_level         Float?
+  is_speaking          Boolean?
+  current_activity     String?
+  active_effects_json  Json?         @map("active_effects")
+  metadata             Json?
 
   @@map("orb_states")
   @@index([user_id, timestamp(sort: Desc)])
+  @@index([conversation_id])
 }
 
-// --- NEW: CYCLE REPORTING ---
-model CycleReport {
-  report_id             String   @id @default(uuid())
-  user_id               String
-  user                  User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  created_at            DateTime @default(now())
-  cycle_start_date      DateTime
-  cycle_end_date        DateTime
-  user_facing_summary   String   @db.Text // The prose summary for the user
-  agent_facing_profile  Json     // The detailed userMemoryProfile for the DialogueAgent
-  metadata              Json?
+// --- Views (to be created with raw SQL in a separate migration file AFTER tables are created) ---
 
-  @@map("cycle_reports")
-  @@index([user_id, created_at(sort: Desc)])
-}
+// CREATE MATERIALIZED VIEW mv_entity_growth_progress AS
+// SELECT
+//   user_id,
+//   entity_id,
+//   entity_type,
+//   dim_key,
+//   SUM(delta) AS score,
+//   COUNT(*) AS event_count,
+//   MAX(created_at) AS last_event_ts,
+//   MIN(created_at) AS first_event_ts
+// FROM growth_events
+// GROUP BY user_id, entity_id, entity_type, dim_key;
+
+// CREATE OR REPLACE VIEW v_card_evolution_state AS
+// SELECT
+//   c.concept_id AS entity_id,
+//   c.user_id,
+//   'concept' AS entity_type,
+//   c.name AS card_title,
+//   CASE
+//     WHEN COALESCE(ecs.connection_count, 0) >= 5 AND COALESCE(gs.dim_count, 0) >= 5 THEN 'supernova'
+//     WHEN COALESCE(ecs.connection_count, 0) >= 3 AND COALESCE(gs.dim_count, 0) >= 3 THEN 'constellation'
+//     WHEN COALESCE(gs.dim_count, 0) >= 2 THEN 'bloom'
+//     WHEN COALESCE(gs.dim_count, 0) >= 1 OR COALESCE(ecs.connection_count, 0) >= 1 THEN 'sprout'
+//     ELSE 'seed'
+//   END AS evolution_state,
+//   COALESCE(gs.dim_count, 0) AS active_dimensions,
+//   COALESCE(gs.total_score, 0) AS total_growth_score,
+//   COALESCE(ecs.connection_count, 0) as connection_count
+// FROM concepts c
+// LEFT JOIN (
+//   SELECT
+//     user_id,
+//     entity_id,
+//     COUNT(DISTINCT dim_key) AS dim_count,
+//     SUM(score) AS total_score
+//   FROM mv_entity_growth_progress
+//   WHERE entity_type = 'concept' AND score > 0
+//   GROUP BY user_id, entity_id
+// ) gs ON c.user_id = gs.user_id AND c.concept_id = gs.entity_id
+// LEFT JOIN entity_connection_counts ecs ON c.user_id = ecs.user_id AND c.concept_id = ecs.entity_id AND ecs.entity_type = 'concept';
+// -- Similar views would be needed for MemoryUnits and DerivedArtifacts if they also evolve.
+
+// Placeholder for entity_connection_counts table - this will be populated by a worker querying Neo4j
+// model entity_connection_counts {
+//   user_id String
+//   entity_id String
+//   entity_type String
+//   connection_count Int
+//   last_updated_ts DateTime @updatedAt
+//   @@id([user_id, entity_id, entity_type])
+//   @@map("entity_connection_counts")
+// }
