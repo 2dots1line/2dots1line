@@ -1,0 +1,43 @@
+{
+  "version": "9.5",
+  "description": "V9.5 Cypher query templates for HybridRetrievalTool",
+  "templates": {
+    "neighborhood": {
+      "description": "Finds nodes within N hops of seed entities",
+      "cypher": "UNWIND $seedEntities AS seed MATCH (startNode) WHERE startNode.id = seed.id CALL { WITH startNode MATCH p=(startNode)-[*1..$hops]-(relatedNode) WHERE relatedNode.userId = $userId RETURN DISTINCT relatedNode.id AS nodeId, labels(relatedNode)[0] AS nodeType LIMIT $limit } RETURN COLLECT(DISTINCT {id: nodeId, type: nodeType}) + $seedEntities AS allRelevantEntities",
+      "allowedParams": ["seedEntities", "hops", "limit", "userId"],
+      "defaultParams": { "hops": 2, "limit": 20 }
+    },
+    "timeline": {
+      "description": "Retrieves entities with temporal relationships",
+      "cypher": "UNWIND $seedEntities AS seed MATCH (startNode) WHERE startNode.id = seed.id CALL { WITH startNode MATCH (startNode)-[:OCCURRED_BEFORE|:OCCURRED_AFTER|:SAME_TIME]-(relatedNode) WHERE relatedNode.userId = $userId RETURN DISTINCT relatedNode.id AS nodeId, labels(relatedNode)[0] AS nodeType LIMIT $limit } RETURN COLLECT(DISTINCT {id: nodeId, type: nodeType}) + $seedEntities AS allRelevantEntities",
+      "allowedParams": ["seedEntities", "limit", "userId"],
+      "defaultParams": { "limit": 15 }
+    },
+    "conceptual": {
+      "description": "Finds conceptually related entities",
+      "cypher": "UNWIND $seedEntities AS seed MATCH (startNode) WHERE startNode.id = seed.id CALL { WITH startNode MATCH (startNode)-[:RELATED_TO|:CONTAINS|:PART_OF]-(relatedNode) WHERE relatedNode.userId = $userId RETURN DISTINCT relatedNode.id AS nodeId, labels(relatedNode)[0] AS nodeType LIMIT $limit } RETURN COLLECT(DISTINCT {id: nodeId, type: nodeType}) + $seedEntities AS allRelevantEntities",
+      "allowedParams": ["seedEntities", "limit", "userId"],
+      "defaultParams": { "limit": 15 }
+    },
+    "find_by_type": {
+      "description": "Find entities of specific types",
+      "cypher": "MATCH (node) WHERE node.userId = $userId AND labels(node)[0] IN $entityTypes RETURN DISTINCT node.id AS nodeId, labels(node)[0] AS nodeType LIMIT $limit",
+      "allowedParams": ["userId", "entityTypes", "limit"],
+      "defaultParams": { "limit": 50 }
+    },
+    "get_node_metadata": {
+      "description": "Get metadata for specific nodes",
+      "cypher": "UNWIND $nodeIds AS nodeId MATCH (node) WHERE node.id = nodeId AND node.userId = $userId RETURN node.id AS nodeId, labels(node)[0] AS nodeType, node.createdAt AS createdAt, node.lastModified AS lastModified",
+      "allowedParams": ["nodeIds", "userId"],
+      "defaultParams": {}
+    }
+  },
+  "validation": {
+    "require_parameters": true,
+    "sanitize_input": true,
+    "max_results_per_query": 100,
+    "max_hops": 3,
+    "max_seed_entities": 10
+  }
+} 

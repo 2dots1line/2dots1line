@@ -1,0 +1,21 @@
+{
+  "classes": [
+    {
+      "class": "UserKnowledgeItem",
+      "description": "A unified searchable item representing textual content from any source entity.",
+      "vectorizer": "none",
+      "properties": [
+        { "name": "externalId", "dataType": ["uuid"] },
+        { "name": "userId", "dataType": ["string"], "indexInverted": true },
+        { "name": "sourceEntityType", "dataType": ["string"], "indexInverted": true },
+        { "name": "sourceEntityId", "dataType": ["uuid"], "indexInverted": true },
+        { "name": "textContent", "dataType": ["text"] },
+        { "name": "title", "dataType": ["text"], "indexInverted": true, "tokenization": "word" },
+        { "name": "embeddingModelVersion", "dataType": ["string"], "indexInverted": true },
+        { "name": "createdAt", "dataType": ["date"], "indexInverted": true },
+        { "name": "importanceScore", "dataType": ["number"], "indexInverted": true },
+        { "name": "tags", "dataType": ["text[]"], "indexInverted": true, "tokenization": "word" }
+      ]
+    }
+  ]
+} 

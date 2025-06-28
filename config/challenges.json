@@ -1,0 +1,22 @@
+{
+  "version": "1.0",
+  "description": "Configuration for user challenges, growth prompts, and engagement activities",
+  "challenge_categories": {
+    "self_reflection": {
+      "challenges": [],
+      "difficulty_levels": ["beginner", "intermediate", "advanced"]
+    },
+    "goal_setting": {
+      "challenges": [],
+      "difficulty_levels": ["beginner", "intermediate", "advanced"]
+    },
+    "relationship_building": {
+      "challenges": [],
+      "difficulty_levels": ["beginner", "intermediate", "advanced"]
+    }
+  },
+  "scheduling": {
+    "frequency": "weekly",
+    "personalization": true
+  }
+} 

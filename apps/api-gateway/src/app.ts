@@ -16,11 +16,16 @@ if (!process.env.DATABASE_URL || process.env.DATABASE_URL.includes('${')) {
   }
 }
 
-// Import routes (to be created)
-import { authRoutes } from './routes/auth.routes';
-import { cardRoutes } from './routes/card.routes';
-import userRoutes from './routes/user.routes';
-import chatRoutes from './routes/chat.routes';
+// Import V9.7 consolidated routes with error handling
+let v1Router;
+try {
+  console.log('🔧 Importing v1Router...');
+  v1Router = require('./routes/v1').default;
+  console.log('✅ v1Router imported successfully');
+} catch (error) {
+  console.error('❌ Failed to import v1Router:', error);
+  process.exit(1);
+}
 
 const app: Express = express();
 
@@ -31,14 +36,26 @@ app.use(express.urlencoded({ extended: true })); // Parse URL-encoded request bo
 
 // Basic Health Check Route
 app.get('/api/health', (req: Request, res: Response) => {
-  res.status(200).json({ message: 'API is running' });
+  res.status(200).json({ message: 'API Gateway V9.7 is running' });
 });
 
-// API Routes - Implements Directive 2: User growth profile endpoints
-app.use('/api/auth', authRoutes);
-app.use('/api/cards', cardRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/chat', chatRoutes);
+// Debug endpoint to check router
+app.get('/api/debug', (req: Request, res: Response) => {
+  res.status(200).json({ 
+    message: 'Debug endpoint',
+    v1RouterLoaded: !!v1Router,
+    routes: app._router ? app._router.stack.map((r: any) => r.route?.path || 'middleware') : 'no router'
+  });
+});
+
+// V9.7 API Routes - All routes are now versioned under /api/v1
+if (v1Router) {
+  console.log('🔧 Mounting v1Router at /api/v1...');
+  app.use('/api/v1', v1Router);
+  console.log('✅ v1Router mounted successfully');
+} else {
+  console.error('❌ v1Router is null, cannot mount routes');
+}
 
 // Global Error Handler (simple example)
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {

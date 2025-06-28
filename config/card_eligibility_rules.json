@@ -1,0 +1,25 @@
+{
+  "version": "1.0",
+  "description": "Rules and criteria for determining card eligibility and generation",
+  "eligibility_rules": {
+    "insight_cards": {
+      "minimum_importance_score": 5,
+      "required_conditions": [],
+      "exclusion_criteria": []
+    },
+    "memory_cards": {
+      "minimum_importance_score": 3,
+      "required_conditions": [],
+      "exclusion_criteria": []
+    },
+    "growth_cards": {
+      "minimum_growth_delta": 0.5,
+      "required_conditions": [],
+      "exclusion_criteria": []
+    }
+  },
+  "generation_limits": {
+    "max_cards_per_session": 10,
+    "cooldown_periods": {}
+  }
+} 

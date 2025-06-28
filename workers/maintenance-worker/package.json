@@ -1,0 +1,23 @@
+{
+  "name": "@2dots1line/maintenance-worker",
+  "version": "1.0.0",
+  "description": "Worker for data hygiene and cleanup tasks",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@2dots1line/shared-types": "workspace:*",
+    "@2dots1line/database": "workspace:*",
+    "bullmq": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "typescript": "^5.0.0",
+    "ts-node": "^10.0.0",
+    "jest": "^29.0.0"
+  }
+} 

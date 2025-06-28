@@ -1,0 +1,25 @@
+{
+  "version": "1.0",
+  "description": "Templates for different types of user-facing cards",
+  "templates": {
+    "insight_card": {
+      "layout": "standard",
+      "components": [],
+      "styling": {}
+    },
+    "memory_card": {
+      "layout": "standard", 
+      "components": [],
+      "styling": {}
+    },
+    "growth_card": {
+      "layout": "standard",
+      "components": [],
+      "styling": {}
+    }
+  },
+  "default_styling": {
+    "theme": "adaptive",
+    "animations": true
+  }
+} 

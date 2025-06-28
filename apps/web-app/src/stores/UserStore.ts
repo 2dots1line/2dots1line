@@ -54,7 +54,7 @@ export const useUserStore = create<UserState>()(
         console.log('UserStore.login - Starting login for:', email);
         
         try {
-          const response = await axios.post(`${API_BASE_URL}/api/auth/login`, {
+          const response = await axios.post(`${API_BASE_URL}/api/v1/auth/login`, {
             email,
             password,
           });
@@ -115,7 +115,7 @@ export const useUserStore = create<UserState>()(
         console.log('UserStore.signup - Starting signup for:', email);
         
         try {
-          const response = await axios.post(`${API_BASE_URL}/api/auth/register`, {
+          const response = await axios.post(`${API_BASE_URL}/api/v1/auth/register`, {
             email,
             password,
             name,
@@ -193,32 +193,40 @@ export const useUserStore = create<UserState>()(
       },
 
       initializeAuth: () => {
-        const state = get();
-        console.log('UserStore.initializeAuth - Current state:', { 
-          isAuthenticated: state.isAuthenticated, 
-          hasHydrated: state.hasHydrated 
-        });
+        console.log('UserStore.initializeAuth - Starting initialization');
         
-        if (typeof window !== 'undefined' && state.isAuthenticated) {
-          const token = localStorage.getItem('auth_token');
-          console.log('UserStore.initializeAuth - Found token:', !!token);
+        // Set hydrated to true immediately for faster loading
+        set({ hasHydrated: true });
+        
+        // Only check auth state on client side
+        if (typeof window !== 'undefined') {
+          const state = get();
+          console.log('UserStore.initializeAuth - Current state:', { 
+            isAuthenticated: state.isAuthenticated, 
+            hasHydrated: state.hasHydrated 
+          });
           
-          if (token) {
-            // Set the authorization header for future requests
-            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-            console.log('UserStore.initializeAuth - Set axios header');
-          } else {
-            // No token found, clear authentication state
-            console.log('UserStore.initializeAuth - No token found, clearing state');
-            set({
-              user: null,
-              isAuthenticated: false,
-              error: null,
-            });
+          if (state.isAuthenticated) {
+            const token = localStorage.getItem('auth_token');
+            console.log('UserStore.initializeAuth - Found token:', !!token);
+            
+            if (token) {
+              // Set the authorization header for future requests
+              axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+              console.log('UserStore.initializeAuth - Set axios header');
+            } else {
+              // No token found, clear authentication state
+              console.log('UserStore.initializeAuth - No token found, clearing state');
+              set({
+                user: null,
+                isAuthenticated: false,
+                error: null,
+              });
+            }
           }
         }
-        set({ hasHydrated: true });
-        console.log('UserStore.initializeAuth - Hydration complete');
+        
+        console.log('UserStore.initializeAuth - Initialization complete');
       },
 
       setHasHydrated: (hydrated: boolean) => {

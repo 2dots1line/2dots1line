@@ -1,0 +1,26 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "baseUrl": ".",
+    "paths": {
+      "@2dots1line/shared-types": ["../../packages/shared-types/dist"],
+      "@2dots1line/database": ["../../packages/database/dist"],
+      "@2dots1line/core-utils": ["../../packages/core-utils/dist"],
+      "@2dots1line/config-service": ["../config-service/dist"],
+      "@2dots1line/tool-registry": ["../../packages/tool-registry/dist"],
+      "@2dots1line/tools": ["../../packages/tools/dist"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"],
+  "references": [
+    { "path": "../../packages/shared-types" },
+    { "path": "../../packages/database" },
+    { "path": "../../packages/core-utils" },
+    { "path": "../config-service" },
+    { "path": "../../packages/tool-registry" },
+    { "path": "../../packages/tools" }
+  ]
+} 

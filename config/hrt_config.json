@@ -1,0 +1,82 @@
+{
+  "version": "9.5",
+  "description": "V9.5 HybridRetrievalTool operational configuration",
+  "retrieval_scenarios": {
+    "neighborhood": {
+      "description": "Standard neighborhood exploration within graph hops",
+      "cypher_template": "neighborhood",
+      "default_hops": 2,
+      "max_candidates": 50
+    },
+    "timeline": {
+      "description": "Temporal relationship-based retrieval",
+      "cypher_template": "timeline",
+      "max_candidates": 30
+    },
+    "conceptual": {
+      "description": "Concept-relationship focused retrieval",
+      "cypher_template": "conceptual",
+      "max_candidates": 40
+    }
+  },
+  "stage_configurations": {
+    "key_phrase_processing": {
+      "max_phrases": 5,
+      "max_phrase_length": 100,
+      "similarity_threshold": 0.8,
+      "enable_phrase_optimization": true
+    },
+    "semantic_grounding": {
+      "weaviate_timeout_ms": 5000,
+      "results_per_phrase": 3,
+      "minimum_similarity": 0.1,
+      "enable_caching": true
+    },
+    "graph_traversal": {
+      "neo4j_timeout_ms": 10000,
+      "max_hops": 3,
+      "max_seed_entities": 10,
+      "enable_relationship_filtering": true
+    },
+    "pre_hydration": {
+      "batch_size": 50,
+      "timeout_ms": 3000,
+      "include_stale_detection": true
+    },
+    "scoring": {
+      "top_n_for_hydration": 10,
+      "enable_diversity_filtering": true,
+      "diversity_threshold": 0.3,
+      "recency_decay_rate": 0.1
+    },
+    "hydration": {
+      "postgresql_timeout_ms": 8000,
+      "batch_size": 50,
+      "include_full_content": true
+    }
+  },
+  "performance_limits": {
+    "max_total_execution_time_ms": 15000,
+    "max_candidates_evaluated": 200,
+    "max_final_results": 20,
+    "enable_early_termination": true
+  },
+  "error_handling": {
+    "enable_graceful_degradation": true,
+    "fallback_to_semantic_only": true,
+    "log_partial_failures": true,
+    "retry_failed_stages": false
+  },
+  "caching": {
+    "enable_result_caching": true,
+    "cache_ttl_seconds": 300,
+    "cache_key_includes_weights": true,
+    "max_cache_size_mb": 50
+  },
+  "monitoring": {
+    "log_stage_timings": true,
+    "log_candidate_counts": true,
+    "log_scoring_details": false,
+    "enable_performance_metrics": true
+  }
+} 

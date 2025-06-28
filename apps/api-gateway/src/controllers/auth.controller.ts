@@ -13,7 +13,7 @@ export class AuthController {
   private jwtSecret: string;
 
   constructor() {
-    this.databaseService = new DatabaseService();
+    this.databaseService = DatabaseService.getInstance();
     this.jwtSecret = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
   }
 
@@ -93,8 +93,7 @@ export class AuthController {
         profile_picture_url: newUser.profile_picture_url,
         created_at: newUser.created_at.toISOString(),
         last_active_at: newUser.last_active_at?.toISOString(),
-        account_status: newUser.account_status,
-        growth_profile: newUser.growth_profile
+        account_status: newUser.account_status
       };
 
       res.status(201).json({
@@ -184,8 +183,7 @@ export class AuthController {
         profile_picture_url: user.profile_picture_url,
         created_at: user.created_at.toISOString(),
         last_active_at: new Date().toISOString(),
-        account_status: user.account_status,
-        growth_profile: user.growth_profile
+        account_status: user.account_status
       };
 
       res.status(200).json({
@@ -207,18 +205,17 @@ export class AuthController {
 
   /**
    * POST /api/auth/logout
-   * Logout user and invalidate token
+   * Logout user (client-side token removal)
    */
   logout = async (req: Request, res: Response): Promise<void> => {
     try {
-      // In a more sophisticated implementation, you would:
-      // 1. Add the token to a blacklist
-      // 2. Remove any active sessions from the database
-      // For now, we'll just return success since JWT logout is handled client-side
+      // In a JWT-based system, logout is typically handled client-side
+      // by removing the token from storage. Server-side logout would
+      // require token blacklisting, which we're not implementing here.
       
       res.status(200).json({
         success: true,
-        message: 'Logout successful'
+        message: 'Logout successful. Please remove the token from your client.'
       });
     } catch (error) {
       console.error('Error in logout:', error);
@@ -245,27 +242,14 @@ export class AuthController {
         return;
       }
 
-      // Verify the existing token
-      const decoded = jwt.verify(token, this.jwtSecret) as { userId: string; email: string };
-
-      // Find user to ensure they still exist
-      const user = await this.databaseService.prisma.user.findUnique({
-        where: { user_id: decoded.userId }
-      });
-
-      if (!user) {
-        res.status(401).json({
-          success: false,
-          error: 'User not found'
-        });
-        return;
-      }
+      // Verify the current token
+      const decoded = jwt.verify(token, this.jwtSecret) as any;
 
       // Generate new token
       const newToken = jwt.sign(
         { 
-          userId: user.user_id, 
-          email: user.email 
+          userId: decoded.userId, 
+          email: decoded.email 
         },
         this.jwtSecret,
         { expiresIn: '7d' }
@@ -273,9 +257,7 @@ export class AuthController {
 
       res.status(200).json({
         success: true,
-        data: {
-          token: newToken
-        },
+        data: { token: newToken },
         message: 'Token refreshed successfully'
       });
     } catch (error) {

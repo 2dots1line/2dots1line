@@ -58,6 +58,17 @@ export type {
 
 export type { TApiResponse } from './api';
 
+// V10.8 Context Package Types
+export type {
+  CoreIdentity,
+  UserMemoryProfile,
+  KnowledgeGraphSchema,
+  NextConversationContextPackage,
+  TurnContextPackage,
+  AugmentedMemoryContext,
+  SummarizedConversation
+} from './entities/user.types';
+
 // Basic response types
 export interface TErrorResponse {
   error_code: string;

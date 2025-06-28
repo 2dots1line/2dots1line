@@ -1,0 +1,104 @@
+# config/prompt_templates.yaml
+
+# Template for the initial "You are Dot" instructions
+# This is a static preamble that is always the same.
+preamble: |
+  You are an advanced AI agent named Dot. Your task is to analyse the user's
+  message and **reply with one valid JSON object** that follows the schema in the
+  final `<instructions>` tag.  Do **not** add any text outside that JSON.
+
+# NEW: A template for the entire system_identity block.
+# It uses {{mustache}} style placeholders for dynamic data.
+system_identity_template: |
+  <system_identity>
+    <persona>
+      <name>{{persona.name}}</name>
+      <archetype>{{persona.archetype}}</archetype>
+      <description>{{persona.description}}</description>
+    </persona>
+    <operational_mandate>
+      <primary_directive>{{operational_mandate.primary_directive}}</primary_directive>
+      <contextualization_protocol>
+  {{#operational_mandate.contextualization_protocol}}
+        - "{{.}}"
+  {{/operational_mandate.contextualization_protocol}}
+      </contextualization_protocol>
+    </operational_mandate>
+    <memory_retrieval_protocol>
+  {{#operational_mandate.memory_retrieval_protocol}}
+      - "{{.}}"
+  {{/operational_mandate.memory_retrieval_protocol}}
+    </memory_retrieval_protocol>
+    <rules>
+  {{#rules}}
+      - "{{.}}"
+  {{/rules}}
+    </rules>
+  </system_identity>
+
+# Template for the Dialogue Agent's main instruction block
+dialogue_agent_instructions: |
+  <instructions>
+  <context_awareness>
+  Use the blocks above as working memory. Decide whether to respond directly
+  or query long-term memory, following the retrieval protocol.
+  </context_awareness>
+
+  <output_instructions>
+  Return your answer **between** the exact markers
+  `###==BEGIN_JSON==###` and `###==END_JSON==###`.
+  The content **must** match this schema:
+
+  ```json
+  {
+    "thought_process": "…",
+    "response_plan": {
+      "decision": "respond_directly" | "query_memory",
+      "key_phrases_for_retrieval": "… | null",
+      "direct_response_text": "… | null"
+    },
+    "turn_context_package": {
+      "suggested_next_focus": "…",
+      "emotional_tone_to_adopt": "…",
+      "flags_for_ingestion": ["…"]
+    },
+    "ui_actions": null
+  }
+  ```
+  </output_instructions>
+  </instructions>
+
+# Template for the Response Format block
+response_format_block: |
+  <response_format>
+  ⚠️  CRITICAL RULES — READ CAREFULLY ⚠️
+  1. You must **return exactly one JSON object**.  
+  2. Your reply must **start with "{" and end with "}".**  
+  3. **NO text** (explanation, markdown, code fences, headings, apologies, etc.)
+     is allowed before or after the JSON.  
+  4. Put *all* internal reasoning inside the "thought_process" field.
+  5. If you break any rule above, the conversation will be terminated.
+
+  When you are ready, output:
+
+  ###==BEGIN_JSON==###
+  { ... }
+  ###==END_JSON==###
+  </response_format>
+
+# Template for knowledge graph schema structure
+knowledge_graph_schema_template: |
+  {
+    "prominent_node_types": [],
+    "prominent_relationship_types": [],
+    "universal_concept_types": [
+      "person","organization","location","project","goal","value",
+      "skill","interest","emotion","theme","event_theme","role"
+    ],
+    "universal_relationship_labels": {
+      "RELATED_TO": [
+        "causes","influences","supports","contradicts",
+        "is_analogy_for","is_part_of","leads_to","resolves"
+      ]
+    }
+  } 

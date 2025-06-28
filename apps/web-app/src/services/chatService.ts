@@ -1,9 +1,9 @@
 /**
  * Chat Service - Frontend API client for DialogueAgent integration
- * Connects ChatModal to API Gateway endpoints
+ * V9.7 - Updated for consolidated API Gateway endpoints
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || `http://localhost:${process.env.API_GATEWAY_HOST_PORT || '3001'}`;
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
 
 export interface ChatMessage {
   id: string;
@@ -16,6 +16,7 @@ export interface ChatMessage {
 export interface SendMessageRequest {
   message: string;
   conversation_id?: string;
+  source_card_id?: string;
   context?: {
     session_id?: string;
     trigger_background_processing?: boolean;
@@ -25,17 +26,18 @@ export interface SendMessageRequest {
 
 export interface SendMessageResponse {
   success: boolean;
-  data?: {
-    message_id: string;
-    response: string;
-    conversation_id: string;
-    timestamp: string;
-    metadata?: {
-      response_time_ms?: number;
-      model_used?: string;
-      suggested_actions?: any[];
-      proactive_insight?: any;
-    };
+  conversation_id?: string;
+  response_text?: string;
+  message_id?: string;
+  timestamp?: string;
+  metadata?: {
+    processing_time_ms?: number;
+    source_card_id?: string;
+  };
+  file_info?: {
+    filename: string;
+    size: number;
+    mimetype: string;
   };
   error?: string;
   details?: string;
@@ -49,11 +51,16 @@ export interface ChatHistory {
 
 class ChatService {
   private getAuthHeaders(): Record<string, string> {
-    const token = localStorage.getItem('auth_token');
-    return {
-      'Content-Type': 'application/json',
-      ...(token && { 'Authorization': `Bearer ${token}` }),
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
     };
+    
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    return headers;
   }
 
   /**
@@ -61,7 +68,7 @@ class ChatService {
    */
   async sendMessage(request: SendMessageRequest): Promise<SendMessageResponse> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/chat/message`, {
+      const response = await fetch(`${API_BASE_URL}/api/v1/conversations/messages`, {
         method: 'POST',
         headers: this.getAuthHeaders(),
         body: JSON.stringify(request),
@@ -100,7 +107,7 @@ class ChatService {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/chat/upload`, {
+      const response = await fetch(`${API_BASE_URL}/api/v1/conversations/upload`, {
         method: 'POST',
         headers,
         body: formData,

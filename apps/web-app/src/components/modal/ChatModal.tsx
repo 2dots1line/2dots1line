@@ -133,21 +133,21 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
         });
       }
 
-      if (response.success && response.data) {
+      if (response.success && response.response_text) {
         const botMessage: EnhancedChatMessage = {
-          id: response.data.message_id,
+          id: response.message_id || `bot-${Date.now()}`,
           type: 'bot',
-          content: response.data.response,
-          timestamp: new Date(response.data.timestamp),
-          conversation_id: response.data.conversation_id
+          content: response.response_text,
+          timestamp: new Date(response.timestamp || new Date().toISOString()),
+          conversation_id: response.conversation_id
         };
         
         setMessages(prev => [...prev, botMessage]);
-        setConversationId(response.data.conversation_id);
+        setConversationId(response.conversation_id);
       } else {
         throw new Error(response.error || 'Failed to send message');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending message:', error);
       const errorMessage: EnhancedChatMessage = {
         id: `error-${Date.now()}`,

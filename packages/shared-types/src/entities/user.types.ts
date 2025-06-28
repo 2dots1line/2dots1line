@@ -87,4 +87,75 @@ export interface TUserPreferences {
     /** Default privacy setting for memory units */
     default_memory_unit_privacy?: 'private' | 'shared';
   };
+}
+
+// --- V10.8 Context Package Types ---
+
+/**
+ * Core Identity structure from CoreIdentity.yaml
+ */
+export interface CoreIdentity {
+  persona: {
+    name: string;
+    archetype: string;
+    description: string;
+  };
+  operational_mandate: {
+    primary_directive: string;
+    contextualization_protocol: string[];
+    memory_retrieval_protocol: string[];
+  };
+  rules: string[];
+}
+
+/**
+ * User Memory Profile structure (stored in User.memory_profile JSONB field)
+ */
+export interface UserMemoryProfile {
+  [key: string]: any;
+}
+
+/**
+ * Knowledge Graph Schema structure (stored in User.knowledge_graph_schema JSONB field)
+ */
+export interface KnowledgeGraphSchema {
+  prominent_node_types: string[];
+  prominent_relationship_types: string[];
+  universal_concept_types: string[];
+  universal_relationship_labels: {
+    [key: string]: string[];
+  };
+}
+
+/**
+ * Next Conversation Context Package (stored in User.next_conversation_context_package JSONB field)
+ */
+export interface NextConversationContextPackage {
+  proactive_greeting?: string;
+  unresolved_topics_for_next_convo?: Array<{
+    topic: string;
+    summary_of_unresolution: string;
+    suggested_question: string;
+  }>;
+  suggested_initial_focus?: string;
+}
+
+/**
+ * Turn Context Package (stored in Redis with key pattern turn_context:{conversationId})
+ */
+export interface TurnContextPackage {
+  suggested_next_focus?: string;
+  emotional_tone_to_adopt?: string;
+  flags_for_ingestion?: string[];
+}
+
+export interface AugmentedMemoryContext {
+  relevant_memories?: string[];
+  contextual_insights?: string[];
+  emotional_context?: string;
+}
+
+export interface SummarizedConversation {
+  conversation_summary: string;
+  conversation_importance_score: number;
 } 

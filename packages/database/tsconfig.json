@@ -2,20 +2,14 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src",
-    "composite": true,
-    "noEmit": false,
-    "isolatedModules": false,
-    "lib": ["es2020"],
-    "strict": false,
-    "allowSyntheticDefaultImports": true,
-    "paths": {}
+    "rootDir": "./src"
   },
-  "include": ["src/**/*.ts"],
+  "include": [
+    "src/**/*.ts"
+  ],
   "exclude": [
     "node_modules",
     "dist",
-    "**/*.test.ts",
-    "**/*.spec.ts"
+    "**/*.test.ts"
   ]
 }

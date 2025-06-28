@@ -29,6 +29,16 @@ const HomePage = () => {
     console.log('HomePage - Auth state:', { user, isAuthenticated, hasHydrated });
     console.log('HomePage - localStorage token:', localStorage.getItem('auth_token'));
     console.log('HomePage - localStorage state:', localStorage.getItem('user-storage'));
+    
+    // Fallback: Force hydration after 2 seconds if it hasn't completed
+    const hydrationTimeout = setTimeout(() => {
+      if (!hasHydrated) {
+        console.log('HomePage - Forcing hydration due to timeout');
+        useUserStore.getState().setHasHydrated(true);
+      }
+    }, 2000);
+    
+    return () => clearTimeout(hydrationTimeout);
   }, [memoizedInitializeAuth, user, isAuthenticated, hasHydrated]);
 
   // Auto-open dashboard when user is authenticated and no modal is active

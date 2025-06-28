@@ -1,0 +1,72 @@
+{
+  "version": "9.5",
+  "description": "V9.5 HybridRetrievalTool scoring weights (User Preference factor dropped)",
+  "scoring_weights": {
+    "profiles": {
+      "balanced": {
+        "alpha_semantic_similarity": 0.5,
+        "beta_recency": 0.3,
+        "gamma_salience": 0.2,
+        "delta_user_preference": 0.0
+      },
+      "recent_focused": {
+        "alpha_semantic_similarity": 0.4,
+        "beta_recency": 0.4,
+        "gamma_salience": 0.2,
+        "delta_user_preference": 0.0
+      },
+      "salience_focused": {
+        "alpha_semantic_similarity": 0.4,
+        "beta_recency": 0.2,
+        "gamma_salience": 0.4,
+        "delta_user_preference": 0.0
+      },
+      "semantic_focused": {
+        "alpha_semantic_similarity": 0.6,
+        "beta_recency": 0.25,
+        "gamma_salience": 0.15,
+        "delta_user_preference": 0.0
+      }
+    },
+    "default_profile": "balanced"
+  },
+  "retrieval_parameters": {
+    "max_key_phrases": 5,
+    "max_phrase_length": 100,
+    "phrase_similarity_threshold": 0.8,
+    "weaviate": {
+      "results_per_phrase": 3,
+      "similarity_threshold": 0.1,
+      "timeout_ms": 5000
+    },
+    "neo4j": {
+      "max_result_limit": 100,
+      "max_graph_hops": 3,
+      "max_seed_entities": 10,
+      "query_timeout_ms": 10000
+    },
+    "scoring": {
+      "top_n_candidates_for_hydration": 10,
+      "recency_decay_rate": 0.1,
+      "diversity_threshold": 0.3
+    },
+    "postgresql": {
+      "batch_size": 50,
+      "hydration_timeout_ms": 8000
+    }
+  },
+  "performance_tuning": {
+    "cache_results": true,
+    "max_retrieval_time_ms": 5000,
+    "enable_parallel_processing": true
+  },
+  "quality_filters": {
+    "minimum_relevance_score": 0.1,
+    "dedupe_similar_results": true,
+    "boost_recent_content": true
+  },
+  "notes": {
+    "user_preference_factor": "Dropped in V9.5 - weights redistributed across remaining three factors",
+    "weight_sum_validation": "All profile weights must sum to 1.0 (excluding delta which is 0.0)"
+  }
+} 

@@ -27,22 +27,15 @@
     { "path": "./packages/shared-types" },
     { "path": "./packages/database" },
     { "path": "./packages/ai-clients" },
-    { "path": "./packages/agent-framework" },
     { "path": "./packages/tool-registry" },
+    { "path": "./packages/tools" },
     { "path": "./packages/ui-components" },
     { "path": "./packages/canvas-core" },
     { "path": "./packages/shader-lib" },
     { "path": "./packages/orb-core" },
-    { "path": "./packages/document-tool" },
-    { "path": "./packages/text-tool" },
-    { "path": "./packages/vision-tool" },
     { "path": "./packages/core-utils" },
     { "path": "./apps/web-app" },
-    { "path": "./apps/api-gateway" },
-    { "path": "./services/cognitive-hub" },
-    { "path": "./workers/embedding-worker" },
-    { "path": "./workers/insight-worker" },
-    { "path": "./workers/scheduler" }
+    { "path": "./apps/api-gateway" }
   ],
   "exclude": ["node_modules", "packages/utils"]
 } 

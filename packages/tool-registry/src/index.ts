@@ -2,7 +2,7 @@
  * Main entry point for the @2dots1line/tool-registry package.
  */
 
-export { ToolRegistry } from './registry';
+export { ToolRegistry } from './ToolRegistry';
 export type {
   IExecutableTool,
   IToolManifest,

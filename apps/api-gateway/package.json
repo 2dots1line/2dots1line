@@ -11,15 +11,20 @@
     "test": "jest"
   },
   "dependencies": {
-    "@2dots1line/cognitive-hub": "workspace:^1.0.0",
+    "@2dots1line/config-service": "workspace:*",
+    "@2dots1line/core-utils": "workspace:*",
     "@2dots1line/database": "workspace:^0.1.0",
+    "@2dots1line/dialogue-service": "workspace:*",
     "@2dots1line/shared-types": "workspace:^0.1.0",
     "@2dots1line/tool-registry": "workspace:^0.1.0",
+    "@2dots1line/tools": "workspace:*",
     "@types/multer": "^1.4.12",
+    "axios": "^1.10.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
+    "ioredis": "^5.6.1",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.1",
     "zod": "^3.22.4"

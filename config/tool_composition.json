@@ -1,0 +1,15 @@
+{
+  "version": "1.0",
+  "description": "Configuration for tool composition and orchestration",
+  "compositions": {
+    "HolisticAnalysisTool": {
+      "description": "Composite tool for holistic conversation analysis",
+      "atomic_tools": [],
+      "configuration": {}
+    }
+  },
+  "tool_registry_config": {
+    "auto_discovery": true,
+    "validation_mode": "strict"
+  }
+} 

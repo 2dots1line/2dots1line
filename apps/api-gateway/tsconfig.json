@@ -14,8 +14,8 @@
   "exclude": ["node_modules", "dist", "**/*.test.ts"],
   "references": [
     { "path": "../../packages/database/tsconfig.json" },
-    { "path": "../../services/cognitive-hub/tsconfig.json" },
     { "path": "../../packages/shared-types/tsconfig.json" },
-    { "path": "../../packages/tool-registry/tsconfig.build.json" }
+    { "path": "../../packages/tool-registry/tsconfig.build.json" },
+    { "path": "../../services/dialogue-service/tsconfig.json" }
   ]
 } 

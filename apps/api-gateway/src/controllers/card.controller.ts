@@ -1,164 +1,113 @@
-/**
- * Card Controller - Sprint 3 Task 3 Implementation
- * API endpoints for card operations and Six-Dimensional Growth Model
- */
-
 import { Request, Response } from 'express';
-import { DatabaseService, CardRepository } from '@2dots1line/database';
-import { CardService, type Card as CognitiveCard, type GetCardsRequest as CognitiveGetCardsRequest, type GetCardsResponse } from '@2dots1line/cognitive-hub';
+import axios from 'axios';
 
-// Simplified interfaces for API Gateway
-interface ApiCard {
-  id: string;
-  type: 'memory_unit' | 'concept' | 'derived_artifact';
-  title: string;
-  preview: string;
-  evolutionState: 'seed' | 'sprout' | 'bloom' | 'constellation' | 'supernova';
-  importanceScore: number;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-interface GetCardsRequest {
-  userId: string;
-  filters?: {
-    cardType?: 'memory_unit' | 'concept' | 'derived_artifact';
-    evolutionState?: string;
-    growthDimension?: string;
-    minImportanceScore?: number;
-    limit?: number;
-    offset?: number;
-    sortBy?: 'created_at' | 'updated_at' | 'importance_score' | 'growth_activity';
-    sortOrder?: 'asc' | 'desc';
-  };
-}
+const CARD_SERVICE_URL = process.env.CARD_SERVICE_URL || 'http://card-service:3000';
 
 export class CardController {
-  private cardService: CardService;
-  private databaseService: DatabaseService;
-
-  constructor() {
-    this.databaseService = new DatabaseService();
-    this.cardService = new CardService(this.databaseService);
-  }
-
   /**
-   * GET /api/cards
-   * Get cards for authenticated user with optional filters
+   * GET /api/v1/cards
+   * Fetches a list of cards from the card-service.
    */
   public getCards = async (req: Request, res: Response): Promise<void> => {
     try {
       const userId = req.user?.id;
-      
       if (!userId) {
-        res.status(401).json({
-          success: false,
-          error: 'User ID not found in request'
-        });
+        res.status(401).json({ error: 'Unauthorized' });
         return;
       }
 
-      // Parse query parameters
-      const {
-        type: cardType,
-        evolutionState,
-        growthDimension,
-        minImportanceScore,
-        limit,
-        offset,
-        sortBy,
-        sortOrder
-      } = req.query;
-
-      // Build request object
-      const getCardsRequest: GetCardsRequest = {
-        userId,
-        filters: {
-          cardType: cardType as any,
-          evolutionState: evolutionState as string,
-          growthDimension: growthDimension as string,
-          minImportanceScore: minImportanceScore ? parseFloat(minImportanceScore as string) : undefined,
-          limit: limit ? parseInt(limit as string) : undefined,
-          offset: offset ? parseInt(offset as string) : undefined,
-          sortBy: sortBy as any,
-          sortOrder: sortOrder as any
-        }
-      };
-
-      console.log(`CardController.getCards: Request for user ${userId} with filters:`, getCardsRequest.filters);
-
-      // Use CardService to get cards
-      const response = await this.cardService.getCards(getCardsRequest);
-
-      res.status(200).json({
-        success: true,
-        data: response
+      // Forward the request, including query parameters, to the card-service
+      const serviceResponse = await axios.get(`${CARD_SERVICE_URL}/v1/cards`, {
+        params: { ...req.query, userId }, // Pass all filters and add userId
       });
 
-    } catch (error) {
-      console.error('Error in CardController.getCards:', error);
-      res.status(500).json({
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to get cards'
-      });
+      res.status(200).json(serviceResponse.data);
+    } catch (error: any) {
+      console.error('API Gateway Error forwarding to card-service:', error);
+      res.status(error.response?.status || 500).json(error.response?.data || { error: 'Failed to fetch cards' });
     }
   };
 
   /**
-   * GET /api/cards/:cardId
-   * Get detailed information for a specific card
+   * GET /api/v1/cards/by-source/:entityId
+   * Fetches a single card by its source entity from the card-service.
    */
-  public getCardDetails = async (req: Request, res: Response): Promise<void> => {
+  public getCardBySourceEntity = async (req: Request, res: Response): Promise<void> => {
     try {
       const userId = req.user?.id;
-      const { cardId } = req.params;
+      const { entityId } = req.params;
+      const { type } = req.query;
 
       if (!userId) {
-        res.status(401).json({
-          success: false,
-          error: 'User ID not found in request'
-        });
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+      if (!type) {
+        res.status(400).json({ error: 'Query parameter "type" is required.' });
         return;
       }
 
-      if (!cardId) {
-        res.status(400).json({
-          success: false,
-          error: 'Card ID is required'
-        });
-        return;
-      }
-
-      console.log(`CardController.getCardDetails: Request for card ${cardId} by user ${userId}`);
-
-      // Stub response for now
-      res.status(200).json({
-        success: true,
-        data: {
-          id: cardId,
-          type: 'concept',
-          title: 'Sample Card',
-          preview: 'This is a sample card',
-          evolutionState: 'seed',
-          importanceScore: 0.5,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        },
-        message: 'Card details endpoint ready (implementation pending)'
+      const serviceResponse = await axios.get(`${CARD_SERVICE_URL}/v1/cards/by-source/${entityId}`, {
+        params: { userId, type },
       });
 
-    } catch (error) {
-      console.error('Error in CardController.getCardDetails:', error);
-      res.status(500).json({
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to get card details'
-      });
+      res.status(200).json(serviceResponse.data);
+    } catch (error: any) {
+      console.error('API Gateway Error forwarding to card-service:', error);
+      res.status(error.response?.status || 500).json(error.response?.data || { error: 'Failed to fetch card details' });
     }
   };
 
   /**
-   * GET /api/cards/evolution/:state
-   * Get cards by specific evolution state
+   * GET /api/v1/cards/dashboard/evolution
+   * Fetches cards grouped by evolution state for dashboard.
+   */
+  public getCardsByEvolutionStateDashboard = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      const serviceResponse = await axios.get(`${CARD_SERVICE_URL}/v1/cards/evolution`, {
+        params: { userId },
+      });
+
+      res.status(200).json(serviceResponse.data);
+    } catch (error: any) {
+      console.error('API Gateway Error forwarding to card-service:', error);
+      res.status(error.response?.status || 500).json(error.response?.data || { error: 'Failed to fetch evolution dashboard' });
+    }
+  };
+
+  /**
+   * GET /api/v1/cards/top-growth
+   * Fetches top growth cards.
+   */
+  public getTopGrowthCards = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
+      const serviceResponse = await axios.get(`${CARD_SERVICE_URL}/v1/cards/top-growth`, {
+        params: { userId, limit },
+      });
+
+      res.status(200).json(serviceResponse.data);
+    } catch (error: any) {
+      console.error('API Gateway Error forwarding to card-service:', error);
+      res.status(error.response?.status || 500).json(error.response?.data || { error: 'Failed to fetch top growth cards' });
+    }
+  };
+
+  /**
+   * GET /api/v1/cards/evolution/:state
+   * Fetches cards by evolution state.
    */
   public getCardsByEvolutionState = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -166,108 +115,43 @@ export class CardController {
       const { state } = req.params;
 
       if (!userId) {
-        res.status(401).json({
-          success: false,
-          error: 'User ID not found in request'
-        });
+        res.status(401).json({ error: 'Unauthorized' });
         return;
       }
 
-      const validStates = ['seed', 'sprout', 'bloom', 'constellation', 'supernova'];
-      if (!validStates.includes(state)) {
-        res.status(400).json({
-          success: false,
-          error: `Invalid evolution state. Must be one of: ${validStates.join(', ')}`
-        });
-        return;
-      }
-
-      console.log(`CardController.getCardsByEvolutionState: Request for state ${state} by user ${userId}`);
-
-      res.status(200).json({
-        success: true,
-        data: [],
-        message: `Evolution state endpoint ready for ${state} (implementation pending)`
+      const serviceResponse = await axios.get(`${CARD_SERVICE_URL}/v1/cards/evolution/${state}`, {
+        params: { userId },
       });
 
-    } catch (error) {
-      console.error('Error in CardController.getCardsByEvolutionState:', error);
-      res.status(500).json({
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to get cards by evolution state'
-      });
+      res.status(200).json(serviceResponse.data);
+    } catch (error: any) {
+      console.error('API Gateway Error forwarding to card-service:', error);
+      res.status(error.response?.status || 500).json(error.response?.data || { error: 'Failed to fetch cards by evolution state' });
     }
   };
 
   /**
-   * GET /api/cards/dashboard/evolution
-   * Get all cards grouped by evolution state for dashboard
+   * GET /api/v1/cards/:cardId
+   * Fetches card details by ID.
    */
-  public getCardsByEvolutionStateDashboard = async (req: Request, res: Response): Promise<void> => {
+  public getCardDetails = async (req: Request, res: Response): Promise<void> => {
     try {
       const userId = req.user?.id;
+      const { cardId } = req.params;
 
       if (!userId) {
-        res.status(401).json({
-          success: false,
-          error: 'User ID not found in request'
-        });
+        res.status(401).json({ error: 'Unauthorized' });
         return;
       }
 
-      console.log(`CardController.getCardsByEvolutionStateDashboard: Dashboard request by user ${userId}`);
-
-      const cardsByState = await this.cardService.getCardsByEvolutionState(userId);
-
-      res.status(200).json({
-        success: true,
-        data: cardsByState,
-        message: 'Evolution state dashboard data retrieved successfully'
+      const serviceResponse = await axios.get(`${CARD_SERVICE_URL}/v1/cards/${cardId}`, {
+        params: { userId },
       });
 
-    } catch (error) {
-      console.error('Error in CardController.getCardsByEvolutionStateDashboard:', error);
-      res.status(500).json({
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to get dashboard data'
-      });
-    }
-  };
-
-  /**
-   * GET /api/cards/top-growth
-   * Get cards with highest growth activity
-   */
-  public getTopGrowthCards = async (req: Request, res: Response): Promise<void> => {
-    try {
-      const userId = req.user?.id;
-      const { limit } = req.query;
-
-      if (!userId) {
-        res.status(401).json({
-          success: false,
-          error: 'User ID not found in request'
-        });
-        return;
-      }
-
-      const limitNum = limit ? parseInt(limit as string) : 10;
-
-      console.log(`CardController.getTopGrowthCards: Request for top ${limitNum} growth cards by user ${userId}`);
-
-      // Stub response for now - CardService doesn't have getTopGrowthCards method yet
-      res.status(200).json({
-        success: true,
-        data: [],
-        message: `Top growth cards endpoint ready (implementation pending)`
-      });
-
-    } catch (error) {
-      console.error('Error in CardController.getTopGrowthCards:', error);
-      res.status(500).json({
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to get top growth cards'
-      });
+      res.status(200).json(serviceResponse.data);
+    } catch (error: any) {
+      console.error('API Gateway Error forwarding to card-service:', error);
+      res.status(error.response?.status || 500).json(error.response?.data || { error: 'Failed to fetch card details' });
     }
   };
 } 

@@ -1,0 +1,49 @@
+{
+  "version": "9.8",
+  "description": "Master schema defining all valid node types, properties, and relationships",
+  "node_labels": [
+    "User",
+    "MemoryUnit", 
+    "Concept",
+    "DerivedArtifact",
+    "Community",
+    "ProactivePrompt",
+    "Card"
+  ],
+  "concept_types": [
+    "person",
+    "organization", 
+    "location",
+    "project",
+    "goal",
+    "value",
+    "skill",
+    "interest",
+    "emotion_positive",
+    "emotion_negative",
+    "theme",
+    "event_theme",
+    "role",
+    "challenge_topic",
+    "strength",
+    "weakness",
+    "book"
+  ],
+  "relationship_label_guidelines": {
+    "format": "verb-based, present tense, lowercase",
+    "style": "human-readable, contextually specific",
+    "examples": [
+      "is motivated by",
+      "is a core part of", 
+      "expresses frustration with",
+      "is an obstacle to",
+      "collaborates with",
+      "learns from"
+    ]
+  },
+  "validation_rules": {
+    "enforce_node_types": true,
+    "validate_relationships": true,
+    "require_properties": ["userId", "createdAt"]
+  }
+} 

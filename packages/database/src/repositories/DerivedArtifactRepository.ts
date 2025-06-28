@@ -1,0 +1,99 @@
+/**
+ * DerivedArtifactRepository.ts
+ * V9.7 Repository for DerivedArtifact operations
+ */
+
+import { DerivedArtifact, Prisma } from '@prisma/client';
+import { DatabaseService } from '../DatabaseService';
+
+export interface CreateDerivedArtifactData {
+  user_id: string;
+  artifact_type: string;
+  title: string;
+  content_narrative?: string;
+  content_data?: Prisma.InputJsonValue;
+  source_memory_unit_id?: string;
+  source_concept_id?: string;
+}
+
+export interface UpdateDerivedArtifactData {
+  title?: string;
+  content_narrative?: string;
+  content_data?: Prisma.InputJsonValue;
+}
+
+export class DerivedArtifactRepository {
+  constructor(private db: DatabaseService) {}
+
+  async create(data: CreateDerivedArtifactData): Promise<DerivedArtifact> {
+    return this.db.prisma.derivedArtifact.create({
+      data,
+    });
+  }
+
+  async findById(artifactId: string): Promise<DerivedArtifact | null> {
+    return this.db.prisma.derivedArtifact.findUnique({
+      where: { artifact_id: artifactId },
+      include: {
+        source_memory_unit: true,
+        source_concept: true,
+      },
+    });
+  }
+
+  async findByUserId(userId: string, limit = 50, offset = 0): Promise<DerivedArtifact[]> {
+    return this.db.prisma.derivedArtifact.findMany({
+      where: { user_id: userId },
+      take: limit,
+      skip: offset,
+      orderBy: { created_at: 'desc' },
+    });
+  }
+
+  async findByType(userId: string, artifactType: string, limit = 50): Promise<DerivedArtifact[]> {
+    return this.db.prisma.derivedArtifact.findMany({
+      where: {
+        user_id: userId,
+        artifact_type: artifactType,
+      },
+      take: limit,
+      orderBy: { created_at: 'desc' },
+    });
+  }
+
+  async findBySourceMemoryUnit(memoryUnitId: string): Promise<DerivedArtifact[]> {
+    return this.db.prisma.derivedArtifact.findMany({
+      where: { source_memory_unit_id: memoryUnitId },
+      orderBy: { created_at: 'desc' },
+    });
+  }
+
+  async findBySourceConcept(conceptId: string): Promise<DerivedArtifact[]> {
+    return this.db.prisma.derivedArtifact.findMany({
+      where: { source_concept_id: conceptId },
+      orderBy: { created_at: 'desc' },
+    });
+  }
+
+  async update(artifactId: string, data: UpdateDerivedArtifactData): Promise<DerivedArtifact> {
+    return this.db.prisma.derivedArtifact.update({
+      where: { artifact_id: artifactId },
+      data,
+    });
+  }
+
+  async delete(artifactId: string): Promise<void> {
+    await this.db.prisma.derivedArtifact.delete({
+      where: { artifact_id: artifactId },
+    });
+  }
+
+  async count(userId?: string, artifactType?: string): Promise<number> {
+    return this.db.prisma.derivedArtifact.count({
+      where: {
+        ...(userId && { user_id: userId }),
+        ...(artifactType && { artifact_type: artifactType }),
+      },
+    });
+  }
+} 
