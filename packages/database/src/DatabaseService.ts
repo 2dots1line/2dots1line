@@ -40,12 +40,23 @@ export class DatabaseService {
     });
 
     // 4. Initialize Redis Client
+    const redisHost = process.env.NODE_ENV === 'production' 
+      ? (process.env.REDIS_HOST_DOCKER || 'localhost')
+      : 'localhost'; // Always use localhost in development
+    
+    const redisPort = process.env.NODE_ENV === 'production'
+      ? parseInt(process.env.REDIS_PORT_FOR_APP_IN_DOCKER || '6379')
+      : 6379; // Always use standard port in development
+    
     this.redis = new Redis({
-      host: process.env.REDIS_HOST_DOCKER || 'localhost',
-      port: parseInt(process.env.REDIS_PORT_FOR_APP_IN_DOCKER || '6379'),
-      // Add password if necessary: password: process.env.REDIS_PASSWORD
+      host: redisHost,
+      port: redisPort,
+      connectTimeout: 5000,
+      lazyConnect: true,
+      maxRetriesPerRequest: 3
     });
 
+    console.log(`DatabaseService Redis configured: ${redisHost}:${redisPort} (NODE_ENV: ${process.env.NODE_ENV || 'development'})`);
     console.log("DatabaseService initialized with all clients.");
   }
 

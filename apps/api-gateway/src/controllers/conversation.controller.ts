@@ -46,36 +46,13 @@ export class ConversationController {
   constructor() {
     console.log('🔧 ConversationController: Initializing...');
     
-    this.databaseService = new DatabaseService();
+    this.databaseService = DatabaseService.getInstance();
     this.toolRegistry = new ToolRegistry();
     this.configService = new ConfigService();
     
-    // Initialize Redis with robust error handling
-    const redisConfig = {
-      host: process.env.NODE_ENV === 'production' ? 
-        (process.env.REDIS_HOST || 'redis') : 
-        'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
-      retryDelayOnFailover: 100,
-      enableReadyCheck: false,
-      maxRetriesPerRequest: 1,
-      lazyConnect: true,
-      connectTimeout: 1000,
-      commandTimeout: 1000
-    };
-    
-    this.redis = new Redis(redisConfig);
-    
-    // Handle Redis connection errors gracefully and create mock implementation
-    this.redis.on('error', (error) => {
-      console.warn('⚠️ Redis connection failed, switching to mock implementation');
-      // Prevent further connection attempts
-      this.redis.disconnect();
-      this.createMockRedis();
-    });
-    
-    // Test connection immediately
-    this.testRedisConnection();
+    // Use the Redis client from DatabaseService instead of creating a separate one
+    this.redis = this.databaseService.redis;
+    console.log('🔧 ConversationController: Using Redis client from DatabaseService');
     
     // Register required tools with error handling
     this.registerTools();
@@ -101,48 +78,6 @@ export class ConversationController {
   }
 
   /**
-   * Test Redis connection and fallback to mock if needed
-   */
-  private async testRedisConnection(): Promise<void> {
-    try {
-      await this.redis.ping();
-      console.log('✅ Redis connection successful');
-    } catch (error) {
-      console.warn('⚠️ Redis connection test failed, using mock implementation');
-      this.createMockRedis();
-    }
-  }
-
-  /**
-   * Create a mock Redis implementation when real Redis is unavailable
-   */
-  private createMockRedis(): void {
-    const mockStore = new Map<string, string>();
-    
-    // Override Redis methods with mock implementations
-    this.redis.set = async (key: string, value: string, ...args: any[]) => {
-      mockStore.set(key, value);
-      return 'OK';
-    };
-    
-    this.redis.get = async (key: string) => {
-      return mockStore.get(key) || null;
-    };
-    
-    this.redis.del = async (...keys: string[]) => {
-      let count = 0;
-      for (const key of keys) {
-        if (mockStore.delete(key)) count++;
-      }
-      return count;
-    };
-    
-    this.redis.ping = async () => 'PONG';
-    
-    console.log('✅ Redis mock implementation created');
-  }
-
-  /**
    * Register all tools needed by the DialogueAgent
    */
   private registerTools(): void {
@@ -154,77 +89,19 @@ export class ConversationController {
       console.log(hasGoogleApiKey ? '✅ GOOGLE_API_KEY found' : '❌ GOOGLE_API_KEY missing');
       
       if (hasGoogleApiKey) {
-        console.log('📦 Using real tools from @2dots1line/tools package');
-        
-        // Register real tools that are actually available
-        this.toolRegistry.registerSimpleTool(LLMChatTool, {
-          availableRegions: ['us', 'cn'],
-          categories: ['llm', 'chat'],
-          capabilities: ['text-generation', 'conversation'],
-          performance: { avgLatencyMs: 1000, isAsync: true, isIdempotent: false }
-        });
-        console.log('✅ LLMChatTool registered');
-        
-        this.toolRegistry.registerSimpleTool(VisionCaptionTool, {
-          availableRegions: ['us', 'cn'],
-          categories: ['vision', 'ai'],
-          capabilities: ['image-analysis', 'captioning'],
-          performance: { avgLatencyMs: 2000, isAsync: true, isIdempotent: true }
-        });
-        console.log('✅ VisionCaptionTool registered');
-        
-        this.toolRegistry.registerSimpleTool(DocumentExtractTool, {
-          availableRegions: ['us', 'cn'],
-          categories: ['data', 'extraction'],
-          capabilities: ['document-processing', 'text-extraction'],
-          performance: { avgLatencyMs: 1500, isAsync: true, isIdempotent: true }
-        });
-        console.log('✅ DocumentExtractTool registered');
-        
-        console.log('✅ ConversationController: Real tools registered successfully');
+        console.log('📦 Tools are available from @2dots1line/tools package');
+        console.log('✅ ConversationController: Tools will be used directly by DialogueAgent');
       } else {
-        console.log('⚠️ Using mock tool due to missing GOOGLE_API_KEY');
-        // Fallback to mock tool if no API key
-        const mockLLMChatTool: Tool<any, any> = {
-          name: 'llm.chat',
-          description: 'Mock LLM chat tool (GOOGLE_API_KEY missing)',
-          version: '1.0.0',
-          execute: async (input: TToolInput<any>): Promise<TToolOutput<any>> => {
-            return {
-              status: 'success',
-              result: {
-                text: "Hello! I'm Dot, your AI companion. I'm here to support your personal growth and development. Please set GOOGLE_API_KEY to enable full AI functionality.",
-                usage: {
-                  input_tokens: 50,
-                  output_tokens: 30,
-                  total_tokens: 80
-                },
-                model_used: 'mock-model',
-                finish_reason: 'stop'
-              },
-              metadata: {
-                processing_time_ms: 100,
-                model_used: 'mock-model'
-              }
-            };
-          }
-        };
-
-        this.toolRegistry.registerSimpleTool(mockLLMChatTool, {
-          availableRegions: ['us', 'cn'],
-          categories: ['llm', 'chat'],
-          capabilities: ['text-generation', 'conversation'],
-          performance: { avgLatencyMs: 100, isAsync: true, isIdempotent: false }
-        });
-        
-        console.log('✅ ConversationController: Mock LLM tool registered successfully');
+        console.log('⚠️ GOOGLE_API_KEY missing - DialogueAgent will handle gracefully');
       }
       
+      console.log('✅ ConversationController: Tool setup completed');
+      
     } catch (error) {
-      console.error('❌ ConversationController: Failed to register tools:', error);
+      console.error('❌ ConversationController: Error in tool setup:', error);
       console.error('❌ Error details:', error);
-      // Don't throw - allow the controller to continue with limited functionality
-      console.log('⚠️ Continuing with limited tool functionality...');
+      // Don't throw - allow the controller to continue
+      console.log('⚠️ Continuing with DialogueAgent handling tools directly...');
     }
   }
 
@@ -263,6 +140,79 @@ export class ConversationController {
         return;
       }
 
+      const finalConversationId = conversation_id || `conv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      // ENSURE CONVERSATION EXISTS: Create conversation record if it doesn't exist
+      console.log('🔍 ConversationController - Ensuring conversation exists...');
+      const conversationRepository = new ConversationRepository(this.databaseService);
+      
+      let existingConversation = null;
+      let actualConversationId = finalConversationId;
+      
+      // If we have a conversation_id, check if it exists
+      if (conversation_id) {
+        try {
+          existingConversation = await conversationRepository.findById(conversation_id);
+          if (existingConversation) {
+            actualConversationId = conversation_id;
+            console.log('✅ ConversationController - Using existing conversation:', actualConversationId);
+          }
+        } catch (error) {
+          console.log('⚠️ ConversationController - Error checking existing conversation:', error);
+        }
+      }
+      
+      // If no existing conversation found, create a new one (let Prisma generate UUID)
+      if (!existingConversation) {
+        console.log('📝 ConversationController - Creating new conversation record...');
+        try {
+          const newConversation = await conversationRepository.create({
+            user_id: userId,
+            title: `Conversation ${new Date().toLocaleString()}`,
+            source_card_id,
+            metadata: {
+              session_id: context?.session_id,
+              created_from_api: true,
+              client_timestamp: new Date().toISOString()
+            }
+          });
+          actualConversationId = newConversation.id; // Use the UUID generated by Prisma
+          console.log('✅ ConversationController - Conversation record created with ID:', actualConversationId);
+        } catch (error) {
+          console.error('❌ ConversationController - Failed to create conversation:', error);
+          res.status(500).json({
+            success: false,
+            error: 'Failed to create conversation record',
+            details: error instanceof Error ? error.message : 'Unknown error'
+          });
+          return;
+        }
+      }
+      
+      // RECORD USER MESSAGE: Now that conversation exists, record the user's message
+      console.log('📝 ConversationController - Recording user message to database...');
+      try {
+        await conversationRepository.addMessage({
+          conversation_id: actualConversationId, // Use the actual conversation ID from database
+          role: 'user',
+          content: message.trim(),
+          llm_call_metadata: {
+            source_card_id,
+            session_id: context?.session_id,
+            client_timestamp: new Date().toISOString()
+          }
+        });
+        console.log('✅ ConversationController - User message recorded successfully');
+      } catch (error) {
+        console.error('❌ ConversationController - Failed to record user message:', error);
+        res.status(500).json({
+          success: false,
+          error: 'Failed to record user message',
+          details: error instanceof Error ? error.message : 'Unknown error'
+        });
+        return;
+      }
+
       // Prepare DialogueAgent input
       const dialogueInput: TDialogueAgentInput = {
         user_id: userId,
@@ -272,7 +222,7 @@ export class ConversationController {
           message_text: message.trim(),
           message_id: `msg-${Date.now()}-${userId}`,
           client_timestamp: new Date().toISOString(),
-          conversation_id: conversation_id || `conv-${Date.now()}-${userId}`,
+          conversation_id: actualConversationId, // Use the actual conversation ID
           user_preferences: context?.user_preferences
         },
         metadata: {
@@ -309,7 +259,7 @@ export class ConversationController {
       // Return successful response in the format expected by the frontend
       res.json({
         success: true,
-        conversation_id: result.result?.conversation_id || conversation_id,
+        conversation_id: result.result?.conversation_id || actualConversationId,
         response_text: result.result?.response_text,
         message_id: `response-${Date.now()}`,
         timestamp: new Date().toISOString(),

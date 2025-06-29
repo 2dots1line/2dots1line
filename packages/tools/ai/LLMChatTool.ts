@@ -21,6 +21,7 @@ export interface LLMChatInputPayload {
   memoryContextBlock?: string;
   temperature?: number;
   maxTokens?: number;
+  topP?: number;
 }
 
 export interface LLMChatResult {
@@ -133,13 +134,37 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
         },
       });
       
+      // Build the conversation prompt
       const systemPrompt = input.payload.systemPrompt;
       let currentMessage = `${systemPrompt}\n\nRELEVANT CONTEXT FROM USER'S PAST:\n${input.payload.memoryContextBlock || 'No memories provided.'}\n\nCURRENT MESSAGE: ${input.payload.userMessage}`;
+      
+      console.log('\n🤖 LLMChatTool - FINAL ASSEMBLED PROMPT SENT TO LLM:');
+      console.log('🔸'.repeat(80));
+      console.log(currentMessage);
+      console.log('🔸'.repeat(80));
+      console.log(`📏 LLMChatTool - Final prompt length: ${currentMessage.length} characters\n`);
 
-      // Send the current message
+      console.log('🚀 LLMChatTool - Sending request to Google Gemini...');
       const result = await chat.sendMessage(currentMessage);
       const response = await result.response;
       const text = response.text();
+      
+      console.log('\n🎯 LLMChatTool - RAW LLM RESPONSE RECEIVED:');
+      console.log('🔹'.repeat(80));
+      console.log('Response text length:', text.length);
+      console.log('Raw response:');
+      console.log(text);
+      console.log('🔹'.repeat(80));
+      
+      // Log usage information if available
+      if (response.usageMetadata) {
+        console.log('📊 LLMChatTool - Usage stats:', {
+          promptTokens: response.usageMetadata.promptTokenCount,
+          candidateTokens: response.usageMetadata.candidatesTokenCount,
+          totalTokens: response.usageMetadata.totalTokenCount
+        });
+      }
+      console.log('');
 
       const endTime = performance.now();
       const processingTime = endTime - startTime;
@@ -147,34 +172,33 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
       return {
         status: 'success',
         result: {
-          text,
+          text: text,
           usage: {
-            input_tokens: this.estimateTokens(currentMessage),
-            output_tokens: this.estimateTokens(text),
-            total_tokens: this.estimateTokens(currentMessage + text)
+            input_tokens: response.usageMetadata?.promptTokenCount || 0,
+            output_tokens: response.usageMetadata?.candidatesTokenCount || 0,
+            total_tokens: response.usageMetadata?.totalTokenCount || 0
           },
           model_used: 'gemini-1.5-flash',
           finish_reason: response.candidates?.[0]?.finishReason || 'stop'
         },
         metadata: {
           processing_time_ms: Math.round(processingTime),
-          model_used: 'gemini-1.5-flash'
+          model_used: 'gemini-1.5-flash',
+          session_id: input.payload.sessionId
         }
       };
-
     } catch (error) {
-      console.error('LLMChatTool execution error:', error);
-      
+      console.error('❌ LLMChatTool - Error calling Gemini API:', error);
       return {
         status: 'error',
         error: {
-          code: 'LLM_EXECUTION_ERROR',
+          code: 'LLM_API_ERROR',
           message: error instanceof Error ? error.message : 'Unknown LLM error',
-          details: { tool: this.manifest.name }
+          details: { provider: 'google-gemini' }
         },
         metadata: {
           processing_time_ms: 0,
-          model_used: 'gemini-1.5-flash'
+          session_id: input.payload.sessionId
         }
       };
     }

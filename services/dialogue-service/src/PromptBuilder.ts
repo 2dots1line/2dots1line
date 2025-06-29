@@ -30,6 +30,14 @@ export class PromptBuilder {
    */
   public async buildPrompt(input: PromptBuildInput): Promise<string> {
     const { userId, conversationId, finalInputText, augmentedMemoryContext } = input;
+    
+    console.log('\n🔧 PromptBuilder.buildPrompt - Starting prompt assembly...');
+    console.log('📋 PromptBuilder - Input:', { 
+      userId, 
+      conversationId, 
+      finalInputText: finalInputText.substring(0, 100) + '...',
+      hasAugmentedContext: !!augmentedMemoryContext 
+    });
 
     // --- STEP 1: FETCH DYNAMIC DATA & STATIC TEMPLATES IN PARALLEL ---
     // The ConfigService is assumed to be initialized at application startup, not per-call.
@@ -59,6 +67,14 @@ export class PromptBuilder {
     const turnContext = turnContextStr ? JSON.parse(turnContextStr) : null;
     const isFirstTurn = conversationHistory.length === 0;
 
+    console.log('📊 PromptBuilder - Data fetched:', {
+      userFound: !!user,
+      historyLength: conversationHistory.length,
+      summariesCount: Array.isArray(recentSummaries) ? recentSummaries.length : 0,
+      hasTurnContext: !!turnContext,
+      isFirstTurn
+    });
+
     // --- STEP 3: ASSEMBLE PROMPT COMPONENTS ---
     const components: (string | null)[] = [
       preambleTpl,
@@ -75,7 +91,15 @@ export class PromptBuilder {
       instructionsTpl
     ];
 
-    return components.filter(c => c !== null).join('\n\n');
+    const assembledPrompt = components.filter(c => c !== null).join('\n\n');
+    
+    console.log('\n📝 PromptBuilder - ASSEMBLED SYSTEM PROMPT:');
+    console.log('='.repeat(80));
+    console.log(assembledPrompt);
+    console.log('='.repeat(80));
+    console.log(`📏 PromptBuilder - Prompt length: ${assembledPrompt.length} characters\n`);
+    
+    return assembledPrompt;
   }
 
   /**
