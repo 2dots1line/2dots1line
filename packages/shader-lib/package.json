@@ -5,7 +5,9 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "rm -rf dist src/generated && pnpm exec node ./scripts/bundle-shaders.js && tsc -b tsconfig.json --verbose --force",
+    "clean": "rimraf dist src/generated",
+    "generate": "node ./scripts/generate-shaders.js",
+    "build": "pnpm generate && tsc -p tsconfig.build.json",
     "lint": "eslint src --ext .ts",
     "test": "echo \"No tests for shader-lib yet\" && exit 0"
   },
@@ -17,4 +19,4 @@
     "eslint": "^8.56.0",
     "typescript": "^5.3.3"
   }
-} 
+}

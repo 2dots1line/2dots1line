@@ -4,7 +4,7 @@
   "description": "Centralized configuration loader and validator service",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
     "test": "jest"

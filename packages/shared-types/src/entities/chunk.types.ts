@@ -1,10 +1,13 @@
 /**
  * Types related to Chunks.
+ * @deprecated V9.7 eliminated the chunking system in favor of conversation-level processing.
+ * Use ConversationMessage processing by IngestionAnalyst instead.
  */
 
 /**
  * Represents a granular, semantically coherent piece of text from a MemoryUnit.
  * Aligns with the `chunks` table in schema.prisma.
+ * @deprecated V9.7 removed chunks table. Use conversation-level processing instead.
  */
 export interface TChunk {
   /** Unique identifier for the chunk (UUID) */
@@ -35,6 +38,7 @@ export interface TChunk {
 
 /**
  * Role types for chunks
+ * @deprecated V9.7 eliminated chunking system. Use ConversationMessage.role instead.
  */
 export enum ChunkRole {
   USER_UTTERANCE = 'user_utterance',

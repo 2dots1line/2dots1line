@@ -7,7 +7,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { Driver, driver } from 'neo4j-driver';
+import { Driver, driver, auth } from 'neo4j-driver';
 import weaviate, { WeaviateClient } from 'weaviate-ts-client';
 
 // Schema file paths
@@ -25,10 +25,10 @@ async function applyNeo4jSchema(): Promise<void> {
   const neo4jUser = process.env.NEO4J_USER || 'neo4j';
   const neo4jPassword = process.env.NEO4J_PASSWORD || 'password123';
 
-  const neo4jDriver: Driver = driver(neo4jUri, {
-    username: neo4jUser,
-    password: neo4jPassword,
-  });
+  const neo4jDriver: Driver = driver(
+    neo4jUri,
+    auth.basic(neo4jUser, neo4jPassword)
+  );
 
   try {
     const session = neo4jDriver.session();

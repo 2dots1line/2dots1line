@@ -199,7 +199,7 @@ export class CardService {
       type: cardData.type,
       title: cardData.title,
       preview: cardData.preview || cardData.title,
-      evolutionState: cardData.evolutionState,
+      evolutionState: cardData.evolutionState as 'seed' | 'sprout' | 'bloom' | 'constellation' | 'supernova',
       growthDimensions,
       importanceScore: cardData.importanceScore || 0.5,
       createdAt: cardData.createdAt,

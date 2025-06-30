@@ -5,6 +5,7 @@
 
 import { Card, Prisma } from '@prisma/client';
 import { DatabaseService } from '../DatabaseService';
+import { GrowthDimensionData } from './GrowthEventRepository';
 
 export interface CreateCardData {
   user_id: string;
@@ -19,6 +20,33 @@ export interface UpdateCardData {
   is_favorited?: boolean;
   display_data?: Prisma.InputJsonValue;
   is_synced?: boolean;
+}
+
+export interface CardData {
+  id: string;
+  type: 'memory_unit' | 'concept' | 'derived_artifact';
+  title: string;
+  preview: string;
+  evolutionState: string;
+  importanceScore: number;
+  createdAt: Date;
+  updatedAt: Date;
+  growthDimensions?: GrowthDimensionData[]; // From materialized view
+}
+
+export interface CardFilters {
+  cardType?: 'memory_unit' | 'concept' | 'derived_artifact';
+  evolutionState?: string;
+  limit?: number;
+  offset?: number;
+  sortBy?: 'created_at' | 'updated_at' | 'importance_score' | 'growth_activity';
+  sortOrder?: 'asc' | 'desc';
+}
+
+export interface CardResultWithMeta {
+  cards: CardData[];
+  total: number;
+  hasMore: boolean;
 }
 
 export class CardRepository {
@@ -155,5 +183,133 @@ export class CardRepository {
       },
       orderBy: { created_at: 'asc' },
     });
+  }
+
+  /**
+   * Get cards with advanced filtering and growth data
+   */
+  async getCards(userId: string, filters: CardFilters): Promise<CardResultWithMeta> {
+    // For now, use simplified logic. The proper implementation should join with growth data.
+    const cards = await this.db.prisma.card.findMany({
+      where: {
+        user_id: userId,
+        ...(filters.cardType && { card_type: filters.cardType }),
+        // Note: evolutionState filtering would need proper implementation with business logic
+      },
+      take: filters.limit || 20,
+      skip: filters.offset || 0,
+      orderBy: this.buildOrderBy(filters.sortBy, filters.sortOrder),
+    });
+
+    const total = await this.db.prisma.card.count({
+      where: {
+        user_id: userId,
+        ...(filters.cardType && { card_type: filters.cardType }),
+      },
+    });
+
+    // Transform to CardData format
+    const cardData: CardData[] = cards.map(card => ({
+      id: card.card_id,
+      type: card.card_type as 'memory_unit' | 'concept' | 'derived_artifact',
+      title: `Card ${card.card_id}`, // Simplified - should derive from source entity
+      preview: `Preview for ${card.card_id}`,
+      evolutionState: 'seed', // Simplified - should calculate based on business logic
+      importanceScore: 0.5, // Simplified - should calculate from data
+      createdAt: card.created_at,
+      updatedAt: card.updated_at,
+    }));
+
+    return {
+      cards: cardData,
+      total,
+      hasMore: (filters.offset || 0) + cardData.length < total,
+    };
+  }
+
+  /**
+   * Get detailed card information
+   */
+  async getCardDetails(cardId: string, userId: string): Promise<CardData | null> {
+    const card = await this.db.prisma.card.findFirst({
+      where: {
+        card_id: cardId,
+        user_id: userId,
+      },
+    });
+
+    if (!card) return null;
+
+    return {
+      id: card.card_id,
+      type: card.card_type as 'memory_unit' | 'concept' | 'derived_artifact',
+      title: `Card ${card.card_id}`,
+      preview: `Preview for ${card.card_id}`,
+      evolutionState: 'seed',
+      importanceScore: 0.5,
+      createdAt: card.created_at,
+      updatedAt: card.updated_at,
+    };
+  }
+
+  /**
+   * Get cards by evolution state
+   */
+  async getCardsByEvolutionState(userId: string, state: string): Promise<CardData[]> {
+    // Simplified implementation - proper logic would filter by calculated evolution state
+    const cards = await this.db.prisma.card.findMany({
+      where: { user_id: userId },
+      take: 10,
+      orderBy: { created_at: 'desc' },
+    });
+
+    return cards.map(card => ({
+      id: card.card_id,
+      type: card.card_type as 'memory_unit' | 'concept' | 'derived_artifact',
+      title: `Card ${card.card_id}`,
+      preview: `Preview for ${card.card_id}`,
+      evolutionState: state,
+      importanceScore: 0.5,
+      createdAt: card.created_at,
+      updatedAt: card.updated_at,
+    }));
+  }
+
+  /**
+   * Get top growth cards
+   */
+  async getTopGrowthCards(userId: string, limit: number): Promise<CardData[]> {
+    // Simplified implementation - proper logic would order by growth activity
+    const cards = await this.db.prisma.card.findMany({
+      where: { user_id: userId },
+      take: limit,
+      orderBy: { updated_at: 'desc' },
+    });
+
+    return cards.map(card => ({
+      id: card.card_id,
+      type: card.card_type as 'memory_unit' | 'concept' | 'derived_artifact',
+      title: `Card ${card.card_id}`,
+      preview: `Preview for ${card.card_id}`,
+      evolutionState: 'sprout',
+      importanceScore: 0.7,
+      createdAt: card.created_at,
+      updatedAt: card.updated_at,
+    }));
+  }
+
+  private buildOrderBy(sortBy?: string, sortOrder: 'asc' | 'desc' = 'desc') {
+    switch (sortBy) {
+      case 'created_at':
+        return { created_at: sortOrder };
+      case 'updated_at':
+        return { updated_at: sortOrder };
+      case 'importance_score':
+      case 'growth_activity':
+        // For now, fallback to updated_at
+        return { updated_at: sortOrder };
+      default:
+        return { created_at: sortOrder };
+    }
   }
 } 

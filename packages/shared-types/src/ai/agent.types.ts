@@ -1,4 +1,9 @@
 /**
+ * V9.7 Agent Types - Aligned with Current Architecture
+ * Updated to remove obsolete chunk references and align with V9.7 implementation
+ */
+
+/**
  * Base interface for all cognitive agent inputs
  */
 export interface IAgentInput {
@@ -46,7 +51,7 @@ export interface IAgentOutput {
 }
 
 /**
- * Dialogue Agent (Dot) input contract
+ * Dialogue Agent (Dot) input contract - V9.7 Aligned
  */
 export interface IDialogueAgentInput extends IAgentInput {
   /** Text of the user's message */
@@ -65,7 +70,7 @@ export interface IDialogueAgentInput extends IAgentInput {
 }
 
 /**
- * Dialogue Agent (Dot) output contract
+ * Dialogue Agent (Dot) output contract - V9.7 Aligned
  */
 export interface IDialogueAgentOutput extends IAgentOutput {
   /** Text of the assistant's response */
@@ -98,6 +103,7 @@ export interface IDialogueAgentOutput extends IAgentOutput {
 }
 
 /**
+ * @deprecated V9.7 removed IngestionAnalyst. Use background workers instead.
  * Ingestion Analyst input contract
  */
 export interface IIngestionAnalystInput extends IAgentInput {
@@ -126,6 +132,7 @@ export interface IIngestionAnalystInput extends IAgentInput {
 }
 
 /**
+ * @deprecated V9.7 removed IngestionAnalyst and chunk system. Use background workers instead.
  * Ingestion Analyst output contract
  */
 export interface IIngestionAnalystOutput extends IAgentOutput {
@@ -142,7 +149,7 @@ export interface IIngestionAnalystOutput extends IAgentOutput {
     /** Importance score (0.0-1.0) */
     importanceScore: number;
   }[];
-  /** Chunks created */
+  /** @deprecated V9.7 removed chunk system */
   chunks: {
     /** Chunk ID */
     cid: string;
@@ -186,10 +193,6 @@ export interface IIngestionAnalystOutput extends IAgentOutput {
   /** Embedding jobs created */
   embeddingJobs: any[];
 }
-
-/**
- * Core types for Cognitive Agents
- */
 
 /**
  * Generic structure for agent input, wrapping a specific payload.
@@ -253,7 +256,8 @@ export interface TAgentOutput<TResult = any> {
 }
 
 /**
- * Represents a single content item for ingestion.
+ * @deprecated V9.7 removed IngestionAnalyst. Use background workers instead.
+ * Structure for ingestion content items
  */
 export interface TIngestionContentItem {
   /** Unique ID for this item within a batch (client-generated) */
@@ -280,7 +284,8 @@ export interface TIngestionContentItem {
 }
 
 /**
- * Payload for Ingestion Analyst input.
+ * @deprecated V9.7 removed IngestionAnalyst. Use background workers instead.
+ * Ingestion Analyst input payload
  */
 export interface TIngestionAnalystInputPayload {
   /** Unique identifier for the batch being processed (client-generated or from queue message) */
@@ -297,7 +302,8 @@ export interface TIngestionAnalystInputPayload {
 }
 
 /**
- * Result structure for Ingestion Analyst output.
+ * @deprecated V9.7 removed IngestionAnalyst and chunk system. Use background workers instead.
+ * Ingestion Analyst result
  */
 export interface TIngestionAnalystResult {
   /** Details of created/updated Memory Units */
@@ -308,7 +314,7 @@ export interface TIngestionAnalystResult {
     status: string; 
     importance_score?: number | null; 
   }[];
-  /** Details of created Chunks */
+  /** @deprecated V9.7 removed chunk system */
   chunks?: { 
     cid: string; 
     muid: string; 
@@ -344,7 +350,7 @@ export interface TIngestionAnalystResult {
   queued_jobs?: { 
     job_id: string; 
     queue_name: string;
-    content_type: 'chunk' | 'concept' | 'media_text' | 'media_visual'; 
+    content_type: 'memory_unit' | 'concept' | 'media_text' | 'media_visual'; 
     content_id: string; 
   }[];
   /** Errors encountered for specific items within the batch */
@@ -355,11 +361,15 @@ export interface TIngestionAnalystResult {
   }[];
 }
 
+/** @deprecated V9.7 removed IngestionAnalyst */
 export type TIngestionAnalystInput = TAgentInput<TIngestionAnalystInputPayload>;
+/** @deprecated V9.7 removed IngestionAnalyst */
 export type TIngestionAnalystOutput = TAgentOutput<TIngestionAnalystResult>;
 
+// --- DialogueAgent Types (V9.7 Current) ---
+
 /**
- * Payload for Dialogue Agent (Dot) input.
+ * V9.7 DialogueAgent input payload - Current Implementation
  */
 export interface TDialogueAgentInputPayload {
   /** Text of the user's message */
@@ -380,11 +390,11 @@ export interface TDialogueAgentInputPayload {
   /** Timestamp of the user message (ISO 8601 string) */
   client_timestamp: string;
   /** Optional: User preferences that might affect dialogue strategy */
-  user_preferences?: Record<string, any>; // Consider using TUserPreferences from entities
+  user_preferences?: Record<string, any>;
 }
 
 /**
- * Result structure for Dialogue Agent (Dot) output.
+ * V9.7 DialogueAgent result - Current Implementation
  */
 export interface TDialogueAgentResult {
   /** Text of the assistant's response */

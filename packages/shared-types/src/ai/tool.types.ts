@@ -1,5 +1,6 @@
 /**
  * Core types for Deterministic Tools
+ * V9.7 Aligned - Removed obsolete NER and legacy media processing tools
  */
 
 /**
@@ -78,7 +79,7 @@ export interface IToolCapability {
   /** Categories the tool belongs to */
   categories: string[];
   /** Capabilities provided by the tool */
-  capabilities: string[]; // e.g., ['text_embedding', 'ner']
+  capabilities: string[]; // e.g., ['text_embedding', 'vector_search']
   /** JSON schema for validating the TToolInput<Payload> for this specific tool */
   inputSchema: object; // JSON Schema object
   /** JSON schema for validating the TToolOutput<Result> for this specific tool */
@@ -96,7 +97,6 @@ export interface IToolCapability {
   };
   limitations?: string[];
 }
-
 
 // --- Text Embedding Tool Types ---
 
@@ -171,49 +171,7 @@ export interface TVectorSearchResult {
 export type TVectorSearchToolInput = TToolInput<TVectorSearchInputPayload>;
 export type TVectorSearchToolOutput = TToolOutput<TVectorSearchResult>;
 
-// --- NER (Named Entity Recognition) Tool Types ---
-
-/**
- * Payload for NER (Named Entity Recognition) tool input.
- */
-export interface TNERInputPayload {
-  text_to_analyze: string;
-  /** Optional: Model tier or specific model_id for NER */
-  model_id_or_tier?: string | (1 | 2 | 3);
-  /** Optional: language of the text if not auto-detectable */
-  language?: string; // ISO 639-1 code e.g. 'en', 'zh'
-}
-
-/**
- * Represents a single extracted entity.
- */
-export interface TExtractedEntity {
-  text: string;
-  type: string; // e.g., 'PERSON', 'ORG', 'LOC', 'DATE'
-  start_offset: number;
-  end_offset: number;
-  confidence?: number | null;
-  metadata?: Record<string, any>; // For additional details like linked KB ID
-}
-
-/**
- * Result from NER (Named Entity Recognition) tool.
- */
-export interface TNERResult {
-  entities: TExtractedEntity[];
-}
-
-export type TNERToolInput = TToolInput<TNERInputPayload>;
-export type TNERToolOutput = TToolOutput<TNERResult>;
-
-// TODO: Add types for other tools as specified in V4TechSpec and ToolRegistry needs
-// e.g., Vision Tools (caption, extract_entities), Graph Tools (community_detect, pattern_match),
-// Statistical Tools, Utility Tools, LLM Tools (summarize, critique)
-
-// Other specific tool inputs/outputs can be added here based on V4TechSpec.md section 4
-// For example: TVisionCaptionToolInput, TGraphQueryToolInput etc.
-
-// --- LLM Chat Tool Types ---
+// --- LLM Chat Tool Types (V9.7 Current) ---
 
 /**
  * Payload for LLM Chat tool input.
@@ -264,10 +222,51 @@ export interface LLMChatResult {
 export type LLMChatToolInput = TToolInput<LLMChatInputPayload>;
 export type LLMChatToolOutput = TToolOutput<LLMChatResult>;
 
-// --- Vision Caption Tool Types ---
+// =============================================================================
+// DEPRECATED SECTION - V9.7 Removed These Tools
+// =============================================================================
 
 /**
- * Payload for Vision Caption tool input.
+ * @deprecated V9.7 removed NER functionality. Use LLM-based entity extraction instead.
+ * Payload for NER (Named Entity Recognition) tool input.
+ */
+export interface TNERInputPayload {
+  text_to_analyze: string;
+  /** Optional: Model tier or specific model_id for NER */
+  model_id_or_tier?: string | (1 | 2 | 3);
+  /** Optional: language of the text if not auto-detectable */
+  language?: string; // ISO 639-1 code e.g. 'en', 'zh'
+}
+
+/**
+ * @deprecated V9.7 removed NER functionality. Use LLM-based entity extraction instead.
+ * Represents a single extracted entity.
+ */
+export interface TExtractedEntity {
+  text: string;
+  type: string; // e.g., 'PERSON', 'ORG', 'LOC', 'DATE'
+  start_offset: number;
+  end_offset: number;
+  confidence?: number | null;
+  metadata?: Record<string, any>; // For additional details like linked KB ID
+}
+
+/**
+ * @deprecated V9.7 removed NER functionality. Use LLM-based entity extraction instead.
+ * Result from NER (Named Entity Recognition) tool.
+ */
+export interface TNERResult {
+  entities: TExtractedEntity[];
+}
+
+/** @deprecated V9.7 removed NER functionality */
+export type TNERToolInput = TToolInput<TNERInputPayload>;
+/** @deprecated V9.7 removed NER functionality */
+export type TNERToolOutput = TToolOutput<TNERResult>;
+
+/**
+ * @deprecated V9.7 removed vision processing tools. Media processing now handled by specialized services.
+ * Payload for vision caption tool input.
  */
 export interface VisionCaptionInputPayload {
   /** URL of the image to analyze */
@@ -281,7 +280,8 @@ export interface VisionCaptionInputPayload {
 }
 
 /**
- * Result from Vision Caption tool.
+ * @deprecated V9.7 removed vision processing tools. Media processing now handled by specialized services.
+ * Result from vision caption tool.
  */
 export interface VisionCaptionResult {
   /** Generated caption for the image */
@@ -303,13 +303,14 @@ export interface VisionCaptionResult {
   metadata?: Record<string, any>;
 }
 
+/** @deprecated V9.7 removed vision processing tools */
 export type VisionCaptionToolInput = TToolInput<VisionCaptionInputPayload>;
+/** @deprecated V9.7 removed vision processing tools */
 export type VisionCaptionToolOutput = TToolOutput<VisionCaptionResult>;
 
-// --- Document Extract Tool Types ---
-
 /**
- * Payload for Document Extract tool input.
+ * @deprecated V9.7 removed document processing tools. Media processing now handled by specialized services.
+ * Payload for document extract tool input.
  */
 export interface DocumentExtractInputPayload {
   /** URL of the document to extract text from */
@@ -325,7 +326,8 @@ export interface DocumentExtractInputPayload {
 }
 
 /**
- * Result from Document Extract tool.
+ * @deprecated V9.7 removed document processing tools. Media processing now handled by specialized services.
+ * Result from document extract tool.
  */
 export interface DocumentExtractResult {
   /** Extracted text content */
@@ -346,5 +348,7 @@ export interface DocumentExtractResult {
   }>;
 }
 
+/** @deprecated V9.7 removed document processing tools */
 export type DocumentExtractToolInput = TToolInput<DocumentExtractInputPayload>;
+/** @deprecated V9.7 removed document processing tools */
 export type DocumentExtractToolOutput = TToolOutput<DocumentExtractResult>; 

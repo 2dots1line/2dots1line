@@ -15,6 +15,7 @@ export interface CreateMediaData {
   mime_type?: string;
   size_bytes?: number;
   hash?: string;
+  processing_status?: string;
   metadata?: Prisma.InputJsonValue;
 }
 

@@ -1,74 +1,43 @@
 {
-  "name": "@2dots1line/v9-monorepo",
-  "version": "9.7.0",
+  "name": "@2dots1line/v11-monorepo",
+  "version": "11.1.0",
   "private": true,
   "workspaces": [
-    "apps/web-app",
-    "apps/api-gateway",
-    "apps/storybook",
-    "packages/shared-types",
-    "packages/database",
-    "packages/core-utils",
-    "packages/ai-clients",
-    "packages/agent-framework",
-    "packages/tool-registry",
-    "packages/tools",
-    "packages/canvas-core",
-    "packages/orb-core",
-    "packages/shader-lib",
-    "packages/ui-components",
-    "packages/utils",
+    "apps/*",
+    "packages/*",
     "services/*",
     "workers/*",
-    "3d-assets/*"
+    "py-services/*"
   ],
   "scripts": {
-    "dev": "turbo run dev",
     "build": "turbo run build",
-    "test": "turbo run test",
+    "dev": "turbo run dev --parallel",
     "lint": "turbo run lint",
-    "storybook": "turbo run storybook",
-    "format": "prettier --write \"**/*.{ts,tsx,md,glsl}\"",
-    "format:check": "prettier --check \"**/*.{ts,tsx,md,glsl}\"",
-    "prepare": "npx husky install",
-    "process-assets": "node scripts/asset-processing/process-assets.js",
-    "gen:noise": "node scripts/gen-noise.js",
-    
-    "// --- V9.7: DATABASE MANAGEMENT SCRIPTS ---": "",
-    "db:migrate:dev": "dotenv -e .env -- pnpm --filter=@2dots1line/database prisma migrate dev",
-    "db:studio": "dotenv -e .env -- pnpm --filter=@2dots1line/database prisma studio",
-    "db:generate": "pnpm --filter=@2dots1line/database prisma generate",
-    "db:push": "dotenv -e .env -- pnpm --filter=@2dots1line/database prisma db push",
-    "db:seed": "dotenv -e .env -- pnpm --filter=@2dots1line/database ts-node scripts/seed.ts",
-    "db:schema:apply": "dotenv -e .env -- pnpm --filter=@2dots1line/database ts-node scripts/apply-schemas.ts"
+    "test": "turbo run test",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json,yaml}\"",
+    "preinstall": "npx only-allow pnpm",
+    "db:generate": "pnpm --filter=@2dots1line/database db:generate",
+    "db:migrate:dev": "pnpm --filter=@2dots1line/database db:migrate:dev",
+    "db:studio": "pnpm --filter=@2dots1line/database db:studio",
+    "db:seed": "pnpm --filter=@2dots1line/database db:seed"
   },
   "devDependencies": {
-    "@types/fs-extra": "^11.0.4",
-    "@typescript-eslint/eslint-plugin": "^8.15.0",
-    "@typescript-eslint/parser": "^8.15.0",
-    "dotenv": "^16.4.5",
-    "dotenv-cli": "^8.0.0",
-    "eslint": "^8.57.1",
-    "eslint-config-prettier": "^10.1.5",
-    "eslint-plugin-import": "^2.29.1",
-    "eslint-plugin-react": "^7.33.2",
-    "eslint-plugin-react-hooks": "^4.6.0",
-    "fs-extra": "^11.2.0",
-    "glslify": "^7.1.1",
-    "husky": "^9.0.11",
-    "lint-staged": "^15.2.2",
-    "prettier": "^3.2.5",
+    "@types/jest": "^29.5.12",
+    "@types/node": "^18.19.3",
+    "dotenv-cli": "^7.3.0",
+    "eslint": "^8.57.0",
+    "husky": "^8.0.3",
+    "jest": "^29.7.0",
+    "only-allow": "^1.2.1",
+    "prettier": "^3.2.4",
+    "ts-jest": "^29.1.2",
     "ts-node": "^10.9.2",
-    "turbo": "^2.1.0",
-    "typescript": "^5.3.3",
-    "weaviate-ts-client": "^2.0.0"
+    "turbo": "^1.11.3",
+    "typescript": "^5.3.3"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
   },
-  "packageManager": "pnpm@10.11.1",
-  "dependencies": {
-    "@prisma/client": "^6.9.0",
-    "prisma": "^6.9.0"
-  }
+  "packageManager": "pnpm@8.14.1"
 }

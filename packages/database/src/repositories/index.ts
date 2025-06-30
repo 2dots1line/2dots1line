@@ -4,11 +4,11 @@
  */
 
 // User Management
-export { UserRepository } from './UserRepository';
+export * from './UserRepository';
 export type { CreateUserData, UpdateUserData } from './UserRepository';
 
 // Conversations & Messages
-export { ConversationRepository } from './ConversationRepository';
+export * from './ConversationRepository';
 export type { 
   CreateConversationData, 
   CreateMessageData, 
@@ -17,19 +17,19 @@ export type {
 } from './ConversationRepository';
 
 // Memory & Content
-export { MemoryRepository } from './MemoryRepository';
+export * from './MemoryRepository';
 export type { CreateMemoryUnitData, UpdateMemoryUnitData } from './MemoryRepository';
 
 // Knowledge Graph
-export { ConceptRepository } from './ConceptRepository';
+export * from './ConceptRepository';
 export type { CreateConceptData, UpdateConceptData } from './ConceptRepository';
 
 // Presentation Layer
-export { CardRepository } from './CardRepository';
+export * from './CardRepository';
 export type { CreateCardData, UpdateCardData } from './CardRepository';
 
 // Media & Assets
-export { MediaRepository } from './MediaRepository';
+export * from './MediaRepository';
 export type { CreateMediaData, UpdateMediaData } from './MediaRepository';
 
 // Derived Content
@@ -40,7 +40,7 @@ export type {
 } from './DerivedArtifactRepository';
 
 // Growth & Analytics
-export { GrowthEventRepository } from './GrowthEventRepository';
+export * from './GrowthEventRepository';
 export type { CreateGrowthEventData } from './GrowthEventRepository';
 
 // User Interactions
@@ -53,6 +53,9 @@ export type {
   CreateProactivePromptData, 
   UpdateProactivePromptData 
 } from './ProactivePromptRepository';
+
+// Export types for use in services
+export type { CardData, CardFilters, CardResultWithMeta } from './CardRepository';
 
 // Repository Factory Function
 import { DatabaseService } from '../DatabaseService';

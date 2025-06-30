@@ -13,7 +13,15 @@ export interface CreateGrowthEventData {
   dim_key: string;
   delta: number;
   source: string;
-  details?: Prisma.InputJsonValue;
+  details: Prisma.InputJsonValue;
+}
+
+export interface GrowthDimensionData {
+    key: string;
+    name: string;
+    score: number;
+    eventCount: number;
+    lastEventAt: Date | null;
 }
 
 export class GrowthEventRepository {

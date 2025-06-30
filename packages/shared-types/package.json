@@ -1,12 +1,12 @@
 {
   "name": "@2dots1line/shared-types",
   "version": "0.1.0",
-  "description": "Shared TypeScript types for 2dots1line V4",
+  "description": "Shared TypeScript types for 2dots1line V9.7",
   "private": true,
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "rm -rf dist && tsc -b tsconfig.json --verbose --force",
+    "build": "tsc -p tsconfig.build.json",
     "lint": "eslint src --ext .ts,.tsx",
     "test": "jest",
     "clean": "rm -rf dist"
@@ -19,4 +19,4 @@
     "rimraf": "^5.0.5",
     "typescript": "^5.3.3"
   }
-} 
+}

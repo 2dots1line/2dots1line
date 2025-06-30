@@ -5,23 +5,31 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "rm -rf dist && tsc -b tsconfig.json --verbose --force && mkdir -p dist/components && cp -r src/components/*.css dist/components/ 2>/dev/null || true && find src/components -name '*.css' -exec cp {} dist/components/ \\; 2>/dev/null || true",
+    "build": "tsc -p tsconfig.build.json",
     "dev": "tsc --watch",
     "lint": "eslint src --max-warnings 0",
     "test": "jest"
   },
-  "keywords": ["ui", "components", "react", "2dots1line"],
+  "keywords": [
+    "ui",
+    "components",
+    "react",
+    "2dots1line"
+  ],
   "author": "2dots1line Team",
   "license": "MIT",
   "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
     "clsx": "^2.0.0",
+    "react-dom": "^18.2.0",
     "tailwind-merge": "^2.0.0"
   },
   "devDependencies": {
-    "@types/react": "^18.2.0",
+    "@storybook/builder-vite": "^9.0.14",
+    "@storybook/react": "^8.6.14",
+    "@storybook/react-vite": "^8.6.14",
+    "@types/react": "^18.3.23",
     "@types/react-dom": "^18.2.0",
+    "react": "^18.3.1",
     "typescript": "^5.3.0"
   },
   "peerDependencies": {

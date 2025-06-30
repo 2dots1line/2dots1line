@@ -1,0 +1,23 @@
+# 1. Base image for installing dependencies
+FROM node:20-alpine AS base
+WORKDIR /app
+COPY package.json pnpm-lock.yaml ./
+RUN npm install -g pnpm
+RUN pnpm install --frozen-lockfile
+
+# 2. Builder image for building the service
+FROM base AS builder
+WORKDIR /app
+COPY . .
+RUN pnpm turbo build --filter=@2dots1line/user-service
+
+# 3. Final, minimal production image
+FROM node:20-alpine AS runner
+WORKDIR /app
+COPY --from=builder /app/services/user-service/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/services/user-service/package.json .
+
+# Expose port and start the service
+EXPOSE 3001
+CMD ["node", "dist/server.js"]

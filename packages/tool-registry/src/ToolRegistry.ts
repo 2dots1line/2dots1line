@@ -243,10 +243,32 @@ export class ToolRegistry {
   }
 
   /**
-   * Lists all registered tools.
-   * @returns An array of all registered tool manifests.
+   * Lists all registered tools' manifests.
+   * @returns An array of all tool manifests.
    */
   public listAllTools(): IToolManifest<any, any>[] {
     return Array.from(this.tools.values()).map(tool => tool.manifest);
+  }
+
+  /**
+   * Build composite tools for specific agents based on their configuration.
+   * @param agentType - The type of agent requiring the composite tool.
+   * @returns The composite tool instance for the agent.
+   */
+  public buildCompositeToolForAgent(agentType: string): any {
+    if (agentType === 'ingestionAnalyst') {
+      // Import the required dependencies
+      const { HolisticAnalysisTool } = require('@2dots1line/tools');
+      const { LLMChatTool } = require('@2dots1line/ai-clients');
+      const { ConfigService } = require('@2dots1line/config-service');
+      
+      // Create a ConfigService instance
+      const configService = new ConfigService();
+      
+      // Return the properly constructed HolisticAnalysisTool
+      return new HolisticAnalysisTool(LLMChatTool, configService);
+    }
+    
+    throw new Error(`Unknown agent type: ${agentType}`);
   }
 } 

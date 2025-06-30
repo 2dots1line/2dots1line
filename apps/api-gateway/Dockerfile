@@ -1,72 +1,67 @@
-# Multi-stage build for API Gateway in monorepo
-FROM node:18-alpine As builder
+# V11.1 Standard Dockerfile for a Monorepo Service
+# --- 1. Builder Stage: Build the application ---
+FROM node:18-alpine AS builder
 
-# Set working directory to the monorepo root
+# Tell pnpm where to find the root of the workspace
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
+
 WORKDIR /usr/src/app
 
-# Copy package.json files from root and relevant packages
-COPY package*.json ./
-COPY packages/database/package*.json ./packages/database/
-COPY packages/shared-types/package*.json ./packages/shared-types/
-COPY packages/tool-registry/package*.json ./packages/tool-registry/
-COPY packages/agent-framework/package*.json ./packages/agent-framework/
-COPY services/cognitive-hub/package*.json ./services/cognitive-hub/
-COPY apps/api-gateway/package*.json ./apps/api-gateway/
+# Copy root configurations and package manifests
+COPY pnpm-lock.yaml .
+COPY pnpm-workspace.yaml .
+COPY package.json .
+COPY turbo.json .
+COPY tsconfig.base.json .
 
-# Install all dependencies at root level
-RUN npm install
+# Copy source code and package.json for all dependencies of api-gateway
+# This is necessary for `pnpm install` to work correctly.
+# First, the api-gateway app itself
+COPY apps/api-gateway/package.json ./apps/api-gateway/
+COPY apps/api-gateway/src/ ./apps/api-gateway/src
+COPY apps/api-gateway/tsconfig*.json ./apps/api-gateway/
 
-# Copy tsconfig files
-COPY tsconfig.base.json ./
-COPY packages/database/tsconfig.json ./packages/database/
-COPY packages/shared-types/tsconfig.json ./packages/shared-types/
-COPY packages/tool-registry/tsconfig.json ./packages/tool-registry/
-COPY packages/agent-framework/tsconfig.json ./packages/agent-framework/
-COPY services/cognitive-hub/tsconfig.json ./services/cognitive-hub/
-COPY apps/api-gateway/tsconfig.json ./apps/api-gateway/
+# Now, its dependencies from the `packages` directory
+COPY packages/database/package.json ./packages/database/
+COPY packages/database/src ./packages/database/src
+COPY packages/database/prisma ./packages/database/prisma
+COPY packages/database/tsconfig*.json ./packages/database/
 
-# Copy source code for packages that api-gateway depends on
-COPY packages/database/ ./packages/database/
-COPY packages/shared-types/ ./packages/shared-types/
-COPY packages/tool-registry/ ./packages/tool-registry/
-COPY packages/agent-framework/ ./packages/agent-framework/
-COPY services/cognitive-hub/ ./services/cognitive-hub/
+COPY packages/shared-types/package.json ./packages/shared-types/
+COPY packages/shared-types/src ./packages/shared-types/src
+COPY packages/shared-types/tsconfig*.json ./packages/shared-types/
 
-# Generate Prisma client first
-RUN cd packages/database && npx prisma generate
+COPY packages/tool-registry/package.json ./packages/tool-registry/
+COPY packages/tool-registry/src ./packages/tool-registry/src
+COPY packages/tool-registry/tsconfig*.json ./packages/tool-registry/
 
-# Build the database package
-RUN cd packages/database && npm run build
+COPY packages/tools/package.json ./packages/tools/
+COPY packages/tools/src ./packages/tools/src
+COPY packages/tools/tsconfig*.json ./packages/tools/
 
-# Build shared-types package
-RUN cd packages/shared-types && npm run build
+# Install all dependencies for the entire workspace
+RUN pnpm install --frozen-lockfile
 
-# Build tool-registry package
-RUN cd packages/tool-registry && npm run build
+# Now we can run the build for just our target application
+# Turborepo will automatically build all of its dependencies first.
+RUN pnpm turbo build --filter=@2dots1line/api-gateway
 
-# Build agent-framework package
-RUN cd packages/agent-framework && npm run build
 
-# Build cognitive-hub service
-RUN cd services/cognitive-hub && npm run build
-
-# Copy api-gateway source and build it
-COPY apps/api-gateway/ ./apps/api-gateway/
-RUN cd apps/api-gateway && npm run build
-
-# --- Release Stage ---
+# --- 2. Release Stage: Create the final, lean image ---
 FROM node:18-alpine
 
+ENV NODE_ENV=production
 WORKDIR /usr/src/app
 
-# Copy the entire built workspace
-COPY --from=builder /usr/src/app ./
+# Copy only the necessary built files and production dependencies from the builder
+COPY --from=builder /usr/src/app/apps/api-gateway/dist ./dist
+COPY --from=builder /usr/src/app/apps/api-gateway/package.json .
+# Use pnpm to install only production dependencies
+RUN corepack enable && pnpm install --prod
 
-# Set working directory to api-gateway
-WORKDIR /usr/src/app/apps/api-gateway
-
-# Expose the port
 EXPOSE 3001
 
-# Start the application
-CMD ["node", "dist/src/server.js"] 
+# The `rootDir` is "src", so the output is `dist/server.js`
+CMD ["node", "dist/server.js"] 

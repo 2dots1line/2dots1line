@@ -1,41 +1,23 @@
 {
-  "compilerOptions": {
-    "target": "ES2020",
-    "module": "commonjs",
-    "lib": ["ES2020"],
-    "outDir": "./dist",
-    "rootDir": "./",
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "jsx": "react-jsx",
-    "strict": false,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "node",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "allowSyntheticDefaultImports": true,
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["src/*"]
-    }
-  },
+  "extends": "./tsconfig.base.json",
+  "include": [
+    "apps/**/*",
+    "packages/**/*",
+    "services/**/*",
+    "workers/**/*"
+  ],
+  "exclude": ["node_modules", "dist"],
   "files": [],
   "references": [
-    { "path": "./packages/shared-types" },
-    { "path": "./packages/database" },
-    { "path": "./packages/ai-clients" },
-    { "path": "./packages/tool-registry" },
-    { "path": "./packages/tools" },
-    { "path": "./packages/ui-components" },
-    { "path": "./packages/canvas-core" },
-    { "path": "./packages/shader-lib" },
-    { "path": "./packages/orb-core" },
-    { "path": "./packages/core-utils" },
+    { "path": "./apps/api-gateway" },
     { "path": "./apps/web-app" },
-    { "path": "./apps/api-gateway" }
-  ],
-  "exclude": ["node_modules", "packages/utils"]
-} 
+    { "path": "./services/dialogue-service" },
+    { "path": "./services/user-service" },
+    { "path": "./packages/ai-clients" },
+    { "path": "./packages/core-utils" },
+    { "path": "./packages/database" },
+    { "path": "./packages/shared-types" },
+    { "path": "./packages/tool-registry" },
+    { "path": "./packages/tools" }
+  ]
+}

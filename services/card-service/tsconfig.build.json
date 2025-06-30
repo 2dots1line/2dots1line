@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "composite": true
+  },
+  "references": [
+    {
+      "path": "../../packages/shared-types/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/database/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/core-utils/tsconfig.build.json"
+    }
+  ]
+}

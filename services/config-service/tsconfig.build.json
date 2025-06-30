@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "composite": true
+  },
+  "references": [
+    { "path": "../../packages/core-utils" },
+    { "path": "../../packages/shared-types" }
+  ]
+}

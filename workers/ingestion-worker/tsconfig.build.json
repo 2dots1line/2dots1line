@@ -1,0 +1,33 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "composite": true
+  },
+  "references": [
+    {
+      "path": "../../packages/shared-types"
+    },
+    {
+      "path": "../../packages/database"
+    },
+    {
+      "path": "../../packages/core-utils"
+    },
+    {
+      "path": "../../packages/tools"
+    },
+    {
+      "path": "../../packages/ai-clients"
+    },
+    {
+      "path": "../../packages/tool-registry"
+    },
+    {
+      "path": "../../services/config-service"
+    }
+  ]
+}

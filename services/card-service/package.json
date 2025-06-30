@@ -4,7 +4,7 @@
   "description": "Card service for managing user cards and presentation layer",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
     "test": "jest"

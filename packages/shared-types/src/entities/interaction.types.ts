@@ -1,65 +1,59 @@
 /**
- * Types related to Conversations and Insights
+ * Types related to Conversations and Messages
+ * Aligned with V9.7 schema.prisma
  */
 
 /**
  * Represents a single message within a conversation
+ * Aligns with ConversationMessage model in V9.7 schema
  */
 export interface TConversationMessage {
   /** Unique identifier for the message (UUID) */
-  message_id: string;
+  id: string;
   /** ID of the conversation this message belongs to */
   conversation_id: string;
-  /** ID of the user */
-  user_id: string;
   /** Sender type ('user' or 'assistant') */
-  sender_type: 'user' | 'assistant';
+  role: 'user' | 'assistant';
   /** Text content of the message */
-  message_text?: string | null;
-  /** Type of message ('text', 'image', 'file', 'action') */
-  message_type: string;
-  /** Media attachments (JSON array of {type, url, media_id}) */
-  media_attachments?: {type: string; url: string; media_id?: string}[] | null;
-  /** Actions suggested by the assistant (JSON array) */
-  suggested_actions?: Record<string, any>[] | null;
+  content: string;
   /** Timestamp of the message */
   timestamp: Date;
-  /** Status if this turn needs to become a MemoryUnit */
-  processing_status: string;
-  /** Link if this turn became a MemoryUnit */
-  associated_muid?: string | null;
-  /** Brief summary of context the assistant used for its response */
-  retrieval_context_summary?: string | null;
-  /** User feedback on the assistant's response */
-  user_feedback_on_response?: 'helpful' | 'unhelpful' | 'neutral' | null;
-  /** Additional message metadata (JSON object) */
-  metadata?: Record<string, any> | null;
+  /** LLM call metadata (JSON object) */
+  llm_call_metadata?: Record<string, any> | null;
+  /** Media IDs associated with this message */
+  media_ids: string[];
 }
 
 /**
  * Represents metadata for a conversation session
+ * Aligns with Conversation model in V9.7 schema
  */
 export interface TConversation {
   /** Unique identifier for the conversation (UUID) */
-  conversation_id: string;
+  id: string;
   /** ID of the user */
   user_id: string;
   /** AI-generated or user-provided title for the conversation */
   title?: string | null;
   /** Timestamp when the conversation started */
   start_time: Date;
-  /** Timestamp of the last message in the conversation */
-  last_message_time: Date;
-  /** Status of the conversation ('active', 'archived', 'deleted') */
-  status: 'active' | 'archived' | 'deleted';
-  /** Total number of messages in the conversation */
-  message_count: number;
+  /** Timestamp when the conversation ended */
+  ended_at?: Date | null;
+  /** Status of the conversation ('active', 'ended', 'processing', 'processed') */
+  status: string;
+  /** Importance score of the conversation */
+  importance_score?: number | null;
+  /** Summary of the conversation context */
+  context_summary?: string | null;
   /** Additional conversation metadata (JSON object) */
   metadata?: Record<string, any> | null;
+  /** ID of the source card that initiated this conversation */
+  source_card_id?: string | null;
 }
 
 /**
  * Represents an AI-generated insight (pattern, correlation, hypothesis)
+ * @deprecated V9.7 uses InteractionLog for tracking insights. This interface may be removed in future versions.
  */
 export interface TInsight {
   /** Unique identifier for the insight (UUID) */

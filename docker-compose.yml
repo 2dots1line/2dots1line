@@ -136,16 +136,21 @@ services:
     #   - /usr/src/app/node_modules # Prevent host node_modules overwriting container's
     restart: unless-stopped
 
-  # Add cognitive-hub service similarly if it's a separate Dockerized service
-  # cognitive-hub:
-  #   build:
-  #     context: .
-  #     dockerfile: ./services/cognitive-hub/Dockerfile
-  #   container_name: cognitive-hub-2d1l
-  #   # ... similar environment variables and depends_on as api-gateway for DBs ...
-  #   networks:
-  #     - 2d1l_network
-  #   restart: unless-stopped
+
+  user-service:
+    container_name: user-service
+    build:
+      context: .
+      dockerfile: services/user-service/Dockerfile
+    ports:
+      - "3001:3001"
+    env_file:
+      - .env
+    networks:
+      - 2dots1line-network
+    depends_on:
+      - postgres
+      - redis
 
 # Define persistent named volumes (optional, Docker creates anonymous ones by default for ./paths)
 # volumes:

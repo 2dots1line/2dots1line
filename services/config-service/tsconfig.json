@@ -3,18 +3,8 @@
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
-    "baseUrl": ".",
-    "paths": {
-      "@2dots1line/shared-types": ["../../packages/shared-types/dist"],
-      "@2dots1line/database": ["../../packages/database/dist"],
-      "@2dots1line/core-utils": ["../../packages/core-utils/dist"]
-    }
+    "noEmit": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"],
-  "references": [
-    { "path": "../../packages/shared-types" },
-    { "path": "../../packages/database" },
-    { "path": "../../packages/core-utils" }
-  ]
-} 
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

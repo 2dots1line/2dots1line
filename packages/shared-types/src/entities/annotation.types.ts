@@ -1,10 +1,13 @@
 /**
  * Types related to Annotations.
+ * @deprecated V9.7 eliminated annotations table. Use InteractionLog model instead.
+ * Annotations are now stored as interaction_type entries in the InteractionLog table.
  */
 
 /**
  * Represents an annotation on a MemoryUnit, Chunk, or Concept.
  * Aligns with the `annotations` table in schema.prisma.
+ * @deprecated V9.7 removed annotations table. Use InteractionLog with interaction_type='annotation' instead.
  */
 export interface TAnnotation {
   /** Unique identifier for the annotation (UUID) */
@@ -29,6 +32,7 @@ export interface TAnnotation {
 
 /**
  * Annotation types
+ * @deprecated V9.7 eliminated annotations. Use InteractionLog.interaction_type instead.
  */
 export enum AnnotationType {
   NOTE = 'note',

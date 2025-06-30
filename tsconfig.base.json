@@ -1,34 +1,23 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "module": "commonjs",
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "CommonJS",
+    "moduleResolution": "node",
     "jsx": "react-jsx",
-    "strict": false,
+    "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "allowSyntheticDefaultImports": true,
-    "composite": true,
     "baseUrl": ".",
     "paths": {
-      "@2dots1line/shared-types": ["packages/shared-types/dist"],
-      "@2dots1line/database": ["packages/database/dist"],
-      "@2dots1line/core-utils": ["packages/core-utils/dist"],
-      "@2dots1line/ai-clients": ["packages/ai-clients/dist"],
-      "@2dots1line/tool-registry": ["packages/tool-registry/dist"],
-      "@2dots1line/tools": ["packages/tools/dist"],
-      "@2dots1line/canvas-core": ["packages/canvas-core/dist"],
-      "@2dots1line/orb-core": ["packages/orb-core/dist"],
-      "@2dots1line/shader-lib": ["packages/shader-lib/dist"],
-      "@2dots1line/ui-components": ["packages/ui-components/dist"]
+      "@2dots1line/*": ["packages/*"],
+      "@services/*": ["services/*"],
+      "@workers/*": ["workers/*"]
     }
   },
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]
-} 
+  "exclude": ["node_modules", "dist", ".turbo"]
+}

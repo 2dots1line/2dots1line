@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "composite": true
+  },
+  "references": [
+    { "path": "../shared-types" },
+    { "path": "../core-utils" },
+    { "path": "../ai-clients" }
+  ]
+}
