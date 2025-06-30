@@ -60,13 +60,17 @@ export class AgentController {
 
       const dialogueInput: TDialogueAgentInput = {
         user_id: userId,
+        region: 'us', // Default region
         payload: {
+          message_id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
           message_text: message,
           conversation_id: actualConversationId,
+          client_timestamp: new Date().toISOString()
         },
         metadata: {
           source_card_id: source_card_id,
           session_id: context?.session_id,
+          timestamp: new Date().toISOString()
         }
       };
 

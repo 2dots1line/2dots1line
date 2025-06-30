@@ -2,16 +2,21 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "noEmit": true
+    "rootDir": "./src",
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "isolatedModules": false,
+    "paths": {}
   },
-  "include": [
-    "src/**/*.ts",
-    "src/**/*.tsx"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "**/*.test.ts",
-    "**/*.spec.ts"
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"],
+  "references": [
+    { "path": "../../packages/shared-types" },
+    { "path": "../../packages/database" },
+    { "path": "../../packages/core-utils" },
+    { "path": "../../packages/tools" },
+    { "path": "../../packages/ai-clients" }
   ]
-}
+} 

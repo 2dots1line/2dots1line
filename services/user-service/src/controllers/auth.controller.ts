@@ -1,8 +1,7 @@
 import { Request, Response } from 'express';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import * as bcrypt from 'bcryptjs';
+import * as jwt from 'jsonwebtoken';
 import { DatabaseService, UserRepository } from '@2dots1line/database';
-import { TRegisterRequest, TLoginRequest, TUser } from '@2dots1line/shared-types';
 
 export class AuthController {
   private userRepository: UserRepository;
@@ -14,14 +13,14 @@ export class AuthController {
     this.jwtSecret = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
   }
 
-  private toUserResponse(user: TUser): Omit<TUser, 'hashed_password'> {
+  private toUserResponse(user: any): any {
     const { hashed_password, ...userResponse } = user;
     return userResponse;
   }
 
   register = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { email, password, name } = req.body as TRegisterRequest;
+      const { email, password, name } = req.body;
 
       if (!email || !password) {
         res.status(400).json({ success: false, error: 'Email and password are required' });
@@ -60,14 +59,15 @@ export class AuthController {
 
   login = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { email, password } = req.body as TLoginRequest;
+      const { email, password } = req.body;
 
       if (!email || !password) {
         res.status(400).json({ success: false, error: 'Email and password are required' });
         return;
       }
 
-      const user = await this.userRepository.findByEmailWithPassword(email.toLowerCase());
+      // Use findByEmail for now - we can add findByEmailWithPassword to UserRepository later
+      const user = await this.userRepository.findByEmail(email.toLowerCase());
       if (!user || !user.hashed_password) {
         res.status(401).json({ success: false, error: 'Invalid email or password' });
         return;
@@ -79,7 +79,6 @@ export class AuthController {
         return;
       }
 
-      await this.userRepository.updateLastActive(user.user_id);
       const token = jwt.sign({ userId: user.user_id, email: user.email }, this.jwtSecret, { expiresIn: '7d' });
 
       res.status(200).json({

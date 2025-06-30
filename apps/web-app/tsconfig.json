@@ -3,14 +3,27 @@
   "compilerOptions": {
     "composite": true,
     "rootDir": "./src",
-    "outDir": "./dist"
+    "outDir": "./dist",
+    "allowJs": true,
+    "noEmit": true,
+    "incremental": true,
+    "jsx": "preserve",
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
   },
   "include": [
     "src/**/*.ts",
-    "src/**/*.tsx"
+    "src/**/*.tsx",
+    ".next/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
     "dist"
+  ],
+  "references": [
+    { "path": "../../packages/ui-components/tsconfig.build.json" }
   ]
 }

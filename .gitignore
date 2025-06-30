@@ -55,3 +55,24 @@ redis_data/
 
 # Archive 
 archive/
+
+# ==================================
+# V11+ Cleanliness Rules
+# ==================================
+
+# Build artifacts and caches
+**/.turbo
+**/dist
+**/.next
+**/*.tsbuildinfo
+
+# Local development artifacts
+.env
+.env.local
+uploads/
+
+# macOS system files
+.DS_Store
+
+# Packaged libraries
+*.tgz

@@ -1,18 +1,22 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "composite": true,
+    "outDir": "./dist",
     "rootDir": "./src",
-    "outDir": "./dist"
+    "composite": true,
+    "noEmit": false,
+    "isolatedModules": false,
+    "lib": ["es2020"],
+    "paths": {},
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
   },
   "include": [
-    "src/**/*.ts",
-    "src/**/*.tsx"
+    "src/**/*.ts"
   ],
   "exclude": [
-    "node_modules",
-    "dist",
-    "**/*.test.ts",
+    "node_modules", 
+    "dist", 
+    "**/*.test.ts", 
     "**/*.spec.ts"
   ]
-}
+} 

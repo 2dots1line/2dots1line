@@ -4,7 +4,7 @@
  */
 
 import { TToolInput, TToolOutput, DocumentExtractInputPayload, DocumentExtractResult } from '@2dots1line/shared-types';
-import type { IToolManifest, IExecutableTool } from '@2dots1line/tool-registry';
+import type { IToolManifest, IExecutableTool } from '@2dots1line/shared-types';
 import * as fs from 'fs';
 import * as path from 'path';
 

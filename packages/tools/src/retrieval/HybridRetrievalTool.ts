@@ -312,8 +312,8 @@ export class HybridRetrievalTool {
               creation_ts: true,
               last_modified_ts: true
             }
-          }).then(results => {
-            results.forEach(mu => {
+          }).then((results: any[]) => {
+            results.forEach((mu: any) => {
               metadataMap.set(mu.muid, {
                 entityId: mu.muid,
                 entityType: 'MemoryUnit',
@@ -336,8 +336,8 @@ export class HybridRetrievalTool {
               created_at: true,
               last_updated_ts: true
             }
-          }).then(results => {
-            results.forEach(concept => {
+          }).then((results: any[]) => {
+            results.forEach((concept: any) => {
               metadataMap.set(concept.concept_id, {
                 entityId: concept.concept_id,
                 entityType: 'Concept',

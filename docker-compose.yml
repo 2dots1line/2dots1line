@@ -1,163 +1,251 @@
-# docker-compose.yml
-# No version needed at the top for modern Docker Compose
+# V11.3 Definitive Docker Compose for 2dots1line Local Development
+# This version correctly orchestrates all V9.7+ services and workers.
+
+version: '3.8'
 
 networks:
-  2d1l_network:
-    external: true # Reminder: Run 'docker network create 2d1l_network' once manually if it doesn't exist.
+  2d1l_network: # Respecting the existing network name
+    driver: bridge
 
 services:
-  postgres: # You confirmed this is working
-    image: postgres:15
+  # --- 1. CORE DATABASES ---
+  postgres:
+    image: postgres:16-alpine
     container_name: postgres-2d1l
     ports:
-      - "${POSTGRES_HOST_PORT:-5433}:5432" # Host:Container
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB_NAME}
+      POSTGRES_DB: ${POSTGRES_DB} # Standardized variable from V11.2 .env
     volumes:
       - ./postgres_data:/var/lib/postgresql/data
     networks:
       - 2d1l_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB_NAME}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
 
   neo4j:
-    image: neo4j:5.18 # Specify a recent, stable version
+    image: neo4j:5
     container_name: neo4j-2d1l
     ports:
-      - "${NEO4J_HTTP_HOST_PORT:-7474}:7474"   # For Neo4j Browser
-      - "${NEO4J_BOLT_HOST_PORT:-7687}:7687"    # For application connections
+      - "${NEO4J_HTTP_HOST_PORT:-7474}:7474"
+      - "${NEO4J_BOLT_HOST_PORT:-7688}:7687"
+    environment:
+      NEO4J_AUTH: "neo4j/${NEO4J_PASSWORD}"
+    volumes:
+      - ./neo4j_data:/data
     networks:
       - 2d1l_network
-    environment:
-      # NEO4J_AUTH format is user/password
-      NEO4J_AUTH: "${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-password123}" # Ensure NEO4J_USER and NEO4J_PASSWORD are in your .env
-      # Optional: Increase memory if needed, especially for graph algorithms later
-      # NEO4J_server_memory_heap_initial__size: "512m"
-      # NEO4J_server_memory_heap_max__size: "2G"
-    volumes:
-      - ./neo4j_data/data:/data             # Mounts the data directory
-      - ./neo4j_data/logs:/logs             # Mounts the logs directory
-      - ./neo4j_data/import:/var/lib/neo4j/import # For CSV imports if needed
-      - ./neo4j_data/plugins:/plugins       # For APOC or other plugins
     restart: unless-stopped
-    healthcheck: # Basic healthcheck for Neo4j
-      test: ["CMD-SHELL", "wget --spider -q http://localhost:7474 || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 30s # Give Neo4j time to start up
 
   weaviate:
-    image: semitechnologies/weaviate:1.25.3 # Or latest stable
+    image: semitechnologies/weaviate:1.25.3
     container_name: weaviate-2d1l
     ports:
-      - "${WEAVIATE_HOST_PORT:-8080}:8080" # HTTP
-      - "50051:50051"                     # gRPC
-    networks:
-      - 2d1l_network
+      - "${WEAVIATE_HOST_PORT:-8080}:8080"
     environment:
       QUERY_DEFAULTS_LIMIT: "25"
-      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true" # For local dev; consider auth for staging/prod
-      DEFAULT_VECTORIZER_MODULE: "none" # As per our decision
-      ENABLE_MODULES: ""                # No inference modules needed if vectorizer is none
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"
+      DEFAULT_VECTORIZER_MODULE: "none"
       PERSISTENCE_DATA_PATH: "/var/lib/weaviate"
-      CLUSTER_HOSTNAME: 'node1' # Important for Weaviate
-      # GOOGLE_API_KEY: "${GOOGLE_API_KEY}" # Only needed if Weaviate itself were doing Gemini embeddings
+      CLUSTER_HOSTNAME: 'node1'
     volumes:
       - ./weaviate_data:/var/lib/weaviate
-    restart: on-failure:0 # Or 'unless-stopped'
-    healthcheck: # Basic healthcheck for Weaviate
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/v1/.well-known/ready"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 20s # Give Weaviate time to start
+    networks:
+      - 2d1l_network
+    restart: unless-stopped
 
   redis:
-    image: redis:7-alpine # Using a specific alpine version for smaller size
+    image: redis:7-alpine
     container_name: redis-2d1l
     ports:
       - "${REDIS_HOST_PORT:-6379}:6379"
-    networks:
-      - 2d1l_network
-    # If you set REDIS_PASSWORD in .env, uncomment and use it here:
-    # command: redis-server --requirepass ${REDIS_PASSWORD}
+    command: redis-server --notify-keyspace-events KEA
     volumes:
       - ./redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    networks:
+      - 2d1l_network
     restart: unless-stopped
 
-  api-gateway: # Assuming this is your main backend app for now
+  # --- 2. PYTHON MICROSERVICES ---
+  dimension-reducer:
     build:
-      context: . # Build from the monorepo root
-      dockerfile: ./apps/api-gateway/Dockerfile
-    container_name: api-gateway-2d1l
+      context: ./py-services/dimension-reducer
+    container_name: dimension-reducer-2d1l
     ports:
-      - "${API_GATEWAY_HOST_PORT:-3001}:${API_GATEWAY_CONTAINER_PORT:-3001}"
+      - "${DIMENSION_REDUCER_HOST_PORT:-5001}:5000"
+    networks:
+      - 2d1l_network
+    restart: unless-stopped
+
+  # --- 3. BACKEND SERVICES & WORKERS (NODE.JS) ---
+  # All Node.js services use the same root Dockerfile and a consistent env_file pattern.
+  
+  api-gateway:
+    build: { context: ., dockerfile: Dockerfile, args: { APP_NAME: api-gateway } }
+    container_name: api-gateway-2d1l
+    ports: [ "${API_GATEWAY_HOST_PORT:-3001}:3001" ]
+    env_file: .env
+    networks: [ 2d1l_network ]
+    depends_on:
+      dialogue-service:
+        condition: service_started
+      user-service:
+        condition: service_started
+      card-service:
+        condition: service_started
+
+  dialogue-service:
+    build: { context: ., dockerfile: Dockerfile, args: { APP_NAME: dialogue-service } }
+    container_name: dialogue-service-2d1l
+    ports: [ "${DIALOGUE_SERVICE_HOST_PORT:-3002}:3002" ]
+    env_file: .env
+    networks: [ 2d1l_network ]
     depends_on:
       postgres:
         condition: service_healthy
       neo4j:
-        condition: service_healthy # Changed to service_healthy assuming healthcheck works
+        condition: service_started
       weaviate:
-        condition: service_healthy # Changed to service_healthy
+        condition: service_started
       redis:
-        condition: service_healthy
-    networks:
-      - 2d1l_network
-    environment:
-      - PORT=${API_GATEWAY_CONTAINER_PORT:-3001}
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST_FOR_APP_IN_DOCKER}:${POSTGRES_PORT_FOR_APP_IN_DOCKER}/${POSTGRES_DB_NAME}
-      - NEO4J_URI=${NEO4J_URI_DOCKER} # e.g., neo4j://neo4j:7687
-      - NEO4J_USERNAME=${NEO4J_USER}
-      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
-      - WEAVIATE_SCHEME=${WEAVIATE_SCHEME:-http} # Default to http if not in .env
-      - WEAVIATE_HOST=${WEAVIATE_HOST_DOCKER}     # e.g., weaviate:8080
-      - REDIS_HOST=${REDIS_HOST_DOCKER:-redis}
-      - REDIS_PORT=${REDIS_CONTAINER_PORT:-6379}
-      # - REDIS_PASSWORD=${REDIS_PASSWORD} # Uncomment if used
-      - JWT_SECRET=${JWT_SECRET}
-      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-1d}
-      - NODE_ENV=${NODE_ENV:-development}
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
-      # - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
-    # volumes: # For development hot-reloading if your Dockerfile doesn't handle it
-    #   - ./apps/api-gateway/src:/usr/src/app/src
-    #   - /usr/src/app/node_modules # Prevent host node_modules overwriting container's
-    restart: unless-stopped
-
+        condition: service_started
 
   user-service:
-    container_name: user-service
-    build:
-      context: .
-      dockerfile: services/user-service/Dockerfile
-    ports:
-      - "3001:3001"
-    env_file:
-      - .env
-    networks:
-      - 2dots1line-network
+    build: { context: ., dockerfile: Dockerfile, args: { APP_NAME: user-service } }
+    container_name: user-service-2d1l
+    ports: [ "${USER_SERVICE_HOST_PORT:-3003}:3003" ]
+    env_file: .env
+    networks: [ 2d1l_network ]
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
-# Define persistent named volumes (optional, Docker creates anonymous ones by default for ./paths)
-# volumes:
-#   postgres_data:
-#   neo4j_data_data: # neo4j image uses /data
-#   neo4j_data_logs:
-#   neo4j_data_import:
-#   neo4j_data_plugins:
-#   weaviate_data:
-#   redis_data:
+  card-service:
+    build: { context: ., dockerfile: Dockerfile, args: { APP_NAME: card-service } }
+    container_name: card-service-2d1l
+    ports: [ "${CARD_SERVICE_HOST_PORT:-3004}:3004" ]
+    env_file: .env
+    networks: [ 2d1l_network ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  # --- ASYNCHRONOUS WORKERS ---
+  conversation-timeout-worker:
+    build: { context: ., dockerfile: Dockerfile, args: { APP_NAME: conversation-timeout-worker } }
+    container_name: conversation-timeout-worker-2d1l
+    env_file: .env
+    networks: [ 2d1l_network ]
+    depends_on:
+      redis:
+        condition: service_started
+  
+  ingestion-worker:
+    build: { context: ., dockerfile: Dockerfile, args: { APP_NAME: ingestion-worker } }
+    container_name: ingestion-worker-2d1l
+    env_file: .env
+    networks: [ 2d1l_network ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_started
+      redis:
+        condition: service_started
+    
+  card-worker:
+    build: { context: ., dockerfile: Dockerfile, args: { APP_NAME: card-worker } }
+    container_name: card-worker-2d1l
+    env_file: .env
+    networks: [ 2d1l_network ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  embedding-worker:
+    build: { context: ., dockerfile: Dockerfile, args: { APP_NAME: embedding-worker } }
+    container_name: embedding-worker-2d1l
+    env_file: .env
+    networks: [ 2d1l_network ]
+    depends_on:
+      weaviate:
+        condition: service_started
+      redis:
+        condition: service_started
+    
+  insight-worker:
+    build: { context: ., dockerfile: Dockerfile, args: { APP_NAME: insight-worker } }
+    container_name: insight-worker-2d1l
+    env_file: .env
+    networks: [ 2d1l_network ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_started
+      weaviate:
+        condition: service_started
+      redis:
+        condition: service_started
+
+  graph-projection-worker:
+    build: { context: ., dockerfile: Dockerfile, args: { APP_NAME: graph-projection-worker } }
+    container_name: graph-projection-worker-2d1l
+    env_file: .env
+    networks: [ 2d1l_network ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_started
+      weaviate:
+        condition: service_started
+      dimension-reducer:
+        condition: service_started
+
+  graph-sync-worker:
+    build: { context: ., dockerfile: Dockerfile, args: { APP_NAME: graph-sync-worker } }
+    container_name: graph-sync-worker-2d1l
+    env_file: .env
+    networks: [ 2d1l_network ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_started
+
+  maintenance-worker:
+    build: { context: ., dockerfile: Dockerfile, args: { APP_NAME: maintenance-worker } }
+    container_name: maintenance-worker-2d1l
+    env_file: .env
+    networks: [ 2d1l_network ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    
+  notification-worker:
+    build: { context: ., dockerfile: Dockerfile, args: { APP_NAME: notification-worker } }
+    container_name: notification-worker-2d1l
+    env_file: .env
+    networks: [ 2d1l_network ]
+    depends_on:
+      redis:
+        condition: service_started
+
+volumes:
+  postgres_data:
+  neo4j_data:
+  weaviate_data:
+  redis_data:

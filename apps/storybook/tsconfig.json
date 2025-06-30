@@ -2,16 +2,24 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "noEmit": true
+    "rootDir": "./src",
+    "composite": true,
+    "declaration": true,
+    "jsx": "react-jsx"
   },
   "include": [
     "src/**/*.ts",
-    "src/**/*.tsx"
+    "src/**/*.tsx",
+    "src/**/*.stories.ts",
+    "src/**/*.stories.tsx"
   ],
   "exclude": [
     "node_modules",
     "dist",
     "**/*.test.ts",
     "**/*.spec.ts"
+  ],
+  "references": [
+    { "path": "../../packages/ui-components/tsconfig.build.json" }
   ]
 }

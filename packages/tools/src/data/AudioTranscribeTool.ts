@@ -4,7 +4,7 @@
  */
 
 import { TToolInput, TToolOutput } from '@2dots1line/shared-types';
-import type { IToolManifest, IExecutableTool } from '@2dots1line/tool-registry';
+import type { IToolManifest, IExecutableTool } from '@2dots1line/shared-types';
 import * as fs from 'fs';
 
 export interface AudioTranscribeInputPayload {

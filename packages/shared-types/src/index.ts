@@ -216,4 +216,101 @@ export interface TSuccessResponse<TData = any> {
   message?: string;
   request_id?: string;
   metadata?: Record<string, any>;
+}
+
+// === TOOL REGISTRY TYPES (to break circular dependency) ===
+// Import the base tool types first
+import type { TToolInput, TToolOutput } from './ai/tool.types';
+
+/**
+ * Represents the manifest for a tool that can be registered.
+ * Includes metadata for discovery and execution.
+ */
+export interface IToolManifest<TInput = any, TOutput = any> {
+  /** Unique name of the tool (e.g., 'text-embedding-google', 'ner-spacy-en') */
+  name: string;
+  /** Human-readable description of what the tool does */
+  description: string;
+  /** Version of the tool (e.g., '1.0.2') */
+  version: string;
+  /** Regions where this specific tool implementation is available (e.g., ['us', 'cn']) */
+  availableRegions: ('us' | 'cn')[];
+  /** Functional categories the tool belongs to (e.g., ['text_processing', 'embedding']) */
+  categories: string[];
+  /** General capabilities provided (e.g., 'text_embedding', 'ner', 'vector_search') */
+  capabilities: string[];
+  /**
+   * Input schema validation function for TToolInput<TInput>.
+   */
+  validateInput: (input: TToolInput<TInput>) => {
+    valid: boolean;
+    errors?: string[];
+  };
+  /**
+   * Output schema validation function for TToolOutput<TOutput>.
+   */
+  validateOutput: (output: TToolOutput<TOutput>) => {
+    valid: boolean;
+    errors?: string[];
+  };
+  /** Performance characteristics */
+  performance?: {
+    avgLatencyMs?: number;
+    isAsync?: boolean;
+    isIdempotent?: boolean;
+  };
+  /** Cost characteristics (e.g., per call, per token) */
+  cost?: {
+    currency: string;
+    perCall?: number;
+    perUnit?: {
+      unit: string;
+      amount: number;
+    };
+  };
+  /** Any known limitations or dependencies */
+  limitations?: string[];
+}
+
+/**
+ * Interface for an executable tool.
+ * Tools must implement this to be used by the registry.
+ */
+export interface IExecutableTool<TInput = any, TOutput = any> {
+  manifest: IToolManifest<TInput, TOutput>;
+  /** 
+   * Executes the tool with the given input. 
+   * Must handle its own errors and return a TToolOutput.
+   */
+  execute: (input: TToolInput<TInput>) => Promise<TToolOutput<TOutput>>;
+}
+
+/**
+ * Search criteria for finding tools in the registry.
+ */
+export interface IToolSearchCriteria {
+  /** Exact tool name to match */
+  name?: string;
+  /** Region where tool should be available */
+  region?: 'us' | 'cn';
+  /** Required capability (can be string or array) */
+  capability?: string | string[];
+  /** Required category (can be string or array) */
+  category?: string | string[];
+  /** Minimum version required */
+  minVersion?: string;
+}
+
+/**
+ * Tool execution error for registry operations.
+ */
+export class ToolExecutionError extends Error {
+  constructor(
+    message: string,
+    public readonly toolName: string,
+    public readonly originalError?: Error
+  ) {
+    super(message);
+    this.name = 'ToolExecutionError';
+  }
 } 

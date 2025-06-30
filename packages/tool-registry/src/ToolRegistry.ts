@@ -1,8 +1,6 @@
-import type { TToolInput, TToolOutput, Tool } from '@2dots1line/shared-types';
+import type { TToolInput, TToolOutput, Tool, IToolManifest, IExecutableTool, IToolSearchCriteria } from '@2dots1line/shared-types';
+import { ToolExecutionError } from '@2dots1line/shared-types';
 import { compareVersions } from 'compare-versions';
-
-import type { IExecutableTool, IToolManifest, IToolSearchCriteria } from './types';
-import { ToolExecutionError } from './types';
 
 /**
  * Manages the registration, discovery, and execution of deterministic tools.
@@ -75,7 +73,7 @@ export class ToolRegistry {
   ): Promise<TToolOutput<TOutput>> {
     const tool = this.tools.get(toolName);
     if (!tool) {
-      throw new ToolExecutionError(`Tool "${toolName}" not found in registry.`);
+      throw new ToolExecutionError(`Tool "${toolName}" not found in registry.`, toolName);
     }
 
     try {
@@ -83,7 +81,8 @@ export class ToolRegistry {
     } catch (error) {
       throw new ToolExecutionError(
         `Execution failed for tool "${toolName}": ${error instanceof Error ? error.message : 'Unknown error'}`,
-        { cause: error instanceof Error ? error : undefined, toolName, input }
+        toolName,
+        error instanceof Error ? error : undefined
       );
     }
   }
@@ -169,7 +168,7 @@ export class ToolRegistry {
     const tool = this.tools.get(toolName);
 
     if (!tool) {
-      throw new ToolExecutionError(`Tool "${toolName}" not found in registry.`);
+      throw new ToolExecutionError(`Tool "${toolName}" not found in registry.`, toolName);
     }
 
     const startTime = Date.now();
@@ -178,17 +177,17 @@ export class ToolRegistry {
     try {
       const validationResult = tool.manifest.validateInput(input);
       if (!validationResult.valid) {
-        throw new ToolExecutionError(`Invalid input for tool "${toolName}": ${validationResult.errors?.join(', ') ?? 'Validation failed'}`, {
-          toolName,
-          input
-        });
+        throw new ToolExecutionError(
+          `Invalid input for tool "${toolName}": ${validationResult.errors?.join(', ') ?? 'Validation failed'}`,
+          toolName
+        );
       }
     } catch (err: any) {
-       throw new ToolExecutionError(`Input validation error for tool "${toolName}": ${err.message}`, {
-          cause: err,
-          toolName,
-          input
-        });
+      throw new ToolExecutionError(
+        `Input validation error for tool "${toolName}": ${err.message}`,
+        toolName,
+        err
+      );
     }
 
     // Execute Tool
@@ -198,28 +197,28 @@ export class ToolRegistry {
       output = await tool.execute(input);
       console.debug(`Tool ${toolName} execution finished.`);
     } catch (err: any) {
-      throw new ToolExecutionError(`Execution failed for tool "${toolName}": ${err.message}`, {
-        cause: err,
+      throw new ToolExecutionError(
+        `Execution failed for tool "${toolName}": ${err.message}`,
         toolName,
-        input
-      });
+        err
+      );
     }
 
     // Validate Output
     try {
       const validationResult = tool.manifest.validateOutput(output);
       if (!validationResult.valid) {
-         throw new ToolExecutionError(`Invalid output from tool "${toolName}": ${validationResult.errors?.join(', ') ?? 'Validation failed'}`, {
-          toolName,
-          input
-        });
+        throw new ToolExecutionError(
+          `Invalid output from tool "${toolName}": ${validationResult.errors?.join(', ') ?? 'Validation failed'}`,
+          toolName
+        );
       }
     } catch (err: any) {
-        throw new ToolExecutionError(`Output validation error for tool "${toolName}": ${err.message}`, {
-          cause: err,
-          toolName,
-          input
-        });
+      throw new ToolExecutionError(
+        `Output validation error for tool "${toolName}": ${err.message}`,
+        toolName,
+        err
+      );
     }
 
     // Add processing time to metadata if not already present
@@ -254,21 +253,18 @@ export class ToolRegistry {
    * Build composite tools for specific agents based on their configuration.
    * @param agentType - The type of agent requiring the composite tool.
    * @returns The composite tool instance for the agent.
+   * 
+   * NOTE: This method is temporarily disabled to break circular dependency.
+   * Tools should be registered explicitly instead of being auto-imported.
    */
   public buildCompositeToolForAgent(agentType: string): any {
-    if (agentType === 'ingestionAnalyst') {
-      // Import the required dependencies
-      const { HolisticAnalysisTool } = require('@2dots1line/tools');
-      const { LLMChatTool } = require('@2dots1line/ai-clients');
-      const { ConfigService } = require('@2dots1line/config-service');
-      
-      // Create a ConfigService instance
-      const configService = new ConfigService();
-      
-      // Return the properly constructed HolisticAnalysisTool
-      return new HolisticAnalysisTool(LLMChatTool, configService);
-    }
+    // CIRCULAR DEPENDENCY FIX: Remove direct import of tools
+    // This breaks the tools ↔ tool-registry circular dependency
+    throw new Error(`buildCompositeToolForAgent is disabled to prevent circular dependencies. Agent type: ${agentType}. Please register tools explicitly instead.`);
     
-    throw new Error(`Unknown agent type: ${agentType}`);
+    // TODO: Implement dependency injection pattern instead:
+    // - Accept tool instances as constructor parameters
+    // - Use a factory pattern with explicit tool registration
+    // - Remove the require() call that creates the circular dependency
   }
 } 

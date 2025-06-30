@@ -4,7 +4,7 @@
  */
 
 import { TToolInput, TToolOutput, TTextEmbeddingInputPayload, TTextEmbeddingResult } from '@2dots1line/shared-types';
-import type { IToolManifest, IExecutableTool } from '@2dots1line/tool-registry';
+import type { IToolManifest, IExecutableTool } from '@2dots1line/shared-types';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export type TextEmbeddingToolInput = TToolInput<TTextEmbeddingInputPayload>;

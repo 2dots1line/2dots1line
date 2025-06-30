@@ -1,13 +1,12 @@
-import { UserRepository, ConversationRepository } from '@2dots1line/database';
+import { UserRepository, ConversationRepository, User, ConversationMessage } from '@2dots1line/database';
 import { ConfigService } from '@2dots1line/config-service';
 import { Redis } from 'ioredis';
-import * as Mustache from 'mustache';
+import Mustache from 'mustache';
 import { 
   CoreIdentity, 
   AugmentedMemoryContext, 
   SummarizedConversation 
 } from '@2dots1line/shared-types';
-import { User, ConversationMessage } from '@prisma/client';
 
 export interface PromptBuildInput {
   userId: string;

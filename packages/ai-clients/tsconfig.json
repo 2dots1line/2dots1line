@@ -1,15 +1,18 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "composite": true,
+    "outDir": "./dist",
     "rootDir": "./src",
-    "outDir": "./dist"
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "isolatedModules": false,
+    "paths": {}
   },
-  "include": [
-    "src/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist"
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"],
+  "references": [
+    { "path": "../shared-types/tsconfig.build.json" } 
   ]
-}
+} 

@@ -6,5 +6,10 @@
     "composite": true
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "dist"],
+  "references": [
+    { "path": "../shared-types" },
+    { "path": "../database" },
+    { "path": "../../services/config-service" }
+  ]
 }

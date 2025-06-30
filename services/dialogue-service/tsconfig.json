@@ -3,7 +3,8 @@
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
-    "composite": true
+    "composite": true,
+    "declaration": true
   },
   "include": ["src/**/*.ts"],
   "exclude": [
@@ -11,5 +12,11 @@
     "dist",
     "**/*.test.ts",
     "**/*.spec.ts"
+  ],
+  "references": [
+    { "path": "../config-service" },
+    { "path": "../../packages/database" },
+    { "path": "../../packages/shared-types" },
+    { "path": "../../packages/tools" }
   ]
 }

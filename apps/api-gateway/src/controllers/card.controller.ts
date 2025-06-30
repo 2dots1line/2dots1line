@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import axios from 'axios';
 
-const CARD_SERVICE_URL = process.env.CARD_SERVICE_URL || 'http://card-service:3000';
+const CARD_SERVICE_URL = process.env.CARD_SERVICE_URL || 'http://localhost:3004';
 
 export class CardController {
   /**

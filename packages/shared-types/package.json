@@ -13,10 +13,10 @@
   },
   "dependencies": {},
   "devDependencies": {
-    "@types/node": "^20.11.24",
-    "eslint": "^8.57.0",
+    "@types/node": "^20.17.0",
+    "eslint": "^8.57.1",
     "jest": "^29.7.0",
     "rimraf": "^5.0.5",
-    "typescript": "^5.3.3"
+    "typescript": "^5.8.3"
   }
 }

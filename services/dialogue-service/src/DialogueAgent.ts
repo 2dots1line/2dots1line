@@ -24,6 +24,9 @@ import {
   TDialogueAgentResult
 } from '@2dots1line/shared-types';
 
+// Re-export PromptBuilder for controller access
+export { PromptBuilder } from './PromptBuilder';
+
 // Dependencies to be injected into the agent
 export interface DialogueAgentDependencies {
   configService: ConfigService;

@@ -17,9 +17,9 @@
     "bullmq": "^4.15.4"
   },
   "devDependencies": {
-    "@types/node": "^18.0.0",
+    "@types/node": "^20.17.0",
     "@types/ioredis": "^5.0.0",
-    "typescript": "^5.0.0",
+    "typescript": "^5.8.3",
     "ts-node": "^10.0.0",
     "jest": "^29.0.0"
   }

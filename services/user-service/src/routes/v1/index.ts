@@ -1,8 +1,9 @@
-import { Router } from 'express';
-import { AuthController } from '../controllers/auth.controller';
-import { UserController } from '../controllers/user.controller';
+import { Router, IRouter } from 'express';
+import { AuthController, UserController } from '../../controllers';
 
-const v1UserRouter = Router();
+const v1UserRouter: IRouter = Router();
+
+// Instantiate controllers
 const authController = new AuthController();
 const userController = new UserController();
 
@@ -10,7 +11,7 @@ const userController = new UserController();
 v1UserRouter.post('/auth/register', authController.register);
 v1UserRouter.post('/auth/login', authController.login);
 
-// User routes
+// User profile routes
 v1UserRouter.get('/users/:userId/profile', userController.getUserProfile);
 
-export default v1UserRouter; 
+export default v1UserRouter;

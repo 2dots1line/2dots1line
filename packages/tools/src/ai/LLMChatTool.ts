@@ -5,7 +5,7 @@
  */
 
 import { TToolInput, TToolOutput } from '@2dots1line/shared-types';
-import type { IToolManifest, IExecutableTool } from '@2dots1line/tool-registry';
+import type { IToolManifest, IExecutableTool } from '@2dots1line/shared-types';
 import { GoogleGenerativeAI, GenerativeModel, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 
 export interface LLMChatInputPayload {

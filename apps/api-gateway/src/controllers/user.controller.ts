@@ -11,7 +11,7 @@ export class UserController {
   private userServiceClient: AxiosInstance;
 
   constructor() {
-    const userServiceUrl = process.env.USER_SERVICE_URL || 'http://localhost:3001';
+    const userServiceUrl = process.env.USER_SERVICE_URL || 'http://localhost:3003';
     this.userServiceClient = axios.create({
       baseURL: userServiceUrl
     });

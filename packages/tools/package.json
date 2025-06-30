@@ -12,10 +12,15 @@
     "@2dots1line/config-service": "workspace:*",
     "@2dots1line/database": "workspace:*",
     "@2dots1line/shared-types": "workspace:*",
+    "mammoth": "^1.9.1",
+    "neo4j-driver": "^5.15.0",
+    "pdf-parse": "^1.1.1",
     "weaviate-ts-client": "^2.0.0",
-    "neo4j-driver": "^5.15.0"
+    "zod": "^3.22.4"
   },
   "devDependencies": {
-    "typescript": "^5.3.3"
+    "@types/node": "^20.17.0",
+    "@types/pdf-parse": "^1.1.5",
+    "typescript": "^5.8.3"
   }
 }

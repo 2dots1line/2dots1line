@@ -4,7 +4,7 @@
  */
 
 import { TToolInput, TToolOutput, VisionCaptionInputPayload, VisionCaptionResult } from '@2dots1line/shared-types';
-import type { IToolManifest, IExecutableTool } from '@2dots1line/tool-registry';
+import type { IToolManifest, IExecutableTool } from '@2dots1line/shared-types';
 
 export type VisionCaptionToolInput = TToolInput<VisionCaptionInputPayload>;
 export type VisionCaptionToolOutput = TToolOutput<VisionCaptionResult>;

@@ -6,7 +6,7 @@
   },
   "references": [
     { "path": "../shared-types" },
-    { "path": "../core-utils" },
-    { "path": "../ai-clients" }
+    { "path": "../database" },
+    { "path": "../../services/config-service" }
   ]
 }

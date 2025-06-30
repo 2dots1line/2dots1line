@@ -1,23 +1,31 @@
 {
   "extends": "./tsconfig.base.json",
-  "include": [
-    "apps/**/*",
-    "packages/**/*",
-    "services/**/*",
-    "workers/**/*"
-  ],
-  "exclude": ["node_modules", "dist"],
   "files": [],
   "references": [
-    { "path": "./apps/api-gateway" },
-    { "path": "./apps/web-app" },
-    { "path": "./services/dialogue-service" },
-    { "path": "./services/user-service" },
-    { "path": "./packages/ai-clients" },
+    { "path": "./packages/shared-types" },
     { "path": "./packages/core-utils" },
     { "path": "./packages/database" },
-    { "path": "./packages/shared-types" },
+    { "path": "./packages/ai-clients" },
     { "path": "./packages/tool-registry" },
-    { "path": "./packages/tools" }
+    { "path": "./packages/tools" },
+    { "path": "./packages/ui-components" },
+    { "path": "./packages/canvas-core" },
+    { "path": "./packages/orb-core" },
+    { "path": "./packages/shader-lib" },
+    { "path": "./services/config-service" },
+    { "path": "./services/dialogue-service" },
+    { "path": "./services/user-service" },
+    { "path": "./services/card-service" },
+    { "path": "./workers/card-worker" },
+    { "path": "./workers/conversation-timeout-worker" },
+    { "path": "./workers/embedding-worker" },
+    { "path": "./workers/graph-projection-worker" },
+    { "path": "./workers/graph-sync-worker" },
+    { "path": "./workers/ingestion-worker" },
+    { "path": "./workers/insight-worker" },
+    { "path": "./workers/maintenance-worker" },
+    { "path": "./workers/notification-worker" },
+    { "path": "./apps/api-gateway" },
+    { "path": "./apps/web-app" }
   ]
 }

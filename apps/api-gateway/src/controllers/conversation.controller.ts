@@ -14,7 +14,7 @@ export class ConversationController {
   constructor() {
     // The base URL for the dialogue service is loaded from environment variables.
     // This decouples the API gateway from the location of the dialogue service.
-    const dialogueServiceUrl = process.env.DIALOGUE_SERVICE_URL;
+    const dialogueServiceUrl = process.env.DIALOGUE_SERVICE_URL || 'http://localhost:3002';
     if (!dialogueServiceUrl) {
       throw new Error('DIALOGUE_SERVICE_URL environment variable is not set.');
     }

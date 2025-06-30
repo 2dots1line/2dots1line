@@ -2,7 +2,9 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "noEmit": true
+    "rootDir": "./src",
+    "composite": true,
+    "declaration": true
   },
   "include": [
     "src/**/*.ts",
@@ -13,5 +15,10 @@
     "dist",
     "**/*.test.ts",
     "**/*.spec.ts"
+  ],
+  "references": [
+    { "path": "../../packages/shared-types/tsconfig.build.json" },
+    { "path": "../../packages/database/tsconfig.build.json" },
+    { "path": "../../packages/core-utils/tsconfig.build.json" }
   ]
 }
