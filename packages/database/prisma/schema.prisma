@@ -194,6 +194,10 @@ model Media {
   metadata          Json?      @db.JsonB
   created_at        DateTime   @default(now())
 
+  @@index([user_id])
+  @@index([user_id, type])
+  @@index([user_id, created_at(sort: Desc)])
+  @@index([processing_status])
   @@map("media_items")
 }
 

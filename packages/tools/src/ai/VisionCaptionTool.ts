@@ -166,6 +166,16 @@ Format your response as a detailed but conversational analysis that would be hel
   }
 
   private extractObjects(text: string): Array<{ name: string; confidence: number }> {
+    // DISABLED: This method was causing false positive object detection
+    // by finding words like "cat", "door", "text" in the descriptive analysis
+    // and incorrectly reporting them as detected objects.
+    // 
+    // The Google Gemini Vision API provides comprehensive analysis in text form,
+    // but object detection should be handled by the API itself, not by keyword parsing.
+    
+    return []; // Return empty array to avoid misleading object detection
+    
+    /* REMOVED PROBLEMATIC CODE:
     const objects: Array<{ name: string; confidence: number }> = [];
     
     // Common objects to look for in the analysis
@@ -189,6 +199,7 @@ Format your response as a detailed but conversational analysis that would be hel
     }
 
     return objects.slice(0, 8); // Limit to top 8 objects
+    */
   }
 
   private extractScene(text: string): string {
@@ -241,43 +252,35 @@ Format your response as a detailed but conversational analysis that would be hel
     let objects: Array<{ name: string; confidence: number }>;
     let scene: string;
     
-    if (fileExtension && ['jpg', 'jpeg', 'png', 'webp'].includes(fileExtension.toLowerCase())) {
-      caption = `I can see that an image file (${fileExtension.toUpperCase()}) has been uploaded. While I can't analyze the visual content in detail without the vision API, I'm ready to help discuss or work with this image in our conversation.`;
-      
-      objects = [
-        { name: 'uploaded_image', confidence: 0.9 },
-        { name: 'visual_content', confidence: 0.8 },
-        { name: fileExtension.toLowerCase() + '_file', confidence: 0.95 }
-      ];
-      
-      scene = `Digital image file in ${fileExtension.toUpperCase()} format, likely containing visual information relevant to our conversation.`;
-    } else {
-      caption = 'An image has been shared in our conversation. I can see that visual content has been provided and I\'m ready to incorporate it into our discussion.';
-      
-      objects = [
-        { name: 'shared_image', confidence: 0.8 },
-        { name: 'visual_content', confidence: 0.7 }
-      ];
-      
-      scene = 'Visual content shared in conversation context.';
-    }
+    // Be honest about limitations when API key is not available
+    caption = `🚫 Image uploaded successfully, but detailed analysis is not available. Google Vision API key is required for image content analysis. I can see that an image file has been shared, but cannot describe its specific contents.`;
+    
+    objects = [
+      { name: 'uploaded_image', confidence: 1.0 },
+      { name: 'requires_api_key', confidence: 1.0 }
+    ];
+    
+    scene = `Image analysis unavailable - Google Vision API key not configured. Please set GOOGLE_API_KEY environment variable for image content analysis.`;
 
     return {
       status: 'success',
       result: {
         caption,
         detectedObjects: objects,
-        confidence: 0.6, // Lower confidence for fallback
+        confidence: 0.0, // Zero confidence for fallback without real analysis
         metadata: {
           scene_description: scene,
-          text_detected: 'Image analysis requires vision API for text detection',
+          text_detected: 'Text detection requires Google Vision API',
           fallback_mode: true,
-          image_type: imageType
+          api_key_missing: true,
+          image_type: imageType,
+          requires_setup: 'Please configure GOOGLE_API_KEY environment variable'
         }
       },
       metadata: {
         processing_time_ms: Date.now() - startTime,
-        api_used: 'fallback_enhanced_description'
+        api_used: 'fallback_no_api_key',
+        warning: 'Google Vision API key not configured'
       }
     };
   }

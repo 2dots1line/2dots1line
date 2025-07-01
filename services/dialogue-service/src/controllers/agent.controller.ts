@@ -112,63 +112,83 @@ export class AgentController {
         return;
       }
 
+      console.log(`📁 Processing file upload: ${file.originalname || file.filename} (${file.mimetype}, ${file.size} bytes)`);
+
       let actualConversationId = conversation_id;
       if (!actualConversationId) {
         const newConversation = await this.conversationRepository.create({
           user_id: userId,
-          title: `Image conversation started at ${new Date().toISOString()}`,
+          title: `File upload conversation started at ${new Date().toISOString()}`,
         });
         actualConversationId = newConversation.id;
       }
 
       // 1. Determine file type and route to appropriate tool
       const fileType = this.determineFileType(file.mimetype, file.filename || file.originalname);
-      console.log(`Processing uploaded ${fileType}: ${file.filename || file.originalname} (${file.mimetype})`);
+      console.log(`🔍 File type determined: ${fileType} (MIME: ${file.mimetype})`);
       
       let extractedContent = '';
       let analysisResult: any = null;
+      let processingError: string | null = null;
       
       if (fileType === 'image') {
         // Handle image files with VisionCaptionTool
-        console.log('Analyzing uploaded image with VisionCaptionTool...');
-        const visionInput = {
-          user_id: userId,
-          region: 'us' as const,
-          payload: {
-            imageUrl: file.dataUrl,
-            imageType: file.mimetype.split('/')[1] || 'unknown'
-          },
-          metadata: {
-            session_id: context?.session_id,
-            timestamp: new Date().toISOString()
-          }
-        };
-
-        const visionResult = await VisionCaptionTool.execute(visionInput);
-        analysisResult = visionResult;
-        
-        if (visionResult.status === 'success' && visionResult.result) {
-          extractedContent = `Image Analysis: ${visionResult.result.caption}`;
-          
-          if (visionResult.result.detectedObjects && visionResult.result.detectedObjects.length > 0) {
-            const objects = visionResult.result.detectedObjects.map(obj => obj.name).join(', ');
-            extractedContent += `\n\nDetected objects: ${objects}`;
-          }
-          
-          if (visionResult.result.metadata?.scene_description) {
-            extractedContent += `\n\nScene: ${visionResult.result.metadata.scene_description}`;
-          }
-        } else {
-          extractedContent = 'Image uploaded but analysis not available.';
-        }
-      } else if (fileType === 'document') {
-        // Handle document files with DocumentExtractTool  
-        console.log('Extracting text from uploaded document with DocumentExtractTool...');
-        
-        // For base64 data, we need to save it temporarily to a file for DocumentExtractTool
-        const tempFilePath = await this.saveBase64ToTempFile(file.dataUrl, file.filename || file.originalname);
+        console.log('🖼️ Analyzing uploaded image with VisionCaptionTool...');
         
         try {
+          const visionInput = {
+            user_id: userId,
+            region: 'us' as const,
+            payload: {
+              imageUrl: file.dataUrl, // This should be the full data URL with base64 data
+              imageType: file.mimetype.split('/')[1] || 'unknown'
+            },
+            metadata: {
+              session_id: context?.session_id,
+              timestamp: new Date().toISOString(),
+              filename: file.originalname || file.filename
+            }
+          };
+
+          console.log(`🔧 VisionCaptionTool input prepared for image: ${file.originalname || file.filename}`);
+          const visionResult = await VisionCaptionTool.execute(visionInput);
+          analysisResult = visionResult;
+          
+          if (visionResult.status === 'success' && visionResult.result) {
+            extractedContent = `[Image Analysis] ${visionResult.result.caption}`;
+            
+            if (visionResult.result.detectedObjects && visionResult.result.detectedObjects.length > 0) {
+              const objects = visionResult.result.detectedObjects.map(obj => obj.name).join(', ');
+              extractedContent += `\n\nDetected objects: ${objects}`;
+            }
+            
+            if (visionResult.result.metadata?.scene_description) {
+              extractedContent += `\n\nScene: ${visionResult.result.metadata.scene_description}`;
+            }
+            
+            console.log(`✅ Image analysis completed successfully`);
+          } else {
+            processingError = visionResult.error?.message || 'Image analysis failed';
+            extractedContent = 'Image uploaded but analysis not available.';
+            console.warn(`⚠️ Image analysis failed: ${processingError}`);
+          }
+        } catch (error) {
+          processingError = error instanceof Error ? error.message : 'Unknown error during image processing';
+          extractedContent = 'Image uploaded but analysis failed due to processing error.';
+          console.error(`❌ Image processing error:`, error);
+        }
+        
+      } else if (fileType === 'document') {
+        // Handle document files with DocumentExtractTool  
+        console.log('📄 Extracting text from uploaded document with DocumentExtractTool...');
+        
+        let tempFilePath: string | null = null;
+        
+        try {
+          // For base64 data, we need to save it temporarily to a file for DocumentExtractTool
+          tempFilePath = await this.saveBase64ToTempFile(file.dataUrl, file.filename || file.originalname);
+          console.log(`💾 Temporary file created: ${tempFilePath}`);
+          
           const documentInput = {
             user_id: userId,
             region: 'us' as const,
@@ -178,32 +198,46 @@ export class AgentController {
             },
             metadata: {
               session_id: context?.session_id,
-              timestamp: new Date().toISOString()
+              timestamp: new Date().toISOString(),
+              filename: file.originalname || file.filename
             }
           };
 
+          console.log(`🔧 DocumentExtractTool input prepared for document: ${file.originalname || file.filename}`);
           const documentResult = await DocumentExtractTool.execute(documentInput);
           analysisResult = documentResult;
           
           if (documentResult.status === 'success' && documentResult.result) {
-            extractedContent = `Document Content:\n\n${documentResult.result.extractedText}`;
+            extractedContent = `[Document Content]\n\n${documentResult.result.extractedText}`;
             
-                         if (documentResult.result.metadata) {
-               const meta = documentResult.result.metadata;
-               extractedContent += `\n\n--- Document Metadata ---\n`;
-               extractedContent += `File: ${(meta as any).fileName || meta.title || 'Unknown'}\n`;
-               extractedContent += `Words: ${(meta as any).wordCount || 'Unknown'}\n`;
-               extractedContent += `Language: ${meta.language || 'Unknown'}`;
-             }
+            if (documentResult.result.metadata) {
+              const meta = documentResult.result.metadata;
+              extractedContent += `\n\n--- Document Metadata ---\n`;
+              extractedContent += `File: ${(meta as any).fileName || meta.title || 'Unknown'}\n`;
+              extractedContent += `Words: ${(meta as any).wordCount || 'Unknown'}\n`;
+              extractedContent += `Language: ${meta.language || 'auto-detect'}`;
+            }
+            
+            console.log(`✅ Document extraction completed successfully (${documentResult.result.extractedText.length} characters)`);
           } else {
+            processingError = documentResult.error?.message || 'Document extraction failed';
             extractedContent = 'Document uploaded but text extraction failed.';
+            console.warn(`⚠️ Document extraction failed: ${processingError}`);
           }
+        } catch (error) {
+          processingError = error instanceof Error ? error.message : 'Unknown error during document processing';
+          extractedContent = 'Document uploaded but text extraction failed due to processing error.';
+          console.error(`❌ Document processing error:`, error);
         } finally {
           // Clean up temporary file
-          await this.cleanupTempFile(tempFilePath);
+          if (tempFilePath) {
+            await this.cleanupTempFile(tempFilePath);
+          }
         }
       } else {
+        processingError = `Unsupported file type: ${fileType}`;
         extractedContent = `File uploaded but type '${fileType}' is not supported for content extraction.`;
+        console.warn(`⚠️ ${processingError}`);
       }
 
       // 2. Record file in media model
@@ -216,31 +250,34 @@ export class AgentController {
         const existingMedia = await this.mediaRepository.findByHash(fileHash);
         
         if (existingMedia) {
-          console.log(`File already exists in database: ${existingMedia.media_id}`);
+          console.log(`🔄 File already exists in database: ${existingMedia.media_id}`);
           mediaRecord = existingMedia;
         } else {
-          // Create new media record
-          mediaRecord = await this.mediaRepository.create({
+          // Create new media record with correct field names
+          const mediaData = {
             user_id: userId,
-            type: fileType,
+            type: fileType, // This matches the Prisma schema field name
             storage_url: file.dataUrl, // For now storing base64 directly, in production this would be a cloud storage URL
             filename: file.filename || file.originalname,
             mime_type: file.mimetype,
             size_bytes: file.size,
             hash: fileHash,
-            processing_status: 'completed', // Since analysis already completed
+            processing_status: processingError ? 'error' : 'completed',
             metadata: {
               upload_timestamp: new Date().toISOString(),
               conversation_id: actualConversationId,
               original_filename: file.originalname,
               file_type: fileType,
-              analysis_completed: true,
+              analysis_completed: !processingError,
               analysis_timestamp: new Date().toISOString(),
+              processing_error: processingError,
               analysis_result: analysisResult?.status === 'success' ? analysisResult.result : null
             }
-          });
+          };
           
-          console.log(`✅ Media record created: ${mediaRecord.media_id} (${file.size} bytes, ${file.mimetype})`);
+          mediaRecord = await this.mediaRepository.create(mediaData);
+          
+          console.log(`✅ Media record created: ${mediaRecord.media_id} (${file.size} bytes, ${file.mimetype}, type: ${fileType})`);
         }
       } catch (error) {
         console.error('❌ Failed to record media in database:', error);
@@ -248,10 +285,11 @@ export class AgentController {
       }
 
       // 3. Record user's message with media reference
+      const userMessage = message || (fileType === 'image' ? 'What can you tell me about this image?' : 'Please analyze this document');
       await this.conversationRepository.addMessage({
         conversation_id: actualConversationId,
         role: 'user',
-        content: message || 'What can you tell me about this image?',
+        content: userMessage,
         media_ids: mediaRecord ? [mediaRecord.media_id] : []
       });
 
@@ -259,54 +297,87 @@ export class AgentController {
       await this.conversationRepository.addMessage({
         conversation_id: actualConversationId,
         role: 'assistant',
-        content: `[${fileType === 'image' ? 'Image Analysis' : 'Document Content'}] ${extractedContent}`,
+        content: extractedContent,
         media_ids: mediaRecord ? [mediaRecord.media_id] : []
       });
 
-      // 5. Generate LLM response using enhanced context
-      // Include the extracted content directly in the message text for better integration
-      const userQuestion = message || (fileType === 'image' ? 'What can you tell me about this image?' : 'Please summarize this document');
-      
-      // Combine user question with extracted content for better context
-      const enhancedMessage = `${userQuestion}\n\n[Context: ${extractedContent}]`;
+      // 5. Only generate LLM response if analysis was successful
+      if (!processingError) {
+        // Generate LLM response using enhanced context
+        const enhancedMessage = `${userMessage}\n\n[Context: ${extractedContent}]`;
 
-      const dialogueInput: TDialogueAgentInput = {
-        user_id: userId,
-        region: 'us' as const,
-        payload: {
-          message_id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-          message_text: enhancedMessage, // Include extracted content in the message
-          conversation_id: actualConversationId,
-          client_timestamp: new Date().toISOString()
-        },
-        metadata: {
-          session_id: context?.session_id,
-          timestamp: new Date().toISOString(),
-          content_extracted: true,
-          extracted_content: extractedContent,
-          file_type: fileType,
-          media_id: mediaRecord?.media_id
-        }
-      };
-
-      const result: TDialogueAgentOutput = await this.dialogueAgent.processDialogue(dialogueInput);
-
-      if (result.status === 'success') {
-        // Transform response to match frontend expectations
-        const response = {
-          success: true,
-          response_text: result.result?.response_text,
-          conversation_id: result.result?.conversation_id,
+        const dialogueInput: TDialogueAgentInput = {
+          user_id: userId,
+          region: 'us' as const,
+          payload: {
+            message_id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+            message_text: enhancedMessage,
+            conversation_id: actualConversationId,
+            client_timestamp: new Date().toISOString()
+          },
           metadata: {
-            ...result.metadata,
+            session_id: context?.session_id,
+            timestamp: new Date().toISOString(),
+            content_extracted: true,
+            extracted_content: extractedContent,
+            file_type: fileType,
+            media_id: mediaRecord?.media_id
+          }
+        };
+
+        const result: TDialogueAgentOutput = await this.dialogueAgent.processDialogue(dialogueInput);
+
+        if (result.status === 'success') {
+          // Transform response to match frontend expectations
+          const response = {
+            success: true,
+            response_text: result.result?.response_text,
+            conversation_id: result.result?.conversation_id,
+            metadata: {
+              ...result.metadata,
+              extracted_content: extractedContent,
+              file_type: fileType,
+              processing_error: null,
+              media_record: mediaRecord ? {
+                media_id: mediaRecord.media_id,
+                type: mediaRecord.type,
+                processing_status: mediaRecord.processing_status,
+                created_at: mediaRecord.created_at,
+                was_duplicate: !!mediaRecord && mediaRecord.created_at < new Date(Date.now() - 1000)
+              } : null,
+              file_info: {
+                filename: file.filename,
+                originalname: file.originalname,
+                size: file.size,
+                mimetype: file.mimetype
+              }
+            }
+          };
+          res.status(200).json(response);
+        } else {
+          res.status(500).json({
+            success: false,
+            error: result.error?.message || 'Internal Server Error',
+            processing_error: null,
+            file_processed: true
+          });
+        }
+      } else {
+        // File was uploaded and recorded, but processing failed
+        const response = {
+          success: false,
+          error: `File uploaded successfully but ${fileType} processing failed: ${processingError}`,
+          conversation_id: actualConversationId,
+          file_processed: true,
+          processing_error: processingError,
+          metadata: {
             extracted_content: extractedContent,
             file_type: fileType,
             media_record: mediaRecord ? {
               media_id: mediaRecord.media_id,
               type: mediaRecord.type,
               processing_status: mediaRecord.processing_status,
-              created_at: mediaRecord.created_at,
-              was_duplicate: !!mediaRecord && mediaRecord.created_at < new Date(Date.now() - 1000) // Simple check if created more than 1 second ago
+              created_at: mediaRecord.created_at
             } : null,
             file_info: {
               filename: file.filename,
@@ -316,17 +387,16 @@ export class AgentController {
             }
           }
         };
-        res.status(200).json(response);
-      } else {
-        res.status(500).json({
-          success: false,
-          error: result.error?.message || 'Internal Server Error'
-        });
+        res.status(422).json(response); // 422 Unprocessable Entity - file uploaded but couldn't be processed
       }
 
     } catch (error) {
-      console.error('Error in AgentController.upload:', error);
-      res.status(500).json({ success: false, error: 'File upload processing failed' });
+      console.error('❌ Critical error in AgentController.upload:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: 'File upload processing failed',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   };
 
