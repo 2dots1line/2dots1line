@@ -1,8 +1,3 @@
-# V11.3 Definitive Docker Compose for 2dots1line Local Development
-# This version correctly orchestrates all V9.7+ services and workers.
-
-version: '3.8'
-
 networks:
   2d1l_network: # Respecting the existing network name
     driver: bridge

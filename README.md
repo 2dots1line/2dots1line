@@ -67,4 +67,41 @@ Refer to the following documents for detailed information:
 
 ## License
 
-Proprietary and confidential. 
+Proprietary and confidential.
+
+# 2D1L - Development Setup
+
+## Quick Start (Complete System)
+
+1. **Start databases**: `docker-compose up postgres redis weaviate neo4j -d`
+2. **Start backend services**: `pnpm services:start`  
+3. **Start web app**: `cd apps/web-app && pnpm dev`
+4. **Open**: http://localhost:3000
+
+## Service Management
+
+- **Start all backend services**: `pnpm services:start`
+- **Stop all backend services**: `pnpm services:stop`
+- **Restart services**: `pnpm services:restart`
+- **Full development mode**: `pnpm dev:full` (starts services + web app)
+
+## Service Ports
+
+- **Web App**: http://localhost:3000
+- **API Gateway**: http://localhost:3001
+- **Dialogue Service**: http://localhost:3002
+- **User Service**: http://localhost:3003
+- **Card Service**: http://localhost:3004
+- **Prisma Studio**: http://localhost:5555
+
+## Troubleshooting
+
+### Authentication Issues
+1. Verify all services are running: `curl http://localhost:300{1,2,3,4}/api/health`
+2. Check service logs: `tail -f logs/*.log`
+3. Restart services: `pnpm services:restart`
+
+### Database Issues
+1. Ensure Docker databases are running: `docker ps`
+2. Regenerate Prisma client: `cd packages/database && pnpm db:generate`
+3. Check database connections in logs 

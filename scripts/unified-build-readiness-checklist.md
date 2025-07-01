@@ -42,6 +42,101 @@
 ## 🛡️ **CATEGORICAL FAILURE PREVENTION (REFLECTION-BASED)**
 **Lessons from recent build failures - prevent these failure modes**
 
+### **🔧 TYPESCRIPT CONFIGURATION ARCHITECTURE MISMATCH (CRITICAL EDGE CASE)**
+**Based on critical discovery of module system conflicts that passed individual validation but failed at runtime**
+
+#### **🎯 DEFINITIVE ROOT CAUSE DISCOVERY (ISOLATED TESTING)**
+**CRITICAL FINDING: TypeScript Configuration vs Dependency Versions**
+
+**✅ CONFIRMED VIA SYSTEMATIC ISOLATION:**
+- **TRUE CULPRIT**: TypeScript configuration changes (frontend vs backend module system conflicts)
+- **NOT THE CULPRIT**: Dependency version upgrades (Next.js 14.0.3→14.2.17, React 18.2.0→18.3.1, TypeScript 5.2.2→5.8.3)
+
+**🧪 TEST METHODOLOGY USED:**
+1. Restored original working TypeScript config (frontend-specific overrides)
+2. Updated ONLY package.json dependencies to newer versions  
+3. Clean rebuild and testing
+4. **RESULT**: Web-app works perfectly with updated versions + original tsconfig
+
+**📊 SPECIFIC CONFIGURATION FAILURES THAT BREAK FRONTEND APPS:**
+- **Missing**: `"module": "esnext"` (Next.js requires ES modules for bundling)
+- **Missing**: `"moduleResolution": "bundler"` (Webpack resolution strategy)
+- **Missing**: `"lib": ["dom", "dom.iterable", "es6"]` (Browser API support)
+- **Missing**: `"paths": {"@/*": ["./src/*"]}` (Local import resolution)
+
+**🚨 ARCHITECTURAL INSIGHT**: 
+Frontend (Next.js) and Backend (Node.js) applications have **fundamentally incompatible TypeScript requirements**:
+- **Frontend needs**: ES modules, bundler resolution, DOM libraries
+- **Backend needs**: CommonJS, node resolution, server libraries
+
+**Attempting to "standardize" both under one base config is architecturally flawed.**
+
+**📋 PREVENTION PROTOCOL:**
+- [ ] **NEVER force frontend apps to use backend CommonJS settings**
+- [ ] **MAINTAIN separate base configs** for frontend vs backend
+- [ ] **TEST version upgrades independently** from config changes
+- [ ] **ISOLATE variables** when debugging configuration issues
+
+- [ ] **DETECT CONFLICTING BASE CONFIGURATIONS**:
+  ```bash
+  # Check for multiple conflicting TypeScript base configs
+  find . -name "tsconfig*.json" -not -path "./node_modules/*" -exec grep -l '"module"' {} \;
+  
+  # Critical check: Ensure module system alignment
+  echo "=== Root base config ==="
+  grep -A 5 '"module"' tsconfig.base.json
+  echo "=== Config directory base ==="
+  grep -A 5 '"module"' config/tsconfig/base.json || echo "Not found"
+  ```
+
+- [ ] **MODULE SYSTEM CONSISTENCY VERIFICATION**:
+  ```bash
+  # Verify all packages use the same module system (should all be CommonJS for Node.js)
+  for config in $(find . -name "tsconfig*.json" -not -path "./node_modules/*"); do
+    echo "=== $config ==="
+    grep '"module"' "$config" || echo "Inherits from base"
+  done
+  ```
+
+- [ ] **PACKAGE.JSON MODULE TYPE ALIGNMENT CHECK**:
+  ```bash
+  # Check for "type": "module" declarations that conflict with CommonJS compilation
+  find . -name "package.json" -not -path "./node_modules/*" -exec grep -l '"type".*"module"' {} \;
+  # Should return empty for Node.js backend packages compiled to CommonJS
+  ```
+
+- [ ] **COMPILED OUTPUT VERIFICATION**:
+  ```bash
+  # Verify packages compile to expected module format
+  echo "Checking database package compilation:"
+  head -5 packages/database/dist/index.js | grep -E "(use strict|module\.exports|exports\.|require\()"
+  echo "Should show CommonJS syntax, not ES module syntax"
+  ```
+
+- [ ] **IMPORT RESOLUTION TESTING**:
+  ```bash
+  # Test actual imports work after compilation
+  cd services/dialogue-service && node -e "
+    try { 
+      const db = require('@2dots1line/database'); 
+      console.log('✅ Database import successful'); 
+    } catch(e) { 
+      console.log('❌ Import failed:', e.message); 
+    }"
+  ```
+
+**Key Insight**: Individual TypeScript configurations can appear correct but create **systemic module system mismatches** when base configurations conflict. This edge case bypasses standard linting and requires **runtime import testing**.
+
+### **🎯 EDGE CASE CHARACTERIZATION FRAMEWORK**
+**Classification system for configuration-level failures that pass individual validation**
+
+- [ ] **"Silent Architecture Conflicts"**: Multiple valid configurations that interact incorrectly
+- [ ] **"Inheritance Chain Corruption"**: Base config changes that propagate unexpected behavior
+- [ ] **"Module Boundary Violations"**: ES/CommonJS mismatches that fail at import time
+- [ ] **"Development/Production Divergence"**: Configs that work in dev but fail in production builds
+
+**Prevention Protocol**: Always test **integration points** between packages, not just individual package validity.
+
 ### **🔍 POST-CHANGE VERIFICATION GATES (MANDATORY)**
 - [ ] **BINARY EXISTENCE VERIFICATION** - After version changes, verify expected binaries exist:
   ```bash
@@ -693,6 +788,90 @@
 - [ ] **📦 MULTIPLE LOCK FILES CAUSE DUPLICATION** - Always maintain single pnpm-lock.yaml to prevent version conflicts
 - [ ] **🔗 PNPM STORE IS NOT DUPLICATION** - Understand content-addressable storage vs real duplication issues
 - [ ] **🧹 CLEAN INSTALLS SOLVE DUPLICATION** - Remove conflicting lock files and run fresh `pnpm install --frozen-lockfile`
+- [ ] **⚡ TYPESCRIPT MODULE SYSTEM MISMATCHES BYPASS VALIDATION** - Root `tsconfig.base.json` with `"module": "ESNext"` vs services needing `"module": "CommonJS"` creates runtime import failures that pass individual linting
+- [ ] **🏗️ CONFIGURATION INHERITANCE CREATES "SILENT ARCHITECTURE CONFLICTS"** - Multiple valid base configs can interact to create systemic failures at package boundaries requiring runtime import testing
+- [ ] **💾 NEXT.JS WEBPACK CACHE CORRUPTION REQUIRES .NEXT DELETION** - Missing webpack chunks (e.g., `./250.js`) indicate dev server cache issues, not build problems - delete `.next` directory to resolve
+- [ ] **🚨 SERVICE ORCHESTRATION ENVIRONMENT VARIABLE PROPAGATION CRITICAL** - Services must be started with unified environment loading to ensure runtime database connectivity and authentication functionality
+
+### **🚨 CRITICAL: SERVICE ORCHESTRATION & ENVIRONMENT VARIABLE PROPAGATION**
+**Based on authentication pipeline debugging - January 2025**
+
+#### **🎯 ROOT CAUSE ANALYSIS (DEFINITIVE)**
+**Primary Issue**: Backend services (user-service, dialogue-service, card-service) not running with proper environment variables, causing authentication and business logic failures.
+
+**Specific Failures Observed**:
+- Services starting without `DATABASE_URL` environment variable
+- Prisma client initialization failing at runtime despite successful builds
+- API Gateway proxying to non-existent or crashed services
+- Web app authentication flow broken despite valid frontend code
+- 500 Internal Server Errors for auth endpoints due to service unavailability
+
+#### **✅ SOLUTION IMPLEMENTED**
+**Systematic Service Orchestration Scripts**:
+- Created `scripts/start-services.sh` - Unified backend service startup with environment loading
+- Created `scripts/stop-services.sh` - Clean service shutdown
+- Added root package.json convenience scripts (`services:start`, `services:stop`, `services:restart`)
+- Implemented health check verification for all services
+
+**Key Technical Requirements**:
+- Environment variable loading via `set -a; source .env; set +a` pattern
+- Database service verification before application service startup
+- Prisma client generation as mandatory prerequisite
+- Service startup with proper logging and PID tracking
+- Health check endpoints for service availability verification
+
+#### **🔍 CATEGORICAL PREVENTION CHECKS (MANDATORY)**
+- [ ] **ENVIRONMENT VARIABLE PROPAGATION VERIFICATION**:
+  ```bash
+  # Before starting any service, verify environment variables are accessible
+  echo "DATABASE_URL check: ${DATABASE_URL:0:30}..."
+  echo "REDIS_URL check: ${REDIS_URL}"
+  # Services must inherit these variables at startup
+  ```
+
+- [ ] **SERVICE DEPENDENCY HEALTH CHECKS**:
+  ```bash
+  # Database services must be running before application services
+  nc -z localhost 5433 || { echo "PostgreSQL not accessible"; exit 1; }
+  nc -z localhost 6379 || { echo "Redis not accessible"; exit 1; }
+  curl -f http://localhost:8080/v1/.well-known/ready || { echo "Weaviate not accessible"; exit 1; }
+  ```
+
+- [ ] **REQUIRED SERVICE ORCHESTRATION PROTOCOL**:
+  ```bash
+  # MANDATORY: All backend services must be started together with environment
+  # NEVER start services individually in different terminals/shells
+  # USE: ./scripts/start-services.sh (loads environment consistently)
+  # VERIFY: Health checks pass for all services before testing
+  ```
+
+- [ ] **PRISMA CLIENT GENERATION PREREQUISITE**:
+  ```bash
+  # ALWAYS generate Prisma client before starting services that use database
+  cd packages/database && pnpm db:generate
+  # Services using DatabaseService will fail without this step
+  ```
+
+- [ ] **API GATEWAY PROXY TARGET VERIFICATION**:
+  ```bash
+  # Before testing API endpoints, verify target services are running
+  curl -f http://localhost:3003/api/health  # user-service
+  curl -f http://localhost:3002/api/health  # dialogue-service  
+  curl -f http://localhost:3004/api/health  # card-service
+  # API Gateway will return 500 errors if targets are unreachable
+  ```
+
+#### **⚠️ CRITICAL ARCHITECTURAL INSIGHT**
+**Microservice Development Anti-Pattern**: Starting individual services in separate terminals without unified environment loading creates **inconsistent runtime contexts** that bypass development testing but fail in integration.
+
+**Correct Pattern**: Unified service orchestration with consistent environment variable propagation ensures **development-production parity**.
+
+#### **🛠️ IMPLEMENTATION PROTOCOL (PROVEN EFFECTIVE)**
+1. **USE ORCHESTRATION SCRIPTS**: `pnpm services:start` instead of manual service startup
+2. **VERIFY PREREQUISITES**: Database services running, Prisma client generated
+3. **CHECK HEALTH ENDPOINTS**: All services respond before testing application flow
+4. **MONITOR LOGS**: Use centralized logging (`logs/*.log`) for debugging
+5. **CLEAN SHUTDOWN**: `pnpm services:stop` to prevent port conflicts
 
 ### **🔄 POST-VERSION-CHANGE RECOVERY PROTOCOL (DEFINITIVE)**
 - [ ] **STEP 1**: Reinstall dependencies for affected packages:

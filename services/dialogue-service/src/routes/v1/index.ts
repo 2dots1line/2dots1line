@@ -6,5 +6,6 @@ const agentRouter: ExpressRouter = Router();
 const agentController = new AgentController();
 
 agentRouter.post('/agent/chat', agentController.chat);
+agentRouter.post('/agent/upload', agentController.upload);
 
 export default agentRouter; 

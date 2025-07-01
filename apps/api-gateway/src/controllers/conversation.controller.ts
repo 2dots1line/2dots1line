@@ -68,11 +68,82 @@ export class ConversationController {
   /**
    * POST /api/v1/conversations/upload
    * Forwards a file upload to the dialogue-service.
-   * Note: This requires the dialogue-service to have a file-handling endpoint.
    */
   public uploadFile = async (req: Request, res: Response): Promise<void> => {
-    // This method would need to be implemented to handle multipart/form-data
-    // proxying to the dialogue service. For now, it's a placeholder.
-    res.status(501).json({ message: 'File upload proxy not yet implemented.' });
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ success: false, error: 'Unauthorized' });
+        return;
+      }
+
+      // Check if file was uploaded
+      if (!req.file) {
+        res.status(400).json({ success: false, error: 'No file uploaded' });
+        return;
+      }
+
+      const file = req.file as Express.Multer.File;
+      
+      // Convert file to base64 for API transmission
+      const fs = await import('fs');
+      const fileBuffer = fs.readFileSync(file.path);
+      const base64Data = fileBuffer.toString('base64');
+      const mimeType = file.mimetype;
+      const dataUrl = `data:${mimeType};base64,${base64Data}`;
+
+      // Prepare request body for dialogue service
+      const requestBody = {
+        userId: userId,
+        message: req.body.message || 'What can you tell me about this image?',
+        conversation_id: req.body.conversation_id,
+        file: {
+          filename: file.filename,
+          originalname: file.originalname,
+          mimetype: file.mimetype,
+          size: file.size,
+          dataUrl: dataUrl
+        },
+        context: {
+          session_id: req.body.session_id || `session-${Date.now()}`,
+          trigger_background_processing: true
+        }
+      };
+
+      // Forward to dialogue service upload endpoint
+      const response = await this.dialogueServiceClient.post(
+        '/api/v1/agent/upload',
+        requestBody
+      );
+
+      // Clean up uploaded file after processing
+      try {
+        fs.unlinkSync(file.path);
+      } catch (cleanupError) {
+        console.warn('Failed to cleanup uploaded file:', cleanupError);
+      }
+
+      // Return response from dialogue service
+      res.status(response.status).json(response.data);
+
+    } catch (error) {
+      console.error('Error proxying file upload to dialogue-service:', error);
+      
+      // Clean up file if upload failed
+      if (req.file) {
+        try {
+          const fs = await import('fs');
+          fs.unlinkSync(req.file.path);
+        } catch (cleanupError) {
+          console.warn('Failed to cleanup uploaded file after error:', cleanupError);
+        }
+      }
+      
+      if (axios.isAxiosError(error) && error.response) {
+        res.status(error.response.status).json(error.response.data);
+      } else {
+        res.status(500).json({ success: false, error: 'File upload failed' });
+      }
+    }
   };
 } 

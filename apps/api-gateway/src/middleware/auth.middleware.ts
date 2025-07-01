@@ -1,6 +1,15 @@
 import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
 
 const NODE_ENV = process.env.NODE_ENV || 'development';
+const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
+
+interface JWTPayload {
+  userId: string;
+  email: string;
+  iat: number;
+  exp: number;
+}
 
 export const authMiddleware = (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -26,23 +35,25 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
       return next();
     }
 
-    // Development mode - allow any token for now (TODO: implement proper JWT verification)
-    if (NODE_ENV === 'development') {
-      console.log('🔧 Auth Debug - Development mode - allowing any token');
+    // Verify JWT token
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
+      console.log('✅ Auth Debug - JWT verified successfully for user:', decoded.userId);
+      
       req.user = {
-        id: token.substring(0, 8) || 'unknown-user',
-        username: 'dev-user',
-        email: 'dev@example.com'
+        id: decoded.userId,
+        email: decoded.email,
+        username: decoded.email.split('@')[0] // Use email prefix as username
       };
+      
       return next();
+    } catch (jwtError) {
+      console.error('❌ Auth Debug - JWT verification failed:', jwtError instanceof Error ? jwtError.message : 'Unknown JWT error');
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Invalid or expired token' 
+      });
     }
-
-    // Production mode - reject tokens since JWT verification is not implemented
-    console.error('❌ Auth middleware error: JWT verification not implemented for production');
-    return res.status(501).json({ 
-      success: false, 
-      error: 'Authentication not implemented for production environment' 
-    });
   } catch (error) {
     console.error('❌ Auth middleware error:', error instanceof Error ? error.message : 'Unknown error');
     console.error('❌ Auth middleware error type:', error instanceof Error ? error.constructor.name : typeof error);
