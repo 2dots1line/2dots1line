@@ -5,7 +5,9 @@
     "rootDir": "./src",
     "composite": true,
     "declaration": true,
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "module": "CommonJS",
+    "moduleResolution": "node"
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"],
