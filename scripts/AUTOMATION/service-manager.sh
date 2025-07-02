@@ -41,8 +41,38 @@ kill_port() {
     local pids=$(lsof -ti:$port 2>/dev/null)
     if [ -n "$pids" ]; then
         echo $pids | xargs kill -9 2>/dev/null
-        log_warning "Killed existing processes on port $port"
+        log_warning "Killed existing processes on port $port: $pids"
         sleep 1
+        
+        # Double-check if port is still in use
+        if is_port_in_use $port; then
+            local remaining_pids=$(lsof -ti:$port 2>/dev/null)
+            if [ -n "$remaining_pids" ]; then
+                echo $remaining_pids | xargs kill -9 2>/dev/null
+                log_warning "Force killed remaining processes on port $port: $remaining_pids"
+                sleep 1
+            fi
+        fi
+    fi
+}
+
+# Kill processes by service pattern
+kill_service_processes() {
+    local service=$1
+    log_info "Cleaning up any leftover $service processes..."
+    
+    # Kill ts-node-dev processes for this service
+    local service_pids=$(ps aux | grep "$service.*ts-node-dev" | grep -v grep | awk '{print $2}')
+    if [ -n "$service_pids" ]; then
+        echo $service_pids | xargs kill -9 2>/dev/null
+        log_warning "Killed $service ts-node-dev processes: $service_pids"
+    fi
+    
+    # Also kill any node processes in the service directory
+    local dir_pids=$(ps aux | grep "$service.*pnpm dev" | grep -v grep | awk '{print $2}')
+    if [ -n "$dir_pids" ]; then
+        echo $dir_pids | xargs kill -9 2>/dev/null
+        log_warning "Killed $service pnpm processes: $dir_pids"
     fi
 }
 
@@ -140,13 +170,26 @@ check_prerequisites() {
 stop_services() {
     log_info "Stopping all services..."
     
-    # Kill by port to ensure clean shutdown
+    # Kill by port and service pattern to ensure complete cleanup
     echo "$SERVICES" | grep -v '^$' | while read service_line; do
         if [ -n "$service_line" ]; then
+            local service=$(get_service_info "$service_line" 1)
             local port=$(get_service_info "$service_line" 3)
+            
+            # Kill by port first
             kill_port $port
+            
+            # Then kill any remaining service processes
+            kill_service_processes $service
         fi
     done
+    
+    # Additional cleanup: kill any remaining ts-node-dev processes
+    local remaining_ts_node=$(ps aux | grep "ts-node-dev.*src/server.ts" | grep -v grep | awk '{print $2}')
+    if [ -n "$remaining_ts_node" ]; then
+        echo $remaining_ts_node | xargs kill -9 2>/dev/null
+        log_warning "Killed remaining ts-node-dev processes: $remaining_ts_node"
+    fi
     
     # Clean up PID file
     rm -f "$PID_FILE"

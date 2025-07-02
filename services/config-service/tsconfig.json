@@ -4,12 +4,24 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "composite": true,
-    "declaration": true
+    "declaration": true,
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"],
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ],
   "references": [
-    { "path": "../../packages/core-utils" },
-    { "path": "../../packages/shared-types" }
+    {
+      "path": "../../packages/core-utils"
+    },
+    {
+      "path": "../../packages/shared-types"
+    }
   ]
 }

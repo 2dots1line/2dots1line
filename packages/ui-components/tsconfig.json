@@ -9,9 +9,20 @@
     "sourceMap": true,
     "jsx": "react-jsx",
     "isolatedModules": false,
-    "paths": {}
+    "paths": {},
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"],
-  "exclude": ["dist", "node_modules", "**/*.test.ts", "**/*.spec.ts", "**/*.stories.ts", "**/*.stories.tsx"],
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx"
+  ],
+  "exclude": [
+    "dist",
+    "node_modules",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "**/*.stories.ts",
+    "**/*.stories.tsx"
+  ],
   "references": []
-} 
+}

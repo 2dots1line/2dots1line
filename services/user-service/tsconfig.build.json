@@ -2,13 +2,26 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noEmit": false,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "tsBuildInfoFile": "./dist/tsconfig.build.tsbuildinfo"
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts"],
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.ts"
+  ],
   "references": [
-    { "path": "../../packages/database/tsconfig.build.json" },
-    { "path": "../../packages/shared-types/tsconfig.build.json" },
-    { "path": "../../packages/core-utils/tsconfig.build.json" }
+    {
+      "path": "../../packages/database/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/shared-types/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/core-utils/tsconfig.build.json"
+    }
   ]
 }

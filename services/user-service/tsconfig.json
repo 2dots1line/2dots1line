@@ -4,13 +4,27 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "composite": true,
-    "declaration": true
+    "declaration": true,
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"],
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ],
   "references": [
-    { "path": "../../packages/database/tsconfig.build.json" },
-    { "path": "../../packages/shared-types/tsconfig.build.json" },
-    { "path": "../../packages/core-utils/tsconfig.build.json" }
+    {
+      "path": "../../packages/database/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/shared-types/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/core-utils/tsconfig.build.json"
+    }
   ]
-} 
+}

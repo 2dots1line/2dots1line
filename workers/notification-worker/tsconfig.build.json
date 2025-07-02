@@ -1,10 +1,15 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "noEmit": false
+    "noEmit": false,
+    "tsBuildInfoFile": "./dist/tsconfig.build.tsbuildinfo"
   },
   "references": [
-    { "path": "../../packages/shared-types" },
-    { "path": "../../packages/database" }
+    {
+      "path": "../../packages/shared-types"
+    },
+    {
+      "path": "../../packages/database"
+    }
   ]
 }

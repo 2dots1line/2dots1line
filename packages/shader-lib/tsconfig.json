@@ -9,9 +9,18 @@
     "declarationMap": true,
     "isolatedModules": false,
     "paths": {},
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "src/generated", "scripts", "**/*.test.ts"],
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/generated",
+    "scripts",
+    "**/*.test.ts"
+  ],
   "references": []
-} 
+}

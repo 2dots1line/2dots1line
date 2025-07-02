@@ -8,11 +8,21 @@
     "declarationMap": true,
     "sourceMap": true,
     "isolatedModules": false,
-    "paths": {}
+    "paths": {},
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"],
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ],
   "references": [
-    { "path": "../shared-types/tsconfig.build.json" } 
+    {
+      "path": "../shared-types/tsconfig.build.json"
+    }
   ]
-} 
+}

@@ -6,9 +6,12 @@
     "composite": true,
     "declaration": true,
     "module": "CommonJS",
-    "moduleResolution": "node"
+    "moduleResolution": "node",
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
   },
-  "include": ["src/**/*.ts"],
+  "include": [
+    "src/**/*.ts"
+  ],
   "exclude": [
     "node_modules",
     "dist",
@@ -16,9 +19,17 @@
     "**/*.spec.ts"
   ],
   "references": [
-    { "path": "../config-service" },
-    { "path": "../../packages/database" },
-    { "path": "../../packages/shared-types" },
-    { "path": "../../packages/tools" }
+    {
+      "path": "../config-service"
+    },
+    {
+      "path": "../../packages/database"
+    },
+    {
+      "path": "../../packages/shared-types"
+    },
+    {
+      "path": "../../packages/tools"
+    }
   ]
 }

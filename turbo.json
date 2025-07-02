@@ -6,37 +6,77 @@
   ],
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
-      "outputs": ["dist/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "dist/**",
+        "!dist/**/*.tsbuildinfo"
+      ]
     },
     "build:web": {
-      "dependsOn": ["^build"],
-      "outputs": [".next/**", "dist/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        ".next/**",
+        "dist/**"
+      ]
     },
     "db:generate": {
       "cache": false,
-      "inputs": ["packages/database/prisma/schema.prisma"],
-      "outputs": ["packages/database/src/prisma-client.ts"]
+      "inputs": [
+        "packages/database/prisma/schema.prisma"
+      ],
+      "outputs": [
+        "packages/database/src/prisma-client.ts"
+      ]
     },
     "build:db": {
-      "dependsOn": ["db:generate"],
-      "outputs": ["dist/**"]
+      "dependsOn": [
+        "db:generate"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
     },
     "build#packages/database": {
-      "dependsOn": ["db:generate", "^build"],
-      "outputs": ["dist/**"]
+      "dependsOn": [
+        "db:generate",
+        "^build"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
     },
     "build#packages/tools": {
-      "dependsOn": ["#packages/database#build", "^build"],
-      "outputs": ["dist/**"]
+      "dependsOn": [
+        "#packages/database#build",
+        "^build"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
     },
     "build#services/*": {
-      "dependsOn": ["#packages/database#build", "#packages/tools#build", "^build"],
-      "outputs": ["dist/**"]
+      "dependsOn": [
+        "#packages/database#build",
+        "#packages/tools#build",
+        "^build"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
     },
     "build#workers/*": {
-      "dependsOn": ["#packages/database#build", "#packages/tools#build", "^build"],
-      "outputs": ["dist/**"]
+      "dependsOn": [
+        "#packages/database#build",
+        "#packages/tools#build",
+        "^build"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
     },
     "lint": {
       "dependsOn": []
@@ -44,6 +84,10 @@
     "dev": {
       "cache": false,
       "persistent": true
+    },
+    "clean:build": {
+      "cache": false,
+      "outputs": []
     }
   }
-} 
+}

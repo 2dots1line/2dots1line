@@ -8,7 +8,8 @@
     "declaration": true,
     "declarationMap": true,
     "isolatedModules": false,
-    "paths": {}
+    "paths": {},
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
   },
   "include": [
     "src/**/*.ts"
@@ -19,4 +20,4 @@
     "**/*.test.ts"
   ],
   "references": []
-} 
+}

@@ -5,7 +5,8 @@
     "rootDir": "./src",
     "composite": true,
     "declaration": true,
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
   },
   "include": [
     "src/**/*.ts",
@@ -20,6 +21,8 @@
     "**/*.spec.ts"
   ],
   "references": [
-    { "path": "../../packages/ui-components/tsconfig.build.json" }
+    {
+      "path": "../../packages/ui-components/tsconfig.build.json"
+    }
   ]
 }

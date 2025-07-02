@@ -6,10 +6,15 @@
     "composite": true,
     "noEmit": false,
     "isolatedModules": false,
-    "lib": ["es2020"],
-    "paths": {}
+    "lib": [
+      "es2020"
+    ],
+    "paths": {},
+    "tsBuildInfoFile": "./dist/tsconfig.build.tsbuildinfo"
   },
-  "include": ["src/**/*.ts"],
+  "include": [
+    "src/**/*.ts"
+  ],
   "exclude": [
     "node_modules",
     "dist",
@@ -18,6 +23,8 @@
     "src/__tests__"
   ],
   "references": [
-    { "path": "../shared-types" }
+    {
+      "path": "../shared-types"
+    }
   ]
-} 
+}
