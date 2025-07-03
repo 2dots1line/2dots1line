@@ -247,4 +247,86 @@ case "${1:-check}" in
     "check"|*)
         main
         ;;
-esac 
+esac
+
+echo "🔍 Node.js Type Safety Check"
+echo "----------------------------"
+
+# Check if @types/node is installed at workspace root
+if pnpm list @types/node --depth=0 | grep -q "@types/node"; then
+    echo -e "${GREEN}✓${NC} @types/node installed at workspace root"
+else
+    echo -e "${RED}✗${NC} @types/node missing at workspace root"
+    echo "  Run: pnpm add -D -w @types/node"
+    ((ISSUES_FOUND++))
+fi
+
+# Check backend packages have @types/node
+BACKEND_PACKAGES=(
+    "apps/api-gateway"
+    "services/dialogue-service"
+    "services/user-service"
+    "services/config-service"
+    "services/card-service"
+)
+
+for package in "${BACKEND_PACKAGES[@]}"; do
+    if [ -f "$ROOT_DIR/$package/package.json" ]; then
+        if grep -q '"@types/node"' "$ROOT_DIR/$package/package.json"; then
+            echo -e "${GREEN}✓${NC} $package has @types/node dependency"
+        else
+            echo -e "${YELLOW}⚠${NC} $package missing @types/node dependency"
+            echo "  Run: cd $package && pnpm add -D @types/node"
+            ((ISSUES_FOUND++))
+        fi
+    fi
+done
+
+# Check for common Node.js import patterns that require types
+NODE_MODULES_CHECK=(
+    "fs:$ROOT_DIR/apps/api-gateway/src"
+    "crypto:$ROOT_DIR/services/dialogue-service/src"
+    "path:$ROOT_DIR/services/dialogue-service/src"
+    "os:$ROOT_DIR/services/dialogue-service/src"
+)
+
+for check in "${NODE_MODULES_CHECK[@]}"; do
+    module="${check%:*}"
+    dir="${check#*:}"
+    
+    if [ -d "$dir" ] && grep -r "import.*'$module'" "$dir" >/dev/null 2>&1; then
+        echo -e "${BLUE}ℹ${NC} Found $module imports in $dir"
+        
+        # Verify the package has @types/node
+        package_dir="$(dirname "$(dirname "$dir")")"
+        if ! grep -q '"@types/node"' "$package_dir/package.json" 2>/dev/null; then
+            echo -e "${RED}✗${NC} $package_dir uses $module but missing @types/node"
+            ((ISSUES_FOUND++))
+        fi
+    fi
+done
+
+# Check for process.env usage
+if grep -r "process\.env" "$ROOT_DIR/apps" "$ROOT_DIR/services" >/dev/null 2>&1; then
+    echo -e "${BLUE}ℹ${NC} Found process.env usage (requires Node.js types)"
+fi
+
+# Check for Buffer usage
+if grep -r "\bBuffer\b" "$ROOT_DIR/apps" "$ROOT_DIR/services" >/dev/null 2>&1; then
+    echo -e "${BLUE}ℹ${NC} Found Buffer usage (requires Node.js types)"
+fi
+
+echo ""
+
+if [ "$ISSUES_FOUND" -eq 0 ]; then
+    log_success "Node.js Type Safety Check: All checks passed."
+else
+    log_warning "Node.js Type Safety Check: Found $ISSUES_FOUND issue(s) that need attention."
+    echo ""
+    echo "🛠️  Quick fixes:"
+    echo "  • pnpm add -D -w @types/node"
+    echo "  • cd <package> && pnpm add -D @types/node"
+    echo "  • Ensure all imports are type-safe"
+    echo "  • Verify process.env usage"
+    echo "  • Verify Buffer usage"
+fi 

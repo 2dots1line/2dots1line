@@ -7,6 +7,7 @@
 import { TToolInput, TToolOutput } from '@2dots1line/shared-types';
 import type { IToolManifest, IExecutableTool } from '@2dots1line/shared-types';
 import { GoogleGenerativeAI, GenerativeModel, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
+import { ModelConfigService } from '@2dots1line/config-service';
 
 export interface LLMChatInputPayload {
   userId: string;
@@ -77,6 +78,8 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
   
   private genAI: GoogleGenerativeAI;
   private model: GenerativeModel;
+  private modelConfigService: any;
+  private currentModelName: string;
 
   constructor() {
     const apiKey = process.env.GOOGLE_API_KEY;
@@ -85,13 +88,20 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
     }
     
     this.genAI = new GoogleGenerativeAI(apiKey);
+    this.modelConfigService = ModelConfigService.getInstance();
+    
+    // Get the appropriate model from configuration
+    this.currentModelName = this.modelConfigService.getModelForUseCase('chat');
+    const generationConfig = this.modelConfigService.getGenerationConfig(this.currentModelName);
+    
+    console.log(`🤖 LLMChatTool: Initializing with model ${this.currentModelName}`);
+    this.modelConfigService.logCurrentConfiguration();
+    
     this.model = this.genAI.getGenerativeModel({ 
-      model: 'gemini-1.5-flash',
+      model: this.currentModelName,
       generationConfig: {
-        temperature: 0.7,
-        topK: 40,
-        topP: 0.95,
-        maxOutputTokens: 2048,
+        ...generationConfig,
+        maxOutputTokens: 2048, // Override for chat use case
       },
       safetySettings: [
         {
@@ -178,12 +188,12 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
             output_tokens: response.usageMetadata?.candidatesTokenCount || 0,
             total_tokens: response.usageMetadata?.totalTokenCount || 0
           },
-          model_used: 'gemini-1.5-flash',
+          model_used: this.currentModelName,
           finish_reason: response.candidates?.[0]?.finishReason || 'stop'
         },
         metadata: {
           processing_time_ms: Math.round(processingTime),
-          model_used: 'gemini-1.5-flash',
+          model_used: this.currentModelName,
           session_id: input.payload.sessionId
         }
       };

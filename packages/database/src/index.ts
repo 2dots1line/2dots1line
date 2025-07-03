@@ -17,6 +17,18 @@ export { prisma } from './prisma-client';
 // Re-export Prisma types for convenience
 export * from '@prisma/client';
 
+// Explicitly re-export commonly used Prisma model types
+export type { 
+  users, 
+  conversations, 
+  conversation_messages, 
+  cards,
+  memory_units,
+  concepts,
+  communities,
+  Prisma 
+} from '@prisma/client';
+
 // Repositories
 export * from './repositories';
 

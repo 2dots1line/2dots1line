@@ -1,6 +1,3 @@
-// packages/database/prisma/schema.prisma
-// V9.7 - Definitive Production Schema
-
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native"]
@@ -11,291 +8,244 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ========================================================================
-// SECTION 1: CORE USER & SESSION MANAGEMENT
-// ========================================================================
-model User {
-  user_id             String    @id @default(uuid())
-  email               String    @unique
-  hashed_password     String?
-  name                String?
-  region              String    @default("us")
-  timezone            String?   @default("UTC")
-  language_preference String?   @default("en")
-  profile_picture_url String?
-  account_status      String    @default("active")
-  created_at          DateTime  @default(now())
-  last_active_at      DateTime? @updatedAt
+model cards {
+  card_id            String          @id
+  user_id            String
+  card_type          String
+  source_entity_id   String
+  source_entity_type String
+  status             String          @default("active_canvas")
+  is_favorited       Boolean         @default(false)
+  display_data       Json?
+  is_synced          Boolean         @default(true)
+  created_at         DateTime        @default(now())
+  updated_at         DateTime
+  users              users           @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  conversations      conversations[]
 
-  // V9.7: Core context packages
-  memory_profile                    Json? @db.JsonB
-  knowledge_graph_schema            Json? @db.JsonB
-  next_conversation_context_package Json? @db.JsonB
-
-  // V9.7: Cycle management fields
-  last_cycle_started_at   DateTime?
-  concepts_created_in_cycle Int     @default(0)
-  
-  // V9.7: User-configurable settings
-  preferences Json? @db.JsonB
-
-  // --- Relations ---
-  sessions                UserSession[]
-  conversations           Conversation[]
-  cards                   Card[]
-  memory_units            MemoryUnit[]
-  concepts                Concept[]
-  media_items             Media[]
-  derived_artifacts       DerivedArtifact[]
-  user_challenges         UserChallenge[]
-  proactive_prompts       ProactivePrompt[]
-  growth_events           GrowthEvent[]
-  communities             Community[]
-  interaction_logs        InteractionLog[]
-  graph_projections       UserGraphProjection[]
-
-  @@map("users")
+  @@index([user_id, status])
 }
 
-model UserSession {
-  session_id     String   @id @default(uuid())
-  user_id        String
-  user           User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  device_info    Json?    @db.JsonB
-  ip_address     String?
-  user_agent     String?
-  created_at     DateTime @default(now())
-  expires_at     DateTime
-  last_active_at DateTime @updatedAt
-
-  @@index([user_id])
-  @@map("user_sessions")
-}
-
-
-// ========================================================================
-// SECTION 2: CONVERSATION & INTERACTION LOGGING
-// ========================================================================
-model Conversation {
-  id               String    @id @default(uuid())
+model communities {
+  community_id     String     @id
   user_id          String
-  user             User      @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  title            String?
-  start_time       DateTime  @default(now())
-  ended_at         DateTime?
-  status           String    @default("active") // 'active', 'ended', 'processing', 'processed'
-  importance_score Float?
-  context_summary  String?
-  metadata         Json?     @db.JsonB
-  source_card_id   String?
-  source_card      Card?     @relation(fields: [source_card_id], references: [card_id], onDelete: SetNull)
-
-  messages             ConversationMessage[]
-  spawned_memory_units MemoryUnit[]
-
-  @@index([user_id, status])
-  @@map("conversations")
+  name             String
+  description      String?
+  created_at       DateTime   @default(now())
+  last_analyzed_ts DateTime?
+  users            users      @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  concepts         concepts[]
 }
 
-model ConversationMessage {
-  id                String       @id @default(uuid())
-  conversation_id   String
-  conversation      Conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
-  role              String       // 'user' or 'assistant'
-  content           String
-  timestamp         DateTime     @default(now())
-  llm_call_metadata Json?        @db.JsonB
-  media_ids         String[]     @default([])
-
-  @@index([conversation_id, timestamp])
-  @@map("conversation_messages")
-}
-
-
-// ========================================================================
-// SECTION 3: PRESENTATION & KNOWLEDGE ENTITIES
-// ========================================================================
-model Card {
-  card_id             String    @id @default(uuid())
-  user_id             String
-  user                User      @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  card_type           String
-  source_entity_id    String
-  source_entity_type  String    // 'MemoryUnit', 'Concept', 'DerivedArtifact', 'ProactivePrompt'
-  status              String    @default("active_canvas") // 'active_canvas', 'active_archive', 'completed'
-  is_favorited        Boolean   @default(false)
-  display_data        Json?     @db.JsonB
-  is_synced           Boolean   @default(true)
-  created_at          DateTime  @default(now())
-  updated_at          DateTime  @updatedAt
-
-  initiated_conversations Conversation[]
-
-  @@index([user_id, status])
-  @@map("cards")
-}
-
-model MemoryUnit {
-  muid                    String    @id @default(uuid())
-  user_id                 String
-  user                    User      @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  title                   String
-  content                 String
-  creation_ts             DateTime
-  ingestion_ts            DateTime  @default(now())
-  last_modified_ts        DateTime  @updatedAt
-  importance_score        Float?
-  sentiment_score         Float?
-  source_conversation_id  String?
-  source_conversation     Conversation? @relation(fields: [source_conversation_id], references: [id], onDelete: SetNull)
-  
-  media_items             Media[]
-  derived_artifacts_as_source DerivedArtifact[]
-
-  @@map("memory_units")
-}
-
-model Concept {
-  concept_id String @id @default(uuid())
-  user_id    String
-  user       User   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  name       String
-  type       String
-  description         String?
-  status              String     @default("active") // 'active', 'merged', 'archived'
-  salience            Float?
-  created_at          DateTime   @default(now())
-  last_updated_ts     DateTime   @updatedAt
-  community_id        String?
-  community           Community? @relation(fields: [community_id], references: [community_id], onDelete: SetNull)
+model concepts {
+  concept_id             String              @id
+  user_id                String
+  name                   String
+  type                   String
+  description            String?
+  community_id           String?
+  created_at             DateTime            @default(now())
+  last_updated_ts        DateTime
   merged_into_concept_id String?
-  merged_into_concept    Concept?   @relation("ConceptMergeTarget", fields: [merged_into_concept_id], references: [concept_id], onDelete: NoAction, onUpdate: NoAction)
-  merged_from_concepts   Concept[]  @relation("ConceptMergeTarget")
-
-  derived_artifacts_as_source DerivedArtifact[]
+  salience               Float?
+  status                 String              @default("active")
+  communities            communities?        @relation(fields: [community_id], references: [community_id])
+  concepts               concepts?           @relation("conceptsToconcepts", fields: [merged_into_concept_id], references: [concept_id], onDelete: NoAction, onUpdate: NoAction)
+  other_concepts         concepts[]          @relation("conceptsToconcepts")
+  users                  users               @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  derived_artifacts      derived_artifacts[]
 
   @@unique([user_id, name, type])
-  @@map("concepts")
 }
 
-model Media {
-  media_id          String     @id @default(uuid())
-  user_id           String
-  user              User       @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  memory_unit_id    String?
-  memory_unit       MemoryUnit? @relation(fields: [memory_unit_id], references: [muid], onDelete: SetNull)
-  type              String     // 'image', 'audio', 'document'
-  storage_url       String
-  filename          String?
-  mime_type         String?
-  size_bytes        Int?
-  hash              String?    @unique
-  processing_status String     @default("pending")
-  metadata          Json?      @db.JsonB
-  created_at        DateTime   @default(now())
+model conversation_messages {
+  conversation_id   String
+  role              String
+  media_ids         String[]      @default([])
+  content           String
+  id                String        @id
+  llm_call_metadata Json?
+  timestamp         DateTime      @default(now())
+  conversations     conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
 
-  @@index([user_id])
-  @@index([user_id, type])
-  @@index([user_id, created_at(sort: Desc)])
-  @@index([processing_status])
-  @@map("media_items")
+  @@index([conversation_id, timestamp])
 }
 
-// ========================================================================
-// SECTION 4: GROWTH, GUIDANCE & DERIVED CONTENT
-// ========================================================================
-model GrowthEvent {
-  event_id    String   @id @default(uuid())
+model conversations {
+  user_id               String
+  title                 String?
+  start_time            DateTime                @default(now())
+  ended_at              DateTime?
+  context_summary       String?
+  metadata              Json?
+  id                    String                  @id
+  importance_score      Float?
+  source_card_id        String?
+  status                String                  @default("active")
+  conversation_messages conversation_messages[]
+  cards                 cards?                  @relation(fields: [source_card_id], references: [card_id])
+  users                 users                   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  memory_units          memory_units[]
+
+  @@index([user_id, status])
+}
+
+model derived_artifacts {
+  artifact_id           String        @id
+  user_id               String
+  artifact_type         String
+  title                 String
+  source_memory_unit_id String?
+  created_at            DateTime      @default(now())
+  content_data          Json?
+  content_narrative     String?
+  source_concept_id     String?
+  concepts              concepts?     @relation(fields: [source_concept_id], references: [concept_id])
+  memory_units          memory_units? @relation(fields: [source_memory_unit_id], references: [muid])
+  users                 users         @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+}
+
+model growth_events {
+  event_id    String   @id
   user_id     String
-  user        User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
   entity_id   String
   entity_type String
   dim_key     String
   delta       Float
   source      String
   created_at  DateTime @default(now())
-  details     Json?    @db.JsonB // { rationale: string }
-  @@map("growth_events")
+  details     Json?
+  users       users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 }
 
-model UserChallenge {
-  user_challenge_id String    @id @default(uuid())
+model interaction_logs {
+  interaction_id     String   @id
+  user_id            String
+  timestamp          DateTime @default(now())
+  interaction_type   String
+  target_entity_id   String?
+  target_entity_type String?
+  content_text       String?
+  content_structured Json?
+  metadata           Json?
+  users              users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+}
+
+model media_items {
+  media_id          String        @id
   user_id           String
-  user              User      @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  memory_unit_id    String?
+  type              String
+  storage_url       String
+  filename          String?
+  mime_type         String?
+  size_bytes        Int?
+  hash              String?       @unique
+  processing_status String        @default("pending")
+  metadata          Json?
+  created_at        DateTime      @default(now())
+  memory_units      memory_units? @relation(fields: [memory_unit_id], references: [muid])
+  users             users         @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@index([processing_status])
+  @@index([user_id, created_at(sort: Desc)])
+  @@index([user_id])
+  @@index([user_id, type])
+}
+
+model memory_units {
+  muid                   String              @id
+  user_id                String
+  title                  String
+  content                String
+  creation_ts            DateTime
+  ingestion_ts           DateTime            @default(now())
+  last_modified_ts       DateTime
+  importance_score       Float?
+  sentiment_score        Float?
+  source_conversation_id String?
+  derived_artifacts      derived_artifacts[]
+  media_items            media_items[]
+  conversations          conversations?      @relation(fields: [source_conversation_id], references: [id])
+  users                  users               @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+}
+
+model proactive_prompts {
+  prompt_id    String   @id
+  user_id      String
+  prompt_text  String
+  source_agent String
+  status       String   @default("pending")
+  created_at   DateTime @default(now())
+  metadata     Json?
+  users        users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+}
+
+model user_challenges {
+  user_challenge_id     String    @id
+  user_id               String
   challenge_template_id String
   status                String    @default("active")
   start_time            DateTime  @default(now())
   completion_time       DateTime?
-  progress_data         Json?     @db.JsonB
-  @@map("user_challenges")
+  progress_data         Json?
+  users                 users     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 }
 
-model ProactivePrompt {
-  prompt_id    String    @id @default(uuid())
-  user_id      String
-  user         User      @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  prompt_text  String
-  source_agent String
-  status       String    @default("pending")
-  created_at   DateTime  @default(now())
-  metadata     Json?     @db.JsonB
-  @@map("proactive_prompts")
-}
-
-model DerivedArtifact {
-  artifact_id        String    @id @default(uuid())
-  user_id            String
-  user               User      @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  artifact_type      String    // 'insight_summary', 'cycle_report', 'trophy'
-  title              String
-  content_narrative  String?
-  content_data       Json?     @db.JsonB
-  source_memory_unit_id String?
-  source_memory_unit    MemoryUnit? @relation(fields: [source_memory_unit_id], references: [muid], onDelete: SetNull)
-  source_concept_id     String?
-  source_concept        Concept?    @relation(fields: [source_concept_id], references: [concept_id], onDelete: SetNull)
-  created_at            DateTime    @default(now())
-  @@map("derived_artifacts")
-}
-
-model Community {
-  community_id     String    @id @default(uuid())
-  user_id          String
-  user             User      @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  name             String
-  description      String?
-  created_at       DateTime  @default(now())
-  last_analyzed_ts DateTime? @updatedAt
-  
-  concepts Concept[]
-  @@map("communities")
-}
-
-// ========================================================================
-// SECTION 5: UNIFIED INTERACTION & 3D COSMOS
-// ========================================================================
-model InteractionLog {
-  interaction_id String   @id @default(uuid())
-  user_id        String
-  user           User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  timestamp      DateTime @default(now())
-  interaction_type String
-  target_entity_id   String?
-  target_entity_type String?
-  content_text      String?
-  content_structured Json?    @db.JsonB
-  metadata         Json?    @db.JsonB
-  @@map("interaction_logs")
-}
-
-model UserGraphProjection {
-  projection_id       String   @id @default(uuid())
-  user_id             String
-  user                User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  status              String   @default("completed")
-  projection_data     Json     @db.JsonB
-  created_at          DateTime @default(now())
+model user_graph_projections {
+  projection_id   String   @id
+  user_id         String
+  status          String   @default("completed")
+  projection_data Json
+  created_at      DateTime @default(now())
+  users           users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@index([user_id, created_at(sort: Desc)])
-  @@map("user_graph_projections")
+}
+
+model user_sessions {
+  session_id     String   @id
+  user_id        String
+  device_info    Json?
+  ip_address     String?
+  user_agent     String?
+  created_at     DateTime @default(now())
+  expires_at     DateTime
+  last_active_at DateTime
+  users          users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@index([user_id])
+}
+
+model users {
+  user_id                           String                   @id
+  email                             String                   @unique
+  hashed_password                   String?
+  name                              String?
+  preferences                       Json?
+  region                            String                   @default("us")
+  timezone                          String?                  @default("UTC")
+  language_preference               String?                  @default("en")
+  profile_picture_url               String?
+  created_at                        DateTime                 @default(now())
+  last_active_at                    DateTime?
+  account_status                    String                   @default("active")
+  concepts_created_in_cycle         Int                      @default(0)
+  knowledge_graph_schema            Json?
+  last_cycle_started_at             DateTime?
+  memory_profile                    Json?
+  next_conversation_context_package Json?
+  cards                             cards[]
+  communities                       communities[]
+  concepts                          concepts[]
+  conversations                     conversations[]
+  derived_artifacts                 derived_artifacts[]
+  growth_events                     growth_events[]
+  interaction_logs                  interaction_logs[]
+  media_items                       media_items[]
+  memory_units                      memory_units[]
+  proactive_prompts                 proactive_prompts[]
+  user_challenges                   user_challenges[]
+  user_graph_projections            user_graph_projections[]
+  user_sessions                     user_sessions[]
 }

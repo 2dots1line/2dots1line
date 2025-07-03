@@ -3,7 +3,8 @@
  * V9.7 Repository for Card operations
  */
 
-import { Card, Prisma } from '@prisma/client';
+import { randomUUID } from 'crypto';
+import type { cards, Prisma } from '@2dots1line/database';
 import { DatabaseService } from '../DatabaseService';
 import { GrowthDimensionData } from './GrowthEventRepository';
 
@@ -12,13 +13,13 @@ export interface CreateCardData {
   card_type: string;
   source_entity_id: string;
   source_entity_type: string;
-  display_data?: Prisma.InputJsonValue;
+  display_data?: any;
 }
 
 export interface UpdateCardData {
   status?: string;
   is_favorited?: boolean;
-  display_data?: Prisma.InputJsonValue;
+  display_data?: any;
   is_synced?: boolean;
 }
 
@@ -52,20 +53,24 @@ export interface CardResultWithMeta {
 export class CardRepository {
   constructor(private db: DatabaseService) {}
 
-  async create(data: CreateCardData): Promise<Card> {
-    return this.db.prisma.card.create({
-      data,
+  async create(data: CreateCardData): Promise<cards> {
+    return this.db.prisma.cards.create({
+      data: {
+        ...data,
+        card_id: randomUUID(),
+        updated_at: new Date(),
+      },
     });
   }
 
-  async findById(cardId: string): Promise<Card | null> {
-    return this.db.prisma.card.findUnique({
+  async findById(cardId: string): Promise<cards | null> {
+    return this.db.prisma.cards.findUnique({
       where: { card_id: cardId },
     });
   }
 
-  async findByUserId(userId: string, limit = 50, offset = 0): Promise<Card[]> {
-    return this.db.prisma.card.findMany({
+  async findByUserId(userId: string, limit = 50, offset = 0): Promise<cards[]> {
+    return this.db.prisma.cards.findMany({
       where: { user_id: userId },
       take: limit,
       skip: offset,
@@ -73,8 +78,8 @@ export class CardRepository {
     });
   }
 
-  async findActiveByUserId(userId: string, limit = 50): Promise<Card[]> {
-    return this.db.prisma.card.findMany({
+  async findActiveByUserId(userId: string, limit = 50): Promise<cards[]> {
+    return this.db.prisma.cards.findMany({
       where: {
         user_id: userId,
         status: 'active_canvas',
@@ -84,8 +89,8 @@ export class CardRepository {
     });
   }
 
-  async findArchivedByUserId(userId: string, limit = 50): Promise<Card[]> {
-    return this.db.prisma.card.findMany({
+  async findArchivedByUserId(userId: string, limit = 50): Promise<cards[]> {
+    return this.db.prisma.cards.findMany({
       where: {
         user_id: userId,
         status: 'active_archive',
@@ -95,8 +100,8 @@ export class CardRepository {
     });
   }
 
-  async findFavoritedByUserId(userId: string): Promise<Card[]> {
-    return this.db.prisma.card.findMany({
+  async findFavoritedByUserId(userId: string): Promise<cards[]> {
+    return this.db.prisma.cards.findMany({
       where: {
         user_id: userId,
         is_favorited: true,
@@ -105,8 +110,8 @@ export class CardRepository {
     });
   }
 
-  async findBySourceEntity(sourceEntityId: string, sourceEntityType: string): Promise<Card[]> {
-    return this.db.prisma.card.findMany({
+  async findBySourceEntity(sourceEntityId: string, sourceEntityType: string): Promise<cards[]> {
+    return this.db.prisma.cards.findMany({
       where: {
         source_entity_id: sourceEntityId,
         source_entity_type: sourceEntityType,
@@ -114,49 +119,49 @@ export class CardRepository {
     });
   }
 
-  async update(cardId: string, data: UpdateCardData): Promise<Card> {
-    return this.db.prisma.card.update({
+  async update(cardId: string, data: UpdateCardData): Promise<cards> {
+    return this.db.prisma.cards.update({
       where: { card_id: cardId },
       data,
     });
   }
 
-  async archive(cardId: string): Promise<Card> {
-    return this.db.prisma.card.update({
+  async archive(cardId: string): Promise<cards> {
+    return this.db.prisma.cards.update({
       where: { card_id: cardId },
       data: { status: 'active_archive' },
     });
   }
 
-  async complete(cardId: string): Promise<Card> {
-    return this.db.prisma.card.update({
+  async complete(cardId: string): Promise<cards> {
+    return this.db.prisma.cards.update({
       where: { card_id: cardId },
       data: { status: 'completed' },
     });
   }
 
-  async favorite(cardId: string, favorited = true): Promise<Card> {
-    return this.db.prisma.card.update({
+  async favorite(cardId: string, favorited = true): Promise<cards> {
+    return this.db.prisma.cards.update({
       where: { card_id: cardId },
       data: { is_favorited: favorited },
     });
   }
 
-  async markSynced(cardId: string, synced = true): Promise<Card> {
-    return this.db.prisma.card.update({
+  async markSynced(cardId: string, synced = true): Promise<cards> {
+    return this.db.prisma.cards.update({
       where: { card_id: cardId },
       data: { is_synced: synced },
     });
   }
 
   async delete(cardId: string): Promise<void> {
-    await this.db.prisma.card.delete({
+    await this.db.prisma.cards.delete({
       where: { card_id: cardId },
     });
   }
 
-  async findByType(userId: string, cardType: string, limit = 50): Promise<Card[]> {
-    return this.db.prisma.card.findMany({
+  async findByType(userId: string, cardType: string, limit = 50): Promise<cards[]> {
+    return this.db.prisma.cards.findMany({
       where: {
         user_id: userId,
         card_type: cardType,
@@ -167,7 +172,7 @@ export class CardRepository {
   }
 
   async count(userId?: string, status?: string): Promise<number> {
-    return this.db.prisma.card.count({
+    return this.db.prisma.cards.count({
       where: {
         ...(userId && { user_id: userId }),
         ...(status && { status }),
@@ -175,8 +180,8 @@ export class CardRepository {
     });
   }
 
-  async findUnsyncedByUserId(userId: string): Promise<Card[]> {
-    return this.db.prisma.card.findMany({
+  async findUnsyncedByUserId(userId: string): Promise<cards[]> {
+    return this.db.prisma.cards.findMany({
       where: {
         user_id: userId,
         is_synced: false,
@@ -190,7 +195,7 @@ export class CardRepository {
    */
   async getCards(userId: string, filters: CardFilters): Promise<CardResultWithMeta> {
     // For now, use simplified logic. The proper implementation should join with growth data.
-    const cards = await this.db.prisma.card.findMany({
+    const cards = await this.db.prisma.cards.findMany({
       where: {
         user_id: userId,
         ...(filters.cardType && { card_type: filters.cardType }),
@@ -201,7 +206,7 @@ export class CardRepository {
       orderBy: this.buildOrderBy(filters.sortBy, filters.sortOrder),
     });
 
-    const total = await this.db.prisma.card.count({
+    const total = await this.db.prisma.cards.count({
       where: {
         user_id: userId,
         ...(filters.cardType && { card_type: filters.cardType }),
@@ -231,7 +236,7 @@ export class CardRepository {
    * Get detailed card information
    */
   async getCardDetails(cardId: string, userId: string): Promise<CardData | null> {
-    const card = await this.db.prisma.card.findFirst({
+    const card = await this.db.prisma.cards.findFirst({
       where: {
         card_id: cardId,
         user_id: userId,
@@ -257,7 +262,7 @@ export class CardRepository {
    */
   async getCardsByEvolutionState(userId: string, state: string): Promise<CardData[]> {
     // Simplified implementation - proper logic would filter by calculated evolution state
-    const cards = await this.db.prisma.card.findMany({
+    const cards = await this.db.prisma.cards.findMany({
       where: { user_id: userId },
       take: 10,
       orderBy: { created_at: 'desc' },
@@ -280,7 +285,7 @@ export class CardRepository {
    */
   async getTopGrowthCards(userId: string, limit: number): Promise<CardData[]> {
     // Simplified implementation - proper logic would order by growth activity
-    const cards = await this.db.prisma.card.findMany({
+    const cards = await this.db.prisma.cards.findMany({
       where: { user_id: userId },
       take: limit,
       orderBy: { updated_at: 'desc' },

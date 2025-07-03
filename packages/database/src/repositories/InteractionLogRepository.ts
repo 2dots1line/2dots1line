@@ -3,8 +3,9 @@
  * V9.7 Repository for InteractionLog operations
  */
 
-import { InteractionLog, Prisma } from '@prisma/client';
+import type { interaction_logs, Prisma } from '@2dots1line/database';
 import { DatabaseService } from '../DatabaseService';
+import { randomUUID } from 'crypto';
 
 export interface CreateInteractionLogData {
   user_id: string;
@@ -12,27 +13,30 @@ export interface CreateInteractionLogData {
   target_entity_id?: string;
   target_entity_type?: string;
   content_text?: string;
-  content_structured?: Prisma.InputJsonValue;
-  metadata?: Prisma.InputJsonValue;
+  content_structured?: any;
+  metadata?: any;
 }
 
 export class InteractionLogRepository {
   constructor(private db: DatabaseService) {}
 
-  async create(data: CreateInteractionLogData): Promise<InteractionLog> {
-    return this.db.prisma.interactionLog.create({
-      data,
+  async create(data: CreateInteractionLogData): Promise<interaction_logs> {
+    return this.db.prisma.interaction_logs.create({
+      data: {
+        interaction_id: randomUUID(),
+        ...data,
+      },
     });
   }
 
-  async findById(interactionId: string): Promise<InteractionLog | null> {
-    return this.db.prisma.interactionLog.findUnique({
+  async findById(interactionId: string): Promise<interaction_logs | null> {
+    return this.db.prisma.interaction_logs.findUnique({
       where: { interaction_id: interactionId },
     });
   }
 
-  async findByUserId(userId: string, limit = 50, offset = 0): Promise<InteractionLog[]> {
-    return this.db.prisma.interactionLog.findMany({
+  async findByUserId(userId: string, limit = 50, offset = 0): Promise<interaction_logs[]> {
+    return this.db.prisma.interaction_logs.findMany({
       where: { user_id: userId },
       take: limit,
       skip: offset,
@@ -40,8 +44,8 @@ export class InteractionLogRepository {
     });
   }
 
-  async findByInteractionType(userId: string, interactionType: string, limit = 50): Promise<InteractionLog[]> {
-    return this.db.prisma.interactionLog.findMany({
+  async findByInteractionType(userId: string, interactionType: string, limit = 50): Promise<interaction_logs[]> {
+    return this.db.prisma.interaction_logs.findMany({
       where: {
         user_id: userId,
         interaction_type: interactionType,
@@ -51,8 +55,8 @@ export class InteractionLogRepository {
     });
   }
 
-  async findByTargetEntity(targetEntityId: string, targetEntityType: string): Promise<InteractionLog[]> {
-    return this.db.prisma.interactionLog.findMany({
+  async findByTargetEntity(targetEntityId: string, targetEntityType: string): Promise<interaction_logs[]> {
+    return this.db.prisma.interaction_logs.findMany({
       where: {
         target_entity_id: targetEntityId,
         target_entity_type: targetEntityType,
@@ -61,11 +65,11 @@ export class InteractionLogRepository {
     });
   }
 
-  async findRecentByUserId(userId: string, hours = 24, limit = 100): Promise<InteractionLog[]> {
+  async findRecentByUserId(userId: string, hours = 24, limit = 100): Promise<interaction_logs[]> {
     const dateThreshold = new Date();
     dateThreshold.setHours(dateThreshold.getHours() - hours);
 
-    return this.db.prisma.interactionLog.findMany({
+    return this.db.prisma.interaction_logs.findMany({
       where: {
         user_id: userId,
         timestamp: {
@@ -78,7 +82,7 @@ export class InteractionLogRepository {
   }
 
   async count(userId?: string, interactionType?: string): Promise<number> {
-    return this.db.prisma.interactionLog.count({
+    return this.db.prisma.interaction_logs.count({
       where: {
         ...(userId && { user_id: userId }),
         ...(interactionType && { interaction_type: interactionType }),
@@ -87,7 +91,7 @@ export class InteractionLogRepository {
   }
 
   async delete(interactionId: string): Promise<void> {
-    await this.db.prisma.interactionLog.delete({
+    await this.db.prisma.interaction_logs.delete({
       where: { interaction_id: interactionId },
     });
   }
@@ -99,7 +103,7 @@ export class InteractionLogRepository {
     const dateThreshold = new Date();
     dateThreshold.setDate(dateThreshold.getDate() - days);
 
-    const interactions = await this.db.prisma.interactionLog.findMany({
+    const interactions = await this.db.prisma.interaction_logs.findMany({
       where: {
         user_id: userId,
         timestamp: {

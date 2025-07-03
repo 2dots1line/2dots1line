@@ -4,9 +4,11 @@
  */
 
 import { ConfigService } from './ConfigService';
+import { ModelConfigService } from './ModelConfigService';
 
-// Export the main service class
+// Export the main service classes
 export { ConfigService };
+export { ModelConfigService, type ModelConfig, type ModelDetails, type GeminiModelConfiguration } from './ModelConfigService';
 
 // Service initialization placeholder
 if (require.main === module) {

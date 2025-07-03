@@ -84,6 +84,9 @@ cd apps/web-app && pnpm dev          # Start frontend
 2. Use pattern recognition table for quick diagnosis
 3. Run: pnpm health:check
 4. Apply appropriate fix: pnpm fix:conflicts
+
+# Nuclear option (when everything is broken):
+5. Run: pnpm clean:rebuild  # Complete environment reset
 ```
 
 ### **🔧 I'M MAKING MAJOR CHANGES**
@@ -127,6 +130,7 @@ pnpm services:restart                # Restart all services
 pnpm fix:conflicts                   # Fix all known conflicts
 pnpm fix:typescript                  # Fix TypeScript build issues
 pnpm fix:pnpm                        # Fix pnpm lock file conflicts
+pnpm clean:rebuild                   # Complete environment reset (nuclear option)
 ```
 
 ### **Development Workflow**

@@ -8,9 +8,10 @@
 5. [Database Setup & Migrations](#database-setup--migrations)
 6. [Building & Starting Services](#building--starting-services)
 7. [Testing & Validation](#testing--validation)
-8. [Live Monitoring Setup](#live-monitoring-setup)
-9. [Troubleshooting Common Issues](#troubleshooting-common-issues)
-10. [Daily Development Workflow](#daily-development-workflow)
+8. [Gemini Model Configuration Management](#gemini-model-configuration-management)
+9. [Live Monitoring Setup](#live-monitoring-setup)
+10. [Troubleshooting Common Issues](#troubleshooting-common-issues)
+11. [Daily Development Workflow](#daily-development-workflow)
 
 ---
 
@@ -366,6 +367,409 @@ curl -X POST http://localhost:3001/api/v1/conversations/messages \
   -w "\nHTTP Status: %{http_code}\n"
 ```
 
+### 🤖 Gemini Model Configuration Management
+
+The 2D1L system uses a centralized Gemini model configuration system that allows easy model management, automatic fallbacks, and quota monitoring. This section covers how to use, maintain, and troubleshoot the model configuration.
+
+### 📋 Overview
+
+The system uses:
+- **Configuration File**: `/config/gemini_models.json` - Centralized model definitions
+- **Model Service**: `ModelConfigService` - Intelligent model selection with fallbacks
+- **Testing Script**: `/scripts/05_MODEL_MANAGEMENT/test_gemini_models.js` - Automated availability testing
+- **Use Cases**: Chat, Vision, Embedding - Each optimized for specific tasks
+
+**📂 All model management tools are located in**: `scripts/05_MODEL_MANAGEMENT/`
+
+### 🔍 Checking Current Model Configuration
+
+#### View Current Active Models
+```bash
+# Quick status check - see what models are currently configured
+cat config/gemini_models.json | jq '.models'
+
+# See detailed model information
+cat config/gemini_models.json | jq '.models'
+
+# Check last testing results
+cat config/gemini_models.json | jq '.testing_results'
+```
+
+#### View Models in Use by Services
+```bash
+# Check dialogue service logs for current model usage
+tail -f logs/dialogue-service.log | grep -E "(Using model|ModelConfigService|LLMChatTool)"
+
+# See which models are being used for different tasks
+grep -r "getModelForUseCase\|ModelConfigService" services/ --include="*.ts" -A 2 -B 2
+```
+
+### 🧪 Testing Model Availability
+
+#### Automated Model Testing
+```bash
+# Test all configured models against current API key
+cd config
+node test_gemini_models.js
+
+# The script will:
+# ✅ Test each model with your current GOOGLE_API_KEY
+# 📊 Update config/gemini_models.json with current availability
+# 🎯 Show quota status and recommended models
+```
+
+#### Manual Model Testing
+```bash
+# Test a specific model manually using curl
+GOOGLE_API_KEY="your-api-key"
+MODEL="gemini-2.0-flash-exp"
+
+curl -X POST \
+  "https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GOOGLE_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "contents": [{
+      "parts": [{"text": "Test message for model availability"}]
+    }]
+  }'
+```
+
+#### Service-Level Model Testing
+```bash
+# Test model functionality through the actual service
+curl -X POST http://localhost:3001/api/v1/conversations/messages \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer dev-token" \
+  -d '{"message": "Test the current chat model setup"}' | jq
+
+# Test vision model with image upload
+curl -X POST http://localhost:3001/api/v1/conversations/upload \
+  -H "Authorization: Bearer dev-token" \
+  -F "file=@test-image.jpg" \
+  -F "message=Describe this image" | jq
+```
+
+### ⚙️ Changing Model Configuration
+
+#### Update Primary Models for Use Cases
+```bash
+# Edit the configuration file
+nano config/gemini_models.json
+
+# Example: Change chat model from gemini-2.0-flash-exp to gemini-2.5-flash
+# Update the "chat" section:
+{
+  "models": {
+    "chat": {
+      "primary": "gemini-2.5-flash",     # ← Change this
+      "fallback": ["gemini-2.0-flash-exp", "gemini-1.5-flash"],
+      "description": "For general conversation and text generation"
+    }
+  }
+}
+
+# After editing, restart services to apply changes
+pnpm services:restart
+```
+
+#### Add New Models
+```bash
+# 1. First test the new model manually
+GOOGLE_API_KEY="your-api-key"
+curl -X POST \
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-new-model:generateContent?key=${GOOGLE_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{"contents": [{"parts": [{"text": "Test"}]}]}'
+
+# 2. Add to models section in config/gemini_models.json
+{
+  "models": {
+    "gemini-new-model": {
+      "status": "available",
+      "type": "experimental",
+      "capabilities": ["text", "images", "multimodal"],
+      "context_window": 1000000,
+      "generation_config": {
+        "temperature": 0.7,
+        "topK": 40,
+        "topP": 0.95,
+        "maxOutputTokens": 8192
+      }
+    }
+  }
+}
+
+# 3. Update use cases to include the new model
+# 4. Test with the automated script
+cd config && node test_gemini_models.js
+
+# 5. Restart services
+pnpm services:restart
+```
+
+#### Configure Fallback Chains
+```bash
+# Edit fallback priorities for resilience
+# Example: Prioritize newer models with older models as fallbacks
+{
+  "use_cases": {
+    "chat": {
+      "primary": "gemini-2.5-pro",
+      "fallback": [
+        "gemini-2.5-flash",      # ← Fast alternative
+        "gemini-2.0-flash-exp",  # ← Experimental backup
+        "gemini-1.5-flash"       # ← Stable fallback
+      ]
+    }
+  }
+}
+```
+
+### 🔄 Maintaining Model Configuration
+
+#### Monthly Model Update Workflow
+
+**Step 1: Check for New Google Models**
+```bash
+# Use Google AI Studio or check documentation for new models
+# Reference: https://ai.google.dev/gemini-api/docs/models/gemini
+
+# Check currently available models via API
+GOOGLE_API_KEY="your-api-key"
+curl "https://generativelanguage.googleapis.com/v1beta/models?key=${GOOGLE_API_KEY}" | jq '.models[].name'
+```
+
+**Step 2: Test New Models**
+```bash
+# Add new models to config file first, then test
+cd config
+node test_gemini_models.js
+
+# Review results and update primary/fallback assignments
+cat config/gemini_models.json | jq '.testing_results'
+```
+
+**Step 3: Update Configuration Based on Performance**
+```bash
+# Update models based on:
+# ✅ Availability (quota not exceeded)
+# 🚀 Performance (newer models often better)
+# 💰 Cost efficiency (flash models vs pro models)
+# 📊 Capability requirements (vision, text, etc.)
+
+# Example monthly update pattern:
+# - Primary: Latest stable or experimental model
+# - Fallback: Previous generation stable models
+# - Remove: Deprecated or consistently quota-exceeded models
+```
+
+#### Quota Monitoring & Management
+```bash
+# Weekly quota check
+cd config
+node test_gemini_models.js | tee quota-report-$(date +%Y-%m-%d).txt
+
+# If models show quota exceeded:
+# 1. Move them to end of fallback chain
+# 2. Promote working alternatives to primary
+# 3. Consider upgrading Google Cloud plan if needed
+
+# Example: Handle quota exceeded scenario
+# If gemini-1.5-pro shows quota exceeded:
+{
+  "use_cases": {
+    "vision": {
+      "primary": "gemini-2.0-flash-exp",    # ← Promote working alternative
+      "fallback": [
+        "gemini-2.5-flash",
+        "gemini-1.5-flash",
+        "gemini-1.5-pro"                   # ← Move to end
+      ]
+    }
+  }
+}
+```
+
+#### Google Free Tier Policy Updates
+```bash
+# Monitor Google's free tier documentation
+# Reference: https://ai.google.dev/pricing
+
+# When Google updates free tier limits:
+# 1. Update quota information in config file
+# 2. Test all models to verify new limits
+# 3. Adjust usage patterns if needed
+
+# Example: If Google increases RPM limits
+{
+  "quota_information": {
+    "free_tier": {
+      "rate_limits": "20 RPM",           # ← Update this
+      "daily_limits": "1,500 RPD",
+      "monthly_limits": "No explicit limit"
+    }
+  }
+}
+```
+
+### 🛠️ Model Configuration Scripts
+
+The model management system has been consolidated into `scripts/05_MODEL_MANAGEMENT/`. All scripts and documentation are located there for easy access.
+
+#### Available Scripts
+- **`manage-gemini-models.sh`** - Primary management script for all model operations
+- **`daily-model-check.sh`** - Automated health monitoring and reporting  
+- **`test_gemini_models.js`** - Node.js testing utility for model availability
+- **`README_MODEL_MANAGEMENT.md`** - Complete documentation and procedures
+
+#### Quick Commands
+```bash
+# Check current model status
+scripts/05_MODEL_MANAGEMENT/manage-gemini-models.sh status
+
+# Test all models
+scripts/05_MODEL_MANAGEMENT/manage-gemini-models.sh test
+
+# Update configuration
+scripts/05_MODEL_MANAGEMENT/manage-gemini-models.sh update-config
+
+# Daily health check
+scripts/05_MODEL_MANAGEMENT/daily-model-check.sh
+
+# Emergency fallback
+scripts/05_MODEL_MANAGEMENT/manage-gemini-models.sh emergency
+
+# Get help
+scripts/05_MODEL_MANAGEMENT/manage-gemini-models.sh help
+```
+
+#### Complete Documentation
+For detailed operations, troubleshooting, and maintenance procedures, see:
+```bash
+cat scripts/05_MODEL_MANAGEMENT/README_MODEL_MANAGEMENT.md
+```
+
+### 🚨 Troubleshooting Model Issues
+
+#### Common Issues & Solutions
+
+**Issue 1: Model Quota Exceeded**
+```bash
+# Symptoms: API calls fail with quota exceeded errors
+# Check: Look for 🚫 in test results
+
+# Solution 1: Use fallback models
+scripts/05_MODEL_MANAGEMENT/manage-gemini-models.sh check-quota
+
+# Solution 2: Update configuration to use available models
+scripts/05_MODEL_MANAGEMENT/manage-gemini-models.sh update-config
+
+# Solution 3: Wait for quota reset (daily/monthly depending on limit type)
+echo "Quota typically resets: Daily for RPM, Monthly for usage-based limits"
+```
+
+**Issue 2: Model Not Found/Deprecated**
+```bash
+# Symptoms: 404 errors when calling specific models
+# Check: Test individual models
+
+# Solution: Remove deprecated models from config
+nano config/gemini_models.json
+# Remove the deprecated model from all use_cases and models sections
+scripts/05_MODEL_MANAGEMENT/manage-gemini-models.sh test
+```
+
+**Issue 3: Service Not Using New Configuration**
+```bash
+# Symptoms: Services still using old models after config update
+# Solution: Restart services to reload configuration
+
+pnpm services:restart
+
+# Verify new models are loaded
+tail -f logs/dialogue-service.log | grep -E "(ModelConfigService|Loading.*config)"
+```
+
+**Issue 4: API Key Invalid for Certain Models**
+```bash
+# Symptoms: Some models work, others show authentication errors
+# Check: Different Google projects may have different model access
+
+# Solution: Verify API key has access to all desired models
+# Some models require specific Google Cloud project setup
+echo "Check Google AI Studio or Google Cloud Console for model access"
+```
+
+#### Debugging Model Selection
+```bash
+# Enable debug logging for model selection
+tail -f logs/dialogue-service.log | grep -E "(ModelConfigService|getModelForUseCase|Using.*model|Fallback)"
+
+# Manual debug test
+curl -X POST http://localhost:3001/api/v1/conversations/messages \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer dev-token" \
+  -d '{"message": "Debug: what model are you using?"}' | jq
+
+# Check which model was actually used in logs
+tail -20 logs/dialogue-service.log | grep -E "(Using model|LLMChatTool)"
+```
+
+#### Emergency Model Fallback
+```bash
+# If primary models fail, quickly switch to basic working model
+cat > config/emergency-model-config.json << 'EOF'
+{
+  "models": {
+    "chat": {
+      "primary": "gemini-1.5-flash",
+      "fallback": ["gemini-1.5-flash-8b"],
+      "description": "Emergency fallback for chat"
+    },
+    "vision": {
+      "primary": "gemini-1.5-flash", 
+      "fallback": ["gemini-1.5-flash-8b"],
+      "description": "Emergency fallback for vision"
+    },
+    "embedding": {
+      "primary": "text-embedding-004",
+      "fallback": [],
+      "description": "Standard embedding model"
+    }
+  }
+}
+EOF
+
+# Apply emergency config
+cp config/emergency-model-config.json config/gemini_models.json
+pnpm services:restart
+```
+
+### 📚 Model Configuration Best Practices
+
+#### Configuration Management
+1. **Always test before deploying**: Use `scripts/05_MODEL_MANAGEMENT/manage-gemini-models.sh test`
+2. **Keep fallbacks updated**: Ensure fallback models are tested and available
+3. **Monitor quota usage**: Run daily checks during active development
+4. **Document changes**: Update configuration comments when making changes
+5. **Version control**: Commit configuration changes with descriptive messages
+
+#### Model Selection Strategy
+1. **Primary models**: Use latest stable or experimental for best performance
+2. **Fallback chain**: Order by preference: newest → stable → basic
+3. **Use case optimization**: Different models for different tasks (chat vs vision)
+4. **Cost consideration**: Flash models for high-volume, Pro models for quality
+5. **Quota distribution**: Spread usage across models to avoid single-point quota issues
+
+#### Monitoring & Maintenance
+1. **Weekly testing**: Run automated model tests
+2. **Monthly reviews**: Check for new Google model releases
+3. **Quota tracking**: Monitor usage patterns and limits
+4. **Performance monitoring**: Compare model response quality over time
+5. **Fallback verification**: Ensure backup models work when needed
+
+This comprehensive model management system ensures your 2D1L installation stays up-to-date with the latest Gemini models while maintaining reliability through intelligent fallbacks and quota management.
+
 ---
 
 ## 🔍 Comprehensive Live Monitoring & Debugging Guide
@@ -623,335 +1027,3 @@ docker-compose down -v
 ./scripts/clean-rebuild.sh
 pnpm services:start
 ```
-
-#### **Database Recovery**
-```bash
-# 🗄️ PostgreSQL emergency reset
-docker-compose down postgres
-docker volume rm 2d1l_postgres_data
-docker-compose up -d postgres
-cd packages/database && pnpm prisma db push
-
-# 🧠 Weaviate emergency reset  
-docker-compose down weaviate
-docker volume rm 2d1l_weaviate_data
-docker-compose up -d weaviate
-```
-
-#### **Quick Log Analysis**
-```bash
-# 🔍 Find most recent errors across all logs
-find logs/ -name "*.log" -exec grep -l "Error\|ERROR\|Failed" {} \; | xargs ls -lt | head -5
-
-# 📊 Count error types across services
-grep -h "Error\|ERROR" logs/*.log | sort | uniq -c | sort -nr
-
-# ⏰ Show last 10 minutes of critical activity
-find logs/ -name "*.log" -exec grep -h "$(date -d '10 minutes ago' '+%Y-%m-%d %H:%M')" {} \; | tail -20
-```
-
-This comprehensive monitoring setup ensures you can quickly identify, diagnose, and resolve issues during development, with special focus on the critical image upload and DialogueAgent functionality.
-
----
-
-## 🚨 **Build System Conflict Troubleshooting**
-
-### **New Conflict Prevention System**
-
-We've implemented a comprehensive conflict resolution system. If you encounter the issues below, use these **new automated fixes**:
-
-```bash
-# 🛠️ Master fix for all build conflicts
-pnpm fix:conflicts
-
-# 🔧 Fix specific issues
-pnpm fix:typescript    # Fix TypeScript build info conflicts
-pnpm fix:pnpm         # Fix pnpm lock file conflicts
-```
-
----
-
-## Troubleshooting Common Issues
-
-### 🚨 **Issue 1: Duplicate pnpm-lock Files (CRITICAL)**
-**Symptoms**: 
-- Files like `pnpm-lock 2.yaml`, `pnpm-lock 3.yaml` appear
-- Installation conflicts or dependency errors
-
-**Root Cause**: Multiple pnpm processes running simultaneously during service startup
-
-**Immediate Fix**:
-```bash
-# Quick fix
-pnpm fix:pnpm
-
-# Manual fix if needed
-rm -f "pnpm-lock [0-9]*.yaml"
-pnpm install
-```
-
-**Prevention**: 
-- Always use `pnpm services:start` instead of manual startup
-- Never run multiple pnpm commands simultaneously
-
----
-
-### 🚨 **Issue 2: Multiple TypeScript Build Info Files (CRITICAL)**
-**Symptoms**: 
-- Multiple `.tsbuildinfo` files (e.g., `tsconfig.build 2.tsbuildinfo`)
-- TypeScript build errors or conflicts
-- Slow build performance
-
-**Root Cause**: Parallel builds without explicit `tsBuildInfoFile` paths
-
-**Immediate Fix**:
-```bash
-# Comprehensive fix
-pnpm fix:typescript
-
-# Manual cleanup if needed
-find . -name "*tsbuildinfo*" -not -path "./node_modules/*" -not -name "*.json" -delete
-pnpm build
-```
-
-**Prevention**: All TypeScript configs now have explicit `tsBuildInfoFile` paths
-
----
-
-### 📊 **Build System Health Check**
-
-Use this diagnostic workflow when you suspect build conflicts:
-
-```bash
-# 1️⃣ Quick health check
-pnpm fix:conflicts
-
-# 2️⃣ Verify build system
-pnpm build
-
-# 3️⃣ Check for duplicate files
-ls -la | grep -E "(pnpm-lock|tsbuildinfo)"
-
-# 4️⃣ Verify services after fix
-pnpm services:start
-pnpm services:status
-```
-
----
-
-### 🔍 **Conflict Symptoms & Solutions Matrix**
-
-| **Symptom** | **Root Cause** | **Solution** | **Prevention** |
-|-------------|----------------|--------------|----------------|
-| `pnpm-lock 2.yaml` exists | Concurrent pnpm processes | `pnpm fix:pnpm` | Use `pnpm services:start` |
-| Multiple `.tsbuildinfo` files | Parallel builds without explicit paths | `pnpm fix:typescript` | Automatic with new config |
-| Build fails with module errors | TypeScript config conflicts | `pnpm fix:conflicts` | Use provided scripts |
-| Services won't start | Port conflicts + build issues | `pnpm services:restart` | Regular use of service manager |
-| Strange dependency errors | Corrupted lock file | `pnpm fix:pnpm regenerate` | Avoid manual pnpm operations |
-
----
-
-## **Legacy Troubleshooting Issues**
-
-### Issue 1: TypeScript Module Resolution Errors
-**Symptoms**: Services fail to start with "Cannot find module" errors
-**Solution**: `pnpm fix:typescript` (automated fix now available)
-
-### Issue 2: Database Connection Failures
-**Symptoms**: Prisma errors, connection timeouts
-**Solution**: 
-```bash
-# Restart database services
-docker-compose down
-docker-compose up -d postgres neo4j weaviate redis
-sleep 90
-```
-
-### Issue 3: Port Already in Use
-**Symptoms**: EADDRINUSE errors
-**Solution**:
-```bash
-# Use the service manager (recommended)
-pnpm services:stop
-pnpm services:start
-
-# Manual port cleanup (if needed)
-lsof -ti:3000,3001,3002,5555 | xargs kill -9
-```
-
-### Issue 4: Docker Services Not Starting
-**Symptoms**: Docker compose services show unhealthy status
-**Solution**:
-```bash
-# Full Docker reset
-docker-compose down -v
-docker system prune -f
-docker-compose up -d
-```
-
----
-
-## 🎯 **Daily Troubleshooting Workflow**
-
-### **When You See Conflicts**
-
-```bash
-# Step 1: Immediate diagnosis
-ls -la | grep -E "(pnpm-lock|tsbuildinfo)"
-
-# Step 2: Apply comprehensive fix
-pnpm fix:conflicts
-
-# Step 3: Restart services cleanly
-pnpm services:restart
-
-# Step 4: Verify everything works
-pnpm services:status
-```
-
-### **Before Committing Code**
-
-```bash
-# Pre-commit health check
-pnpm fix:conflicts
-pnpm build
-pnpm lint
-```
-
-### **If Issues Persist**
-
-```bash
-# Nuclear option: Complete reset
-pnpm services:stop
-./scripts/clean-rebuild.sh
-pnpm fix:conflicts
-pnpm services:start
-```
-
----
-
-## 🎓 **Understanding the Fixes**
-
-### **What the TypeScript Fix Does**
-- Adds explicit `tsBuildInfoFile` paths to all configs
-- Prevents race conditions during parallel builds
-- Ensures each package has its own build info file
-- Updates Turbo configuration for safer builds
-
-### **What the pnpm Fix Does**
-- Removes duplicate lock files safely
-- Optimizes workspace configuration
-- Prevents concurrent installation conflicts
-- Validates lock file integrity
-
-### **Why These Conflicts Occurred**
-1. **Monorepo Complexity**: 26 packages with interdependencies
-2. **Parallel Builds**: Turbo running multiple TypeScript builds simultaneously
-3. **Service Management**: Multiple pnpm processes during service startup
-4. **Missing Configuration**: No explicit build info file paths
-
-The new system **prevents these issues permanently** through proper configuration and managed processes.
-
----
-
-## Daily Development Workflow
-
-### Quick Start (After Initial Setup)
-```bash
-# 1. Start Docker services
-docker-compose up -d
-
-# 2. Wait for database initialization
-sleep 30
-
-# 3. Start all backend services (unified approach)
-pnpm services:start
-
-# 4. Start web application
-cd apps/web-app && pnpm dev &
-
-# 5. Start Prisma Studio (optional, for database monitoring)
-cd packages/database && pnpm prisma studio &
-
-# 6. Open browser to http://localhost:3000
-```
-
-### Service Management Commands
-```bash
-# Start all backend services
-pnpm services:start
-
-# Stop all backend services  
-pnpm services:stop
-
-# Restart all backend services
-pnpm services:restart
-
-# Full development environment (services + web app)
-pnpm dev:full
-```
-
-### Before Committing Changes
-```bash
-# Run the build verification
-pnpm build
-
-# Run tests
-pnpm test
-
-# Check linting
-pnpm lint
-```
-
----
-
-## ✅ Installation Success Criteria
-
-Your installation is successful when:
-
-1. ✅ All database services are accessible (PostgreSQL, Redis, Neo4j, Weaviate)
-2. ✅ API Gateway responds to health checks
-3. ✅ Web application loads on http://localhost:3000
-4. ✅ API integration test returns successful response
-5. ✅ Prisma Studio is accessible for database monitoring
-6. ✅ All builds complete without errors
-
-## 🎯 Next Steps
-
-After successful installation:
-1. Implement the full DialogueAgent in the dialogue service
-2. Set up user authentication
-3. Configure production environment variables
-4. Set up proper logging and monitoring
-5. Implement the remaining workers and services
-
----
-
-## 📝 Lessons Learned & Risk Mitigation
-
-### Critical Success Factors:
-1. **TypeScript Configuration**: CommonJS module resolution is essential for ts-node-dev compatibility
-2. **Service Dependencies**: Start with simple services and progressively add complexity
-3. **Database Initialization**: Allow sufficient time for Docker services to initialize
-4. **Infrastructure Testing**: Use simple test services to validate infrastructure before complex implementations
-
-### Proactive Checks:
-1. Always verify Docker is running before starting services
-2. Check port availability before service startup
-3. Test database connections before starting dependent services
-4. Use health check endpoints to verify service status
-5. Monitor Node.js processes to identify startup issues
-
-### Process Improvements:
-1. Automated health check scripts
-2. Progressive service startup approach
-3. Clear error messaging for common issues
-4. Comprehensive logging for debugging
-5. Rollback procedures for failed deployments
-
-This guide provides a comprehensive, step-by-step approach to setting up the complete 2dots1line V9.5 development environment. Each step has been designed to be verifiable and includes troubleshooting guidance for common issues. 
-
-
-Log monitoring:
-
-   tail -f logs/dialogue-service.log

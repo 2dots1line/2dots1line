@@ -3,21 +3,22 @@
  * V9.7 Repository for Conversation and ConversationMessage operations
  */
 
-import { Conversation, ConversationMessage, Prisma } from '@prisma/client';
 import { DatabaseService } from '../DatabaseService';
+import type { conversations, conversation_messages, Prisma } from '@2dots1line/database';
+import { randomUUID } from 'crypto';
 
 export interface CreateConversationData {
   user_id: string;
   title?: string;
   source_card_id?: string;
-  metadata?: Prisma.InputJsonValue;
+  metadata?: any;
 }
 
 export interface CreateMessageData {
   conversation_id: string;
   role: 'user' | 'assistant';
   content: string;
-  llm_call_metadata?: Prisma.InputJsonValue;
+  llm_call_metadata?: any;
   media_ids?: string[];
 }
 
@@ -26,7 +27,7 @@ export interface UpdateConversationData {
   status?: string;
   importance_score?: number;
   context_summary?: string;
-  metadata?: Prisma.InputJsonValue;
+  metadata?: any;
   ended_at?: Date;
 }
 
@@ -38,33 +39,36 @@ export interface ConversationSummary {
 export class ConversationRepository {
   constructor(private db: DatabaseService) {}
 
-  async create(data: CreateConversationData): Promise<Conversation> {
-    return this.db.prisma.conversation.create({
-      data,
-    });
-  }
-
-  async findById(conversationId: string): Promise<Conversation | null> {
-    return this.db.prisma.conversation.findUnique({
-      where: { id: conversationId },
-      include: {
-        messages: {
-          orderBy: { timestamp: 'asc' },
-        },
-        source_card: true,
-        spawned_memory_units: true,
+  async create(data: CreateConversationData): Promise<conversations> {
+    return this.db.prisma.conversations.create({
+      data: {
+        id: randomUUID(),
+        ...data,
       },
     });
   }
 
-  async findByUserId(userId: string, limit = 50, offset = 0): Promise<Conversation[]> {
-    return this.db.prisma.conversation.findMany({
+  async findById(conversationId: string): Promise<conversations | null> {
+    return this.db.prisma.conversations.findUnique({
+      where: { id: conversationId },
+      include: {
+        conversation_messages: {
+          orderBy: { timestamp: 'asc' },
+        },
+        cards: true,
+        memory_units: true,
+      },
+    });
+  }
+
+  async findByUserId(userId: string, limit = 50, offset = 0): Promise<conversations[]> {
+    return this.db.prisma.conversations.findMany({
       where: { user_id: userId },
       take: limit,
       skip: offset,
       orderBy: { start_time: 'desc' },
       include: {
-        messages: {
+        conversation_messages: {
           take: 1,
           orderBy: { timestamp: 'desc' },
         },
@@ -72,8 +76,8 @@ export class ConversationRepository {
     });
   }
 
-  async findActiveByUserId(userId: string): Promise<Conversation[]> {
-    return this.db.prisma.conversation.findMany({
+  async findActiveByUserId(userId: string): Promise<conversations[]> {
+    return this.db.prisma.conversations.findMany({
       where: {
         user_id: userId,
         status: 'active',
@@ -82,15 +86,15 @@ export class ConversationRepository {
     });
   }
 
-  async update(conversationId: string, data: UpdateConversationData): Promise<Conversation> {
-    return this.db.prisma.conversation.update({
+  async update(conversationId: string, data: UpdateConversationData): Promise<conversations> {
+    return this.db.prisma.conversations.update({
       where: { id: conversationId },
       data,
     });
   }
 
-  async endConversation(conversationId: string, summary?: string): Promise<Conversation> {
-    return this.db.prisma.conversation.update({
+  async endConversation(conversationId: string, summary?: string): Promise<conversations> {
+    return this.db.prisma.conversations.update({
       where: { id: conversationId },
       data: {
         status: 'ended',
@@ -101,14 +105,17 @@ export class ConversationRepository {
   }
 
   // Message operations
-  async addMessage(data: CreateMessageData): Promise<ConversationMessage> {
-    return this.db.prisma.conversationMessage.create({
-      data,
+  async addMessage(data: CreateMessageData): Promise<conversation_messages> {
+    return this.db.prisma.conversation_messages.create({
+      data: {
+        id: randomUUID(),
+        ...data,
+      },
     });
   }
 
-  async getMessages(conversationId: string, limit = 100, offset = 0): Promise<ConversationMessage[]> {
-    return this.db.prisma.conversationMessage.findMany({
+  async getMessages(conversationId: string, limit = 100, offset = 0): Promise<conversation_messages[]> {
+    return this.db.prisma.conversation_messages.findMany({
       where: { conversation_id: conversationId },
       take: limit,
       skip: offset,
@@ -116,22 +123,22 @@ export class ConversationRepository {
     });
   }
 
-  async getLastMessage(conversationId: string): Promise<ConversationMessage | null> {
-    return this.db.prisma.conversationMessage.findFirst({
+  async getLastMessage(conversationId: string): Promise<conversation_messages | null> {
+    return this.db.prisma.conversation_messages.findFirst({
       where: { conversation_id: conversationId },
       orderBy: { timestamp: 'desc' },
     });
   }
 
   async getMessageCount(conversationId: string): Promise<number> {
-    return this.db.prisma.conversationMessage.count({
+    return this.db.prisma.conversation_messages.count({
       where: { conversation_id: conversationId },
     });
   }
 
   // V10.8 PromptBuilder methods
-  async getMostRecentMessages(conversationId: string, limit = 10): Promise<ConversationMessage[]> {
-    return this.db.prisma.conversationMessage.findMany({
+  async getMostRecentMessages(conversationId: string, limit = 10): Promise<conversation_messages[]> {
+    return this.db.prisma.conversation_messages.findMany({
       where: { conversation_id: conversationId },
       take: limit,
       orderBy: { timestamp: 'desc' },
@@ -139,7 +146,7 @@ export class ConversationRepository {
   }
 
   async getRecentImportantConversationSummaries(userId: string, limit = 5): Promise<ConversationSummary[]> {
-    const conversations = await this.db.prisma.conversation.findMany({
+    const conversations = await this.db.prisma.conversations.findMany({
       where: {
         user_id: userId,
         status: 'ended',
@@ -169,13 +176,13 @@ export class ConversationRepository {
 
   async delete(conversationId: string): Promise<void> {
     // Messages will be deleted via cascade
-    await this.db.prisma.conversation.delete({
+    await this.db.prisma.conversations.delete({
       where: { id: conversationId },
     });
   }
 
-  async findByStatus(status: string, limit = 50): Promise<Conversation[]> {
-    return this.db.prisma.conversation.findMany({
+  async findByStatus(status: string, limit = 50): Promise<conversations[]> {
+    return this.db.prisma.conversations.findMany({
       where: { status },
       take: limit,
       orderBy: { start_time: 'desc' },
@@ -183,7 +190,7 @@ export class ConversationRepository {
   }
 
   async count(userId?: string): Promise<number> {
-    return this.db.prisma.conversation.count({
+    return this.db.prisma.conversations.count({
       where: userId ? { user_id: userId } : undefined,
     });
   }

@@ -4,7 +4,7 @@
 # Prevents conflicts and provides clear service state management
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+ROOT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 LOGS_DIR="$ROOT_DIR/logs"
 PID_FILE="$ROOT_DIR/.service-pids"
 
@@ -130,8 +130,8 @@ load_env() {
         log_info "Loading environment variables..."
         set -a
         source "$ROOT_DIR/.env"
-        set +a
-        log_success "Environment variables loaded"
+        # Keep set -a active so variables are exported to subshells
+        log_success "Environment variables loaded and exported"
         
         # Validate critical environment variables
         if [ -z "$DATABASE_URL" ]; then
@@ -223,7 +223,7 @@ start_services() {
             
             log_info "Starting $service on port $port..."
             
-            # Start service with environment variables
+            # Start service with inherited environment variables  
             (cd "$ROOT_DIR/$path" && pnpm dev > "$LOGS_DIR/$service.log" 2>&1) &
             local pid=$!
             

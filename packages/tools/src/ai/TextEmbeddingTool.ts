@@ -6,6 +6,7 @@
 import { TToolInput, TToolOutput, TTextEmbeddingInputPayload, TTextEmbeddingResult } from '@2dots1line/shared-types';
 import type { IToolManifest, IExecutableTool } from '@2dots1line/shared-types';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { ModelConfigService } from '@2dots1line/config-service';
 
 export type TextEmbeddingToolInput = TToolInput<TTextEmbeddingInputPayload>;
 export type TextEmbeddingToolOutput = TToolOutput<TTextEmbeddingResult>;
@@ -49,6 +50,8 @@ class TextEmbeddingToolImpl implements IExecutableTool<TTextEmbeddingInputPayloa
   
   private genAI: GoogleGenerativeAI;
   private embeddingModel: any;
+  private modelConfigService: any;
+  private currentModelName: string;
 
   constructor() {
     const apiKey = process.env.GOOGLE_API_KEY;
@@ -57,8 +60,15 @@ class TextEmbeddingToolImpl implements IExecutableTool<TTextEmbeddingInputPayloa
     }
     
     this.genAI = new GoogleGenerativeAI(apiKey);
+    this.modelConfigService = ModelConfigService.getInstance();
+    
+    // Get the appropriate model from configuration
+    this.currentModelName = this.modelConfigService.getModelForUseCase('embedding');
+    
+    console.log(`🔤 TextEmbeddingTool: Initializing with model ${this.currentModelName}`);
+    
     this.embeddingModel = this.genAI.getGenerativeModel({ 
-      model: 'text-embedding-004' // Latest Gemini embedding model
+      model: this.currentModelName
     });
   }
 
@@ -85,15 +95,15 @@ class TextEmbeddingToolImpl implements IExecutableTool<TTextEmbeddingInputPayloa
         result: {
           vector,
           embedding_metadata: {
-            model_id_used: 'text-embedding-004',
+            model_id_used: this.currentModelName,
             dimensions: vector.length,
-            model_version: '004',
+            model_version: this.currentModelName.split('-').slice(-1)[0] || 'latest',
             token_count: Math.ceil(input.payload.text_to_embed.length / 4) // Rough estimate
           }
         },
         metadata: {
           processing_time_ms: processingTime,
-          model_used: 'text-embedding-004'
+          model_used: this.currentModelName
         }
       };
       
@@ -110,7 +120,7 @@ class TextEmbeddingToolImpl implements IExecutableTool<TTextEmbeddingInputPayloa
           details: { 
             tool: this.manifest.name,
             text_length: input.payload.text_to_embed.length,
-            model: 'text-embedding-004'
+            model: this.currentModelName
           }
         },
         metadata: {

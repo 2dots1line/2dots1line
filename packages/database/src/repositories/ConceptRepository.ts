@@ -3,8 +3,9 @@
  * V9.7 Repository for Concept operations
  */
 
-import { Concept, Prisma } from '@prisma/client';
+import type { concepts, Prisma } from '@2dots1line/database';
 import { DatabaseService } from '../DatabaseService';
+import { randomUUID } from 'crypto';
 
 export interface CreateConceptData {
   user_id: string;
@@ -28,20 +29,25 @@ export interface UpdateConceptData {
 export class ConceptRepository {
   constructor(private db: DatabaseService) {}
 
-  async create(data: CreateConceptData): Promise<Concept> {
-    return this.db.prisma.concept.create({
-      data,
+  async create(data: CreateConceptData): Promise<concepts> {
+    const concept = await this.db.prisma.concepts.create({
+      data: {
+        concept_id: randomUUID(),
+        last_updated_ts: new Date(),
+        ...data,
+      },
     });
+    return concept;
   }
 
-  async findById(conceptId: string): Promise<Concept | null> {
-    return this.db.prisma.concept.findUnique({
+  async findById(conceptId: string): Promise<concepts | null> {
+    return this.db.prisma.concepts.findUnique({
       where: { concept_id: conceptId },
       include: {
-        community: true,
-        merged_into_concept: true,
-        merged_from_concepts: true,
-        derived_artifacts_as_source: true,
+        communities: true,
+        concepts: true,
+        other_concepts: true,
+        derived_artifacts: true,
       },
     });
   }
@@ -49,25 +55,25 @@ export class ConceptRepository {
   /**
    * Batch method for HybridRetrievalTool - find multiple concepts by IDs
    */
-  async findByIds(conceptIds: string[], userId: string): Promise<Concept[]> {
-    return this.db.prisma.concept.findMany({
+  async findByIds(conceptIds: string[], userId: string): Promise<concepts[]> {
+    return this.db.prisma.concepts.findMany({
       where: { 
         concept_id: { in: conceptIds },
         user_id: userId,
         status: 'active'
       },
       include: {
-        community: true,
-        merged_into_concept: true,
-        merged_from_concepts: true,
-        derived_artifacts_as_source: true,
+        communities: true,
+        concepts: true,
+        other_concepts: true,
+        derived_artifacts: true,
       },
       orderBy: { salience: 'desc' }
     });
   }
 
-  async findByUserId(userId: string, limit = 50, offset = 0): Promise<Concept[]> {
-    return this.db.prisma.concept.findMany({
+  async findByUserId(userId: string, limit = 50, offset = 0): Promise<concepts[]> {
+    return this.db.prisma.concepts.findMany({
       where: { 
         user_id: userId,
         status: 'active',
@@ -76,13 +82,13 @@ export class ConceptRepository {
       skip: offset,
       orderBy: { created_at: 'desc' },
       include: {
-        community: true,
+        communities: true,
       },
     });
   }
 
-  async findByNameAndType(userId: string, name: string, type: string): Promise<Concept | null> {
-    return this.db.prisma.concept.findUnique({
+  async findByNameAndType(userId: string, name: string, type: string): Promise<concepts | null> {
+    return this.db.prisma.concepts.findUnique({
       where: {
         user_id_name_type: {
           user_id: userId,
@@ -93,8 +99,8 @@ export class ConceptRepository {
     });
   }
 
-  async findByType(userId: string, type: string, limit = 50): Promise<Concept[]> {
-    return this.db.prisma.concept.findMany({
+  async findByType(userId: string, type: string, limit = 50): Promise<concepts[]> {
+    return this.db.prisma.concepts.findMany({
       where: {
         user_id: userId,
         type,
@@ -105,8 +111,8 @@ export class ConceptRepository {
     });
   }
 
-  async findByCommunity(communityId: string): Promise<Concept[]> {
-    return this.db.prisma.concept.findMany({
+  async findByCommunity(communityId: string): Promise<concepts[]> {
+    return this.db.prisma.concepts.findMany({
       where: {
         community_id: communityId,
         status: 'active',
@@ -115,15 +121,15 @@ export class ConceptRepository {
     });
   }
 
-  async update(conceptId: string, data: UpdateConceptData): Promise<Concept> {
-    return this.db.prisma.concept.update({
+  async update(conceptId: string, data: UpdateConceptData): Promise<concepts> {
+    return this.db.prisma.concepts.update({
       where: { concept_id: conceptId },
       data,
     });
   }
 
-  async mergeConcept(sourceConceptId: string, targetConceptId: string): Promise<Concept> {
-    return this.db.prisma.concept.update({
+  async mergeConcept(sourceConceptId: string, targetConceptId: string): Promise<concepts> {
+    return this.db.prisma.concepts.update({
       where: { concept_id: sourceConceptId },
       data: {
         status: 'merged',
@@ -132,15 +138,15 @@ export class ConceptRepository {
     });
   }
 
-  async archiveConcept(conceptId: string): Promise<Concept> {
-    return this.db.prisma.concept.update({
+  async archiveConcept(conceptId: string): Promise<concepts> {
+    return this.db.prisma.concepts.update({
       where: { concept_id: conceptId },
       data: { status: 'archived' },
     });
   }
 
   async delete(conceptId: string): Promise<void> {
-    await this.db.prisma.concept.delete({
+    await this.db.prisma.concepts.delete({
       where: { concept_id: conceptId },
     });
   }
@@ -150,8 +156,8 @@ export class ConceptRepository {
     minSalience: number,
     maxSalience: number,
     limit = 50
-  ): Promise<Concept[]> {
-    return this.db.prisma.concept.findMany({
+  ): Promise<concepts[]> {
+    return this.db.prisma.concepts.findMany({
       where: {
         user_id: userId,
         status: 'active',
@@ -165,8 +171,8 @@ export class ConceptRepository {
     });
   }
 
-  async searchByName(userId: string, searchTerm: string, limit = 50): Promise<Concept[]> {
-    return this.db.prisma.concept.findMany({
+  async searchByName(userId: string, searchTerm: string, limit = 50): Promise<concepts[]> {
+    return this.db.prisma.concepts.findMany({
       where: {
         user_id: userId,
         status: 'active',
@@ -177,8 +183,8 @@ export class ConceptRepository {
     });
   }
 
-  async findMostSalient(userId: string, limit = 10): Promise<Concept[]> {
-    return this.db.prisma.concept.findMany({
+  async findMostSalient(userId: string, limit = 10): Promise<concepts[]> {
+    return this.db.prisma.concepts.findMany({
       where: {
         user_id: userId,
         status: 'active',
@@ -190,7 +196,7 @@ export class ConceptRepository {
   }
 
   async count(userId?: string, status?: string): Promise<number> {
-    return this.db.prisma.concept.count({
+    return this.db.prisma.concepts.count({
       where: {
         ...(userId && { user_id: userId }),
         ...(status && { status }),
@@ -198,11 +204,11 @@ export class ConceptRepository {
     });
   }
 
-  async findRecentlyUpdated(userId: string, days = 7, limit = 50): Promise<Concept[]> {
+  async findRecentlyUpdated(userId: string, days = 7, limit = 50): Promise<concepts[]> {
     const dateThreshold = new Date();
     dateThreshold.setDate(dateThreshold.getDate() - days);
 
-    return this.db.prisma.concept.findMany({
+    return this.db.prisma.concepts.findMany({
       where: {
         user_id: userId,
         status: 'active',

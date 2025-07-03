@@ -3,8 +3,9 @@
  * V9.7 Repository for MemoryUnit operations
  */
 
-import { MemoryUnit, Prisma } from '@prisma/client';
+import type { memory_units, Prisma } from '@2dots1line/database';
 import { DatabaseService } from '../DatabaseService';
+import { randomUUID } from 'crypto';
 
 export interface CreateMemoryUnitData {
   user_id: string;
@@ -26,19 +27,24 @@ export interface UpdateMemoryUnitData {
 export class MemoryRepository {
   constructor(private db: DatabaseService) {}
 
-  async create(data: CreateMemoryUnitData): Promise<MemoryUnit> {
-    return this.db.prisma.memoryUnit.create({
-      data,
+  async create(data: CreateMemoryUnitData): Promise<memory_units> {
+    const memoryUnit = await this.db.prisma.memory_units.create({
+      data: {
+        muid: randomUUID(),
+        last_modified_ts: new Date(),
+        ...data,
+      },
     });
+    return memoryUnit;
   }
 
-  async findById(muid: string): Promise<MemoryUnit | null> {
-    return this.db.prisma.memoryUnit.findUnique({
+  async findById(muid: string): Promise<memory_units | null> {
+    return this.db.prisma.memory_units.findUnique({
       where: { muid },
       include: {
         media_items: true,
-        derived_artifacts_as_source: true,
-        source_conversation: true,
+        derived_artifacts: true,
+        conversations: true,
       },
     });
   }
@@ -46,23 +52,23 @@ export class MemoryRepository {
   /**
    * Batch method for HybridRetrievalTool - find multiple memory units by IDs
    */
-  async findByIds(muids: string[], userId: string): Promise<MemoryUnit[]> {
-    return this.db.prisma.memoryUnit.findMany({
+  async findByIds(muids: string[], userId: string): Promise<memory_units[]> {
+    return this.db.prisma.memory_units.findMany({
       where: { 
         muid: { in: muids },
         user_id: userId 
       },
       include: {
         media_items: true,
-        derived_artifacts_as_source: true,
-        source_conversation: true,
+        derived_artifacts: true,
+        conversations: true,
       },
       orderBy: { creation_ts: 'desc' }
     });
   }
 
-  async findByUserId(userId: string, limit = 50, offset = 0): Promise<MemoryUnit[]> {
-    return this.db.prisma.memoryUnit.findMany({
+  async findByUserId(userId: string, limit = 50, offset = 0): Promise<memory_units[]> {
+    return this.db.prisma.memory_units.findMany({
       where: { user_id: userId },
       take: limit,
       skip: offset,
@@ -73,22 +79,22 @@ export class MemoryRepository {
     });
   }
 
-  async findByConversationId(conversationId: string): Promise<MemoryUnit[]> {
-    return this.db.prisma.memoryUnit.findMany({
+  async findByConversationId(conversationId: string): Promise<memory_units[]> {
+    return this.db.prisma.memory_units.findMany({
       where: { source_conversation_id: conversationId },
       orderBy: { creation_ts: 'asc' },
     });
   }
 
-  async update(muid: string, data: UpdateMemoryUnitData): Promise<MemoryUnit> {
-    return this.db.prisma.memoryUnit.update({
+  async update(muid: string, data: UpdateMemoryUnitData): Promise<memory_units> {
+    return this.db.prisma.memory_units.update({
       where: { muid },
       data,
     });
   }
 
   async delete(muid: string): Promise<void> {
-    await this.db.prisma.memoryUnit.delete({
+    await this.db.prisma.memory_units.delete({
       where: { muid },
     });
   }
@@ -98,8 +104,8 @@ export class MemoryRepository {
     minScore: number,
     maxScore: number,
     limit = 50
-  ): Promise<MemoryUnit[]> {
-    return this.db.prisma.memoryUnit.findMany({
+  ): Promise<memory_units[]> {
+    return this.db.prisma.memory_units.findMany({
       where: {
         user_id: userId,
         importance_score: {
@@ -112,11 +118,11 @@ export class MemoryRepository {
     });
   }
 
-  async findRecentByUserId(userId: string, days = 30, limit = 50): Promise<MemoryUnit[]> {
+  async findRecentByUserId(userId: string, days = 30, limit = 50): Promise<memory_units[]> {
     const dateThreshold = new Date();
     dateThreshold.setDate(dateThreshold.getDate() - days);
 
-    return this.db.prisma.memoryUnit.findMany({
+    return this.db.prisma.memory_units.findMany({
       where: {
         user_id: userId,
         creation_ts: {
@@ -128,8 +134,8 @@ export class MemoryRepository {
     });
   }
 
-  async searchByContent(userId: string, searchTerm: string, limit = 50): Promise<MemoryUnit[]> {
-    return this.db.prisma.memoryUnit.findMany({
+  async searchByContent(userId: string, searchTerm: string, limit = 50): Promise<memory_units[]> {
+    return this.db.prisma.memory_units.findMany({
       where: {
         user_id: userId,
         OR: [
@@ -143,13 +149,13 @@ export class MemoryRepository {
   }
 
   async count(userId?: string): Promise<number> {
-    return this.db.prisma.memoryUnit.count({
+    return this.db.prisma.memory_units.count({
       where: userId ? { user_id: userId } : undefined,
     });
   }
 
   async getAverageImportanceScore(userId: string): Promise<number> {
-    const result = await this.db.prisma.memoryUnit.aggregate({
+    const result = await this.db.prisma.memory_units.aggregate({
       where: { user_id: userId },
       _avg: { importance_score: true },
     });

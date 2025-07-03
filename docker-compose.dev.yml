@@ -1,0 +1,81 @@
+networks:
+  2d1l_network:
+    driver: bridge
+
+services:
+  # --- DEVELOPMENT: DATABASES ONLY ---
+  # Node.js services run locally via pnpm for faster development
+  
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres-2d1l
+    ports:
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    networks:
+      - 2d1l_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  neo4j:
+    image: neo4j:5
+    container_name: neo4j-2d1l
+    ports:
+      - "${NEO4J_HTTP_HOST_PORT:-7474}:7474"
+      - "${NEO4J_BOLT_HOST_PORT:-7688}:7687"
+    environment:
+      NEO4J_AUTH: "neo4j/${NEO4J_PASSWORD}"
+    volumes:
+      - ./neo4j_data:/data
+    networks:
+      - 2d1l_network
+    restart: unless-stopped
+
+  weaviate:
+    image: semitechnologies/weaviate:1.25.3
+    container_name: weaviate-2d1l
+    ports:
+      - "${WEAVIATE_HOST_PORT:-8080}:8080"
+    environment:
+      QUERY_DEFAULTS_LIMIT: "25"
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"
+      DEFAULT_VECTORIZER_MODULE: "none"
+      PERSISTENCE_DATA_PATH: "/var/lib/weaviate"
+      CLUSTER_HOSTNAME: 'node1'
+    volumes:
+      - ./weaviate_data:/var/lib/weaviate
+    networks:
+      - 2d1l_network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis-2d1l
+    ports:
+      - "${REDIS_HOST_PORT:-6379}:6379"
+    command: redis-server --notify-keyspace-events KEA
+    volumes:
+      - ./redis_data:/data
+    networks:
+      - 2d1l_network
+    restart: unless-stopped
+
+  # --- PYTHON MICROSERVICES ---
+  # dimension-reducer: # DISABLED - Will re-enable when ML implementation is ready
+  #   build:
+  #     context: ./py-services/dimension-reducer
+  #   container_name: dimension-reducer-2d1l
+  #   ports:
+  #     - "${DIMENSION_REDUCER_HOST_PORT:-5001}:5000"
+  #   networks:
+  #     - 2d1l_network
+  #   restart: unless-stopped 

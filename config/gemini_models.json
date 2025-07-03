@@ -1,0 +1,162 @@
+{
+  "models": {
+    "chat": {
+      "primary": "gemini-2.0-flash-exp",
+      "fallback": [
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-8b"
+      ],
+      "description": "For general conversation and text generation",
+      "capabilities": [
+        "text",
+        "reasoning",
+        "conversation"
+      ],
+      "context_window": 1000000
+    },
+    "vision": {
+      "primary": "gemini-2.0-flash-exp",
+      "fallback": [
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-8b"
+      ],
+      "description": "For image analysis and vision tasks",
+      "capabilities": [
+        "text",
+        "images",
+        "multimodal"
+      ],
+      "context_window": 1000000,
+      "note": "Using Flash models for vision since Pro models are over quota"
+    },
+    "embedding": {
+      "primary": "text-embedding-004",
+      "fallback": [],
+      "description": "For text embeddings and semantic search",
+      "capabilities": [
+        "embeddings"
+      ],
+      "context_window": 2048
+    }
+  },
+  "available_models": {
+    "gemini-2.0-flash-exp": {
+      "status": "available",
+      "type": "experimental",
+      "capabilities": [
+        "text",
+        "images",
+        "multimodal"
+      ],
+      "context_window": 1000000,
+      "generation_config": {
+        "temperature": 0.7,
+        "topK": 40,
+        "topP": 0.95,
+        "maxOutputTokens": 8192
+      }
+    },
+    "gemini-1.5-flash": {
+      "status": "available",
+      "type": "stable",
+      "capabilities": [
+        "text",
+        "images",
+        "multimodal"
+      ],
+      "context_window": 1000000,
+      "generation_config": {
+        "temperature": 0.7,
+        "topK": 40,
+        "topP": 0.95,
+        "maxOutputTokens": 8192
+      }
+    },
+    "gemini-1.5-flash-8b": {
+      "status": "available",
+      "type": "stable",
+      "capabilities": [
+        "text",
+        "images",
+        "multimodal"
+      ],
+      "context_window": 1000000,
+      "generation_config": {
+        "temperature": 0.7,
+        "topK": 40,
+        "topP": 0.95,
+        "maxOutputTokens": 8192
+      }
+    },
+    "gemini-1.5-pro": {
+      "status": "quota_exceeded",
+      "type": "stable",
+      "capabilities": [
+        "text"
+      ],
+      "context_window": 1000000,
+      "generation_config": {
+        "temperature": 0.7,
+        "topK": 40,
+        "topP": 0.95,
+        "maxOutputTokens": 8192
+      }
+    },
+    "gemini-2.5-flash": {
+      "status": "available",
+      "type": "stable",
+      "capabilities": [
+        "text",
+        "images",
+        "multimodal"
+      ],
+      "context_window": 1000000,
+      "generation_config": {
+        "temperature": 0.7,
+        "topK": 40,
+        "topP": 0.95,
+        "maxOutputTokens": 8192
+      }
+    },
+    "gemini-2.5-pro": {
+      "status": "unavailable",
+      "type": "unknown",
+      "capabilities": [
+        "text"
+      ],
+      "context_window": 1000000,
+      "generation_config": {
+        "temperature": 0.7,
+        "topK": 40,
+        "topP": 0.95,
+        "maxOutputTokens": 8192
+      }
+    },
+    "text-embedding-004": {
+      "status": "available",
+      "type": "stable",
+      "capabilities": [
+        "embeddings"
+      ],
+      "context_window": 2048
+    }
+  },
+  "quota_info": {
+    "free_tier_limits": {
+      "requests_per_minute": 15,
+      "tokens_per_minute": 1000000,
+      "requests_per_day": 1500
+    },
+    "note": "Quotas are tracked separately per model. Some models may be unavailable due to quota limits."
+  },
+  "last_updated": "2025-07-03T11:39:03.107Z",
+  "testing_results": {
+    "gemini-2.0-flash-exp": "✅ available",
+    "gemini-1.5-flash": "✅ available",
+    "gemini-1.5-flash-8b": "✅ available",
+    "gemini-1.5-pro": "🚫 quota_exceeded",
+    "gemini-2.5-flash": "✅ available",
+    "gemini-2.5-pro": "❌ unavailable",
+    "text-embedding-004": "✅ available"
+  }
+}

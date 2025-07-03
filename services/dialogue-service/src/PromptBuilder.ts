@@ -1,4 +1,4 @@
-import { UserRepository, ConversationRepository, User, ConversationMessage } from '@2dots1line/database';
+import { UserRepository, ConversationRepository, users, conversation_messages } from '@2dots1line/database';
 import { ConfigService } from '@2dots1line/config-service';
 import { Redis } from 'ioredis';
 import Mustache from 'mustache';
@@ -114,7 +114,7 @@ export class PromptBuilder {
 
     // Handle special formatting for conversation history
     if (tagName === 'current_conversation_history' && Array.isArray(content)) {
-      formattedContent = this.formatConversationHistory(content as ConversationMessage[]);
+      formattedContent = this.formatConversationHistory(content as conversation_messages[]);
     } else if (typeof content === 'string') {
       formattedContent = content;
     } else {
@@ -127,7 +127,7 @@ export class PromptBuilder {
   /**
    * Formats conversation history into a clean, LLM-friendly transcript.
    */
-  private formatConversationHistory(messages: ConversationMessage[]): string {
+  private formatConversationHistory(messages: conversation_messages[]): string {
     // The history is fetched most-recent-first, so we reverse it for chronological order.
     return [...messages].reverse().map(msg => `${msg.role.toUpperCase()}: ${msg.content}`).join('\n');
   }

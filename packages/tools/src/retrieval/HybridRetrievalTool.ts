@@ -304,7 +304,7 @@ export class HybridRetrievalTool {
       
       if (memoryUnitIds.length > 0) {
         promises.push(
-          this.db.prisma.memoryUnit.findMany({
+          this.db.prisma.memory_units.findMany({
             where: { muid: { in: memoryUnitIds }, user_id: userId },
             select: {
               muid: true,
@@ -328,7 +328,7 @@ export class HybridRetrievalTool {
       
       if (conceptIds.length > 0) {
         promises.push(
-          this.db.prisma.concept.findMany({
+          this.db.prisma.concepts.findMany({
             where: { concept_id: { in: conceptIds }, user_id: userId, status: 'active' },
             select: {
               concept_id: true,

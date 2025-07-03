@@ -1,0 +1,4 @@
+
+# TypeScript build info files (specific to avoid conflicts)
+dist/*.tsbuildinfo
+**/dist/*.tsbuildinfo

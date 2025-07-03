@@ -8,6 +8,8 @@
     "jsx": "react-jsx",
     "module": "CommonJS",
     "moduleResolution": "node",
+    "lib": ["es2020"],
+    "typeRoots": ["../../node_modules/@types", "./node_modules/@types"],
     "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
   },
   "include": [
