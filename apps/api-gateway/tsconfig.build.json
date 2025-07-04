@@ -8,6 +8,21 @@
   "references": [
     {
       "path": "../../packages/shared-types"
+    },
+    {
+      "path": "../../packages/database"
+    },
+    {
+      "path": "../../services/config-service"
+    },
+    {
+      "path": "../../services/dialogue-service"
+    },
+    {
+      "path": "../../services/user-service"
+    },
+    {
+      "path": "../../services/card-service"
     }
   ]
 }

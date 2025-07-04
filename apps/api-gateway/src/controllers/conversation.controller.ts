@@ -4,14 +4,27 @@
  * not for instantiating or managing the DialogueAgent itself.
  */
 
-import { Request, Response } from 'express';
+import { NextFunction, Request, Response } from 'express';
 import axios, { AxiosInstance } from 'axios';
 import type { TApiResponse } from '@2dots1line/shared-types';
+import { DialogueAgent, DialogueAgentDependencies } from '@2dots1line/dialogue-service';
+import { z } from 'zod';
+
+const chatSchema = z.object({
+  userId: z.string(),
+  conversationId: z.string(),
+  message: z.string(),
+});
+
+const startConversationSchema = z.object({
+  userId: z.string(),
+  initialMessage: z.string(),
+});
 
 export class ConversationController {
   private dialogueServiceClient: AxiosInstance;
 
-  constructor() {
+  constructor(private dialogueAgent: DialogueAgent) {
     // The base URL for the dialogue service is loaded from environment variables.
     // This decouples the API gateway from the location of the dialogue service.
     const dialogueServiceUrl = process.env.DIALOGUE_SERVICE_URL || 'http://localhost:3002';
@@ -146,4 +159,36 @@ export class ConversationController {
       }
     }
   };
+
+  async handleChat(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { userId, conversationId, message } = chatSchema.parse(req.body);
+      const result = await this.dialogueAgent.processTurn({ userId, conversationId, currentMessageText: message });
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async startConversation(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { userId, initialMessage } = startConversationSchema.parse(req.body);
+      res.status(201).json({ conversationId: 'new-convo-id', firstMessage: 'Hello!' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getConversation(req: Request, res: Response, next: NextFunction) {
+    try {
+      const conversationId = req.params.id;
+      const conversation = { id: conversationId, messages: [] };
+      if (!conversation) {
+        return res.status(404).json({ message: 'Conversation not found' });
+      }
+      res.json(conversation);
+    } catch (error) {
+      next(error);
+    }
+  }
 } 

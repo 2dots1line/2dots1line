@@ -11,58 +11,22 @@ export interface TMemoryUnit {
   muid: string;
   /** ID of the user who authored this memory unit */
   user_id: string;
-  /** Origin of the memory (e.g., 'journal_entry', 'chat_conversation') */
-  source_type: EMemorySourceType;
   /** User-provided or AI-generated title for the memory unit */
-  title?: string | null;
+  title: string;
+  /** The core text content of the memory unit */
+  content: string;
   /** Timestamp of original content creation by the user */
   creation_ts: Date;
   /** Timestamp when the memory unit was ingested into the system */
   ingestion_ts: Date;
   /** Timestamp when this record or its content was last updated */
   last_modified_ts: Date;
-  /** Current stage in the ingestion/analysis pipeline */
-  processing_status: EMemoryProcessingStatus;
   /** AI-assigned score (0.0-1.0) indicating significance */
-  importance_score?: number | null;
-  /** User's privacy setting for this memory unit */
-  is_private: boolean;
-  /** Processing tier (1, 2, or 3) assigned based on content significance */
-  tier: 1 | 2 | 3;
-  /** Additional metadata (JSON object, e.g., location, device info) */
-  metadata?: Record<string, any> | null;
-}
-
-/**
- * Enum for origin types of memory units.
- */
-export enum EMemorySourceType {
-  JOURNAL_ENTRY = 'journal_entry',
-  CHAT_CONVERSATION = 'chat_conversation',
-  IMPORTED_DOCUMENT = 'imported_document',
-  FLEETING_THOUGHT = 'fleeting_thought',
-  EMAIL = 'email',
-  AUDIO_NOTE = 'audio_note',
-  WEB_CLIP = 'web_clip',
-  USER_REFLECTION = 'user_reflection',
-  OTHER = 'other'
-}
-
-/**
- * Enum for processing status values for memory units.
- */
-export enum EMemoryProcessingStatus {
-  PENDING_UPLOAD = 'pending_upload', // Content is being uploaded
-  UPLOADED = 'uploaded', // Content is stored, awaiting processing
-  PENDING_PROCESSING = 'pending_processing', // Queued for IngestionAnalyst
-  TIER1_PROCESSING = 'tier1_processing',
-  TIER1_COMPLETE = 'tier1_complete',
-  TIER2_PROCESSING = 'tier2_processing',
-  TIER2_COMPLETE = 'tier2_complete',
-  TIER3_PROCESSING = 'tier3_processing',
-  TIER3_COMPLETE = 'tier3_complete', // Fully processed, enriched
-  PROCESSING_ERROR = 'processing_error',
-  ARCHIVED = 'archived'
+  importance_score: number | null;
+  /** AI-assigned sentiment score for the content */
+  sentiment_score: number | null;
+  /** If sourced from a conversation, the ID of that conversation */
+  source_conversation_id: string | null;
 }
 
 /**

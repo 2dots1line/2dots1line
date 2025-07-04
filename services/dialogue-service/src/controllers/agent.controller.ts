@@ -9,7 +9,7 @@ import { createHash } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { REDIS_CONVERSATION_HEARTBEAT_PREFIX, DEFAULT_CONVERSATION_TIMEOUT_SECONDS } from '@2dots1line/core-utils';
+import { REDIS_CONVERSATION_HEARTBEAT_PREFIX } from '@2dots1line/core-utils';
 
 export class AgentController {
   private dialogueAgent: DialogueAgent;
@@ -17,30 +17,54 @@ export class AgentController {
   private conversationRepository: ConversationRepository;
   private mediaRepository: MediaRepository;
   private redisClient: Redis;
+  private configService: ConfigService;
 
   constructor() {
     this.databaseService = DatabaseService.getInstance();
     this.conversationRepository = new ConversationRepository(this.databaseService);
     this.mediaRepository = new MediaRepository(this.databaseService);
     const userRepository = new UserRepository(this.databaseService);
-    const configService = new ConfigService();
+    this.configService = new ConfigService();
     const redisClient = this.databaseService.redis;
     this.redisClient = redisClient;
 
     const dependencies: DialogueAgentDependencies = {
-      configService,
+      configService: this.configService,
       conversationRepository: this.conversationRepository,
       redisClient,
-      promptBuilder: new PromptBuilder(configService, userRepository, this.conversationRepository, redisClient),
+      promptBuilder: new PromptBuilder(this.configService, userRepository, this.conversationRepository, redisClient),
       llmChatTool: LLMChatTool,
       visionCaptionTool: VisionCaptionTool,
       audioTranscribeTool: AudioTranscribeTool,
       documentExtractTool: DocumentExtractTool,
-      hybridRetrievalTool: new HybridRetrievalTool(this.databaseService, configService)
+      hybridRetrievalTool: new HybridRetrievalTool(this.databaseService, this.configService)
     };
     
     this.dialogueAgent = new DialogueAgent(dependencies);
     console.log('✅ DialogueAgent initialized successfully within dialogue-service.');
+  }
+
+  private getConversationTimeout(): number {
+    // Get timeout from operational_parameters.json
+    // Fallback to 60 seconds if not configured
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      // Find monorepo root and config directory
+      let currentDir = process.cwd();
+      while (currentDir !== path.dirname(currentDir)) {
+        const configPath = path.join(currentDir, 'config/operational_parameters.json');
+        if (fs.existsSync(configPath)) {
+          const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+          return config.conversation?.timeout_seconds || 60;
+        }
+        currentDir = path.dirname(currentDir);
+      }
+      throw new Error('Config not found');
+    } catch (error) {
+      console.warn('Failed to load operational_parameters.json, using default timeout of 60 seconds');
+      return 60;
+    }
   }
 
   public chat = async (req: Request, res: Response): Promise<void> => {
@@ -80,8 +104,9 @@ export class AgentController {
       const heartbeatKey = `${REDIS_CONVERSATION_HEARTBEAT_PREFIX}${actualConversationId}`;
       try {
         console.log(`🔧 DEBUG: Redis client status: ${this.redisClient.status}`);
-        await this.redisClient.set(heartbeatKey, 'active', 'EX', DEFAULT_CONVERSATION_TIMEOUT_SECONDS);
-        console.log(`✅ DEBUG: Conversation heartbeat set: ${heartbeatKey} (${DEFAULT_CONVERSATION_TIMEOUT_SECONDS}s TTL)`);
+        const timeoutSeconds = this.getConversationTimeout();
+        await this.redisClient.set(heartbeatKey, 'active', 'EX', timeoutSeconds);
+        console.log(`✅ DEBUG: Conversation heartbeat set: ${heartbeatKey} (${timeoutSeconds}s TTL)`);
         
         // 🚨 VERIFICATION: Immediately check if key exists
         const verification = await this.redisClient.exists(heartbeatKey);
@@ -142,7 +167,8 @@ export class AgentController {
 
       // 🕐 V9.5 PHASE 1: Reset heartbeat AFTER processing to prevent timeout during long operations
       try {
-        await this.redisClient.set(heartbeatKey, 'active', 'EX', DEFAULT_CONVERSATION_TIMEOUT_SECONDS);
+        const timeoutSeconds = this.getConversationTimeout();
+        await this.redisClient.set(heartbeatKey, 'active', 'EX', timeoutSeconds);
         console.log(`✅ DEBUG: Post-processing conversation heartbeat reset: ${heartbeatKey}`);
       } catch (error) {
         console.error(`❌ DEBUG: Failed to reset post-processing heartbeat for ${actualConversationId}:`, error);
@@ -198,8 +224,9 @@ export class AgentController {
       // File uploads also count as conversation activity and should reset the timeout
       const heartbeatKey = `${REDIS_CONVERSATION_HEARTBEAT_PREFIX}${actualConversationId}`;
       try {
-        await this.redisClient.set(heartbeatKey, 'active', 'EX', DEFAULT_CONVERSATION_TIMEOUT_SECONDS);
-        console.log(`✅ File upload conversation heartbeat set: ${heartbeatKey} (${DEFAULT_CONVERSATION_TIMEOUT_SECONDS}s TTL)`);
+        const timeoutSeconds = this.getConversationTimeout();
+        await this.redisClient.set(heartbeatKey, 'active', 'EX', timeoutSeconds);
+        console.log(`✅ File upload conversation heartbeat set: ${heartbeatKey} (${timeoutSeconds}s TTL)`);
       } catch (error) {
         console.error(`❌ Failed to set conversation heartbeat for ${actualConversationId}:`, error);
         // Continue processing - heartbeat failure shouldn't block file upload
@@ -411,7 +438,8 @@ export class AgentController {
 
         // 🕐 V9.5 PHASE 1: Reset heartbeat AFTER file processing to prevent timeout during analysis
         try {
-          await this.redisClient.set(heartbeatKey, 'active', 'EX', DEFAULT_CONVERSATION_TIMEOUT_SECONDS);
+          const timeoutSeconds = this.getConversationTimeout();
+          await this.redisClient.set(heartbeatKey, 'active', 'EX', timeoutSeconds);
           console.log(`✅ Post-file-processing conversation heartbeat reset: ${heartbeatKey}`);
         } catch (error) {
           console.error(`❌ Failed to reset post-file-processing heartbeat for ${actualConversationId}:`, error);

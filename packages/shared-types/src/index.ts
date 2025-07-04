@@ -92,8 +92,6 @@ export type {
   // Memory types
   TMemoryUnit,
   TRawContent,
-  EMemorySourceType,
-  EMemoryProcessingStatus,
   ERawContentType
 } from './entities/memory.types';
 
@@ -148,14 +146,7 @@ export type {
 } from './entities/derived-artifact.types';
 
 // Deprecated entity types (kept for backward compatibility)
-export type {
-  TAnnotation,
-  AnnotationType
-} from './entities/annotation.types';
-
-export type {
-  TChunk
-} from './entities/chunk.types';
+// Note: TAnnotation and TChunk have been deprecated and removed
 
 // === API TYPES ===
 export type {
@@ -183,9 +174,7 @@ export type {
   TGetRelatedConceptsRequest,
   TGetRelatedConceptsResponse,
   TListInsightsRequest,
-  TListInsightsResponse,
-  TCreateAnnotationRequest,
-  TCreateAnnotationResponse
+  TListInsightsResponse
 } from './api/memory.api.types';
 
 export type {

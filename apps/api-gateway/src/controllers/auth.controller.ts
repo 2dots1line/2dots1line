@@ -1,46 +1,91 @@
 // apps/api-gateway/src/controllers/auth.controller.ts
+// V11.0 Architecture - Direct service injection, no HTTP calls
 
 import { Request, Response } from 'express';
-import axios, { AxiosInstance } from 'axios';
 import type { TApiResponse, TRegisterRequest, TLoginRequest } from '@2dots1line/shared-types';
+import { AuthService, type AuthResult } from '@2dots1line/user-service';
 
 export class AuthController {
-  private userServiceClient: AxiosInstance;
+  private authService: AuthService;
 
-  constructor() {
-    // Default URL for local development. In production, this comes from env vars.
-    const userServiceUrl = process.env.USER_SERVICE_URL || 'http://localhost:3003';
-    this.userServiceClient = axios.create({
-      baseURL: userServiceUrl,
-      headers: { 'Content-Type': 'application/json' },
-    });
+  constructor(authService: AuthService) {
+    this.authService = authService;
   }
 
   register = async (req: Request, res: Response): Promise<void> => {
     try {
-      const response = await this.userServiceClient.post<TApiResponse<any>>('/api/v1/auth/register', req.body as TRegisterRequest);
-      res.status(response.status).json(response.data);
-    } catch (error) {
-      if (axios.isAxiosError(error) && error.response) {
-        res.status(error.response.status).json(error.response.data);
+      const registerData = req.body as TRegisterRequest;
+      const result: AuthResult = await this.authService.register({
+        email: registerData.email,
+        name: registerData.name,
+        password: registerData.password,
+      });
+
+      if (result.success) {
+        res.status(201).json({
+          success: true,
+          data: {
+            user: result.user,
+            token: result.token
+          },
+          message: result.message
+        } as TApiResponse<any>);
       } else {
-        console.error('Error in api-gateway register proxy:', error);
-        res.status(500).json({ success: false, error: 'Internal Server Error' });
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'REGISTRATION_FAILED',
+            message: result.message || 'Registration failed'
+          }
+        } as TApiResponse<any>);
       }
+    } catch (error) {
+      console.error('Error in auth controller register:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Internal Server Error'
+        }
+      } as TApiResponse<any>);
     }
   };
 
   login = async (req: Request, res: Response): Promise<void> => {
     try {
-      const response = await this.userServiceClient.post<TApiResponse<any>>('/api/v1/auth/login', req.body as TLoginRequest);
-      res.status(response.status).json(response.data);
-    } catch (error) {
-      if (axios.isAxiosError(error) && error.response) {
-        res.status(error.response.status).json(error.response.data);
+      const loginData = req.body as TLoginRequest;
+      const result: AuthResult = await this.authService.authenticate({
+        email: loginData.email,
+        password: loginData.password,
+      });
+
+      if (result.success) {
+        res.status(200).json({
+          success: true,
+          data: {
+            user: result.user,
+            token: result.token
+          },
+          message: result.message
+        } as TApiResponse<any>);
       } else {
-        console.error('Error in api-gateway login proxy:', error);
-        res.status(500).json({ success: false, error: 'Internal Server Error' });
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'AUTHENTICATION_FAILED',
+            message: result.message || 'Authentication failed'
+          }
+        } as TApiResponse<any>);
       }
+    } catch (error) {
+      console.error('Error in auth controller login:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Internal Server Error'
+        }
+      } as TApiResponse<any>);
     }
   };
 
@@ -53,15 +98,38 @@ export class AuthController {
 
   refreshToken = async (req: Request, res: Response): Promise<void> => {
     try {
-      const response = await this.userServiceClient.post<TApiResponse<any>>('/api/v1/auth/refresh', req.body);
-      res.status(response.status).json(response.data);
-    } catch (error) {
-      if (axios.isAxiosError(error) && error.response) {
-        res.status(error.response.status).json(error.response.data);
+      const { token } = req.body;
+      const user = await this.authService.validateToken(token);
+      
+      if (user) {
+        // Generate new token
+        const result = await this.authService.authenticate({ email: user.email });
+        res.status(200).json({
+          success: true,
+          data: {
+            user: result.user,
+            token: result.token
+          },
+          message: 'Token refreshed successfully'
+        } as TApiResponse<any>);
       } else {
-        console.error('Error in api-gateway refresh token proxy:', error);
-        res.status(500).json({ success: false, error: 'Internal Server Error' });
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'INVALID_TOKEN',
+            message: 'Invalid token'
+          }
+        } as TApiResponse<any>);
       }
+    } catch (error) {
+      console.error('Error in auth controller refresh token:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Internal Server Error'
+        }
+      } as TApiResponse<any>);
     }
   };
 }

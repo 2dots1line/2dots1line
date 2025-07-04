@@ -11,7 +11,13 @@
     "test": "jest"
   },
   "dependencies": {
-    "@2dots1line/shared-types": "workspace:^0.1.0",
+    "@2dots1line/config-service": "workspace:*",
+    "@2dots1line/core-utils": "workspace:*",
+    "@2dots1line/database": "workspace:*",
+    "@2dots1line/dialogue-service": "workspace:*",
+    "@2dots1line/user-service": "workspace:*",
+    "@2dots1line/card-service": "workspace:*",
+    "@2dots1line/shared-types": "workspace:*",
     "@types/jsonwebtoken": "^9.0.5",
     "@types/multer": "^1.4.12",
     "axios": "^1.10.0",

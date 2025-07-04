@@ -70,12 +70,12 @@ services:
     restart: unless-stopped
 
   # --- PYTHON MICROSERVICES ---
-  # dimension-reducer: # DISABLED - Will re-enable when ML implementation is ready
-  #   build:
-  #     context: ./py-services/dimension-reducer
-  #   container_name: dimension-reducer-2d1l
-  #   ports:
-  #     - "${DIMENSION_REDUCER_HOST_PORT:-5001}:5000"
-  #   networks:
-  #     - 2d1l_network
-  #   restart: unless-stopped 
+  dimension-reducer:
+    build:
+      context: ./py-services/dimension-reducer
+    container_name: dimension-reducer-2d1l
+    ports:
+      - "${DIMENSION_REDUCER_HOST_PORT:-5001}:5000"
+    networks:
+      - 2d1l_network
+    restart: unless-stopped 

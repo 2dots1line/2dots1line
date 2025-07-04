@@ -78,27 +78,11 @@ services:
       - 2d1l_network
     restart: unless-stopped
 
-  # --- 3. BACKEND SERVICES & WORKERS (NODE.JS) ---
-  # All Node.js services use the same root Dockerfile and a consistent env_file pattern.
-  
+  # --- 3. SINGLE NODE.JS API GATEWAY ---
   api-gateway:
     build: { context: ., dockerfile: Dockerfile, args: { APP_NAME: api-gateway } }
     container_name: api-gateway-2d1l
     ports: [ "${API_GATEWAY_HOST_PORT:-3001}:3001" ]
-    env_file: .env
-    networks: [ 2d1l_network ]
-    depends_on:
-      dialogue-service:
-        condition: service_started
-      user-service:
-        condition: service_started
-      card-service:
-        condition: service_started
-
-  dialogue-service:
-    build: { context: ., dockerfile: Dockerfile, args: { APP_NAME: dialogue-service } }
-    container_name: dialogue-service-2d1l
-    ports: [ "${DIALOGUE_SERVICE_HOST_PORT:-3002}:3002" ]
     env_file: .env
     networks: [ 2d1l_network ]
     depends_on:
@@ -111,31 +95,7 @@ services:
       redis:
         condition: service_started
 
-  user-service:
-    build: { context: ., dockerfile: Dockerfile, args: { APP_NAME: user-service } }
-    container_name: user-service-2d1l
-    ports: [ "${USER_SERVICE_HOST_PORT:-3003}:3003" ]
-    env_file: .env
-    networks: [ 2d1l_network ]
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_started
-
-  card-service:
-    build: { context: ., dockerfile: Dockerfile, args: { APP_NAME: card-service } }
-    container_name: card-service-2d1l
-    ports: [ "${CARD_SERVICE_HOST_PORT:-3004}:3004" ]
-    env_file: .env
-    networks: [ 2d1l_network ]
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_started
-
-  # --- ASYNCHRONOUS WORKERS ---
+  # --- 4. ASYNCHRONOUS WORKERS ---
   conversation-timeout-worker:
     build: { context: ., dockerfile: Dockerfile, args: { APP_NAME: conversation-timeout-worker } }
     container_name: conversation-timeout-worker-2d1l

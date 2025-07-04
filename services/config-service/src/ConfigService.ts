@@ -47,15 +47,42 @@ export class ConfigService {
     console.log(`Initializing ConfigService: Loading configs from ${this.configDir}...`);
     
     try {
-      const files = ['CoreIdentity.yaml', 'prompt_templates.yaml'];
-      
-      for (const file of files) {
+      const yamlFiles = ['CoreIdentity.yaml', 'prompt_templates.yaml'];
+      const jsonFiles = ['card_templates.json', 'card_eligibility_rules.json'];
+
+      for (const file of yamlFiles) {
         const filePath = path.join(this.configDir, file);
         const content = await fs.readFile(filePath, 'utf8');
         const configKey = path.basename(file, path.extname(file));
         const parsedContent = yaml.load(content) as any;
         this.configCache.set(configKey, parsedContent);
-        console.log(`Loaded config: ${configKey}`);
+        console.log(`Loaded YAML config: ${configKey}`);
+      }
+
+      for (const file of jsonFiles) {
+        const filePath = path.join(this.configDir, file);
+        const configKey = path.basename(file, path.extname(file));
+        try {
+          const content = await fs.readFile(filePath, 'utf8');
+          const parsedContent = JSON.parse(content);
+          this.configCache.set(configKey, parsedContent);
+          console.log(`Loaded JSON config: ${configKey}`);
+        } catch (error: any) {
+            if (error.code === 'ENOENT') {
+                console.warn(`WARN: Config file ${file} not found. Using fallback for '${configKey}'.`);
+                if (configKey === 'card_eligibility_rules') {
+                    const fallbackRules = {
+                      "MemoryUnit": { "min_importance_score": 5.0 },
+                      "Concept": { "min_salience": 0.6 },
+                      "DerivedArtifact": { "eligible_types": ["cycle_report", "insight_summary"] },
+                      "ProactivePrompt": { "always_eligible": true }
+                    };
+                    this.configCache.set(configKey, fallbackRules);
+                }
+            } else {
+                throw error;
+            }
+        }
       }
       
       this.initialized = true;
@@ -116,6 +143,28 @@ export class ConfigService {
     }
     
     return templates;
+  }
+
+  public getCardTemplates(): any {
+    if (!this.initialized) {
+      throw new Error('ConfigService not initialized. Call initialize() first.');
+    }
+    const templates = this.configCache.get('card_templates');
+    if (!templates) {
+      throw new Error('card_templates configuration not found');
+    }
+    return templates;
+  }
+
+  public getCardEligibilityRules(): any {
+    if (!this.initialized) {
+      throw new Error('ConfigService not initialized. Call initialize() first.');
+    }
+    const rules = this.configCache.get('card_eligibility_rules');
+    if (!rules) {
+      throw new Error('card_eligibility_rules configuration not found');
+    }
+    return rules;
   }
 
   // Placeholder methods for future configuration loading and validation

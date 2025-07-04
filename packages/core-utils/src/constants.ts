@@ -9,8 +9,8 @@ export const REDIS_CONVERSATION_TIMEOUT_PREFIX = 'conversation:timeout:';
 // Queue names
 export const INGESTION_QUEUE_NAME = 'ingestion-queue';
 
-// Default timeouts (in seconds)
-export const DEFAULT_CONVERSATION_TIMEOUT_SECONDS = 60; // 1 minute for testing
-
-// Worker configuration defaults
-export const DEFAULT_WORKER_CHECK_INTERVAL_SECONDS = 30; 
+/**
+ * Tunable parameters (timeouts, intervals, etc.) have been moved to:
+ *   config/operational_parameters.json
+ * Access them via the ConfigService.
+ */ 

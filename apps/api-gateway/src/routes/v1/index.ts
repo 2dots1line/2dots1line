@@ -7,14 +7,15 @@ import { AuthController } from '../../controllers/auth.controller';
 import { ConversationController } from '../../controllers/conversation.controller';
 import { CardController } from '../../controllers/card.controller';
 import { UserController } from '../../controllers/user.controller';
+import { createAgentRoutes } from './agent.routes';
 
-const v1Router: IRouter = Router();
-
-// Instantiate controllers
-const authController = new AuthController();
-const conversationController = new ConversationController();
-const cardController = new CardController();
-const userController = new UserController();
+export function createV1Routes(
+  authController: AuthController,
+  userController: UserController,
+  cardController: CardController,
+  conversationController: ConversationController
+): IRouter {
+  const v1Router: IRouter = Router();
 
 // --- Auth Routes (Public) ---
 v1Router.post('/auth/register', authController.register);
@@ -43,4 +44,8 @@ v1Router.get('/graph-projection/latest', authMiddleware, (req, res) => {
   res.status(501).json({ message: 'Graph projection endpoint not yet implemented.' });
 });
 
-export default v1Router; 
+// Agent routes
+v1Router.use('/agent', createAgentRoutes(conversationController));
+
+  return v1Router;
+} 

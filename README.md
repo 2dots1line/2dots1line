@@ -1,29 +1,48 @@
-# 2dots1line V4 Monorepo
+# 2dots1line V11.0 Monorepo
 
-This is the monorepo for the 2dots1line Memory System V4 implementation.
+This is the monorepo for the 2dots1line Memory System V11.0 implementation.
+
+## V11.0 Architecture: Single API Gateway + Headless Services
+
+**V11.0** transformed from multiple HTTP microservices to a **single API Gateway** with **headless service libraries** for better performance and maintainability.
 
 ## Structure
 
 The project is organized as a monorepo with the following structure:
 
-- `apps/`: Application implementations (web-app, mobile-app, backend-api)
-- `packages/`: Shared code libraries (shared-types, database, ai-clients, etc.)
-- `services/`: Cognitive agents and tools (dialogue-agent, ingestion-analyst, etc.)
+- `apps/`: Applications (api-gateway, web-app)
+- `packages/`: Shared libraries (shared-types, database, ai-clients, ui-components, etc.)
+- `services/`: **Headless service libraries** (user-service, card-service, dialogue-service, etc.)
 - `workers/`: Background workers (ingestion-worker, embedding-worker, etc.)
-- `config/`: Global configuration (eslint, prettier, jest, etc.)
-- `scripts/`: Utility scripts (setup, migration, monitoring)
+- `config/`: Global configuration and operational parameters
+- `py-services/`: Python microservices (dimension-reducer)
 
-## Setup
+## Quick Setup
 
 ### Prerequisites
 
 - Node.js (v18+)
-- npm (v10+)
+- pnpm (v8+)
+- Docker & Docker Compose
 
-### Install dependencies
+### Complete Setup (Recommended)
 
 ```bash
-npm install
+# One command setup - installs deps, generates Prisma client, builds everything
+pnpm setup
+```
+
+### Manual Setup
+
+```bash
+# Install all dependencies
+pnpm install
+
+# Generate Prisma client (automatically done in postinstall)
+pnpm db:generate
+
+# Build all packages
+pnpm build
 ```
 
 ### Development
@@ -103,5 +122,27 @@ Proprietary and confidential.
 
 ### Database Issues
 1. Ensure Docker databases are running: `docker ps`
-2. Regenerate Prisma client: `cd packages/database && pnpm db:generate`
-3. Check database connections in logs 
+2. Regenerate Prisma client: `pnpm db:generate`
+3. Check database connections in logs
+
+### Prisma Setup (Fixed Systematically)
+
+**Problem**: After `pnpm install`, Prisma commands failed with "prisma: command not found"
+
+**Solution**: The database package now includes:
+- ✅ `prisma` CLI in devDependencies 
+- ✅ `postinstall` script that auto-generates Prisma client
+- ✅ Root-level `pnpm setup` command for complete setup
+
+**Commands that always work now**:
+```bash
+# Complete setup (recommended for new clones)
+pnpm setup
+
+# Just regenerate Prisma client
+pnpm db:generate
+
+# Manual database operations
+pnpm --filter @2dots1line/database db:migrate:dev
+pnpm --filter @2dots1line/database db:studio
+``` 

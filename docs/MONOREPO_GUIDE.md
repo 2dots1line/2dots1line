@@ -1,6 +1,69 @@
-# 2dots1line V4 Monorepo Troubleshooting Guide
+# 2dots1line V11+ Monorepo Guide
 
-This guide provides solutions for common issues encountered when working with the 2dots1line V4 monorepo.
+This guide provides the primary development workflow and solutions for common issues encountered when working with the 2dots1line monorepo.
+
+---
+
+## V11+ Development Workflow (Headless Architecture)
+
+The V11 architecture is based on "headless services". The only Node.js process that runs an HTTP server is the `api-gateway`. All other services (`dialogue-service`, `user-service`, etc.) are pure libraries that export classes and functions. All backend processes (the API gateway and all background workers) are managed by **PM2**.
+
+### First-Time Setup
+1. Run `pnpm install` from the root of the repository to install all dependencies.
+2. Ensure you have Docker Desktop running.
+3. Make sure you have PM2 installed globally: `pnpm add -g pm2`.
+
+### Starting the Development Environment
+
+The development environment is split into two parts: database containers and Node.js processes.
+
+1.  **Start the Databases:**
+    The `docker-compose.dev.yml` file is used to run all required databases (PostgreSQL, Redis, Neo4j, etc.).
+
+    ```bash
+    docker-compose -f docker-compose.dev.yml up -d
+    ```
+
+2.  **Start the Application Services (API Gateway & Workers):**
+    All Node.js processes are managed by PM2 using the `ecosystem.config.js` file at the root. Use the root `package.json` script to start everything in development mode (with hot-reload).
+
+    ```bash
+    # From the monorepo root
+    pnpm dev
+    ```
+    This command will start the `api-gateway` and all workers defined in `ecosystem.config.js`.
+
+### Daily Development Commands
+
+*   **View Logs for All Services:**
+    ```bash
+    pm2 logs
+    ```
+*   **View Logs for a Specific Service:**
+    ```bash
+    pm2 logs api-gateway
+    # or
+    pm2 logs ingestion-worker
+    ```
+*   **Stop All Services:**
+    ```bash
+    pm2 stop all
+    ```
+*   **Restart All Services:**
+     ```bash
+    pm2 restart all
+    ```
+*   **View Service Status:**
+    ```bash
+    pm2 list
+    ```
+
+---
+<br/>
+
+# Legacy V4 Monorepo Troubleshooting Guide
+
+This guide provides solutions for common issues encountered when working with older versions of the monorepo.
 
 ## Common Issues and Solutions
 

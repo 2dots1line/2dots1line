@@ -21,5 +21,19 @@
   "generation_limits": {
     "max_cards_per_session": 10,
     "cooldown_periods": {}
+  },
+  "MemoryUnit": {
+    "min_importance_score": 5.0,
+    "required_source_types": ["conversation_extraction", "journal_entry"]
+  },
+  "Concept": {
+    "min_salience": 0.6,
+    "eligible_types": ["goal", "value", "project", "person"]
+  },
+  "DerivedArtifact": {
+    "eligible_types": ["cycle_report", "insight_summary", "trophy"]
+  },
+  "ProactivePrompt": {
+    "always_eligible": true
   }
 } 

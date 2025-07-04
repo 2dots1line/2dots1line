@@ -1,44 +1,71 @@
 /**
- * User Controller - V9.7 Simplified User Profile API
- * In V9.7, most user operations will be forwarded to a user-service
+ * User Controller - V11.0 Headless Architecture
+ * Direct service injection, no HTTP calls to other services
  */
 
 import { Request, Response } from 'express';
-import axios, { AxiosInstance } from 'axios';
 import type { TApiResponse } from '@2dots1line/shared-types';
+import { UserService } from '@2dots1line/user-service';
 
 export class UserController {
-  private userServiceClient: AxiosInstance;
+  private userService: UserService;
 
-  constructor() {
-    const userServiceUrl = process.env.USER_SERVICE_URL || 'http://localhost:3003';
-    this.userServiceClient = axios.create({
-      baseURL: userServiceUrl
-    });
+  constructor(userService: UserService) {
+    this.userService = userService;
   }
 
   /**
    * GET /api/users/me/profile
-   * Returns basic user profile - in V9.7 this should forward to user-service
+   * Returns basic user profile using direct UserService call
    */
   getUserProfile = async (req: Request, res: Response): Promise<void> => {
     try {
       // The user ID should be extracted from a validated JWT token by middleware
       const userId = req.user?.id;
       if (!userId) {
-        res.status(401).json({ success: false, error: 'Unauthorized' });
+        res.status(401).json({ 
+          success: false, 
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Unauthorized'
+          }
+        } as TApiResponse<any>);
         return;
       }
       
-      const response = await this.userServiceClient.get<TApiResponse<any>>(`/api/v1/users/${userId}/profile`);
-      res.status(response.status).json(response.data);
-    } catch (error) {
-      if (axios.isAxiosError(error) && error.response) {
-        res.status(error.response.status).json(error.response.data);
-      } else {
-        console.error('Error in api-gateway getUserProfile proxy:', error);
-        res.status(500).json({ success: false, error: 'Internal Server Error' });
+      const user = await this.userService.getUserById(userId);
+      if (!user) {
+        res.status(404).json({ 
+          success: false, 
+          error: {
+            code: 'USER_NOT_FOUND',
+            message: 'User not found'
+          }
+        } as TApiResponse<any>);
+        return;
       }
+
+      res.status(200).json({
+        success: true,
+        data: {
+          id: user.user_id,
+          email: user.email,
+          name: user.name,
+          profileImageUrl: user.profile_picture_url,
+          preferences: user.preferences,
+          createdAt: user.created_at,
+          // Note: users table doesn't have updated_at field in current schema
+        }
+      } as TApiResponse<any>);
+    } catch (error) {
+      console.error('Error in user controller getUserProfile:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Internal Server Error'
+        }
+      } as TApiResponse<any>);
     }
   };
 

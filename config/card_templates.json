@@ -1,25 +1,24 @@
 {
-  "version": "1.0",
-  "description": "Templates for different types of user-facing cards",
-  "templates": {
-    "insight_card": {
-      "layout": "standard",
-      "components": [],
-      "styling": {}
-    },
-    "memory_card": {
-      "layout": "standard", 
-      "components": [],
-      "styling": {}
-    },
-    "growth_card": {
-      "layout": "standard",
-      "components": [],
-      "styling": {}
+  "MemoryUnit": {
+    "card_type": "memory_unit_card",
+    "display_data": {
+      "title_source_field": "title",
+      "preview_source_field": "content",
+      "preview_truncate_length": 150
     }
   },
-  "default_styling": {
-    "theme": "adaptive",
-    "animations": true
+  "Concept_goal": {
+    "card_type": "goal_card",
+    "display_data": {
+      "title_source_field": "name",
+      "preview_source_field": "description"
+    }
+  },
+  "ProactivePrompt": {
+    "card_type": "quest_card",
+    "display_data": {
+      "title_source_field": "prompt_text",
+      "preview_source_field": "rationale"
+    }
   }
 } 

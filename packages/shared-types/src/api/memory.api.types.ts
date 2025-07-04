@@ -1,7 +1,7 @@
 /**
  * API types for Memory Units, Concepts, and Insights
  */
-import type { TMemoryUnit, TConcept, TInsight, TAnnotation } from '../entities';
+import type { TMemoryUnit, TConcept, TInsight } from '../entities';
 
 import type { TPaginationInput, TSortInput } from './common.types';
 
@@ -74,19 +74,5 @@ export interface TListInsightsResponse {
 }
 
 /**
- * Request payload for creating an annotation
- */
-export interface TCreateAnnotationRequest {
-  target_id: string;
-  target_node_type: TAnnotation['target_node_type'];
-  annotation_type: string;
-  text_content: string;
-  metadata?: Record<string, any> | null;
-}
-
-/**
- * Response payload after creating an annotation
- */
-export interface TCreateAnnotationResponse {
-  annotation: TAnnotation;
-} 
+ * Note: Annotation-related types have been deprecated and replaced with InteractionLog types
+ */ 

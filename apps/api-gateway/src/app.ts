@@ -1,34 +1,63 @@
-import express, { Express, Request, Response, NextFunction } from 'express';
+import express from 'express';
 import cors from 'cors';
-import v1Router from './routes/v1';
+import { errorHandler } from './middleware/errorHandler';
+import { createV1Routes } from './routes/v1';
 
-const app: Express = express();
+// Import services and repositories for Composition Root
+import { DatabaseService } from '@2dots1line/database';
+import { ConfigService } from '@2dots1line/config-service';
+import { DialogueAgent, PromptBuilder } from '@2dots1line/dialogue-service';
+import { UserService, AuthService } from '@2dots1line/user-service';
+import { CardService } from '@2dots1line/card-service';
+import { UserRepository, ConversationRepository, CardRepository } from '@2dots1line/database';
 
-// Middleware
+// Import Controllers
+import { AuthController } from './controllers/auth.controller';
+import { CardController } from './controllers/card.controller';
+import { ConversationController } from './controllers/conversation.controller';
+import { UserController } from './controllers/user.controller';
+
+const app: express.Application = express();
 app.use(cors());
-app.use(express.json({ limit: '50mb' })); // Increase limit for file uploads
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.json());
 
-// Basic Health Check Route
-app.get('/api/health', (req: Request, res: Response) => {
-  res.status(200).json({ message: 'API Gateway is running' });
-});
+// --- COMPOSITION ROOT ---
+// This is where we instantiate all our classes and inject dependencies.
 
-// V11.1 API Routes
-app.use('/api/v1', v1Router);
+// Level 1: Core Infrastructure
+const databaseService = DatabaseService.getInstance();
+const configService = new ConfigService();
 
-// Handle 404 Not Found for any routes not matched above
-app.use((req: Request, res: Response) => {
-  res.status(404).json({ message: 'Not Found' });
-});
+// Level 2: Repositories
+const userRepo = new UserRepository(databaseService);
+const conversationRepo = new ConversationRepository(databaseService);
+const cardRepo = new CardRepository(databaseService);
 
-// Global Error Handler - MUST be the last middleware
-app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-  console.error('Unhandled error:', err.stack);
-  res.status(500).json({
-    message: 'Internal Server Error',
-    error: process.env.NODE_ENV === 'development' ? err.message : undefined,
-  });
-});
+// Level 3: Headless Services (Business Logic) - V11.0 Architecture
+const userService = new UserService(databaseService);
+const authService = new AuthService(databaseService);
+const cardService = new CardService(databaseService);
+
+// DialogueAgent requires more complex setup - will be implemented later
+const promptBuilder = new PromptBuilder(configService, userRepo, conversationRepo, databaseService.redis);
+const dialogueAgent = new DialogueAgent({
+  configService,
+  conversationRepository: conversationRepo,
+  redisClient: databaseService.redis,
+  promptBuilder,
+  // TODO: Add remaining dependencies for DialogueAgent
+} as any); // Temporary 'as any' during refactoring
+
+// Level 4: Controllers (The final layer, receives services) - V11.0 Architecture
+const authController = new AuthController(authService);
+const userController = new UserController(userService);
+const cardController = new CardController(cardService);
+const conversationController = new ConversationController(dialogueAgent);
+
+// Level 5: Mount controllers onto the Express app
+app.use('/api/v1', createV1Routes(authController, userController, cardController, conversationController));
+
+// Central Error Handler
+app.use(errorHandler);
 
 export default app; 

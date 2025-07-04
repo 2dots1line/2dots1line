@@ -17,13 +17,13 @@ export interface TDerivedArtifact {
   /** Title of the artifact */
   title: string;
   /** Narrative content of the artifact (optional) */
-  content_narrative?: string | null;
+  content_narrative: string | null;
   /** Structured data content (JSON object, optional) */
-  content_data?: Record<string, any> | null;
+  content_data: any | null;
   /** ID of the source memory unit (optional) */
-  source_memory_unit_id?: string | null;
+  source_memory_unit_id: string | null;
   /** ID of the source concept (optional) */
-  source_concept_id?: string | null;
+  source_concept_id: string | null;
   /** Timestamp when the artifact was created */
   created_at: Date;
 }
