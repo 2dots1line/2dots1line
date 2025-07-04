@@ -4,7 +4,7 @@
  */
 
 import Redis from 'ioredis';
-import Bull from 'bullmq';
+import { Queue } from 'bullmq';
 import { DatabaseService, ConversationRepository } from '@2dots1line/database';
 import { ConversationTimeoutWorker } from './ConversationTimeoutWorker';
 
@@ -19,7 +19,7 @@ async function main() {
   const databaseService = DatabaseService.getInstance();
   const conversationRepo = new ConversationRepository(databaseService);
   
-  const ingestionQueue = new Bull.Queue('ingestion-queue', {
+  const ingestionQueue = new Queue('ingestion-queue', {
     connection: {
       host: process.env.REDIS_HOST || 'localhost',
       port: parseInt(process.env.REDIS_PORT || '6379'),

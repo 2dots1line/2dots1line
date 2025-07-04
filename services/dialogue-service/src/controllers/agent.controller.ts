@@ -9,12 +9,14 @@ import { createHash } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { REDIS_CONVERSATION_HEARTBEAT_PREFIX, DEFAULT_CONVERSATION_TIMEOUT_SECONDS } from '@2dots1line/core-utils';
 
 export class AgentController {
   private dialogueAgent: DialogueAgent;
   private databaseService: DatabaseService;
   private conversationRepository: ConversationRepository;
   private mediaRepository: MediaRepository;
+  private redisClient: Redis;
 
   constructor() {
     this.databaseService = DatabaseService.getInstance();
@@ -23,6 +25,7 @@ export class AgentController {
     const userRepository = new UserRepository(this.databaseService);
     const configService = new ConfigService();
     const redisClient = this.databaseService.redis;
+    this.redisClient = redisClient;
 
     const dependencies: DialogueAgentDependencies = {
       configService,
@@ -42,28 +45,74 @@ export class AgentController {
 
   public chat = async (req: Request, res: Response): Promise<void> => {
     try {
+      console.log('🔍 DEBUG: Chat endpoint hit');
+      console.log('🔍 DEBUG: Request body:', JSON.stringify(req.body, null, 2));
+      
       const { userId, message, conversation_id, source_card_id, context } = req.body;
 
       if (!userId || !message) {
+        console.log('❌ DEBUG: Missing userId or message');
         res.status(400).json({ success: false, error: 'userId and message are required.' });
         return;
       }
       
+      console.log('✅ DEBUG: Basic validation passed');
+      
       let actualConversationId = conversation_id;
       if (!actualConversationId) {
-        const newConversation = await this.conversationRepository.create({
-          user_id: userId,
-          title: `Conversation started at ${new Date().toISOString()}`,
-        });
-        actualConversationId = newConversation.id;
+        console.log('🔄 DEBUG: Creating new conversation...');
+        try {
+          const newConversation = await this.conversationRepository.create({
+            user_id: userId,
+            title: `Conversation started at ${new Date().toISOString()}`,
+          });
+          actualConversationId = newConversation.id;
+          console.log('✅ DEBUG: New conversation created:', actualConversationId);
+        } catch (error) {
+          console.error('❌ DEBUG: Failed to create conversation:', error);
+          throw error;
+        }
       }
 
-      await this.conversationRepository.addMessage({
-        conversation_id: actualConversationId,
-        role: 'user',
-        content: message,
-      });
+      console.log('🔄 DEBUG: Setting heartbeat...');
+      // 🕐 V9.5 ARCHITECTURE: Create/Reset Redis heartbeat key for conversation timeout management
+      // This integrates with ConversationTimeoutWorker which listens for these key expirations
+      const heartbeatKey = `${REDIS_CONVERSATION_HEARTBEAT_PREFIX}${actualConversationId}`;
+      try {
+        console.log(`🔧 DEBUG: Redis client status: ${this.redisClient.status}`);
+        await this.redisClient.set(heartbeatKey, 'active', 'EX', DEFAULT_CONVERSATION_TIMEOUT_SECONDS);
+        console.log(`✅ DEBUG: Conversation heartbeat set: ${heartbeatKey} (${DEFAULT_CONVERSATION_TIMEOUT_SECONDS}s TTL)`);
+        
+        // 🚨 VERIFICATION: Immediately check if key exists
+        const verification = await this.redisClient.exists(heartbeatKey);
+        const ttl = await this.redisClient.ttl(heartbeatKey);
+        console.log(`🔍 DEBUG: Heartbeat verification - exists: ${verification}, TTL: ${ttl}s`);
+        
+        if (verification === 0) {
+          console.error(`🚨 CRITICAL: Heartbeat key ${heartbeatKey} was NOT created despite successful set command!`);
+          // Try to get Redis connection info
+          const redisInfo = await this.redisClient.ping();
+          console.log(`🔧 DEBUG: Redis PING response: ${redisInfo}`);
+        }
+      } catch (error) {
+        console.error(`❌ DEBUG: Failed to set conversation heartbeat for ${actualConversationId}:`, error);
+        // Continue processing - heartbeat failure shouldn't block conversation
+      }
 
+      console.log('🔄 DEBUG: Adding user message to conversation...');
+      try {
+        await this.conversationRepository.addMessage({
+          conversation_id: actualConversationId,
+          role: 'user',
+          content: message,
+        });
+        console.log('✅ DEBUG: User message added successfully');
+      } catch (error) {
+        console.error('❌ DEBUG: Failed to add user message:', error);
+        throw error;
+      }
+
+      console.log('🔄 DEBUG: Preparing dialogue input...');
       const dialogueInput: TDialogueAgentInput = {
         user_id: userId,
         region: 'us', // Default region
@@ -79,9 +128,28 @@ export class AgentController {
           timestamp: new Date().toISOString()
         }
       };
+      console.log('✅ DEBUG: Dialogue input prepared');
 
-      const result: TDialogueAgentOutput = await this.dialogueAgent.processDialogue(dialogueInput);
+      console.log('🔄 DEBUG: Calling dialogueAgent.processDialogue...');
+      let result: TDialogueAgentOutput;
+      try {
+        result = await this.dialogueAgent.processDialogue(dialogueInput);
+        console.log('✅ DEBUG: DialogueAgent completed, status:', result.status);
+      } catch (error) {
+        console.error('❌ DEBUG: DialogueAgent.processDialogue failed:', error);
+        throw error;
+      }
 
+      // 🕐 V9.5 PHASE 1: Reset heartbeat AFTER processing to prevent timeout during long operations
+      try {
+        await this.redisClient.set(heartbeatKey, 'active', 'EX', DEFAULT_CONVERSATION_TIMEOUT_SECONDS);
+        console.log(`✅ DEBUG: Post-processing conversation heartbeat reset: ${heartbeatKey}`);
+      } catch (error) {
+        console.error(`❌ DEBUG: Failed to reset post-processing heartbeat for ${actualConversationId}:`, error);
+        // Continue - heartbeat failure shouldn't block response
+      }
+
+      console.log('🔄 DEBUG: Processing result...');
       if (result.status === 'success') {
         // Transform response to match frontend expectations
         const response = {
@@ -90,15 +158,18 @@ export class AgentController {
           conversation_id: result.result?.conversation_id,
           metadata: result.metadata
         };
+        console.log('✅ DEBUG: Sending success response');
         res.status(200).json(response);
       } else {
+        console.log('❌ DEBUG: DialogueAgent returned error status:', result.error);
         res.status(500).json({
           success: false,
           error: result.error?.message || 'Internal Server Error'
         });
       }
     } catch (error) {
-      console.error('Error in AgentController.chat:', error);
+      console.error('❌ DEBUG: Critical error in AgentController.chat:', error);
+      console.error('❌ DEBUG: Error stack:', error instanceof Error ? error.stack : 'No stack trace');
       res.status(500).json({ success: false, error: 'Internal Server Error' });
     }
   };
@@ -121,6 +192,17 @@ export class AgentController {
           title: `File upload conversation started at ${new Date().toISOString()}`,
         });
         actualConversationId = newConversation.id;
+      }
+
+      // 🕐 V9.5 ARCHITECTURE: Create/Reset Redis heartbeat key for conversation timeout management
+      // File uploads also count as conversation activity and should reset the timeout
+      const heartbeatKey = `${REDIS_CONVERSATION_HEARTBEAT_PREFIX}${actualConversationId}`;
+      try {
+        await this.redisClient.set(heartbeatKey, 'active', 'EX', DEFAULT_CONVERSATION_TIMEOUT_SECONDS);
+        console.log(`✅ File upload conversation heartbeat set: ${heartbeatKey} (${DEFAULT_CONVERSATION_TIMEOUT_SECONDS}s TTL)`);
+      } catch (error) {
+        console.error(`❌ Failed to set conversation heartbeat for ${actualConversationId}:`, error);
+        // Continue processing - heartbeat failure shouldn't block file upload
       }
 
       // 1. Determine file type and route to appropriate tool
@@ -326,6 +408,15 @@ export class AgentController {
         };
 
         const result: TDialogueAgentOutput = await this.dialogueAgent.processDialogue(dialogueInput);
+
+        // 🕐 V9.5 PHASE 1: Reset heartbeat AFTER file processing to prevent timeout during analysis
+        try {
+          await this.redisClient.set(heartbeatKey, 'active', 'EX', DEFAULT_CONVERSATION_TIMEOUT_SECONDS);
+          console.log(`✅ Post-file-processing conversation heartbeat reset: ${heartbeatKey}`);
+        } catch (error) {
+          console.error(`❌ Failed to reset post-file-processing heartbeat for ${actualConversationId}:`, error);
+          // Continue - heartbeat failure shouldn't block response
+        }
 
         if (result.status === 'success') {
           // Transform response to match frontend expectations

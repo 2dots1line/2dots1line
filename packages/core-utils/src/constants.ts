@@ -10,7 +10,7 @@ export const REDIS_CONVERSATION_TIMEOUT_PREFIX = 'conversation:timeout:';
 export const INGESTION_QUEUE_NAME = 'ingestion-queue';
 
 // Default timeouts (in seconds)
-export const DEFAULT_CONVERSATION_TIMEOUT_SECONDS = 300; // 5 minutes
+export const DEFAULT_CONVERSATION_TIMEOUT_SECONDS = 60; // 1 minute for testing
 
 // Worker configuration defaults
 export const DEFAULT_WORKER_CHECK_INTERVAL_SECONDS = 30; 

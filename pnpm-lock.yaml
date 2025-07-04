@@ -637,6 +637,9 @@ importers:
       '@2dots1line/config-service':
         specifier: workspace:*
         version: link:../config-service
+      '@2dots1line/core-utils':
+        specifier: workspace:*
+        version: link:../../packages/core-utils
       '@2dots1line/database':
         specifier: workspace:*
         version: link:../../packages/database

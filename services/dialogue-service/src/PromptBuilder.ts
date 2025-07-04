@@ -66,23 +66,47 @@ export class PromptBuilder {
     const turnContext = turnContextStr ? JSON.parse(turnContextStr) : null;
     const isFirstTurn = conversationHistory.length === 0;
 
+    // 🔄 V9.5 ARCHITECTURE: Check conversation status for proper context handling
+    // If this is a new conversation after a previous one ended, prioritize processed context
+    const currentConversation = await this.conversationRepository.findById(conversationId);
+    
+    // PHASE 1 FIX: Proper conversation boundary detection
+    const shouldUseNextContext = isFirstTurn && 
+      user.next_conversation_context_package && 
+      (!currentConversation || currentConversation.status === 'active');
+    
+    const isNewConversationAfterTimeout = shouldUseNextContext;
+
     console.log('📊 PromptBuilder - Data fetched:', {
       userFound: !!user,
       historyLength: conversationHistory.length,
       summariesCount: Array.isArray(recentSummaries) ? recentSummaries.length : 0,
       hasTurnContext: !!turnContext,
-      isFirstTurn
+      isFirstTurn,
+      conversationStatus: currentConversation?.status,
+      hasNextContextPackage: !!user.next_conversation_context_package,
+      shouldUseNextContext,
+      isNewConversationAfterTimeout
     });
 
     // --- STEP 3: ASSEMBLE PROMPT COMPONENTS ---
+    // V9.5 ARCHITECTURE: Proper context prioritization based on conversation lifecycle
     const components: (string | null)[] = [
       preambleTpl,
       Mustache.render(identityTpl, coreIdentity),
       this.formatComponent('user_memory_profile', user.memory_profile),
       this.formatComponent('knowledge_graph_schema', user.knowledge_graph_schema),
       this.formatComponent('summaries_of_recent_important_conversations_this_cycle', recentSummaries),
-      isFirstTurn ? this.formatComponent('context_from_last_conversation', user.next_conversation_context_package) : null,
-      !isFirstTurn ? this.formatComponent('context_from_last_turn', turnContext) : null,
+      
+      // Use NextConversationContextPackage only for genuinely new conversations
+      shouldUseNextContext ? 
+        this.formatComponent('context_from_last_conversation', user.next_conversation_context_package) : null,
+      
+      // Use turn context for continuing active conversations
+      (!isFirstTurn && !shouldUseNextContext) ? 
+        this.formatComponent('context_from_last_turn', turnContext) : null,
+        
+      // Include conversation history but mark context source
       this.formatComponent('current_conversation_history', conversationHistory),
       this.formatComponent('augmented_memory_context', augmentedMemoryContext),
       responseFormatTpl,
@@ -91,6 +115,19 @@ export class PromptBuilder {
     ];
 
     const assembledPrompt = components.filter(c => c !== null).join('\n\n');
+    
+    // 🧹 V9.5 PHASE 1: Clean up NextConversationContextPackage after use to prevent reuse
+    if (shouldUseNextContext && user.next_conversation_context_package) {
+      try {
+        await this.userRepository.update(userId, { 
+          next_conversation_context_package: null 
+        });
+        console.log(`✅ PromptBuilder - NextConversationContextPackage cleared for user ${userId}`);
+      } catch (error) {
+        console.error(`❌ PromptBuilder - Failed to clear NextConversationContextPackage:`, error);
+        // Continue - this is cleanup, shouldn't block prompt building
+      }
+    }
     
     console.log('\n📝 PromptBuilder - ASSEMBLED SYSTEM PROMPT:');
     console.log('='.repeat(80));

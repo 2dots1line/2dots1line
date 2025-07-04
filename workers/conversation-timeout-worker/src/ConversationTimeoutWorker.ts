@@ -11,7 +11,7 @@
  */
 
 import Redis from 'ioredis';
-import Bull from 'bullmq';
+import { Queue } from 'bullmq';
 import { ConversationRepository } from '@2dots1line/database';
 import { REDIS_CONVERSATION_HEARTBEAT_PREFIX } from '@2dots1line/core-utils';
 
@@ -25,14 +25,14 @@ export interface ConversationTimeoutWorkerDependencies {
   redis: Redis;
   subscriberRedis: Redis;
   conversationRepo: ConversationRepository;
-  ingestionQueue: Bull.Queue;
+  ingestionQueue: Queue;
 }
 
 export class ConversationTimeoutWorker {
   private redis: Redis;
   private subscriberRedis: Redis;
   private conversationRepo: ConversationRepository;
-  private ingestionQueue: Bull.Queue;
+  private ingestionQueue: Queue;
   private config: Required<ConversationTimeoutConfig>;
   private isRunning: boolean = false;
   private startTime?: Date;

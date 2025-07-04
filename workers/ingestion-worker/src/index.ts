@@ -20,9 +20,9 @@ async function main() {
     const toolRegistry = new ToolRegistry();
     console.log('[IngestionWorker] ToolRegistry initialized');
 
-    // 2. Build the composite tool for the analyst
-    const holisticAnalysisTool = toolRegistry.buildCompositeToolForAgent('ingestionAnalyst') as HolisticAnalysisTool;
-    console.log('[IngestionWorker] HolisticAnalysisTool built');
+    // 2. Directly instantiate the HolisticAnalysisTool (avoiding circular dependency)
+    const holisticAnalysisTool = new HolisticAnalysisTool(configService);
+    console.log('[IngestionWorker] HolisticAnalysisTool instantiated');
 
     // 3. Initialize BullMQ queues
     const redisConnection = {
