@@ -25,6 +25,12 @@
   "references": [
     {
       "path": "../../packages/shared-types/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/core-utils/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/database/tsconfig.build.json"
     }
   ]
 }

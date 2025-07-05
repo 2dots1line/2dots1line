@@ -13,7 +13,7 @@
 import Redis from 'ioredis';
 import { Queue } from 'bullmq';
 import { ConversationRepository } from '@2dots1line/database';
-import { REDIS_CONVERSATION_HEARTBEAT_PREFIX } from '@2dots1line/core-utils';
+import { REDIS_CONVERSATION_TIMEOUT_PREFIX } from '@2dots1line/core-utils';
 
 export interface ConversationTimeoutConfig {
   timeoutDurationMinutes?: number;
@@ -77,10 +77,10 @@ export class ConversationTimeoutWorker {
       // Note: Redis keyspace notifications should be configured in docker-compose.yml
       // We don't configure them here as it's an infrastructure concern
 
-      // Subscribe to key expiration events
-      await this.subscriberRedis.subscribe('__keyevent@0__:expired');
+      // Subscribe to key expiration events using pattern subscription
+      await this.subscriberRedis.psubscribe('__keyevent@0__:expired');
       
-      this.subscriberRedis.on('message', (channel, message) => {
+      this.subscriberRedis.on('pmessage', (pattern, channel, message) => {
         // The message IS the expired key
         this.handleKeyExpiration(message);
       });
@@ -109,7 +109,7 @@ export class ConversationTimeoutWorker {
     this.isRunning = false;
 
     try {
-      await this.subscriberRedis.unsubscribe('__keyevent@0__:expired');
+      await this.subscriberRedis.punsubscribe('__keyevent@0__:expired');
       console.log('✅ ConversationTimeoutWorker stopped successfully');
     } catch (error) {
       console.error('❌ Error stopping ConversationTimeoutWorker:', error);
@@ -120,12 +120,12 @@ export class ConversationTimeoutWorker {
    * Handle Redis key expiration events
    */
   private async handleKeyExpiration(expiredKey: string): Promise<void> {
-    // Check if this is a conversation heartbeat key
-    if (!expiredKey.startsWith(REDIS_CONVERSATION_HEARTBEAT_PREFIX)) {
-      return; // Not a conversation heartbeat key
+    // Check if this is a conversation timeout key
+    if (!expiredKey.startsWith(REDIS_CONVERSATION_TIMEOUT_PREFIX)) {
+      return; // Not a conversation timeout key
     }
 
-    const conversationId = expiredKey.replace(REDIS_CONVERSATION_HEARTBEAT_PREFIX, '');
+    const conversationId = expiredKey.replace(REDIS_CONVERSATION_TIMEOUT_PREFIX, '');
     console.log(`⏰ Conversation timeout detected for: ${conversationId}`);
 
     try {
@@ -211,14 +211,14 @@ export class ConversationTimeoutWorker {
   }
 
   /**
-   * Get active conversation heartbeats
+   * Get active conversation timeouts
    */
-  public async getActiveHeartbeats(): Promise<string[]> {
+  public async getActiveTimeouts(): Promise<string[]> {
     try {
-      const keys = await this.redis.keys(`${REDIS_CONVERSATION_HEARTBEAT_PREFIX}*`);
-      return keys.map(key => key.replace(REDIS_CONVERSATION_HEARTBEAT_PREFIX, ''));
+      const keys = await this.redis.keys(`${REDIS_CONVERSATION_TIMEOUT_PREFIX}*`);
+      return keys.map(key => key.replace(REDIS_CONVERSATION_TIMEOUT_PREFIX, ''));
     } catch (error) {
-      console.error('❌ Failed to get active heartbeats:', error);
+      console.error('❌ Failed to get active timeouts:', error);
       return [];
     }
   }

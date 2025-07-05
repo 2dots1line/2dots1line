@@ -13,6 +13,9 @@
       "path": "../../packages/database"
     },
     {
+      "path": "../../packages/tools"
+    },
+    {
       "path": "../../services/config-service"
     },
     {

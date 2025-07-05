@@ -76,12 +76,20 @@ const manifest: IToolManifest<LLMChatInputPayload, LLMChatResult> = {
 class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatResult> {
   manifest = manifest;
   
-  private genAI: GoogleGenerativeAI;
-  private model: GenerativeModel;
-  private modelConfigService: any;
-  private currentModelName: string;
+  private genAI: GoogleGenerativeAI | null = null;
+  private model: GenerativeModel | null = null;
+  private modelConfigService: any = null;
+  private currentModelName: string = '';
+  private initialized = false;
 
   constructor() {
+    // Remove environment variable check from constructor
+    // Will be initialized lazily on first execute() call
+  }
+
+  private initialize() {
+    if (this.initialized) return;
+
     const apiKey = process.env.GOOGLE_API_KEY;
     if (!apiKey) {
       throw new Error('GOOGLE_API_KEY environment variable is required');
@@ -122,6 +130,8 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
         },
       ],
     });
+
+    this.initialized = true;
   }
 
   /**
@@ -129,6 +139,9 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
    */
   async execute(input: LLMChatInput): Promise<LLMChatOutput> {
     try {
+      // Initialize on first execution
+      this.initialize();
+
       const startTime = performance.now();
 
       const history = [
@@ -136,7 +149,7 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
       ];
 
       // Start chat session with history
-      const chat = this.model.startChat({
+      const chat = this.model!.startChat({
         history,
         generationConfig: {
           temperature: input.payload.temperature || 0.7,

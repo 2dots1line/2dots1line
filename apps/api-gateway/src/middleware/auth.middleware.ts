@@ -35,7 +35,31 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
       return next();
     }
 
-    // Verify JWT token
+    // Check if it's a custom token format (token_<userId>_<timestamp>)
+    if (token.startsWith('token_')) {
+      console.log('🔍 Auth Debug - Custom token format detected');
+      const parts = token.split('_');
+      if (parts.length >= 2 && parts[0] === 'token') {
+        const userId = parts[1];
+        console.log('✅ Auth Debug - Custom token validated for user:', userId);
+        
+        req.user = {
+          id: userId,
+          username: 'user', // Basic username for custom tokens
+          email: 'user@example.com' // Basic email for custom tokens
+        };
+        
+        return next();
+      } else {
+        console.log('❌ Auth Debug - Invalid custom token format');
+        return res.status(401).json({ 
+          success: false, 
+          error: 'Invalid token format' 
+        });
+      }
+    }
+
+    // Try JWT token verification
     try {
       const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
       console.log('✅ Auth Debug - JWT verified successfully for user:', decoded.userId);

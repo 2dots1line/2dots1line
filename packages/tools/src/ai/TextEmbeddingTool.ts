@@ -48,12 +48,20 @@ const manifest: IToolManifest<TTextEmbeddingInputPayload, TTextEmbeddingResult> 
 class TextEmbeddingToolImpl implements IExecutableTool<TTextEmbeddingInputPayload, TTextEmbeddingResult> {
   manifest = manifest;
   
-  private genAI: GoogleGenerativeAI;
-  private embeddingModel: any;
-  private modelConfigService: any;
-  private currentModelName: string;
+  private genAI: GoogleGenerativeAI | null = null;
+  private embeddingModel: any = null;
+  private modelConfigService: any = null;
+  private currentModelName: string = '';
+  private initialized = false;
 
   constructor() {
+    // Remove environment variable check from constructor
+    // Will be initialized lazily on first execute() call
+  }
+
+  private initialize() {
+    if (this.initialized) return;
+
     const apiKey = process.env.GOOGLE_API_KEY;
     if (!apiKey) {
       throw new Error('GOOGLE_API_KEY environment variable is required');
@@ -70,9 +78,14 @@ class TextEmbeddingToolImpl implements IExecutableTool<TTextEmbeddingInputPayloa
     this.embeddingModel = this.genAI.getGenerativeModel({ 
       model: this.currentModelName
     });
+
+    this.initialized = true;
   }
 
   async execute(input: TextEmbeddingToolInput): Promise<TextEmbeddingToolOutput> {
+    // Initialize on first execution
+    this.initialize();
+
     const startTime = Date.now();
     
     try {

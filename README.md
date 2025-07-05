@@ -1,6 +1,109 @@
 # 2dots1line V11.0 Monorepo
 
-This is the monorepo for the 2dots1line Memory System V11.0 implementation.
+A comprehensive AI-powered platform with dialogue agents, knowledge management, and insight generation capabilities.
+
+## Quick Start (V11.0 Architecture)
+
+### Prerequisites
+- Node.js 18+ with pnpm
+- Docker & Docker Compose
+- PM2 (install with: `pnpm add -g pm2`)
+
+### Complete Setup Process
+
+```bash
+# 1. Clone and setup
+git clone <repository>
+cd 2D1L
+
+# 2. Install dependencies and setup
+pnpm setup
+
+# 3. Build all packages
+pnpm build
+
+# 4. Start database containers
+docker-compose -f docker-compose.dev.yml up -d
+
+# 5. Start all services via PM2
+pm2 start ecosystem.config.js
+
+# 6. Monitor services
+pm2 status
+pm2 logs
+```
+
+### V11.0 Architecture Overview
+
+**Single API Gateway + Headless Services + PM2 Workers**
+- `apps/api-gateway`: Single HTTP entry point (port 3001)
+- `services/`: Pure business logic libraries (no HTTP servers)
+- `workers/`: Background job processors managed by PM2
+- `packages/`: Shared utilities and types
+
+### Development Workflow
+
+```bash
+# Clean rebuild everything
+pnpm clean-install  # or pnpm setup
+pnpm build
+
+# Start databases only
+docker-compose -f docker-compose.dev.yml up -d
+
+# Start/restart all services
+pm2 restart ecosystem.config.js
+
+# Monitor specific service
+pm2 logs api-gateway
+pm2 logs ingestion-worker
+
+# Stop all services
+pm2 delete all
+
+# Stop databases
+docker-compose -f docker-compose.dev.yml down
+```
+
+### Testing the Core Loop
+
+The **dialogue agent → ingestion analyst** loop is the critical path:
+
+1. **Create conversation** via API Gateway
+2. **Send message** triggers DialogueAgent 
+3. **DialogueAgent** queues job for IngestionAnalyst
+4. **IngestionWorker** processes ingestion analysis
+5. **Results** stored in PostgreSQL/Neo4j
+
+Test endpoints:
+```bash
+# Health check
+curl http://localhost:3001/api/v1/health
+
+# Create conversation
+curl -X POST http://localhost:3001/api/v1/conversations \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": "test-user"}'
+
+# Send message (triggers the loop)
+curl -X POST http://localhost:3001/api/v1/conversations/{id}/messages \
+  -H "Content-Type: application/json" \
+  -d '{"content": "Analyze this business data..."}'
+```
+
+### Troubleshooting
+
+**Common Issues:**
+- `prisma: command not found` → Run `pnpm setup` 
+- PM2 script not found → Ensure `pnpm build` completed
+- Database connection errors → Check `docker-compose -f docker-compose.dev.yml ps`
+
+**Build Structure:**
+- Most workers: `dist/src/index.js`
+- Some workers: `dist/index.js`
+- API Gateway: `dist/server.js`
+
+### Package Scripts
 
 ## V11.0 Architecture: Single API Gateway + Headless Services
 

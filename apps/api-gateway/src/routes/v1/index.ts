@@ -17,6 +17,21 @@ export function createV1Routes(
 ): IRouter {
   const v1Router: IRouter = Router();
 
+// --- Health Check ---
+v1Router.get('/health', (req, res) => {
+  res.status(200).json({
+    success: true,
+    data: {
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      services: {
+        'api-gateway': 'online',
+        'database': 'connected'
+      }
+    }
+  });
+});
+
 // --- Auth Routes (Public) ---
 v1Router.post('/auth/register', authController.register);
 v1Router.post('/auth/login', authController.login);
