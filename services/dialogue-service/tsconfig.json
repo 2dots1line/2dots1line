@@ -8,7 +8,9 @@
     "module": "CommonJS",
     "moduleResolution": "node",
     "lib": ["es2020"],
-    "typeRoots": ["../../node_modules/@types", "./node_modules/@types"],
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
   },
   "include": [

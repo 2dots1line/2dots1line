@@ -44,11 +44,29 @@ module.exports = {
     { ...baseConfig, name: 'card-worker', script: buildScript(path.join(workersPath, 'card-worker')) },
     { ...baseConfig, name: 'conversation-timeout-worker', script: buildScriptSrc(path.join(workersPath, 'conversation-timeout-worker')) },
     { ...baseConfig, name: 'embedding-worker', script: buildScript(path.join(workersPath, 'embedding-worker')) },
-    { ...baseConfig, name: 'graph-projection-worker', script: buildScriptSrc(path.join(workersPath, 'graph-projection-worker')) },
+    { ...baseConfig, name: 'graph-projection-worker', script: buildScript(path.join(workersPath, 'graph-projection-worker')) },
     { ...baseConfig, name: 'graph-sync-worker', script: buildScriptSrc(path.join(workersPath, 'graph-sync-worker')) },
-    { ...baseConfig, name: 'ingestion-worker', script: buildScriptSrc(path.join(workersPath, 'ingestion-worker')), instances: 2 },
+    { ...baseConfig, name: 'ingestion-worker', script: buildScript(path.join(workersPath, 'ingestion-worker')), instances: 2 },
     { ...baseConfig, name: 'insight-worker', script: buildScript(path.join(workersPath, 'insight-worker')) },
     { ...baseConfig, name: 'maintenance-worker', script: buildScriptSrc(path.join(workersPath, 'maintenance-worker')) },
     { ...baseConfig, name: 'notification-worker', script: buildScriptSrc(path.join(workersPath, 'notification-worker')) },
+
+    // --- Python Services ---
+    {
+      ...baseConfig,
+      name: 'dimension-reducer',
+      script: path.join(__dirname, 'py-services', 'dimension-reducer', 'venv', 'bin', 'python3'),
+      args: ['app.py'],
+      cwd: path.join(__dirname, 'py-services', 'dimension-reducer'),
+      env: {
+        ...baseConfig.env,
+        PYTHONPATH: path.join(__dirname, 'py-services', 'dimension-reducer'),
+        PORT: '8000',
+        VIRTUAL_ENV: path.join(__dirname, 'py-services', 'dimension-reducer', 'venv'),
+        PYTHONIOENCODING: 'utf-8',
+        LC_ALL: 'en_US.UTF-8',
+        LANG: 'en_US.UTF-8'
+      }
+    },
   ]
 }; 

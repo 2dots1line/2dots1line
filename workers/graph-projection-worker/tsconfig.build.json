@@ -6,13 +6,13 @@
   },
   "references": [
     {
-      "path": "../../packages/shared-types"
+      "path": "../../packages/shared-types/tsconfig.build.json"
     },
     {
-      "path": "../../packages/database"
+      "path": "../../packages/database/tsconfig.build.json"
     },
     {
-      "path": "../../packages/core-utils"
+      "path": "../../packages/core-utils/tsconfig.build.json"
     }
   ]
 }

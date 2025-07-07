@@ -16,6 +16,7 @@
     "@2dots1line/database": "workspace:^0.1.0",
     "@2dots1line/ai-clients": "workspace:^0.1.0",
     "@2dots1line/core-utils": "workspace:^0.1.0",
+    "@2dots1line/tools": "workspace:*",
     "bullmq": "^4.14.0"
   },
   "devDependencies": {

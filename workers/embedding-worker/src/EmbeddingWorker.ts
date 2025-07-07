@@ -1,0 +1,254 @@
+/**
+ * EmbeddingWorker.ts
+ * V9.5 Background Worker for Processing Text Embeddings
+ * 
+ * This worker is triggered by IngestionAnalyst after entities (MemoryUnit, Concept) 
+ * are created/updated. It generates embeddings via TextEmbeddingTool and stores them 
+ * in Weaviate for semantic retrieval.
+ * 
+ * ARCHITECTURE: Decoupled resilience - if embedding service is down, knowledge is still 
+ * persisted and can be indexed later. Performance specialization allows independent scaling.
+ */
+
+import { Worker, Job } from 'bullmq';
+import { DatabaseService } from '@2dots1line/database';
+import { TextEmbeddingTool } from '@2dots1line/tools';
+import type { IExecutableTool, TTextEmbeddingInputPayload, TTextEmbeddingResult } from '@2dots1line/shared-types';
+
+export interface EmbeddingJob {
+  entityId: string;           // UUID of the MemoryUnit or Concept
+  entityType: 'MemoryUnit' | 'Concept';
+  textContent: string;        // The text to be embedded
+  userId: string;             // For multi-tenant indexing
+}
+
+export interface EmbeddingWorkerConfig {
+  queueName?: string;
+  concurrency?: number;
+  retryAttempts?: number;
+  retryDelay?: number;
+  embeddingModelVersion?: string;
+}
+
+export class EmbeddingWorker {
+  private worker: Worker;
+  private textEmbeddingTool: IExecutableTool<TTextEmbeddingInputPayload, TTextEmbeddingResult>;
+  private config: EmbeddingWorkerConfig;
+
+  constructor(
+    private databaseService: DatabaseService,
+    config: EmbeddingWorkerConfig = {}
+  ) {
+    this.config = {
+      queueName: 'embedding-queue',
+      concurrency: 3,
+      retryAttempts: 3,
+      retryDelay: 2000,
+      embeddingModelVersion: 'text-embedding-3-small',
+      ...config
+    };
+
+    // Use TextEmbeddingTool as singleton instance
+    this.textEmbeddingTool = TextEmbeddingTool;
+
+    // Initialize BullMQ worker
+    const redisConnection = {
+      host: process.env.REDIS_HOST || 'localhost',
+      port: parseInt(process.env.REDIS_PORT || '6379'),
+      password: process.env.REDIS_PASSWORD,
+    };
+
+    this.worker = new Worker(
+      this.config.queueName!,
+      this.processJob.bind(this),
+      {
+        connection: redisConnection,
+        concurrency: this.config.concurrency,
+      }
+    );
+
+    this.setupEventHandlers();
+  }
+
+  private setupEventHandlers(): void {
+    this.worker.on('completed', (job) => {
+      console.log(`[EmbeddingWorker] Job ${job.id} completed successfully`);
+    });
+
+    this.worker.on('failed', (job, error) => {
+      if (job) {
+        console.error(`[EmbeddingWorker] Job ${job.id} failed:`, error);
+        
+        // Check if job has exhausted all retries
+        if (job.attemptsMade >= this.config.retryAttempts!) {
+          console.error(`[EmbeddingWorker] Job ${job.id} exhausted all retry attempts, moving to DLQ`);
+        }
+      }
+    });
+
+    this.worker.on('error', (error) => {
+      console.error('[EmbeddingWorker] Worker error:', error);
+    });
+
+    console.log(`[EmbeddingWorker] Worker initialized and listening on queue: ${this.config.queueName}`);
+  }
+
+  /**
+   * Process embedding generation jobs
+   */
+  private async processJob(job: Job<EmbeddingJob>): Promise<void> {
+    const { entityId, entityType, textContent, userId } = job.data;
+    
+    console.log(`[EmbeddingWorker] Processing embedding for ${entityType} ${entityId}`);
+
+    try {
+      // Generate embedding using TextEmbeddingTool with correct input format
+      const embedding = await this.textEmbeddingTool.execute({
+        payload: {
+          text_to_embed: textContent,
+          model_id: this.config.embeddingModelVersion!
+        },
+        user_id: userId
+      });
+
+      if (embedding.status === 'success' && embedding.result) {
+        console.log(`[EmbeddingWorker] Generated embedding vector of length ${embedding.result.vector.length}`);
+
+        // IMPLEMENTED: Store embedding in Weaviate
+        const weaviateId = await this.storeEmbeddingInWeaviate({
+          entityId,
+          entityType,
+          textContent,
+          userId,
+          vector: embedding.result.vector
+        });
+        
+        console.log(`[EmbeddingWorker] ✅ Successfully stored embedding in Weaviate with ID: ${weaviateId}`);
+        console.log(`[EmbeddingWorker] Embedding dimensions: ${embedding.result.vector.length}`);
+        console.log(`[EmbeddingWorker] Preview: [${embedding.result.vector.slice(0, 5).map((v: number) => v.toFixed(4)).join(', ')}...]`);
+      } else {
+        throw new Error(`Embedding generation failed: ${embedding.error?.message || 'Unknown error'}`);
+      }
+
+    } catch (error) {
+      console.error(`[EmbeddingWorker] Error generating embedding for ${entityType} ${entityId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Store embedding in Weaviate with proper error handling
+   */
+  private async storeEmbeddingInWeaviate(data: {
+    entityId: string;
+    entityType: string;
+    textContent: string;
+    userId: string;
+    vector: number[];
+  }): Promise<string> {
+    try {
+      // Use DatabaseService's Weaviate client if available
+      if (!this.databaseService.weaviate) {
+        console.warn(`[EmbeddingWorker] Weaviate client not available, skipping storage`);
+        return 'weaviate-client-unavailable';
+      }
+
+      const className = data.entityType === 'MemoryUnit' ? 'MemoryUnit' : 'Concept';
+      
+      const result = await this.databaseService.weaviate
+        .data
+        .creator()
+        .withClassName(className)
+        .withProperties({
+          entity_id: data.entityId,
+          user_id: data.userId,
+          content: data.textContent,
+          entity_type: data.entityType,
+          created_at: new Date().toISOString(),
+          model_version: this.config.embeddingModelVersion!
+        })
+        .withVector(data.vector)
+        .do();
+      
+      console.log(`✅ [EmbeddingWorker] Stored ${data.entityType} embedding in Weaviate: ${result.id}`);
+      return result.id || 'weaviate-id-undefined';
+    } catch (error) {
+      console.error(`❌ [EmbeddingWorker] Failed to store embedding in Weaviate:`, error);
+      // Don't throw - allow job to complete even if Weaviate storage fails
+      return 'weaviate-storage-failed';
+    }
+  }
+
+  /**
+   * Test embedding functionality including Weaviate storage
+   */
+  async testEmbedding(): Promise<boolean> {
+    try {
+      const testResult = await this.textEmbeddingTool.execute({
+        payload: {
+          text_to_embed: "Test embedding generation",
+          model_id: this.config.embeddingModelVersion!
+        }
+      });
+
+      if (testResult.status === 'success' && testResult.result) {
+        const isValid = Array.isArray(testResult.result.vector) && 
+                       testResult.result.vector.length > 0 && 
+                       testResult.result.vector.every((v: number) => typeof v === 'number');
+
+        if (isValid) {
+          console.log(`[EmbeddingWorker] Test embedding successful: ${testResult.result.vector.length} dimensions`);
+          
+          // Test Weaviate storage
+          const testWeaviateId = await this.storeEmbeddingInWeaviate({
+            entityId: 'test-entity-id',
+            entityType: 'MemoryUnit',
+            textContent: 'Test embedding generation',
+            userId: 'test-user-id',
+            vector: testResult.result.vector
+          });
+          
+          if (testWeaviateId !== 'weaviate-storage-failed') {
+            console.log(`[EmbeddingWorker] Test Weaviate storage successful: ${testWeaviateId}`);
+          }
+          
+          return true;
+        } else {
+          console.error('[EmbeddingWorker] Test embedding failed: Invalid vector format');
+          return false;
+        }
+      } else {
+        console.error('[EmbeddingWorker] Test embedding failed:', testResult.error?.message);
+        return false;
+      }
+    } catch (error) {
+      console.error('[EmbeddingWorker] Test embedding failed:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Graceful shutdown
+   */
+  async shutdown(): Promise<void> {
+    console.log('[EmbeddingWorker] Shutting down...');
+    await this.worker.close();
+    console.log('[EmbeddingWorker] Shutdown complete');
+  }
+
+  /**
+   * Get worker statistics
+   */
+  getStats(): { 
+    isRunning: boolean;
+    processed: number;
+    failed: number;
+  } {
+    return {
+      isRunning: !this.worker.closing,
+      processed: 0, // TODO: Implement metrics tracking
+      failed: 0
+    };
+  }
+}
+

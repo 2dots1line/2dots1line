@@ -461,6 +461,8 @@ find . -name "*tsbuildinfo*" -not -path "./node_modules/*" -not -name "*.json" |
 | Multiple `.tsbuildinfo` files | Missing explicit tsBuildInfoFile | Run `pnpm fix:typescript` |
 | `Cannot resolve type definition` | Missing @types dependency | Add to package.json devDependencies |
 | Build succeeds, import fails | Configuration inheritance conflict | Test runtime imports explicitly |
+| `Object literal may only specify known properties` in Prisma | Prisma client out of sync with schema | Run `pnpm prisma generate` and clear node_modules/.prisma cache |
+| `Private identifiers are only available when targeting ECMAScript 2015+` | Prisma client incompatible with TypeScript target | Ensure TypeScript target is ES2020+ and use project config |
 
 ### **EMERGENCY DIAGNOSTIC COMMANDS**
 
@@ -479,6 +481,9 @@ find . -name "*tsbuildinfo*" -not -path "./node_modules/*" -not -name "*.json"
 
 # Project reference verification
 find . -name "tsconfig*.json" -not -path "./node_modules/*" -exec grep -H "references" {} \;
+
+# Prisma client type synchronization check
+cd packages/database && pnpm prisma generate && npx tsc --noEmit --project . --skipLibCheck
 ```
 
 ---

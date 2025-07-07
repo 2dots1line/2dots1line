@@ -10,25 +10,25 @@
   },
   "references": [
     {
-      "path": "../../packages/shared-types"
+      "path": "../../packages/shared-types/tsconfig.build.json"
     },
     {
-      "path": "../../packages/database"
+      "path": "../../packages/database/tsconfig.build.json"
     },
     {
-      "path": "../../packages/core-utils"
+      "path": "../../packages/core-utils/tsconfig.build.json"
     },
     {
-      "path": "../../packages/tools"
+      "path": "../../packages/tools/tsconfig.build.json"
     },
     {
-      "path": "../../packages/ai-clients"
+      "path": "../../packages/ai-clients/tsconfig.build.json"
     },
     {
-      "path": "../../packages/tool-registry"
+      "path": "../../packages/tool-registry/tsconfig.build.json"
     },
     {
-      "path": "../../services/config-service"
+      "path": "../../services/config-service/tsconfig.build.json"
     }
   ]
 }

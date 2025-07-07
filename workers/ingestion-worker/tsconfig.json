@@ -2,7 +2,11 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "noEmit": false
+    "rootDir": "./src",
+    "composite": true,
+    "declaration": true,
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo",
+    "paths": {}
   },
   "include": [
     "src/**/*.ts",
@@ -13,5 +17,14 @@
     "dist",
     "**/*.test.ts",
     "**/*.spec.ts"
+  ],
+  "references": [
+    { "path": "../../packages/shared-types" },
+    { "path": "../../packages/database" },
+    { "path": "../../packages/core-utils" },
+    { "path": "../../packages/tools" },
+    { "path": "../../packages/ai-clients" },
+    { "path": "../../packages/tool-registry" },
+    { "path": "../../services/config-service" }
   ]
 }

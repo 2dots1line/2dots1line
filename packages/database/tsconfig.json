@@ -17,5 +17,7 @@
     "node_modules",
     "dist"
   ],
-  "references": []
+  "references": [
+    { "path": "../shared-types" }
+  ]
 }

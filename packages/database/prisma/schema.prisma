@@ -197,7 +197,9 @@ model user_graph_projections {
   user_id         String
   status          String   @default("completed")
   projection_data Json
+  metadata        Json?
   created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
   users           users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@index([user_id, created_at(sort: Desc)])

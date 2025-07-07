@@ -13,6 +13,8 @@
     "@2dots1line/shared-types": "workspace:*",
     "@2dots1line/database": "workspace:*",
     "@2dots1line/core-utils": "workspace:*",
+    "@2dots1line/card-service": "workspace:*",
+    "@2dots1line/config-service": "workspace:*",
     "bullmq": "^4.0.0"
   },
   "devDependencies": {

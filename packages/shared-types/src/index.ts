@@ -92,7 +92,8 @@ export type {
   // Memory types
   TMemoryUnit,
   TRawContent,
-  ERawContentType
+  ERawContentType,
+  UserKnowledgeItem
 } from './entities/memory.types';
 
 export type {

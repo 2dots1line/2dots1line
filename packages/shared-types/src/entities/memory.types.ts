@@ -30,6 +30,35 @@ export interface TMemoryUnit {
 }
 
 /**
+ * Represents a user's knowledge item stored in Weaviate for semantic search.
+ * Used by WeaviateService for vector operations.
+ */
+export interface UserKnowledgeItem {
+  /** Unique identifier for this knowledge item in Weaviate */
+  id: string;
+  /** External identifier (e.g., muid for MemoryUnit, concept_id for Concept) */
+  externalId: string;
+  /** ID of the user who owns this knowledge item */
+  userId: string;
+  /** Type of the source entity ('MemoryUnit', 'Concept', etc.) */
+  sourceEntityType: string;
+  /** ID of the source entity */
+  sourceEntityId: string;
+  /** Main text content for semantic search */
+  textContent: string;
+  /** Title or summary of the knowledge item */
+  title: string;
+  /** Creation timestamp */
+  createdAt: string;
+  /** Last update timestamp */
+  updatedAt: string;
+  /** Vector embedding (populated by Weaviate) */
+  vector?: number[];
+  /** Additional metadata */
+  metadata?: Record<string, any>;
+}
+
+/**
  * Represents the original unprocessed content associated with a Memory Unit.
  * Aligns with the `raw_content` table in schema.prisma.
  */

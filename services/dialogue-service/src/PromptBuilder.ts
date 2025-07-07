@@ -13,6 +13,13 @@ export interface PromptBuildInput {
   conversationId: string;
   finalInputText: string;
   augmentedMemoryContext?: AugmentedMemoryContext;
+  isNewConversation: boolean; // V11.0: Flag from controller instead of complex logic
+}
+
+export interface PromptBuildOutput {
+  systemPrompt: string;    // Background context (identity, memory profile, etc.)
+  userPrompt: string;      // Current turn info (instructions, input text)
+  conversationHistory: conversation_messages[]; // Properly formatted history
 }
 
 export class PromptBuilder {
@@ -25,26 +32,28 @@ export class PromptBuilder {
   ) {}
 
   /**
-   * The primary method to assemble the complete system prompt for the DialogueAgent.
+   * V11.0 STANDARD: Build separate system and user prompts + conversation history
+   * READ-ONLY: No side effects, no database writes
    */
-  public async buildPrompt(input: PromptBuildInput): Promise<string> {
-    const { userId, conversationId, finalInputText, augmentedMemoryContext } = input;
+  public async buildPrompt(input: PromptBuildInput): Promise<PromptBuildOutput> {
+    const { userId, conversationId, finalInputText, augmentedMemoryContext, isNewConversation } = input;
     
-    console.log('\n🔧 PromptBuilder.buildPrompt - Starting prompt assembly...');
+    console.log('\n🔧 PromptBuilder.buildPrompt - Starting V11.0 prompt assembly...');
     console.log('📋 PromptBuilder - Input:', { 
       userId, 
       conversationId, 
       finalInputText: finalInputText.substring(0, 100) + '...',
-      hasAugmentedContext: !!augmentedMemoryContext 
+      hasAugmentedContext: !!augmentedMemoryContext,
+      isNewConversation
     });
 
-    // --- STEP 1: FETCH DYNAMIC DATA & STATIC TEMPLATES IN PARALLEL ---
-    // The ConfigService is assumed to be initialized at application startup, not per-call.
-    const userPromise = this.userRepository.findUserByIdWithContext(userId); // Use more descriptive repo method
+    // --- STEP 1: FETCH ALL DYNAMIC DATA IN PARALLEL (READ-ONLY) ---
+    const userPromise = this.userRepository.findUserByIdWithContext(userId);
     const historyPromise = this.conversationRepository.getMostRecentMessages(conversationId, 10);
     const summariesPromise = this.conversationRepository.getRecentImportantConversationSummaries(userId);
     const turnContextPromise = this.redisClient.get(`turn_context:${conversationId}`);
     
+    // Get static templates
     const preambleTpl = this.configService.getTemplate('preamble');
     const identityTpl = this.configService.getTemplate('system_identity_template');
     const responseFormatTpl = this.configService.getTemplate('response_format_block');
@@ -64,78 +73,59 @@ export class PromptBuilder {
     }
 
     const turnContext = turnContextStr ? JSON.parse(turnContextStr) : null;
-    const isFirstTurn = conversationHistory.length === 0;
-
-    // 🔄 V9.5 ARCHITECTURE: Check conversation status for proper context handling
-    // If this is a new conversation after a previous one ended, prioritize processed context
-    const currentConversation = await this.conversationRepository.findById(conversationId);
-    
-    // PHASE 1 FIX: Proper conversation boundary detection
-    const shouldUseNextContext = isFirstTurn && 
-      user.next_conversation_context_package && 
-      (!currentConversation || currentConversation.status === 'active');
-    
-    const isNewConversationAfterTimeout = shouldUseNextContext;
 
     console.log('📊 PromptBuilder - Data fetched:', {
       userFound: !!user,
       historyLength: conversationHistory.length,
       summariesCount: Array.isArray(recentSummaries) ? recentSummaries.length : 0,
       hasTurnContext: !!turnContext,
-      isFirstTurn,
-      conversationStatus: currentConversation?.status,
-      hasNextContextPackage: !!user.next_conversation_context_package,
-      shouldUseNextContext,
-      isNewConversationAfterTimeout
+      isNewConversation,
+      hasNextContextPackage: !!user.next_conversation_context_package
     });
 
-    // --- STEP 3: ASSEMBLE PROMPT COMPONENTS ---
-    // V9.5 ARCHITECTURE: Proper context prioritization based on conversation lifecycle
-    const components: (string | null)[] = [
+    // --- STEP 3: BUILD SYSTEM PROMPT (Background Context) ---
+    const systemComponents: (string | null)[] = [
       preambleTpl,
       Mustache.render(identityTpl, coreIdentity),
       this.formatComponent('user_memory_profile', user.memory_profile),
       this.formatComponent('knowledge_graph_schema', user.knowledge_graph_schema),
       this.formatComponent('summaries_of_recent_important_conversations_this_cycle', recentSummaries),
       
-      // Use NextConversationContextPackage only for genuinely new conversations
-      shouldUseNextContext ? 
-        this.formatComponent('context_from_last_conversation', user.next_conversation_context_package) : null,
-      
-      // Use turn context for continuing active conversations
-      (!isFirstTurn && !shouldUseNextContext) ? 
-        this.formatComponent('context_from_last_turn', turnContext) : null,
-        
-      // Include conversation history but mark context source
-      this.formatComponent('current_conversation_history', conversationHistory),
+      // V11.0 SIMPLIFIED LOGIC: Use flag from controller
+      isNewConversation ? 
+        this.formatComponent('context_from_last_conversation', user.next_conversation_context_package) : 
+        this.formatComponent('context_from_last_turn', turnContext)
+    ];
+
+    const systemPrompt = systemComponents.filter(c => c !== null).join('\n\n');
+
+    // --- STEP 4: BUILD USER PROMPT (Current Turn Context) ---
+    const userComponents: (string | null)[] = [
       this.formatComponent('augmented_memory_context', augmentedMemoryContext),
       responseFormatTpl,
       this.formatComponent('final_input_text', finalInputText),
       instructionsTpl
     ];
 
-    const assembledPrompt = components.filter(c => c !== null).join('\n\n');
+    const userPrompt = userComponents.filter(c => c !== null).join('\n\n');
     
-    // 🧹 V9.5 PHASE 1: Clean up NextConversationContextPackage after use to prevent reuse
-    if (shouldUseNextContext && user.next_conversation_context_package) {
-      try {
-        await this.userRepository.update(userId, { 
-          next_conversation_context_package: null 
-        });
-        console.log(`✅ PromptBuilder - NextConversationContextPackage cleared for user ${userId}`);
-      } catch (error) {
-        console.error(`❌ PromptBuilder - Failed to clear NextConversationContextPackage:`, error);
-        // Continue - this is cleanup, shouldn't block prompt building
-      }
-    }
+    console.log('\n📝 PromptBuilder - V11.0 SYSTEM PROMPT:');
+    console.log('='.repeat(50));
+    console.log(systemPrompt.substring(0, 300) + '...');
+    console.log('='.repeat(50));
     
-    console.log('\n📝 PromptBuilder - ASSEMBLED SYSTEM PROMPT:');
-    console.log('='.repeat(80));
-    console.log(assembledPrompt);
-    console.log('='.repeat(80));
-    console.log(`📏 PromptBuilder - Prompt length: ${assembledPrompt.length} characters\n`);
+    console.log('\n📝 PromptBuilder - V11.0 USER PROMPT:');
+    console.log('='.repeat(50));
+    console.log(userPrompt.substring(0, 300) + '...');
+    console.log('='.repeat(50));
     
-    return assembledPrompt;
+    console.log(`📏 PromptBuilder - System: ${systemPrompt.length}, User: ${userPrompt.length}, History: ${conversationHistory.length} messages\n`);
+    
+    return {
+      systemPrompt,
+      userPrompt,
+      conversationHistory
+    };
   }
 
   /**

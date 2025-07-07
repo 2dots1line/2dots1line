@@ -13,6 +13,12 @@
     },
     {
       "path": "../../packages/core-utils"
+    },
+    {
+      "path": "../../services/card-service"
+    },
+    {
+      "path": "../../services/config-service"
     }
   ]
 }

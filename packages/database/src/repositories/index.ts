@@ -54,6 +54,13 @@ export type {
   UpdateProactivePromptData 
 } from './ProactivePromptRepository';
 
+// Graph Projections
+export { GraphProjectionRepository } from './GraphProjectionRepository';
+export type { 
+  GraphProjectionData, 
+  CreateGraphProjectionData 
+} from './GraphProjectionRepository';
+
 // Export types for use in services
 export type { CardData, CardFilters, CardResultWithMeta } from './CardRepository';
 
@@ -69,6 +76,7 @@ import { DerivedArtifactRepository } from './DerivedArtifactRepository';
 import { GrowthEventRepository } from './GrowthEventRepository';
 import { InteractionLogRepository } from './InteractionLogRepository';
 import { ProactivePromptRepository } from './ProactivePromptRepository';
+import { GraphProjectionRepository } from './GraphProjectionRepository';
 
 export function createRepositories(db: DatabaseService) {
   return {
@@ -82,6 +90,7 @@ export function createRepositories(db: DatabaseService) {
     growthEvent: new GrowthEventRepository(db),
     interactionLog: new InteractionLogRepository(db),
     proactivePrompt: new ProactivePromptRepository(db),
+    graphProjection: new GraphProjectionRepository(db),
   };
 }
 

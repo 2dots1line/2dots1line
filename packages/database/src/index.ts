@@ -32,6 +32,12 @@ export type {
 // Repositories
 export * from './repositories';
 
+// Services
+export { Neo4jService } from './services/Neo4jService';
+export { WeaviateService } from './services/WeaviateService';
+export { InsightQueryLibrary } from './services/InsightQueryLibrary';
+export { GraphProjectionRepository } from './repositories/GraphProjectionRepository';
+
 // Type definitions for database operations
 export interface DatabaseConnectionStatus {
   postgres: boolean;

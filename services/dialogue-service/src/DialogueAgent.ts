@@ -5,7 +5,7 @@
  */
 
 import { ConfigService } from '../../config-service/src/ConfigService';
-import { ConversationRepository } from '@2dots1line/database';
+import { ConversationRepository, UserRepository, conversation_messages } from '@2dots1line/database';
 import { Redis } from 'ioredis';
 import { PromptBuilder, PromptBuildInput } from './PromptBuilder';
 import { 
@@ -88,7 +88,13 @@ export class DialogueAgent {
     const { response_plan, turn_context_package, ui_actions } = llmResponse;
     
     // Immediately persist the next turn's context to Redis
-    await this.redis.set(`turn_context:${input.conversationId}`, JSON.stringify(turn_context_package), 'EX', 600); // 10 min TTL
+    try {
+      await this.redis.set(`turn_context:${input.conversationId}`, JSON.stringify(turn_context_package), 'EX', 600); // 10 min TTL
+      console.log(`✅ DialogueAgent - Turn context saved to Redis for ${input.conversationId}`);
+    } catch (error) {
+      console.error(`❌ DialogueAgent - Failed to save turn context to Redis:`, error);
+      // Continue processing - Redis failure shouldn't block response
+    }
 
     if (response_plan.decision === 'respond_directly') {
       console.log(`[${executionId}] Decision: Respond Directly. Turn complete.`);
@@ -182,22 +188,36 @@ export class DialogueAgent {
     augmentedMemoryContext?: AugmentedMemoryContext
   ): Promise<any> { // Returns the full parsed JSON from the LLM
     
+    // V11.0 STANDARD: Determine if this is a new conversation
+    const conversationHistory = await this.conversationRepo.getMostRecentMessages(input.conversationId, 10);
+    const isNewConversation = conversationHistory.length === 0;
+    
+    console.log(`[DialogueAgent] V11.0 - Conversation analysis: isNewConversation=${isNewConversation}, historyLength=${conversationHistory.length}`);
+
     const promptBuildInput: PromptBuildInput = {
       userId: input.userId,
       conversationId: input.conversationId,
       finalInputText: input.finalInputText,
-      augmentedMemoryContext
+      augmentedMemoryContext,
+      isNewConversation // V11.0: Pass flag to PromptBuilder
     };
 
-    const systemPrompt = await this.promptBuilder.buildPrompt(promptBuildInput);
+    const promptOutput = await this.promptBuilder.buildPrompt(promptBuildInput);
 
-    // Prepare for the atomic LLMChatTool with proper payload structure
+    // V11.0 STANDARD: Handle next_conversation_context_package cleanup here (not in PromptBuilder)
+    if (isNewConversation) {
+      // TODO: Inject UserRepository to handle next_conversation_context_package cleanup
+      // For now, we skip this cleanup - it should be handled by IngestionAnalyst after conversation processing
+      console.log(`[DialogueAgent] V11.0 - New conversation detected, context package cleanup should be handled by IngestionAnalyst`);
+    }
+
+    // V11.0 STANDARD: Prepare LLM input with separated prompts and proper history
     const llmToolInput = {
       userId: input.userId,
       sessionId: input.conversationId,
-      systemPrompt: systemPrompt,
-      history: [], // TODO: Load conversation history
-      userMessage: input.finalInputText,
+      systemPrompt: promptOutput.systemPrompt,        // ✅ Background context only
+      userMessage: promptOutput.userPrompt,           // ✅ Current turn context  
+      history: this.formatHistoryForLLM(promptOutput.conversationHistory), // ✅ Properly formatted history
       memoryContextBlock: augmentedMemoryContext?.relevant_memories?.join('\n') || '',
       modelConfig: {
         temperature: 0.7,
@@ -205,6 +225,13 @@ export class DialogueAgent {
         topP: 0.9
       }
     };
+
+    console.log(`[DialogueAgent] V11.0 - LLM input prepared:`, {
+      systemPromptLength: llmToolInput.systemPrompt.length,
+      userMessageLength: llmToolInput.userMessage.length,
+      historyCount: llmToolInput.history.length,
+      hasMemoryContext: !!llmToolInput.memoryContextBlock
+    });
 
     const llmResult = await this.llmChatTool.execute({ payload: llmToolInput });
 
@@ -263,6 +290,19 @@ export class DialogueAgent {
   }
 
   /**
+   * V11.0: Format conversation history for LLM consumption
+   */
+  private formatHistoryForLLM(messages: conversation_messages[]): Array<{role: "assistant" | "user"; content: string; timestamp?: string}> {
+    // Convert conversation_messages to LLM-compatible format
+    // Reverse to get chronological order (most recent messages come first from DB)
+          return [...messages].reverse().map(msg => ({
+        role: msg.role as "assistant" | "user", // Type assertion for valid roles
+        content: msg.content,
+        timestamp: msg.timestamp?.toISOString()
+      }));
+  }
+
+  /**
    * Legacy method for backward compatibility with existing tests
    */
   public async processDialogue(
@@ -282,6 +322,7 @@ export class DialogueAgent {
           response_text: result.response_text,
           conversation_id: input.payload.conversation_id || ''
         },
+        request_id: input.request_id, // Preserve request_id from input
         metadata: {
           processing_time_ms: 0 // TODO: Track timing
         }

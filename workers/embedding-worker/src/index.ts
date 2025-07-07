@@ -1,43 +1,78 @@
 /**
- * Embedding Worker for 2dots1line V4
- * Processes the embedding generation queue
+ * Embedding Worker Entry Point
+ * V9.7 Production-Grade Worker for semantic indexing
  */
 
-import { EmbeddingJob } from '@2dots1line/shared-types';
-import { Worker, Job } from 'bullmq';
-// import { embeddingTools } from '@2dots1line/embedding-tools'; // Commented out
+import { EmbeddingWorker } from './EmbeddingWorker';
+import { DatabaseService } from '@2dots1line/database';
 
-// Worker configuration
-const QUEUE_NAME = 'embedding';
-const CONNECTION = {
-  host: process.env.REDIS_HOST || 'localhost',
-  port: parseInt(process.env.REDIS_PORT || '6379')
-};
+async function main() {
+  console.log('[EmbeddingWorker] Starting embedding worker...');
 
-// Create worker
-const worker = new Worker(QUEUE_NAME, async (job: Job<EmbeddingJob>) => {
-  console.log(`Processing embedding job ${job.id}`, job.data);
-  
-  // This is a placeholder for actual implementation
-  // Will use the embedding tools to generate and store embeddings // Logic using embeddingTools would be here
-  return { status: 'processed' };
-}, { connection: CONNECTION });
+  try {
+    // Initialize dependencies
+    const databaseService = DatabaseService.getInstance();
+    console.log('[EmbeddingWorker] DatabaseService initialized');
 
-// Event handlers
-worker.on('completed', (job) => {
-  console.log(`Job ${job.id} completed`);
-});
+    // Verify required environment variables
+    if (!process.env.GOOGLE_API_KEY) {
+      throw new Error('GOOGLE_API_KEY environment variable is required for embedding generation');
+    }
 
-worker.on('failed', (job, error) => {
-  console.error(`Job ${job?.id} failed:`, error);
-});
+    if (!process.env.WEAVIATE_URL) {
+      console.warn('[EmbeddingWorker] WEAVIATE_URL not set, using default: http://localhost:8080');
+    }
 
-// For graceful shutdown
-process.on('SIGTERM', async () => {
-  await worker.close();
-  process.exit(0);
-});
+    // Create and start the worker
+    const embeddingWorker = new EmbeddingWorker(databaseService);
+    console.log('[EmbeddingWorker] EmbeddingWorker instance created and listening for jobs');
 
-console.log(`Embedding worker started, connected to ${QUEUE_NAME} queue`);
+    // Test embedding functionality on startup
+    const embeddingTest = await embeddingWorker.testEmbedding();
+    if (embeddingTest) {
+      console.log('[EmbeddingWorker] ✅ Embedding functionality test passed');
+    } else {
+      console.warn('[EmbeddingWorker] ⚠️  Embedding functionality test failed - worker will still start but may have issues');
+    }
 
-export default worker; 
+    // Graceful shutdown handling
+    const gracefulShutdown = async (signal: string) => {
+      console.log(`[EmbeddingWorker] Received ${signal}, initiating graceful shutdown...`);
+      try {
+        await embeddingWorker.shutdown();
+        console.log('[EmbeddingWorker] Graceful shutdown completed');
+        process.exit(0);
+      } catch (error) {
+        console.error('[EmbeddingWorker] Error during shutdown:', error);
+        process.exit(1);
+      }
+    };
+
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+    // Keep the process alive
+    console.log('[EmbeddingWorker] Worker is running. Press Ctrl+C to stop.');
+
+    // Log stats periodically
+    setInterval(() => {
+      const stats = embeddingWorker.getStats();
+      console.log(`[EmbeddingWorker] Stats - Running: ${stats.isRunning}, Processed: ${stats.processed}, Failed: ${stats.failed}`);
+    }, 60000); // Every minute
+
+  } catch (error) {
+    console.error('[EmbeddingWorker] Failed to start worker:', error);
+    process.exit(1);
+  }
+}
+
+// Export for testing
+export { EmbeddingWorker };
+
+// Start the worker if this file is run directly
+if (require.main === module) {
+  main().catch((error) => {
+    console.error('[EmbeddingWorker] Unhandled error:', error);
+    process.exit(1);
+  });
+} 

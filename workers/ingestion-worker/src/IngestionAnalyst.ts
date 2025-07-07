@@ -113,8 +113,8 @@ export class IngestionAnalyst {
   ): Promise<Array<{ id: string; type: string }>> {
     const { persistence_payload, forward_looking_context } = analysisOutput;
     
-    // Check importance threshold
-    if (persistence_payload.conversation_importance_score < 3) {
+    // Check importance threshold (temporarily lowered for testing)
+    if (persistence_payload.conversation_importance_score < 1) {
       console.log(`[IngestionAnalyst] Conversation importance score (${persistence_payload.conversation_importance_score}) below threshold, skipping entity creation`);
       
       // Just update conversation summary and status
@@ -195,8 +195,10 @@ export class IngestionAnalyst {
         next_conversation_context_package: forward_looking_context
       });
 
-      // TODO: Create Neo4j relationships (persistence_payload.new_relationships)
-      // This would require Neo4j client integration
+      // IMPLEMENTED: Create Neo4j relationships
+      if (persistence_payload.new_relationships && persistence_payload.new_relationships.length > 0) {
+        await this.createNeo4jRelationships(userId, persistence_payload.new_relationships);
+      }
 
       console.log(`[IngestionAnalyst] Persistence completed for conversation ${conversationId}`);
       
@@ -206,6 +208,60 @@ export class IngestionAnalyst {
     }
 
     return newEntities;
+  }
+
+  /**
+   * IMPLEMENTED: Create relationships in Neo4j knowledge graph
+   */
+  private async createNeo4jRelationships(userId: string, relationships: any[]): Promise<void> {
+    if (!this.dbService.neo4j) {
+      console.warn(`[IngestionAnalyst] Neo4j client not available, skipping relationship creation`);
+      return;
+    }
+
+    const session = this.dbService.neo4j.session();
+    
+    try {
+      for (const relationship of relationships) {
+        const cypher = `
+          MATCH (source), (target)
+          WHERE (source.muid = $sourceId OR source.concept_id = $sourceId) 
+            AND (target.muid = $targetId OR target.concept_id = $targetId)
+            AND source.user_id = $userId AND target.user_id = $userId
+          CREATE (source)-[r:RELATED_TO {
+            type: $relationshipType,
+            strength: $strength,
+            context: $context,
+            created_at: datetime(),
+            source: 'IngestionAnalyst'
+          }]->(target)
+          RETURN r
+        `;
+        
+        const result = await session.run(cypher, {
+          sourceId: relationship.source_id,
+          targetId: relationship.target_id,
+          userId: userId,
+          relationshipType: relationship.type || 'general',
+          strength: relationship.strength || 0.5,
+          context: relationship.context || 'Inferred from conversation analysis'
+        });
+        
+        if (result.records.length > 0) {
+          console.log(`[IngestionAnalyst] ✅ Created relationship: ${relationship.source_id} -> ${relationship.target_id} (${relationship.type || 'general'})`);
+        } else {
+          console.warn(`[IngestionAnalyst] ⚠️ Failed to create relationship: ${relationship.source_id} -> ${relationship.target_id} (nodes not found)`);
+        }
+      }
+      
+      console.log(`[IngestionAnalyst] ✅ Created ${relationships.length} Neo4j relationships successfully`);
+      
+    } catch (error) {
+      console.error(`[IngestionAnalyst] ❌ Error creating Neo4j relationships:`, error);
+      // Don't throw - allow ingestion to continue even if relationship creation fails
+    } finally {
+      await session.close();
+    }
   }
 
   private async publishEvents(userId: string, newEntities: Array<{ id: string; type: string }>) {

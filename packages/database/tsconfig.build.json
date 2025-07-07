@@ -8,6 +8,7 @@
     "node_modules",
     "dist",
     "src/__tests__",
-    "src/repositories/__tests__"
+    "src/repositories/__tests__",
+    "../shared-types/**/*"
   ]
 }
