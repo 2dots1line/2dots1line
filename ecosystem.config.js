@@ -45,11 +45,10 @@ module.exports = {
     { ...baseConfig, name: 'conversation-timeout-worker', script: buildScriptSrc(path.join(workersPath, 'conversation-timeout-worker')) },
     { ...baseConfig, name: 'embedding-worker', script: buildScript(path.join(workersPath, 'embedding-worker')) },
     { ...baseConfig, name: 'graph-projection-worker', script: buildScript(path.join(workersPath, 'graph-projection-worker')) },
-    { ...baseConfig, name: 'graph-sync-worker', script: buildScriptSrc(path.join(workersPath, 'graph-sync-worker')) },
     { ...baseConfig, name: 'ingestion-worker', script: buildScript(path.join(workersPath, 'ingestion-worker')), instances: 2 },
     { ...baseConfig, name: 'insight-worker', script: buildScript(path.join(workersPath, 'insight-worker')) },
-    { ...baseConfig, name: 'maintenance-worker', script: buildScriptSrc(path.join(workersPath, 'maintenance-worker')) },
-    { ...baseConfig, name: 'notification-worker', script: buildScriptSrc(path.join(workersPath, 'notification-worker')) },
+    { ...baseConfig, name: 'maintenance-worker', script: buildScript(path.join(workersPath, 'maintenance-worker')) },
+    { ...baseConfig, name: 'notification-worker', script: buildScript(path.join(workersPath, 'notification-worker')) },
 
     // --- Python Services ---
     {

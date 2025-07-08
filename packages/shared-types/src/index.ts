@@ -72,7 +72,12 @@ export type {
 export type {
   EmbeddingJob,
   IngestionJob,
-  InsightJob
+  InsightJob,
+  NotificationJob,
+  NewCardAvailablePayload,
+  GraphProjectionUpdatedPayload,
+  SSEMessage,
+  NotificationJobPayload
 } from './ai/job.types';
 
 // === ENTITY TYPES ===

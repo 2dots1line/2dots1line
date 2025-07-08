@@ -18,6 +18,7 @@ const chatSchema = z.object({
 
 const messageSchema = z.object({
   message: z.string(),
+  conversation_id: z.string().optional(),
   context: z.object({
     session_id: z.string().optional(),
     trigger_background_processing: z.boolean().optional()
@@ -91,7 +92,7 @@ export class ConversationController {
 
   /**
    * POST /api/v1/conversations/messages
-   * V11.0: Direct DialogueAgent processing, no HTTP proxy
+   * V11.1: Correct implementation of conversation lifecycle management per tech lead guidance
    */
   public postMessage = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -104,29 +105,69 @@ export class ConversationController {
         return;
       }
 
-      const { message, context } = messageSchema.parse(req.body);
-      
-      // Generate conversation ID if not provided
-      const conversationId = context?.session_id || `conv_${userId}_${Date.now()}`;
-      
-      // Set/reset conversation timeout for background processing trigger
-      await this.setConversationTimeout(conversationId);
-      
-      // Process through DialogueAgent directly
-      const result = await this.dialogueAgent.processTurn({ 
-        userId, 
-        conversationId, 
-        currentMessageText: message
+      // V11.1 FIX: CORRECTLY parse the conversation_id from the request body
+      const { message, conversation_id } = req.body;
+
+      if (!message) {
+        res.status(400).json({ 
+          success: false, 
+          error: { code: 'BAD_REQUEST', message: 'Message content is required' }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      // STEP 1: Find an existing conversation or create a new one
+      let conversation = conversation_id 
+        ? await this.conversationRepository.findById(conversation_id)
+        : null;
+
+      if (!conversation || conversation.user_id !== userId) {
+        conversation = await this.conversationRepository.create({
+          user_id: userId,
+          title: `Conversation: ${new Date().toISOString()}`,
+        });
+      }
+      const actualConversationId = conversation.id;
+
+      // STEP 2: Log the USER'S message immediately
+      await this.conversationRepository.addMessage({
+        conversation_id: actualConversationId,
+        role: 'user',
+        content: message,
       });
 
+      // STEP 3: Set/Reset the Redis heartbeat for the timeout worker
+      const heartbeatKey = `${REDIS_CONVERSATION_TIMEOUT_PREFIX}${actualConversationId}`;
+      const timeoutSeconds = this.getConversationTimeout();
+      await this.redis.set(heartbeatKey, 'active', 'EX', timeoutSeconds);
+
+      // STEP 4: Call the pure, headless DialogueAgent to get a response
+      const agentResult = await this.dialogueAgent.processTurn({
+        userId,
+        conversationId: actualConversationId,
+        currentMessageText: message,
+      });
+
+      // STEP 5: Log the ASSISTANT'S response
+      await this.conversationRepository.addMessage({
+        conversation_id: actualConversationId,
+        role: 'assistant',
+        content: agentResult.response_text,
+        llm_call_metadata: agentResult.metadata || {}
+      });
+      
+      // STEP 6: Send the final response to the client
       res.status(200).json({
         success: true,
-        data: result,
-        message: 'Message processed successfully'
-      } as TApiResponse<any>);
+        conversation_id: actualConversationId, // Ensure the client always gets the correct ID
+        response_text: agentResult.response_text,
+        message_id: `msg_${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        metadata: agentResult.metadata
+      });
 
     } catch (error) {
-      console.error('Error in postMessage:', error);
+      console.error('❌ ConversationController.postMessage error:', error);
       res.status(500).json({ 
         success: false, 
         error: { 

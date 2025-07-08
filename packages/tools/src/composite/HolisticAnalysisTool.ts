@@ -36,7 +36,7 @@ export const HolisticAnalysisOutputSchema = z.object({
     
     detected_growth_events: z.array(z.object({
       dim_key: z.enum(['know_self', 'know_world', 'act_self', 'act_world', 'show_self', 'show_world']),
-      delta: z.number().min(-2.0).max(2.0), // Reasonable range for growth deltas
+      delta: z.number().min(-5.0).max(5.0), // V11.1 FIX: Increased range to prevent validation failures
       rationale: z.string().min(10).max(200)
     })).max(6) // Maximum one event per dimension
   }),

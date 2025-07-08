@@ -1,248 +1,195 @@
-# 📚 **2D1L SCRIPTS & DOCUMENTATION ORGANIZATION**
-*Systematic organization of development workflows, tools, and institutional knowledge*
+# 📁 **2D1L Scripts Directory - V11.0 Architecture**
+
+*Organized automation, guides, and tools for efficient development and operations*
 
 ---
 
-## 🎯 **QUICK NAVIGATION**
-
-**Looking for...**
-- **First time setup?** → `LIFECYCLE/01_FIRST_TIME_SETUP/`
-- **Daily workflow?** → `LIFECYCLE/02_DAILY_DEVELOPMENT/`
-- **System broken?** → `KNOWLEDGE_BASE/CRITICAL_LESSONS_LEARNED.md`
-- **TypeScript issues?** → `KNOWLEDGE_BASE/TYPESCRIPT_CONFIGURATION_BIBLE.md`
-- **Build conflicts?** → `pnpm fix:conflicts`
-- **Service status?** → `pnpm services:status`
-
----
-
-## 🗂️ **DIRECTORY STRUCTURE**
+## 📋 **DIRECTORY STRUCTURE**
 
 ```
 scripts/
-├── 📚 FOUNDATION/                     # Core principles & systematic thinking
-│   ├── 01_SYSTEMATIC_THINKING_FRAMEWORK.md
-│   └── 02_PATTERN_RECOGNITION_GUIDE.md
-│
-├── 🚀 LIFECYCLE/                      # Development lifecycle phases
-│   ├── 01_FIRST_TIME_SETUP/
-│   │   ├── README.md                 # Complete setup guide
-│   │   └── setup-dev-env.sh          # Automated setup script
-│   ├── 02_DAILY_DEVELOPMENT/
-│   │   └── daily-workflow.md         # Streamlined daily procedures
-│   ├── 03_MAJOR_CHANGES/
-│   │   ├── refactoring-protocols.md         # Safe architectural change procedures
-│   │   └── breaking-change-checklist.md     # Managing API/interface changes
-│   └── 04_TROUBLESHOOTING/
-│       └── emergency-procedures.md          # Crisis management & system recovery
-│
-├── 🔧 AUTOMATION/                     # Automated tools & scripts
-│   ├── service-manager.sh            # Service orchestration
-│   ├── build-system/
-│   │   ├── fix-build-conflicts.sh    # Master conflict resolver
-│   │   ├── fix-typescript-build-conflicts.sh
-│   │   ├── fix-pnpm-conflicts.sh
-│   │   └── clean-rebuild.sh          # Nuclear reset option
-│   └── monitoring/
-│       └── health-check.sh           # System health verification
-│
-├── 📖 KNOWLEDGE_BASE/                 # Historical wisdom & references
-│   ├── CRITICAL_LESSONS_LEARNED.md   # Hard-won debugging insights
-│   ├── TYPESCRIPT_CONFIGURATION_BIBLE.md  # Definitive TS config guide
-│   └── PATTERN_RECOGNITION_SHORTCUTS.md
-│
-├── 🗂️ archive/                        # Legacy documentation
-└── 🗂️ archive2/                       # Original documents (preserved)
+├── GUIDES/                     # 📚 User-friendly documentation and guides
+├── AUTOMATION/                 # 🤖 Automated scripts and tools
+├── KNOWLEDGE_BASE/             # 🧠 Technical knowledge and best practices
+├── CHANGE_MANAGEMENT/          # 🔄 Change control and architecture docs
+└── archive/                    # 📦 Historical files and legacy documentation
 ```
 
 ---
 
-## 🎭 **USE CASE SCENARIOS**
+## 🚀 **QUICK REFERENCE - ESSENTIAL COMMANDS**
 
-### **🥅 I'M NEW TO THIS PROJECT**
+### **For New Developers**
 ```bash
-# Start here:
-1. Read: scripts/LIFECYCLE/01_FIRST_TIME_SETUP/README.md
-2. Follow the complete setup guide step-by-step
-3. When setup complete, read daily workflow
-4. Bookmark the knowledge base for reference
+# Complete setup from scratch
+./AUTOMATION/setup-dev-env.sh          # Install Node.js, pnpm, Docker
+./AUTOMATION/end-to-end-setup.sh       # Full system setup and validation
+
+# Daily development workflow
+./AUTOMATION/systematic-audit.sh       # Health check and validation
 ```
 
-### **☀️ I'M STARTING MY DAY**
+### **For Daily Development**
 ```bash
-# Quick morning startup:
-pnpm health:check                    # 30 seconds
-pnpm services:start                  # Start backend
-cd apps/web-app && pnpm dev          # Start frontend
+# Quick start (mornings)
+pnpm start:dev                         # Start databases + services
+pnpm start:frontend                    # Start web app in separate terminal
 
-# See: scripts/LIFECYCLE/02_DAILY_DEVELOPMENT/daily-workflow.md
+# Common fixes
+pnpm fix:conflicts                     # Fix build conflicts
+./AUTOMATION/clean-rebuild.sh          # Nuclear option - full rebuild
 ```
 
-### **🚨 SOMETHING IS BROKEN**
+### **For Troubleshooting**
 ```bash
-# Emergency triage:
-1. Check: scripts/KNOWLEDGE_BASE/CRITICAL_LESSONS_LEARNED.md
-2. Use pattern recognition table for quick diagnosis
-3. Run: pnpm health:check
-4. Apply appropriate fix: pnpm fix:conflicts
+# Health diagnostics
+pnpm health:check                      # System health overview
+./AUTOMATION/monitoring/health-check.sh # Detailed diagnostics
 
-# Nuclear option (when everything is broken):
-5. Run: pnpm clean:rebuild  # Complete environment reset
-```
-
-### **🔧 I'M MAKING MAJOR CHANGES**
-```bash
-# Safe change protocols:
-1. Read: scripts/FOUNDATION/01_SYSTEMATIC_THINKING_FRAMEWORK.md
-2. Follow incremental validation protocols
-3. Document new patterns discovered
-4. Update prevention systems
-```
-
-### **🧠 I'M DEBUGGING COMPLEX ISSUES**
-```bash
-# Systematic approach:
-1. Apply: scripts/FOUNDATION/01_SYSTEMATIC_THINKING_FRAMEWORK.md
-2. Reference: scripts/KNOWLEDGE_BASE/CRITICAL_LESSONS_LEARNED.md
-3. Use categorical thinking methodology
-4. Document new insights for future agents
+# Service management (V11.0 PM2-based)
+pnpm status                            # Check PM2 services
+pm2 monit                              # Live monitoring dashboard
 ```
 
 ---
 
-## ⚡ **QUICK COMMANDS REFERENCE**
+## 📚 **GUIDES DIRECTORY**
 
-### **Health & Status**
-```bash
-pnpm health:check                    # Comprehensive system health
-pnpm services:status                 # Check all services
-pnpm services:logs                   # View service logs
-```
+*User-friendly documentation for common workflows*
 
-### **Service Management**
-```bash
-pnpm services:start                  # Start all backend services
-pnpm services:stop                   # Stop all services
-pnpm services:restart                # Restart all services
-```
-
-### **Conflict Resolution**
-```bash
-pnpm fix:conflicts                   # Fix all known conflicts
-pnpm fix:typescript                  # Fix TypeScript build issues
-pnpm fix:pnpm                        # Fix pnpm lock file conflicts
-pnpm clean:rebuild                   # Complete environment reset (nuclear option)
-```
-
-### **Development Workflow**
-```bash
-pnpm build                           # Build all packages
-pnpm dev:full                        # Start everything for development
-pnpm db:studio                       # Open database interface
-```
+| File | Purpose | When to Use |
+|------|---------|-------------|
+| `INSTALLATION_GUIDE.md` | Complete setup and management reference | First-time setup, troubleshooting |
+| `DAILY_WORKFLOW.md` | Standard development procedures | Every development session |
+| `FIRST_TIME_SETUP.md` | Initial project onboarding | New team members |
+| `TROUBLESHOOTING_GUIDE.md` | Emergency procedures and fixes | When things break |
+| `SECURITY_BASELINE.md` | Security standards and practices | Security reviews, audits |
 
 ---
 
-## 🧭 **DOCUMENTATION PHILOSOPHY**
+## 🤖 **AUTOMATION DIRECTORY**
 
-### **INSTITUTIONAL MEMORY PRESERVATION**
-This reorganization preserves the "pure gold" insights from systematic debugging while making them accessible for daily use. Key principles:
+*Automated scripts organized by function*
 
-- **TESTABLE** - All procedures include verification commands
-- **CATEGORICAL** - Solutions address entire classes of problems
-- **ACTIONABLE** - Provide specific protocols, not just descriptions
-- **SEARCHABLE** - Organized by use case and symptoms
+### **Root Level Scripts**
+- `setup-dev-env.sh` - Install development tools (Node.js, pnpm, Docker)
+- `end-to-end-setup.sh` - Complete system setup with validation
+- `systematic-audit.sh` - Comprehensive health check and validation
+- `clean-rebuild.sh` - Full clean rebuild with conflict resolution
+- `service-manager.sh` - V11.0 PM2-based service management
 
-### **SPIRITUAL + PRACTICAL GUIDANCE**
-The documentation serves as both:
-- **Spiritual Guide** - Mindset and systematic thinking approach
-- **Practical Reference** - Concrete commands and procedures
-
-### **LEARNING PROPAGATION**
-New insights must be:
-1. **Captured** using systematic learning frameworks
-2. **Categorized** by failure mode and solution type
-3. **Integrated** into prevention systems
-4. **Tested** to verify they work for future agents
-
----
-
-## 🔄 **MAINTENANCE PROTOCOLS**
-
-### **WHEN ADDING NEW INSIGHTS**
-1. **Determine Category**: Setup, Daily, Troubleshooting, or Architecture
-2. **Apply Learning Template**: Use frameworks from CRITICAL_LESSONS_LEARNED.md
-3. **Update Automation**: Add detection/prevention to health checks
-4. **Cross-Reference**: Link to related patterns and solutions
-
-### **WHEN ORGANIZING CHANGES**
-1. **Preserve Original**: Keep copies in archive2
-2. **Extract Patterns**: Use categorical thinking methodology
-3. **Update References**: Ensure all links still work
-4. **Test Workflows**: Verify procedures work end-to-end
-
-### **KEEPING CURRENT**
-- Update CRITICAL_LESSONS_LEARNED.md when new failure modes discovered
-- Enhance health-check.sh with new detection protocols
-- Refine TypeScript Bible based on configuration changes
-- Improve daily workflow based on productivity insights
-
----
-
-## 🎯 **SUCCESS METRICS**
-
-### **NEW DEVELOPER ONBOARDING**
-- ✅ Can complete setup in < 2 hours using first-time guide
-- ✅ Understands systematic thinking approach
-- ✅ Can navigate documentation efficiently
-- ✅ Knows where to find help when stuck
-
-### **DAILY PRODUCTIVITY**
-- ✅ Morning startup takes < 5 minutes
-- ✅ Common issues resolved in < 10 minutes using pattern recognition
-- ✅ Build conflicts automatically prevented
-- ✅ Service orchestration works reliably
-
-### **INSTITUTIONAL MEMORY**
-- ✅ Same problems don't recur across different development sessions
-- ✅ New agents can apply existing insights immediately
-- ✅ Prevention systems evolve based on experience
-- ✅ Knowledge transfer happens efficiently
-
----
-
-## 🆘 **WHEN IN DOUBT**
-
-### **IMMEDIATE HELP**
-1. **Quick Fix**: Use pattern recognition table in CRITICAL_LESSONS_LEARNED.md
-2. **Health Check**: Run `pnpm health:check`
-3. **Service Status**: Check `pnpm services:status`
-4. **Logs**: Review `tail -f logs/*.log`
-
-### **SYSTEMATIC DEBUGGING**
-1. **Framework**: Apply systematic thinking methodology
-2. **Patterns**: Search known failure modes
-3. **Isolation**: Use incremental validation protocols
-4. **Documentation**: Capture new insights for future use
-
-### **EMERGENCY RESET**
-```bash
-# Nuclear option when all else fails
-./scripts/AUTOMATION/build-system/clean-rebuild.sh
+### **Subdirectories**
+```
+AUTOMATION/
+├── build-system/               # Build and deployment automation
+│   ├── clean-rebuild.sh       # Comprehensive rebuild script
+│   ├── fix-build-conflicts.sh # Build conflict resolution
+│   ├── fix-pnpm-conflicts.sh  # Package manager conflict fixes
+│   ├── fix-typescript-build-conflicts.sh # TypeScript specific fixes
+│   └── partial-clean-rebuild.sh # Selective rebuild script
+├── monitoring/                 # System monitoring and health checks
+│   └── health-check.sh        # Detailed system diagnostics
+└── model-management/           # AI model management tools
+    ├── daily-model-check.sh   # Daily model health verification
+    ├── manage-gemini-models.sh # Gemini model configuration
+    ├── README_MODEL_MANAGEMENT.md # Model management documentation
+    └── test_gemini_models.js   # Model testing utilities
 ```
 
 ---
 
-## 📈 **EVOLUTION & CONTINUOUS IMPROVEMENT**
+## 🧠 **KNOWLEDGE_BASE DIRECTORY**
 
-This organizational structure is designed to evolve. As new patterns emerge and insights are gained:
+*Technical knowledge and best practices*
 
-1. **Document** using established learning frameworks
-2. **Categorize** into appropriate lifecycle phases
-3. **Automate** detection and prevention
-4. **Integrate** into daily workflows
-
-The goal is institutional memory that grows smarter over time, making development more efficient and reliable for all future agents.
+- `CRITICAL_LESSONS_LEARNED.md` - Hard-won insights and gotchas
+- `TYPESCRIPT_CONFIGURATION_BIBLE.md` - TypeScript setup best practices
+- `SYSTEMATIC_THINKING_FRAMEWORK.md` - Problem-solving methodology
 
 ---
 
-*This organization represents the culmination of systematic debugging experience and serves as the foundation for all 2D1L development activities.* 
+## 🔄 **CHANGE_MANAGEMENT DIRECTORY**
+
+*Architecture and change control documentation*
+
+- `ARCHITECTURE_BASELINE.md` - Current system architecture reference
+- `BREAKING_CHANGE_CHECKLIST.md` - Procedures for major changes
+- `REFACTORING_PROTOCOLS.md` - Safe refactoring guidelines
+
+---
+
+## 📦 **ARCHIVE DIRECTORY**
+
+*Historical documentation and legacy files*
+
+```
+archive/
+├── v11-refactoring/           # V11.0 refactoring documentation
+├── lifecycle-structure/       # Previous LIFECYCLE directory structure
+└── legacy-scripts/           # Outdated numbered directories and scripts
+```
+
+---
+
+## 🎯 **V11.0 ARCHITECTURE NOTES**
+
+### **Key Changes from Previous Versions**
+- **Headless Services**: `dialogue-service`, `user-service`, etc. are now libraries imported by API Gateway
+- **Single Server**: Only API Gateway runs as a server (port 3001)
+- **PM2 Management**: All workers and Python services managed via PM2
+- **Simplified Deployment**: Fewer moving parts, easier debugging
+
+### **Service Architecture**
+```
+API Gateway (3001) ← Single HTTP server handling all requests
+├── dialogue-service (library)
+├── user-service (library)
+├── card-service (library)
+└── config-service (library)
+
+PM2 Processes:
+├── Workers (ingestion, insight, embedding, etc.)
+└── Python Services (dimension-reducer:8000)
+
+Docker Services:
+├── PostgreSQL (5432)
+├── Redis (6379)
+├── Neo4j (7474, 7687)
+└── Weaviate (8080)
+```
+
+---
+
+## 🛡️ **BEST PRACTICES**
+
+### **Before Using Any Script**
+1. **Read the documentation** - Each script has specific use cases
+2. **Check V11.0 compatibility** - Scripts are updated for current architecture
+3. **Backup important data** - Some scripts perform destructive operations
+4. **Test in development** - Never run automation scripts directly in production
+
+### **When Things Go Wrong**
+1. **Start with health check**: `pnpm health:check`
+2. **Check PM2 status**: `pnpm status`
+3. **Review recent changes**: `git log --oneline -10`
+4. **Use systematic audit**: `./AUTOMATION/systematic-audit.sh`
+5. **Escalate to emergency procedures**: See `GUIDES/TROUBLESHOOTING_GUIDE.md`
+
+---
+
+## 📞 **SUPPORT AND MAINTENANCE**
+
+### **Script Updates**
+- Scripts are maintained to match V11.0 architecture
+- Check git history for recent changes: `git log scripts/`
+- Report issues or suggest improvements via team channels
+
+### **Adding New Scripts**
+- Follow the directory structure above
+- Add documentation to this README
+- Ensure V11.0 compatibility
+- Test thoroughly before committing
+
+---
+
+*Last updated: [Current Date] for V11.0 Architecture* 

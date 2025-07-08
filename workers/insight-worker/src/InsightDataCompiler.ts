@@ -208,6 +208,39 @@ export class InsightDataCompiler {
     }
   }
 
+  /**
+   * V11.0: Compiles node metrics for a user during their insight cycle
+   * This is the correct approach for analytical needs (per tech lead directive)
+   */
+  public async compileNodeMetrics(userId: string): Promise<Array<{ nodeId: string; connectionCount: number }>> {
+    if (!this.neo4jClient) {
+      console.warn(`[InsightDataCompiler] Neo4j client not available for compileNodeMetrics`);
+      return [];
+    }
+
+    const session = this.neo4jClient.session();
+    try {
+      // Single query to get all connection counts for one user during their insight cycle
+      const cypher = `
+        MATCH (n) WHERE n.userId = $userId AND (n:Concept OR n:MemoryUnit)
+        WITH n, apoc.node.degree(n) AS connectionCount
+        RETURN COALESCE(n.id, n.muid, n.concept_id) as nodeId, connectionCount
+      `;
+      
+      const result = await session.run(cypher, { userId });
+
+      return result.records.map((record: any) => ({
+        nodeId: record.get('nodeId'),
+        connectionCount: record.get('connectionCount').toNumber(),
+      }));
+    } catch (error) {
+      console.error(`[InsightDataCompiler] Error compiling node metrics for user ${userId}:`, error);
+      throw error;
+    } finally {
+      await session.close();
+    }
+  }
+
   async compileStrategicInsights(userId: string, cycleDates: CycleDates): Promise<StrategicInsightPackage> {
     console.log(`[InsightDataCompiler] Compiling strategic insights for user ${userId}`);
 

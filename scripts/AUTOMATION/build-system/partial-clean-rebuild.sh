@@ -238,37 +238,35 @@ fi
 cd ../..
 log_success "Database setup and validation complete"
 
-# Step 8: Start backend services
-log_step "8/10 Starting backend services..."
-log_info "Starting all backend services..."
-if ! pnpm services:start; then
-    fail_with_error "Failed to start backend services. Check service configurations."
+# Step 8: Start V11.0 backend services
+log_step "8/10 Starting V11.0 backend services via PM2..."
+log_info "Starting PM2 services from ecosystem.config.js..."
+if ! pnpm start:services; then
+    fail_with_error "Failed to start PM2 services. Check ecosystem configuration."
 fi
 
 # Wait for backend services to be ready
-log_info "Waiting for backend services to initialize..."
-sleep 5
+log_info "Waiting for PM2 services to initialize..."
+sleep 10
 
-# Verify backend services are actually responding
-log_info "Verifying backend services..."
-BACKEND_SERVICES=(
-    "http://localhost:3001" "API Gateway"
-    "http://localhost:3002" "User Service" 
-    "http://localhost:3003" "Dialogue Service"
-    "http://localhost:3004" "Card Service"
+# Verify V11.0 services are responding
+log_info "Verifying V11.0 services..."
+V11_SERVICES=(
+    "http://localhost:3001/api/health" "API Gateway"
+    "http://localhost:8000/health" "Dimension Reducer" 
 )
 
-for ((i=0; i<${#BACKEND_SERVICES[@]}; i+=2)); do
-    url="${BACKEND_SERVICES[i]}"
-    name="${BACKEND_SERVICES[i+1]}"
-    if ! curl -s "$url/health" > /dev/null 2>&1; then
+for ((i=0; i<${#V11_SERVICES[@]}; i+=2)); do
+    url="${V11_SERVICES[i]}"
+    name="${V11_SERVICES[i+1]}"
+    if ! curl -s "$url" > /dev/null 2>&1; then
         log_warning "$name may not be ready yet ($url)"
     else
         log_success "$name is responding"
     fi
 done
 
-log_success "Backend services started"
+log_success "V11.0 backend services started"
 
 # Step 9: Start frontend 
 log_step "9/10 Starting frontend development server..."
@@ -316,14 +314,12 @@ log_step "✅ Final Validation: All Services Verified Working"
 WORKING_SERVICES=()
 FAILED_SERVICES=()
 
-# Test each service and only report working ones
+# Test each V11.0 service and only report working ones
 SERVICES_TO_TEST=(
     "http://localhost:3000" "Frontend Application"
     "http://localhost:5555" "Prisma Studio"
-    "http://localhost:3001/health" "API Gateway"
-    "http://localhost:3002/health" "User Service"
-    "http://localhost:3003/health" "Dialogue Service" 
-    "http://localhost:3004/health" "Card Service"
+    "http://localhost:3001/api/health" "API Gateway"
+    "http://localhost:8000/health" "Dimension Reducer"
 )
 
 for ((i=0; i<${#SERVICES_TO_TEST[@]}; i+=2)); do
@@ -373,20 +369,22 @@ echo "│ Weaviate     │ http://localhost:8080           │"
 echo "│ Neo4j        │ http://localhost:7474           │"
 echo "└─────────────────────────────────────────────────┘"
 echo ""
-echo "🚀 Node.js Services (Running locally with pnpm):"
+echo "🚀 V11.0 Services (PM2 + Local Development):"
 echo "┌─────────────────────────────────────────────────┐"
-echo "│ All backend services run locally for fast dev  │"
-echo "│ Frontend runs locally with hot reload           │"
-echo "│ Prisma Studio runs locally for DB access        │"
+echo "│ API Gateway + Workers: PM2 managed             │"
+echo "│ Frontend: Local with hot reload                 │"
+echo "│ Prisma Studio: Local for DB access             │"
+echo "│ Python Services: PM2 managed                   │"
 echo "└─────────────────────────────────────────────────┘"
 
 echo ""
-echo "📝 Monitoring & Management:"
+echo "📝 V11.0 Monitoring & Management:"
 echo "┌─────────────────────────────────────────────────┐"
-echo "│ Logs: tail -f logs/*.log                       │"
-echo "│ Stop: pnpm services:stop && kill \$(cat .frontend-pid .prisma-studio-pid) │"
-echo "│ Status: pnpm services:status                    │"
-echo "│ Health: pnpm health:check                       │"
+echo "│ PM2 Status: pm2 status                         │"
+echo "│ PM2 Logs: pm2 logs                             │"
+echo "│ Stop Services: pnpm stop:services              │"
+echo "│ Stop Frontend: kill \$(cat .frontend-pid .prisma-studio-pid) │"
+echo "│ Health Check: pnpm health:check                │"
 echo "└─────────────────────────────────────────────────┘"
 
 echo ""

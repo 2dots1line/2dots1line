@@ -40,6 +40,48 @@ export interface TInsightJobPayload {
   placeholder?: unknown;
 }
 
+/**
+ * Payload for NotificationWorker - New Card Available
+ * Published by: CardWorker after successfully creating a Card record
+ */
+export interface NewCardAvailablePayload {
+  type: "new_card_available";
+  userId: string;
+  card: {
+    card_id: string;
+    card_type: string;
+    display_data: {
+      title: string;
+    };
+  };
+}
+
+/**
+ * Payload for NotificationWorker - Graph Projection Updated
+ * Published by: GraphProjectionWorker after a new projection is saved
+ */
+export interface GraphProjectionUpdatedPayload {
+  type: "graph_projection_updated";
+  userId: string;
+  projection: {
+    version: string;
+    nodeCount: number;
+    edgeCount: number;
+  };
+}
+
+/**
+ * SSE Message format for broadcasting to API Gateway
+ */
+export interface SSEMessage {
+  userId: string;
+  event: string; // Event name the frontend listens for (e.g., 'new_card', 'graph_updated')
+  data: string; // JSON stringified data payload
+}
+
+// Union type for all notification payloads
+export type NotificationJobPayload = NewCardAvailablePayload | GraphProjectionUpdatedPayload;
+
 // It seems the workers are importing `EmbeddingJob`, etc. directly.
 // Let's define these as the payload types for now.
 // If they are meant to be the full BullMQ Job<Payload>, that's a different structure.
@@ -47,4 +89,5 @@ export interface TInsightJobPayload {
 
 export type EmbeddingJob = TEmbeddingJobPayload;
 export type IngestionJob = TIngestionJobPayload;
-export type InsightJob = TInsightJobPayload; 
+export type InsightJob = TInsightJobPayload;
+export type NotificationJob = NotificationJobPayload; 

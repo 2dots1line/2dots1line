@@ -8,8 +8,28 @@ import { MaintenanceWorker } from './MaintenanceWorker';
 // Export the main worker class
 export { MaintenanceWorker };
 
-// Worker initialization placeholder
+// Worker initialization
 if (require.main === module) {
   console.log('Maintenance Worker starting...');
-  // Worker startup logic to be implemented
+  
+  const worker = new MaintenanceWorker();
+  
+  // Graceful shutdown handling
+  process.on('SIGINT', async () => {
+    console.log('Received SIGINT, shutting down gracefully...');
+    await worker.stop();
+    process.exit(0);
+  });
+  
+  process.on('SIGTERM', async () => {
+    console.log('Received SIGTERM, shutting down gracefully...');
+    await worker.stop();
+    process.exit(0);
+  });
+  
+  // Start the worker
+  worker.start().catch(error => {
+    console.error('Failed to start MaintenanceWorker:', error);
+    process.exit(1);
+  });
 } 

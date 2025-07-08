@@ -4,11 +4,13 @@
     "pnpm-lock.yaml",
     "**/.env.*"
   ],
-  "globalEnv": ["NODE_ENV"],
+  "globalEnv": [
+    "NODE_ENV"
+  ],
   "remoteCache": {
     "enabled": false
   },
-  "concurrency": 20,
+  "concurrency": "20",
   "tasks": {
     "build": {
       "dependsOn": [

@@ -308,6 +308,46 @@ export class Neo4jService {
   }
 
   /**
+   * V11.0: Gets real-time connection count for a specific node
+   * Used by API Gateway for on-demand UI queries (per tech lead directive)
+   */
+  public async getNodeMetrics(userId: string, nodeId: string): Promise<{ connectionCount: number }> {
+    const cypher = `
+      MATCH (n) WHERE (n.id = $nodeId OR n.muid = $nodeId OR n.concept_id = $nodeId) AND n.userId = $userId
+      RETURN apoc.node.degree(n) AS connectionCount
+    `;
+    
+    const records = await this.runReadQuery(cypher, { userId, nodeId });
+    
+    if (records.length === 0) {
+      throw new Error('Node not found');
+    }
+
+    return {
+      connectionCount: records[0].get('connectionCount').toNumber(),
+    };
+  }
+
+  /**
+   * V11.0: Gets connection counts for all nodes for a user
+   * Used by InsightDataCompiler for analytical purposes (per tech lead directive)
+   */
+  public async compileNodeMetrics(userId: string): Promise<Array<{ nodeId: string; connectionCount: number }>> {
+    const cypher = `
+      MATCH (n) WHERE n.userId = $userId AND (n:Concept OR n:MemoryUnit)
+      WITH n, apoc.node.degree(n) AS connectionCount
+      RETURN COALESCE(n.id, n.muid, n.concept_id) as nodeId, connectionCount
+    `;
+    
+    const records = await this.runReadQuery(cypher, { userId });
+
+    return records.map(record => ({
+      nodeId: record.get('nodeId'),
+      connectionCount: record.get('connectionCount').toNumber(),
+    }));
+  }
+
+  /**
    * Health check for Neo4j connection.
    */
   public async healthCheck(): Promise<boolean> {

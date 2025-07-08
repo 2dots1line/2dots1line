@@ -14,10 +14,10 @@ pnpm health:check
 # If issues found, see troubleshooting section below
 ```
 
-### **2. Start Development Environment**
+### **2. Start Development Environment (V11.0)**
 ```bash
-# Start all backend services
-pnpm services:start
+# Start all V11.0 services via PM2
+pnpm start:services
 
 # In separate terminal, start frontend
 cd apps/web-app && pnpm dev
@@ -25,12 +25,13 @@ cd apps/web-app && pnpm dev
 
 ### **3. Verify Everything Works**
 ```bash
-# Check services are running
-pnpm services:status
+# Check PM2 services are running
+pnpm status
 
 # Test critical endpoints
-curl -f http://localhost:3001/api/health  # API Gateway
+curl -f http://localhost:3001/api/health  # API Gateway (handles all backend logic)
 curl -f http://localhost:3000/           # Web App
+curl -f http://localhost:8000/health     # Python Dimension Reducer
 ```
 
 ---
@@ -63,13 +64,14 @@ pnpm --filter=@2dots1line/[package-name] build
 cd packages/database && pnpm db:generate
 ```
 
-**After changing service code:**
+**After changing service code (V11.0):**
 ```bash
-# Restart affected services
-pnpm services:restart
+# In V11.0, services are libraries imported by API Gateway
+# Restart API Gateway to pick up changes
+pm2 restart api-gateway
 
 # Test the specific functionality
-curl -f http://localhost:300X/api/health
+curl -f http://localhost:3001/api/health
 ```
 
 **After changing frontend code:**
@@ -79,7 +81,7 @@ curl -f http://localhost:300X/api/health
 cd apps/web-app && rm -rf .next && pnpm dev
 ```
 
-### **BEFORE COMMITTING**
+### **BEFORE COMMITTING (V11.0)**
 ```bash
 # 1. Full build test
 pnpm build
@@ -91,20 +93,21 @@ pnpm lint
 ls -la | grep -E "(pnpm-lock|tsbuildinfo)" | wc -l
 # Should show only 1 pnpm-lock.yaml
 
-# 4. Service integration test
-pnpm services:status
+# 4. V11.0 service integration test
+pnpm status  # Check PM2 services
+pm2 monit    # Quick health dashboard
 ```
 
 ---
 
 ## 🚨 **COMMON DAILY ISSUES & QUICK FIXES**
 
-### **Issue: Services Won't Start**
+### **Issue: Services Won't Start (V11.0)**
 ```bash
-# Quick fix sequence
-pnpm services:stop
+# Quick fix sequence for PM2 services
+pm2 stop all
 sleep 2
-pnpm services:start
+pm2 start ecosystem.config.js
 
 # If still failing, check Docker services
 docker ps | grep -E "(postgres|redis|weaviate|neo4j)"

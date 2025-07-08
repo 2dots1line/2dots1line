@@ -2,18 +2,20 @@ import { Router, type IRouter } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
 import { uploadSingle, handleUploadError } from '../../middleware/upload.middleware';
 
-// Import all V9.7 controllers
+// Import all V11.0 controllers
 import { AuthController } from '../../controllers/auth.controller';
 import { ConversationController } from '../../controllers/conversation.controller';
 import { CardController } from '../../controllers/card.controller';
 import { UserController } from '../../controllers/user.controller';
+import { GraphController } from '../../controllers/graph.controller';
 import { createAgentRoutes } from './agent.routes';
 
 export function createV1Routes(
   authController: AuthController,
   userController: UserController,
   cardController: CardController,
-  conversationController: ConversationController
+  conversationController: ConversationController,
+  graphController: GraphController
 ): IRouter {
   const v1Router: IRouter = Router();
 
@@ -53,9 +55,11 @@ v1Router.get('/users/me/profile', authMiddleware, userController.getUserProfile)
 v1Router.get('/users/me/growth-profile', authMiddleware, userController.getGrowthProfile);
 v1Router.get('/users/me/dashboard/growth-summary', authMiddleware, userController.getDashboardGrowthSummary);
 
-// --- Graph Routes (Authenticated) ---
+// --- Graph Routes (Authenticated) --- V11.0: Real-time metrics from Neo4j source of truth
+v1Router.get('/nodes/:nodeId/metrics', authMiddleware, graphController.getNodeMetrics);
+
+// Legacy route for graph projection (keep for compatibility)
 v1Router.get('/graph-projection/latest', authMiddleware, (req, res) => {
-  // This controller logic will be built out to call a graph-data-service
   res.status(501).json({ message: 'Graph projection endpoint not yet implemented.' });
 });
 

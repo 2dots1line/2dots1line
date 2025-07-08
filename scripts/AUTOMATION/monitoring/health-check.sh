@@ -6,7 +6,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+ROOT_DIR="$(dirname "$(dirname "$(dirname "$SCRIPT_DIR")")")"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -69,35 +69,34 @@ check_build_system() {
     fi
 }
 
-# Function to check service status
+# Function to check V11.0 service status
 check_services() {
-    log_info "Checking service status..."
+    log_info "Checking V11.0 service status..."
     
-    local services=("3001:API Gateway" "3002:Dialogue Service" "3003:User Service" "3004:Card Service")
-    local running_services=0
-    
-    for service in "${services[@]}"; do
-        local port=$(echo $service | cut -d: -f1)
-        local name=$(echo $service | cut -d: -f2)
-        
-        if lsof -i :$port >/dev/null 2>&1; then
-            if curl -f http://localhost:$port/api/health >/dev/null 2>&1; then
-                log_success "$name (port $port) - Running & Healthy"
+    # Check PM2 processes
+    if command -v pm2 &> /dev/null; then
+        if pm2 list | grep -q "online"; then
+            local pm2_services=$(pm2 jlist | jq -r '.[] | select(.pm2_env.status == "online") | .name' 2>/dev/null | wc -l)
+            log_success "PM2 running with $pm2_services online processes"
+            
+            # Check specific V11.0 services
+            if curl -f http://localhost:3001/api/health >/dev/null 2>&1; then
+                log_success "API Gateway (port 3001) - Running & Healthy"
             else
-                log_warning "$name (port $port) - Running but not responding to health checks"
+                log_warning "API Gateway (port 3001) - Not responding to health checks"
             fi
-            running_services=$((running_services + 1))
+            
+            if curl -f http://localhost:8000/health >/dev/null 2>&1; then
+                log_success "Dimension Reducer (port 8000) - Running & Healthy"  
+            else
+                log_warning "Dimension Reducer (port 8000) - Not responding to health checks"
+            fi
         else
-            log_info "$name (port $port) - Not running"
+            log_info "PM2 installed but no processes running - use 'pnpm start:services' to start them"
         fi
-    done
-    
-    if [ "$running_services" -eq 0 ]; then
-        log_info "No services running - use 'pnpm services:start' to start them"
-    elif [ "$running_services" -eq 4 ]; then
-        log_success "All services running"
     else
-        log_warning "$running_services/4 services running"
+        log_warning "PM2 not installed - install with: npm install -g pm2"
+        log_info "Use 'pnpm start:services' to start V11.0 services"
     fi
 }
 
@@ -219,16 +218,17 @@ main() {
         echo ""
         echo "🛠️  Quick fixes:"
         echo "  • pnpm fix:conflicts    - Fix all build conflicts"
-        echo "  • pnpm services:start   - Start all backend services"
-        echo "  • docker-compose up -d  - Start all database services"
+        echo "  • pnpm start:services   - Start all V11.0 services via PM2"
+        echo "  • pnpm start:db         - Start all database services"
     fi
     
     echo ""
-    echo "💡 Useful commands:"
-    echo "  • pnpm services:status  - Check service status"
-    echo "  • pnpm services:logs    - View service logs"
-    echo "  • pnpm build           - Test build system"
-    echo "  • ./scripts/health-check.sh - Run this check again"
+    echo "💡 Useful V11.0 commands:"
+    echo "  • pnpm status           - Check PM2 service status"
+    echo "  • pnpm logs             - View PM2 service logs"
+    echo "  • pm2 monit             - PM2 monitoring dashboard"
+    echo "  • pnpm build            - Test build system"
+    echo "  • pnpm health:check     - Run this check again"
 }
 
 # Command line interface
@@ -298,7 +298,7 @@ for check in "${NODE_MODULES_CHECK[@]}"; do
         echo -e "${BLUE}ℹ${NC} Found $module imports in $dir"
         
         # Verify the package has @types/node
-        package_dir="$(dirname "$(dirname "$dir")")"
+        package_dir="$(dirname "$dir")"
         if ! grep -q '"@types/node"' "$package_dir/package.json" 2>/dev/null; then
             echo -e "${RED}✗${NC} $package_dir uses $module but missing @types/node"
             ((ISSUES_FOUND++))

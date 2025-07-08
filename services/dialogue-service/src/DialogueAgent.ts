@@ -99,28 +99,15 @@ export class DialogueAgent {
     if (response_plan.decision === 'respond_directly') {
       console.log(`[${executionId}] Decision: Respond Directly. Turn complete.`);
       
-      // RECORD ASSISTANT RESPONSE: Log Dot's response to conversation_messages table
-      try {
-        console.log('📝 DialogueAgent - Recording assistant response to database...');
-        await this.conversationRepo.addMessage({
-          conversation_id: input.conversationId,
-          role: 'assistant',
-          content: response_plan.direct_response_text,
-          llm_call_metadata: {
-            execution_id: executionId,
-            decision: response_plan.decision,
-            processing_time_ms: Date.now() - parseInt(executionId.split('_')[1])
-          }
-        });
-        console.log('✅ DialogueAgent - Assistant response recorded successfully');
-      } catch (error) {
-        console.error('❌ DialogueAgent - Failed to record assistant response:', error);
-        // Continue processing but log the error
-      }
-      
+      // V11.0 HEADLESS SERVICE: Return pure result, no database side effects
       return { 
         response_text: response_plan.direct_response_text,
-        ui_actions
+        ui_actions,
+        metadata: {
+          execution_id: executionId,
+          decision: response_plan.decision,
+          processing_time_ms: Date.now() - parseInt(executionId.split('_')[1])
+        }
       };
     } 
     
@@ -137,30 +124,17 @@ export class DialogueAgent {
       
       console.log(`[${executionId}] Retrieval complete. Generating final response.`);
       
-      // RECORD ASSISTANT RESPONSE: Log Dot's response to conversation_messages table
-      try {
-        console.log('📝 DialogueAgent - Recording assistant response (with memory) to database...');
-        await this.conversationRepo.addMessage({
-          conversation_id: input.conversationId,
-          role: 'assistant',
-          content: finalLlmResponse.response_plan.direct_response_text,
-          llm_call_metadata: {
-            execution_id: executionId,
-            decision: response_plan.decision,
-            key_phrases_used: response_plan.key_phrases_for_retrieval,
-            memory_retrieval_performed: true,
-            processing_time_ms: Date.now() - parseInt(executionId.split('_')[1])
-          }
-        });
-        console.log('✅ DialogueAgent - Assistant response (with memory) recorded successfully');
-      } catch (error) {
-        console.error('❌ DialogueAgent - Failed to record assistant response:', error);
-        // Continue processing but log the error
-      }
-      
+      // V11.0 HEADLESS SERVICE: Return pure result, no database side effects
       return {
         response_text: finalLlmResponse.response_plan.direct_response_text,
-        ui_actions: finalLlmResponse.ui_actions
+        ui_actions: finalLlmResponse.ui_actions,
+        metadata: {
+          execution_id: executionId,
+          decision: response_plan.decision,
+          key_phrases_used: response_plan.key_phrases_for_retrieval,
+          memory_retrieval_performed: true,
+          processing_time_ms: Date.now() - parseInt(executionId.split('_')[1])
+        }
       };
     }
 

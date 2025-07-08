@@ -25,6 +25,7 @@ import { AuthController } from './controllers/auth.controller';
 import { CardController } from './controllers/card.controller';
 import { ConversationController } from './controllers/conversation.controller';
 import { UserController } from './controllers/user.controller';
+import { GraphController } from './controllers/graph.controller';
 
 async function createApp(): Promise<express.Application> {
   const app: express.Application = express();
@@ -74,9 +75,10 @@ async function createApp(): Promise<express.Application> {
   const userController = new UserController(userService);
   const cardController = new CardController(cardService);
   const conversationController = new ConversationController(dialogueAgent, conversationRepo, databaseService.redis);
+  const graphController = new GraphController(databaseService);
 
   // Level 5: Mount controllers onto the Express app
-  app.use('/api/v1', createV1Routes(authController, userController, cardController, conversationController));
+  app.use('/api/v1', createV1Routes(authController, userController, cardController, conversationController, graphController));
 
   // Central Error Handler
   app.use(errorHandler);

@@ -2,12 +2,184 @@
 
 # 🎯 2D1L V11.0 END-TO-END SETUP PROTOCOL
 # This script implements LESSON 15 from CRITICAL_LESSONS_LEARNED.md
-# Execute with: ./scripts/end-to-end-setup.sh
+# Execute with: ./scripts/AUTOMATION/end-to-end-setup.sh
 
 set -e  # Exit on any error
 
 echo "🚀 Starting 2D1L V11.0 End-to-End Setup Protocol"
 echo "=================================================="
+
+# PHASE 0: ENVIRONMENT PREPARATION
+echo "📋 PHASE 0: ENVIRONMENT PREPARATION"
+
+echo "A. Killing all services occupying critical ports..."
+echo "   Scanning for processes on critical ports (3000, 3001, 5432, 5433, 6379, 7474, 7475, 7687, 7688, 8080, 8000, 5555)..."
+
+# Kill processes on critical ports
+critical_ports=(3000 3001 5432 5433 6379 7474 7475 7687 7688 8080 8000 5555)
+for port in "${critical_ports[@]}"; do
+    if lsof -ti:$port > /dev/null 2>&1; then
+        echo "   🔫 Killing process on port $port"
+        lsof -ti:$port | xargs kill -9 2>/dev/null || echo "     (Process already gone)"
+    fi
+done
+
+# Additional cleanup for known service patterns
+echo "   🔫 Killing Next.js development servers..."
+pkill -f "next dev" 2>/dev/null || echo "     No Next.js processes found"
+
+echo "   🔫 Killing Node.js processes with 2D1L in path..."
+pkill -f "202506062D1L" 2>/dev/null || echo "     No matching Node.js processes found"
+
+echo "   🔫 Killing any Prisma Studio processes..."
+pkill -f "prisma studio" 2>/dev/null || echo "     No Prisma Studio processes found"
+
+echo "✅ Port cleanup completed"
+
+echo "B. Verifying Docker daemon and container health..."
+# Check if Docker daemon is running, start if needed
+if ! docker info > /dev/null 2>&1; then
+    echo "   🚀 Starting Docker Desktop..."
+    open -a Docker
+    
+    # Wait for Docker daemon to start
+    echo "   ⏳ Waiting for Docker daemon to start..."
+    max_wait=60
+    wait_time=0
+    while [ $wait_time -lt $max_wait ]; do
+        if docker info > /dev/null 2>&1; then
+            break
+        fi
+        echo "     Still waiting for Docker... (${wait_time}s/${max_wait}s)"
+        sleep 5
+        wait_time=$((wait_time + 5))
+    done
+    
+    if [ $wait_time -ge $max_wait ]; then
+        echo "❌ CRITICAL: Docker daemon failed to start within ${max_wait} seconds"
+        exit 1
+    fi
+fi
+echo "   ✅ Docker daemon running"
+
+# Stop any existing containers to ensure clean state
+echo "   🔄 Stopping existing database containers..."
+docker-compose -f docker-compose.dev.yml down 2>/dev/null || echo "     No existing containers to stop"
+
+# Start database containers
+echo "   🚀 Starting fresh database containers..."
+if ! docker-compose -f docker-compose.dev.yml up -d; then
+    echo "❌ CRITICAL: Failed to start database containers"
+    exit 1
+fi
+
+# Wait for containers to be ready with timeout
+echo "   ⏳ Waiting for database containers to be healthy..."
+max_wait=60
+wait_time=0
+while [ $wait_time -lt $max_wait ]; do
+    all_healthy=true
+    
+    # Check PostgreSQL
+    if ! docker exec postgres-2d1l pg_isready -U danniwang -d twodots1line > /dev/null 2>&1; then
+        all_healthy=false
+    fi
+    
+    # Check Redis
+    if ! docker exec redis-2d1l redis-cli ping > /dev/null 2>&1; then
+        all_healthy=false
+    fi
+    
+    # Check Neo4j
+    if ! docker exec neo4j-2d1l cypher-shell -u neo4j -p password123 "RETURN 1" > /dev/null 2>&1; then
+        all_healthy=false
+    fi
+    
+    # Check Weaviate
+    if ! curl -f http://localhost:8080/v1/.well-known/ready > /dev/null 2>&1; then
+        all_healthy=false
+    fi
+    
+    if [ "$all_healthy" = true ]; then
+        break
+    fi
+    
+    echo "     Still waiting for databases... (${wait_time}s/${max_wait}s)"
+    sleep 5
+    wait_time=$((wait_time + 5))
+done
+
+if [ $wait_time -ge $max_wait ]; then
+    echo "❌ CRITICAL: Database containers failed to become healthy within ${max_wait} seconds"
+    echo "   Check Docker logs: docker-compose -f docker-compose.dev.yml logs"
+    exit 1
+fi
+
+echo "✅ All database containers healthy and ready"
+
+echo "C. Environment variable verification..."
+# Load environment variables
+if [ ! -f ".env" ]; then
+    echo "❌ CRITICAL: .env file not found"
+    echo "   Please copy .env.example to .env and configure it"
+    exit 1
+fi
+
+source .env
+
+# Check critical environment variables  
+critical_env_vars=("DATABASE_URL" "GOOGLE_API_KEY" "NEO4J_USER" "NEO4J_PASSWORD" "WEAVIATE_HOST_LOCAL" "REDIS_HOST_PORT")
+missing_vars=()
+
+for var in "${critical_env_vars[@]}"; do
+    if [ -z "${!var}" ]; then
+        missing_vars+=("$var")
+    fi
+done
+
+if [ ${#missing_vars[@]} -gt 0 ]; then
+    echo "❌ CRITICAL: Missing required environment variables:"
+    for var in "${missing_vars[@]}"; do
+        echo "   - $var"
+    done
+    echo "   Please configure these in your .env file"
+    exit 1
+fi
+echo "✅ All critical environment variables present"
+
+echo "D. System resource verification..."
+# Check available disk space (need at least 5GB for builds)
+available_space=$(df . | tail -1 | awk '{print $4}')
+required_space=5242880  # 5GB in KB
+if [ "$available_space" -lt "$required_space" ]; then
+    echo "❌ CRITICAL: Insufficient disk space"
+    echo "   Available: $(($available_space / 1024 / 1024))GB, Required: 5GB"
+    echo "   Please free up disk space and try again"
+    exit 1
+fi
+echo "✅ Sufficient disk space available"
+
+# Check Node.js and pnpm versions
+if ! command -v node > /dev/null 2>&1; then
+    echo "❌ CRITICAL: Node.js not installed"
+    exit 1
+fi
+
+if ! command -v pnpm > /dev/null 2>&1; then
+    echo "❌ CRITICAL: pnpm not installed"
+    echo "   Install with: npm install -g pnpm"
+    exit 1
+fi
+
+NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
+if [ "$NODE_VERSION" -lt 18 ]; then
+    echo "❌ CRITICAL: Node.js version too old (found: $(node --version), required: >=18)"
+    exit 1
+fi
+echo "✅ Node.js and pnpm versions compatible"
+
+echo "🎉 Phase 0 completed - Environment ready for setup"
+echo ""
 
 # PHASE 1: CLEAN SLATE
 echo "📋 PHASE 1: CLEAN SLATE"
@@ -15,7 +187,32 @@ echo "1. Stopping all PM2 processes..."
 pm2 delete all || echo "No PM2 processes to stop"
 
 echo "2. Executing complete clean install..."
-pnpm run clean-install
+echo "   2a. Killing IDE processes that might lock files..."
+# Kill Cursor/VSCode TypeScript processes
+pkill -f "typingsInstaller" 2>/dev/null || true
+pkill -f "tsserver" 2>/dev/null || true
+
+echo "   2b. Fast removal with minimal output..."
+# Use faster, quieter removal approach
+rm -rf node_modules pnpm-lock.yaml 2>/dev/null || true
+
+# Remove other artifacts silently
+find . -name "dist" -type d -exec rm -rf {} + 2>/dev/null || true
+find . -name ".next" -type d -exec rm -rf {} + 2>/dev/null || true  
+find . -name ".turbo" -type d -exec rm -rf {} + 2>/dev/null || true
+find . -name "*.tsbuildinfo" -type f -delete 2>/dev/null || true
+
+# Force remove any remaining nested node_modules (background)
+find . -name "node_modules" -type d -exec rm -rf {} + 2>/dev/null &
+
+echo "   2c. Pruning pnpm store..."
+pnpm store prune
+
+echo "   2c. Installing fresh dependencies..."
+pnpm install
+
+echo "   2d. Generating Prisma client..."
+pnpm --filter=@2dots1line/database db:generate
 
 echo "3. Verifying no duplicate lock files..."
 LOCK_COUNT=$(find . -name "pnpm-lock*.yaml" -not -path "./node_modules/*" | wc -l)
@@ -86,7 +283,6 @@ echo "✅ Critical packages verification passed"
 
 # PHASE 3: FRONTEND VERIFICATION
 echo ""
-echo "📋 PHASE 3: FRONTEND VERIFICATION (LESSON 41)"
 echo "8. Starting frontend for comprehensive verification..."
 cd apps/web-app
 pkill -f "next dev" 2>/dev/null || echo "   No existing Next.js processes"
@@ -150,57 +346,91 @@ echo "✅ Tools import successful - lazy initialization working"
 # PHASE 4: DATABASE SETUP
 echo ""
 echo "📋 PHASE 4: DATABASE SETUP"
-echo "11. Starting database containers..."
-docker-compose -f docker-compose.dev.yml up -d
-
-echo "12. Waiting for databases to be ready..."
-sleep 10
-
-echo "   Checking PostgreSQL..."
-if ! nc -z localhost 5433; then
-    echo "❌ CRITICAL: PostgreSQL not ready"
+echo "11. Verifying database containers (started in Phase 0)..."
+# Quick verification that containers are still healthy
+if ! docker exec postgres-2d1l pg_isready -U danniwang -d twodots1line > /dev/null 2>&1; then
+    echo "❌ CRITICAL: PostgreSQL container unhealthy"
     exit 1
 fi
 
-echo "   Checking Redis..."
-if ! nc -z localhost 6379; then
-    echo "❌ CRITICAL: Redis not ready"
+if ! docker exec redis-2d1l redis-cli ping > /dev/null 2>&1; then
+    echo "❌ CRITICAL: Redis container unhealthy"
     exit 1
 fi
 
-echo "   Checking Weaviate..."
 if ! curl -f http://localhost:8080/v1/.well-known/ready > /dev/null 2>&1; then
-    echo "❌ CRITICAL: Weaviate not ready"
+    echo "❌ CRITICAL: Weaviate container unhealthy"
     exit 1
 fi
 
-echo "   Checking Python Dimension Reducer Service..."
-if ! curl -f http://localhost:8000/health > /dev/null 2>&1; then
-    echo "   ⚠️  WARNING: Python Dimension Reducer not ready - will be started with PM2"
-    echo "   Note: Python service runs locally, not in Docker"
-else
-    echo "   ✅ Python Dimension Reducer ready"
-fi
-echo "✅ All core databases ready (PostgreSQL, Redis, Weaviate, Neo4j)"
+echo "✅ All database containers verified healthy"
 
-echo "13. Applying database migrations..."
+echo "12. Applying database migrations..."
 if ! npx dotenv -e .env -- pnpm --filter=@2dots1line/database db:migrate:dev; then
     echo "❌ CRITICAL: Database migration failed"
     exit 1
 fi
 echo "✅ Database migrations completed"
 
+echo "13. Applying database schemas (Neo4j + Weaviate)..."
+cd packages/database
+if ! npx ts-node scripts/apply-schemas.ts; then
+    echo "❌ CRITICAL: Schema application failed"
+    exit 1
+fi
+cd ../..
+
+echo "13b. Verifying schemas applied successfully..."
+# Check Neo4j constraints exist (exclude header line from count)
+NEO4J_CONSTRAINTS=$(echo "SHOW CONSTRAINTS;" | docker exec -i neo4j-2d1l cypher-shell -u neo4j -p password123 2>/dev/null | tail -n +2 | wc -l | tr -d ' ')
+if [ "$NEO4J_CONSTRAINTS" -lt 5 ]; then
+    echo "❌ CRITICAL: Neo4j constraints not properly applied ($NEO4J_CONSTRAINTS found)"
+    exit 1
+fi
+
+# Check Weaviate schema exists
+WEAVIATE_CLASSES=$(curl -s http://localhost:8080/v1/schema | jq '.classes | length' 2>/dev/null || echo "0")
+if [ "$WEAVIATE_CLASSES" -eq 0 ]; then
+    echo "❌ CRITICAL: Weaviate schema not applied"
+    exit 1
+fi
+
+echo "✅ Database schemas applied and verified"
+echo "   Neo4j constraints: $NEO4J_CONSTRAINTS"
+echo "   Weaviate classes: $WEAVIATE_CLASSES"
+
 # PHASE 5: START SERVICES
 echo ""
 echo "📋 PHASE 5: START SERVICES"
 echo "14. Starting all services with proper environment loading..."
-if ! source .env && pm2 start ecosystem.config.js; then
+
+# Critical fix: PM2 needs environment loaded properly
+source .env
+
+# Fix environment variable mapping for workers
+export NEO4J_URI="${NEO4J_URI_HOST}"
+export NEO4J_USERNAME="${NEO4J_USER}"
+
+echo "    Environment variables configured:"
+echo "    - NEO4J_URI: ${NEO4J_URI}"
+echo "    - DATABASE_URL: ${DATABASE_URL:0:20}..."
+
+if ! pm2 start ecosystem.config.js; then
     echo "❌ CRITICAL: Service startup failed"
     exit 1
 fi
 
 echo "15. Waiting for services to initialize..."
-sleep 5
+sleep 10
+
+echo "    Verifying PM2 processes actually started..."
+PM2_PROCESS_COUNT=$(pm2 list | grep -c "online\|stopped\|errored" || echo "0")
+if [ "$PM2_PROCESS_COUNT" -eq 0 ]; then
+    echo "❌ CRITICAL: No PM2 processes found - startup failed"
+    echo "PM2 status:"
+    pm2 status
+    exit 1
+fi
 
 echo "    Checking for errored services..."
 ERRORED_COUNT=$(pm2 status | grep -c "errored" || echo "0")
@@ -210,9 +440,9 @@ if [ "$ERRORED_COUNT" -gt 0 ]; then
     echo "Check logs with: pm2 logs --err --lines 20"
     exit 1
 fi
-echo "✅ All services online"
+echo "✅ All services online ($PM2_PROCESS_COUNT processes)"
 
-echo "16. Testing API Gateway health..."
+echo "16. Testing API Gateway health (V11.0)..."
 if ! curl -f http://localhost:3001/api/v1/health > /dev/null 2>&1; then
     echo "❌ CRITICAL: API Gateway not responding"
     exit 1
@@ -222,21 +452,41 @@ echo "✅ API Gateway responding"
 # PHASE 6: VERIFICATION
 echo ""
 echo "📋 PHASE 6: VERIFICATION"
-echo "17. Testing database connections via API Gateway..."
+echo "17. Testing database connections via API Gateway (V11.0)..."
 if ! curl -f http://localhost:3001/api/v1/health > /dev/null 2>&1; then
     echo "❌ CRITICAL: API Gateway health check failed"
     exit 1
 fi
 
 echo "18. Verifying workers have proper environment..."
+# Ensure environment variables are loaded for verification
+source .env
+export NEO4J_URI="${NEO4J_URI_HOST}"
+export NEO4J_USERNAME="${NEO4J_USER}"
+
 # Check for critical environment variables
-required_env_vars=("GOOGLE_API_KEY" "DATABASE_URL" "NEO4J_URI" "REDIS_HOST" "WEAVIATE_URL")
-for var in "${required_env_vars[@]}"; do
-    if [ -z "${!var}" ]; then
-        echo "❌ CRITICAL: Missing environment variable: $var"
-        exit 1
-    fi
-done
+echo "    Checking critical environment variables:"
+if [ -z "$GOOGLE_API_KEY" ]; then
+    echo "❌ CRITICAL: Missing environment variable: GOOGLE_API_KEY"
+    exit 1
+fi
+if [ -z "$DATABASE_URL" ]; then
+    echo "❌ CRITICAL: Missing environment variable: DATABASE_URL"
+    exit 1
+fi
+if [ -z "$NEO4J_URI" ]; then
+    echo "❌ CRITICAL: Missing environment variable: NEO4J_URI"
+    exit 1
+fi
+if [ -z "$REDIS_HOST_PORT" ]; then
+    echo "❌ CRITICAL: Missing environment variable: REDIS_HOST_PORT"
+    exit 1
+fi
+if [ -z "$WEAVIATE_HOST_LOCAL" ]; then
+    echo "❌ CRITICAL: Missing environment variable: WEAVIATE_HOST_LOCAL"
+    exit 1
+fi
+echo "    ✅ All required environment variables present"
 
 # Check worker logs for environment errors
 workers_to_check=("ingestion-worker" "embedding-worker" "card-worker" "graph-projection-worker")
@@ -300,7 +550,8 @@ echo "   Prisma Studio PID: $STUDIO_PID"
 sleep 8
 
 echo "22. Verifying Prisma Studio with ACTUAL DATABASE connectivity..."
-# Test if DATABASE_URL environment variable was properly loaded
+# Ensure DATABASE_URL is loaded for Prisma Studio verification
+source .env
 if [ -z "$DATABASE_URL" ]; then
     echo "   ❌ CRITICAL: DATABASE_URL not loaded - Prisma Studio will fail"
     echo "   Check environment loading in script"

@@ -73,7 +73,7 @@ services:
       context: ./py-services/dimension-reducer
     container_name: dimension-reducer-2d1l
     ports:
-      - "${DIMENSION_REDUCER_HOST_PORT:-5001}:5000"
+      - "${DIMENSION_REDUCER_HOST_PORT:-8000}:8000"
     networks:
       - 2d1l_network
     restart: unless-stopped
@@ -170,16 +170,7 @@ services:
       dimension-reducer:
         condition: service_started
 
-  graph-sync-worker:
-    build: { context: ., dockerfile: Dockerfile, args: { APP_NAME: graph-sync-worker } }
-    container_name: graph-sync-worker-2d1l
-    env_file: .env
-    networks: [ 2d1l_network ]
-    depends_on:
-      postgres:
-        condition: service_healthy
-      neo4j:
-        condition: service_started
+
 
   maintenance-worker:
     build: { context: ., dockerfile: Dockerfile, args: { APP_NAME: maintenance-worker } }

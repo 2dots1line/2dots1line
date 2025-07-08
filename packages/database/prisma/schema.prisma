@@ -219,6 +219,7 @@ model user_sessions {
   @@index([user_id])
 }
 
+
 model users {
   user_id                           String                   @id
   email                             String                   @unique
