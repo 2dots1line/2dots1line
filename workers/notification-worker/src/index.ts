@@ -1,6 +1,7 @@
 // index.ts - Entry point for the notification-worker
 
 import { Redis } from 'ioredis';
+
 import { NotificationWorker } from './NotificationWorker';
 
 export { NotificationWorker };

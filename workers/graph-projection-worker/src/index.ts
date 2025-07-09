@@ -3,8 +3,9 @@
  * V9.5 Production-Grade Worker for 3D Knowledge Cosmos
  */
 
-import { GraphProjectionWorker } from './GraphProjectionWorker';
 import { DatabaseService } from '@2dots1line/database';
+
+import { GraphProjectionWorker } from './GraphProjectionWorker';
 
 async function main() {
   console.log('[GraphProjectionWorker] Starting graph projection worker...');

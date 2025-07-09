@@ -1,4 +1,5 @@
 import { DatabaseService } from '@2dots1line/database';
+
 import type { CycleDates } from './InsightEngine';
 
 export interface IngestionActivitySummary {

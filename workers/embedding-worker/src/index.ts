@@ -3,8 +3,9 @@
  * V9.7 Production-Grade Worker for semantic indexing
  */
 
-import { EmbeddingWorker } from './EmbeddingWorker';
 import { DatabaseService } from '@2dots1line/database';
+
+import { EmbeddingWorker } from './EmbeddingWorker';
 
 async function main() {
   console.log('[EmbeddingWorker] Starting embedding worker...');

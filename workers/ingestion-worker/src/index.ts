@@ -1,9 +1,10 @@
-import { Worker, Queue } from 'bullmq';
-import { IngestionAnalyst, IngestionJobData } from './IngestionAnalyst';
-import { ToolRegistry } from '@2dots1line/tool-registry';
 import { ConfigService } from '@2dots1line/config-service';
 import { DatabaseService } from '@2dots1line/database';
+
 import { HolisticAnalysisTool } from '@2dots1line/tools';
+import { Worker, Queue } from 'bullmq';
+
+import { IngestionAnalyst, IngestionJobData } from './IngestionAnalyst';
 
 async function main() {
   console.log('[IngestionWorker] Starting ingestion worker...');
@@ -17,8 +18,7 @@ async function main() {
     const dbService = DatabaseService.getInstance();
     console.log('[IngestionWorker] DatabaseService initialized');
 
-    const toolRegistry = new ToolRegistry();
-    console.log('[IngestionWorker] ToolRegistry initialized');
+
 
     // 2. Directly instantiate the HolisticAnalysisTool (avoiding circular dependency)
     const holisticAnalysisTool = new HolisticAnalysisTool(configService);

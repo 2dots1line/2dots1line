@@ -10,17 +10,16 @@
  * is completely decoupled from UI presentation.
  */
 
-import { Worker, Job } from 'bullmq';
-import { DatabaseService } from '@2dots1line/database';
-import {
+import { CardFactory } from '@2dots1line/card-service';
+import { ConfigService } from '@2dots1line/config-service';
+import { DatabaseService ,
   CardRepository,
   MemoryRepository,
   ConceptRepository,
   DerivedArtifactRepository,
   ProactivePromptRepository
 } from '@2dots1line/database';
-import { CardFactory } from '@2dots1line/card-service';
-import { ConfigService } from '@2dots1line/config-service';
+import { Worker, Job } from 'bullmq';
 
 // Event types from V9.5 Event Queue Contracts
 export interface NewEntitiesCreatedEvent {

@@ -1,14 +1,14 @@
 // workers/notification-worker/src/NotificationWorker.ts
 // CORRECT V11.0 IMPLEMENTATION - Completely overhauled per tech lead directives
 
-import { Worker, Job } from 'bullmq';
-import { Redis } from 'ioredis';
 import { 
   NewCardAvailablePayload, 
   GraphProjectionUpdatedPayload, 
   SSEMessage,
   NotificationJobPayload 
 } from '@2dots1line/shared-types';
+import { Worker, Job } from 'bullmq';
+import { Redis } from 'ioredis';
 
 const NOTIFICATION_QUEUE_NAME = 'notification-queue';
 const REDIS_PUB_SUB_CHANNEL = process.env.NOTIFICATION_REDIS_CHANNEL || 'sse_notifications_channel';

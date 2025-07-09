@@ -1,5 +1,3 @@
-import { Job } from 'bullmq';
-import { StrategicSynthesisTool, StrategicSynthesisOutput, StrategicSynthesisInput } from '@2dots1line/tools';
 import { 
   DatabaseService, 
   ConversationRepository, 
@@ -13,7 +11,9 @@ import type {
   CreateDerivedArtifactData,
   CreateProactivePromptData
 } from '@2dots1line/database';
-import { Queue } from 'bullmq';
+import { StrategicSynthesisTool, StrategicSynthesisOutput, StrategicSynthesisInput } from '@2dots1line/tools';
+import { Job , Queue } from 'bullmq';
+
 import { InsightDataCompiler } from './InsightDataCompiler';
 
 export interface InsightJobData {
@@ -92,6 +92,7 @@ export class InsightEngine {
     console.log(`[InsightEngine] Compiling data for cycle from ${cycleDates.cycleStartDate} to ${cycleDates.cycleEndDate}`);
 
     // Phase I: Compile the three distinct "Input Packages" in parallel
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [ingestionSummary, graphAnalysis, strategicInsights] = await Promise.all([
       this.insightDataCompiler.compileIngestionActivity(userId, cycleDates),
       this.insightDataCompiler.compileGraphAnalysis(userId),

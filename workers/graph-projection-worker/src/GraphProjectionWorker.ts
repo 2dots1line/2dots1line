@@ -11,10 +11,8 @@
  * into spatial coordinates for 3D rendering in the web interface.
  */
 
+import { DatabaseService , GraphProjectionRepository, GraphProjectionData , Neo4jService } from '@2dots1line/database';
 import { Worker, Job } from 'bullmq';
-import { DatabaseService } from '@2dots1line/database';
-import { GraphProjectionRepository, GraphProjectionData } from '@2dots1line/database';
-import { Neo4jService } from '@2dots1line/database';
 
 // Event types that trigger projection updates
 export interface GraphOntologyUpdatedEvent {

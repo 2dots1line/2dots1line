@@ -10,10 +10,10 @@
  * ARCHITECTURE: Uses dependency injection for testability and follows Single Responsibility Principle
  */
 
-import Redis from 'ioredis';
-import { Queue } from 'bullmq';
-import { ConversationRepository } from '@2dots1line/database';
 import { REDIS_CONVERSATION_TIMEOUT_PREFIX } from '@2dots1line/core-utils';
+import { ConversationRepository } from '@2dots1line/database';
+import { Queue } from 'bullmq';
+import Redis from 'ioredis';
 
 export interface ConversationTimeoutConfig {
   timeoutDurationMinutes?: number;
@@ -74,16 +74,48 @@ export class ConversationTimeoutWorker {
     }
 
     try {
-      // Note: Redis keyspace notifications should be configured in docker-compose.yml
-      // We don't configure them here as it's an infrastructure concern
-
-      // Subscribe to key expiration events using pattern subscription
-      await this.subscriberRedis.psubscribe('__keyevent@0__:expired');
+      // LESSON 38: Ensure Redis keyspace notifications are enabled
+      // This is critical for receiving key expiration events
+      console.log('🔧 Checking Redis keyspace notifications configuration...');
+      const config = await this.subscriberRedis.config('GET', 'notify-keyspace-events') as string[];
+      console.log(`📋 Current keyspace config: "${config[1] || 'NOT SET'}"`);
       
+      if (!config[1] || config[1] === '' || !config[1].includes('E')) {
+        console.log('🔧 Enabling Redis keyspace notifications (AKE)...');
+        await this.subscriberRedis.config('SET', 'notify-keyspace-events', 'AKE');
+        
+        // Verify the configuration was applied
+        const verifyConfig = await this.subscriberRedis.config('GET', 'notify-keyspace-events') as string[];
+        console.log(`✅ Redis keyspace notifications enabled: ${verifyConfig[1]}`);
+      } else {
+        console.log(`✅ Redis keyspace notifications already enabled: ${config[1]}`);
+      }
+
+      // Set up event handler BEFORE subscribing to avoid race conditions
       this.subscriberRedis.on('pmessage', (pattern, channel, message) => {
+        // DEBUG: Log all received events to diagnose subscription issues
+        console.log(`🐛 DEBUG: Received Redis event - pattern: ${pattern}, channel: ${channel}, message: ${message}`);
+        
+        // Check if this is a conversation timeout key specifically
+        if (message.startsWith(REDIS_CONVERSATION_TIMEOUT_PREFIX)) {
+          console.log(`🎯 CONVERSATION TIMEOUT EVENT: ${message}`);
+        } else {
+          console.log(`⚪ Other Redis event (not conversation timeout): ${message}`);
+        }
+        
         // The message IS the expired key
         this.handleKeyExpiration(message);
       });
+
+      // Subscribe to key expiration events using pattern subscription
+      await this.subscriberRedis.psubscribe('__keyevent@0__:expired');
+
+      // Test Redis connectivity and keyspace notifications
+      console.log('🧪 Testing Redis connectivity and keyspace notifications...');
+      const testKey = 'test:worker:connectivity';
+      await this.redis.set(testKey, 'test', 'EX', 3);
+      const testValue = await this.redis.get(testKey);
+      console.log(`🧪 Redis read/write test: ${testValue === 'test' ? '✅ SUCCESS' : '❌ FAILED'}`);
 
       this.isRunning = true;
       this.startTime = new Date();

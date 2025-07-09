@@ -3,9 +3,10 @@
  * V9.7 - Main entry point for the conversation timeout worker with dependency injection
  */
 
-import Redis from 'ioredis';
-import { Queue } from 'bullmq';
 import { DatabaseService, ConversationRepository } from '@2dots1line/database';
+import { Queue } from 'bullmq';
+import Redis from 'ioredis';
+
 import { ConversationTimeoutWorker } from './ConversationTimeoutWorker';
 
 async function main() {
@@ -13,8 +14,14 @@ async function main() {
 
   // Initialize dependencies
   const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+  console.log(`🔗 Redis URL: ${redisUrl}`);
+  
   const redis = new Redis(redisUrl);
   const subscriberRedis = new Redis(redisUrl);
+  
+  // Debug Redis connection
+  console.log(`📡 Redis connection status: ${redis.status}`);
+  console.log(`📡 Subscriber Redis connection status: ${subscriberRedis.status}`);
   
   const databaseService = DatabaseService.getInstance();
   const conversationRepo = new ConversationRepository(databaseService);

@@ -10,10 +10,10 @@
  * persisted and can be indexed later. Performance specialization allows independent scaling.
  */
 
-import { Worker, Job } from 'bullmq';
 import { DatabaseService } from '@2dots1line/database';
-import { TextEmbeddingTool } from '@2dots1line/tools';
 import type { IExecutableTool, TTextEmbeddingInputPayload, TTextEmbeddingResult } from '@2dots1line/shared-types';
+import { TextEmbeddingTool } from '@2dots1line/tools';
+import { Worker, Job } from 'bullmq';
 
 export interface EmbeddingJob {
   entityId: string;           // UUID of the MemoryUnit or Concept

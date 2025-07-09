@@ -2,16 +2,22 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "noEmit": true
+    "rootDir": "./src",
+    "noEmit": true,
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
   },
   "include": [
-    "src/**/*.ts",
-    "src/**/*.tsx"
+    "src/**/*.ts"
   ],
   "exclude": [
     "node_modules",
     "dist",
     "**/*.test.ts",
     "**/*.spec.ts"
+  ],
+  "references": [
+    { "path": "../../packages/shared-types" },
+    { "path": "../../packages/database" },
+    { "path": "../../packages/core-utils" }
   ]
 }

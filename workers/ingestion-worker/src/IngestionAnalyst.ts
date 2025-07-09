@@ -1,5 +1,3 @@
-import { Job } from 'bullmq';
-import { HolisticAnalysisTool, HolisticAnalysisOutput } from '@2dots1line/tools';
 import { 
   DatabaseService, 
   ConversationRepository, 
@@ -13,7 +11,8 @@ import type {
   CreateConceptData, 
   CreateGrowthEventData 
 } from '@2dots1line/database';
-import { Queue } from 'bullmq';
+import { HolisticAnalysisTool, HolisticAnalysisOutput } from '@2dots1line/tools';
+import { Job , Queue } from 'bullmq';
 
 export interface IngestionJobData {
   conversationId: string;

@@ -58,14 +58,19 @@ services:
     restart: unless-stopped
 
   redis:
-    image: redis:7-alpine
+    image: redis:7
     container_name: redis-2d1l
     ports:
       - "${REDIS_HOST_PORT:-6379}:6379"
-    command: redis-server --notify-keyspace-events KEA
+    command: redis-server --notify-keyspace-events AKEx --save ""
     volumes:
       - ./redis_data:/data
     networks:
       - 2d1l_network
     restart: unless-stopped
 
+volumes:
+  postgres_data:
+  neo4j_data:
+  weaviate_data:
+  redis_data:

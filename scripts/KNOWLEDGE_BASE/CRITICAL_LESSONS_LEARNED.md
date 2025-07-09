@@ -2026,6 +2026,134 @@ Turbo concurrency limits represent the boundary between **Task Orchestration** (
 
 ---
 
+### **🚨 LESSON 38: Redis Keyspace Notifications Require Explicit Configuration Verification**
+**DISCOVERED**: January 2025 - ConversationTimeoutWorker receiving zero events despite docker-compose.yml showing correct configuration
+**ROOT CAUSE**: Redis container started with keyspace notifications disabled despite `command: redis-server --notify-keyspace-events AKE`
+**IMPACT**: Complete failure of conversation timeout mechanism, false confidence in "working" infrastructure
+
+**FAILURE SYMPTOMS:**
+- Manual `redis-cli PSUBSCRIBE "__keyevent@0__:expired"` works perfectly and receives events
+- Node.js ioredis client shows active subscription (`psub=1` in CLIENT LIST)
+- Zero events received in Node.js pmessage handler despite debug logging
+- Redis configuration appears correct in docker-compose.yml
+
+**DIAGNOSTIC SEQUENCE THAT REVEALED TRUE CAUSE:**
+```bash
+# 1. Manual Redis CLI test (WORKED)
+docker exec redis-2d1l redis-cli PSUBSCRIBE "__keyevent@0__:expired"
+# Result: pmessage events received successfully
+
+# 2. Node.js configuration check (REVEALED ISSUE)
+node -e "const Redis = require('ioredis'); const r = new Redis(); r.config('get', 'notify-keyspace-events').then(c => console.log(c[1]));"
+# Result: "NOT SET" (despite docker-compose.yml configuration)
+
+# 3. Manual configuration via Node.js (FIXED ISSUE)
+redis.config('set', 'notify-keyspace-events', 'AKE')
+# Result: Keyspace events immediately started working in Node.js
+```
+
+**PERMANENT SOLUTION PATTERN:**
+```typescript
+// MANDATORY: Auto-configure keyspace notifications in worker startup
+public async start(): Promise<void> {
+  // Ensure Redis keyspace notifications are enabled
+  const config = await this.subscriberRedis.config('get', 'notify-keyspace-events');
+  if (!config[1] || config[1] === '') {
+    console.log('🔧 Enabling Redis keyspace notifications (AKE)...');
+    await this.subscriberRedis.config('set', 'notify-keyspace-events', 'AKE');
+    console.log('✅ Redis keyspace notifications enabled');
+  } else {
+    console.log(`✅ Redis keyspace notifications already enabled: ${config[1]}`);
+  }
+  
+  // Continue with subscription setup...
+}
+```
+
+**PREVENTION PROTOCOL:**
+```bash
+# NEVER assume docker-compose command directives are applied
+# ALWAYS verify Redis configuration programmatically
+docker exec redis-2d1l redis-cli CONFIG GET notify-keyspace-events
+
+# Test both manual CLI and programmatic access
+echo "Manual CLI test:" && docker exec redis-2d1l redis-cli PSUBSCRIBE "__keyevent@0__:expired" &
+echo "Node.js config check:" && node -e "const Redis = require('ioredis'); const r = new Redis(); r.config('get', 'notify-keyspace-events').then(console.log);"
+
+# Verify events actually received in Node.js, not just CLI
+node test-keyspace-events.js  # Create comprehensive test script
+```
+
+**DETECTION COMMANDS:**
+```bash
+# Check if Redis keyspace notifications are working in Node.js
+node -e "
+const Redis = require('ioredis');
+const sub = new Redis();
+sub.on('pmessage', (p,c,m) => console.log('✅ Event:', m));
+sub.psubscribe('__keyevent@0__:expired');
+const pub = new Redis();
+pub.set('test:key', 'value', 'EX', 2);
+setTimeout(() => process.exit(0), 3000);
+"
+```
+
+**CRITICAL INSIGHT:**
+The boundary between **Docker Configuration** (docker-compose.yml commands) and **Runtime Configuration** (actual Redis config) can diverge. Always verify runtime state programmatically, not just configuration files.
+
+**ALTERNATIVE APPROACH IMPLEMENTED:**
+Also created polling-based timeout mechanism as reliable fallback:
+- Checks `conversation:timeout:*` keys every 10 seconds using `KEYS` and `TTL` commands
+- Independent of keyspace notifications, works purely via Redis queries
+- Successfully tested with multiple timeout scenarios
+
+---
+
+### **🚨 LESSON 39: Testing Plan Must Distinguish Infrastructure vs Application Layer Failures**
+**DISCOVERED**: January 2025 - Systematic debugging revealed 15+ interconnected issues in comprehensive audit
+**ROOT CAUSE**: Reactive troubleshooting focusing on symptoms rather than systematic layer validation
+**IMPACT**: Wasted time debugging wrong layers, missing root causes, false confidence in partial fixes
+
+**TESTING LAYER HIERARCHY INSIGHT:**
+```
+LAYER 4: Application Logic (LLM responses, business rules)
+LAYER 3: Service Integration (API calls, database transactions)
+LAYER 2: Infrastructure Configuration (Redis config, env vars)
+LAYER 1: Network/Container Health (ports, connections, health checks)
+```
+
+**SYSTEMATIC FAILURE PATTERN:**
+- **Started with**: Step 1A API failure (Layer 4 - LLM geo-restriction)
+- **Reactive debugging**: Assumed API Gateway routing issues (Layer 3)
+- **Missed infrastructure**: Redis keyspace notification config broken (Layer 2)
+- **Systematic audit revealed**: 4 packages missing dependencies, 10 env vars missing, worker subscription broken
+
+**MANDATORY TESTING PROTOCOL:**
+```bash
+# LAYER 1: Container/Network Health (ALWAYS FIRST)
+docker ps --format "table {{.Names}}\t{{.Status}}" | grep -E "(postgres|redis|neo4j|weaviate)"
+nc -z localhost 5433 && nc -z localhost 6379 && nc -z localhost 7474 && curl -s http://localhost:8080/v1/.well-known/ready
+
+# LAYER 2: Infrastructure Configuration
+docker exec redis-2d1l redis-cli CONFIG GET notify-keyspace-events
+echo "DATABASE_URL: ${DATABASE_URL:0:30}..." && echo "GOOGLE_API_KEY: ${GOOGLE_API_KEY:0:10}..."
+
+# LAYER 3: Service Integration  
+curl -f http://localhost:3001/api/v1/health
+pm2 status | grep -c "online"
+
+# LAYER 4: Application Logic (ONLY AFTER layers 1-3 pass)
+curl -X POST http://localhost:3001/api/v1/conversations/messages -d '{"message":"test"}'
+```
+
+**PREVENTION MANDATE:**
+- **NEVER** debug application layer without validating infrastructure layer first
+- **ALWAYS** run systematic audit before targeted troubleshooting
+- **VERIFY** all layers in sequence, don't skip to perceived problem area
+- **DOCUMENT** layer boundaries to prevent future boundary confusion
+
+---
+
 ### **🚨 LESSON 43: V11.0 LLM API Failure Investigation & Database Synchronization Issues**
 
 **Date:** 2025-07-08  

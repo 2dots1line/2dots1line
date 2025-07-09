@@ -3,9 +3,10 @@
  * V9.5 Production-Grade Worker for UI card creation
  */
 
-import { CardWorker } from './CardWorker';
-import { DatabaseService } from '@2dots1line/database';
 import { ConfigService } from '@2dots1line/config-service';
+import { DatabaseService } from '@2dots1line/database';
+
+import { CardWorker } from './CardWorker';
 
 async function main() {
   console.log('[CardWorker] Starting card worker...');

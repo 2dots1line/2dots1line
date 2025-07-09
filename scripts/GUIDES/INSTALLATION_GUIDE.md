@@ -73,6 +73,23 @@ docker info >/dev/null 2>&1 && echo "✅ Docker is running" || echo "❌ Docker 
 chmod +x scripts/clean-rebuild.sh
 ./scripts/clean-rebuild.sh
 
+Manual cleansing:
+# Use faster, quieter removal approach
+rm -rf node_modules pnpm-lock.yaml 2>/dev/null || true
+
+# Remove other artifacts silently
+find . -name "dist" -type d -exec rm -rf {} + 2>/dev/null || true
+find . -name ".next" -type d -exec rm -rf {} + 2>/dev/null || true  
+find . -name ".turbo" -type d -exec rm -rf {} + 2>/dev/null || true
+find . -name "*.tsbuildinfo" -type f -delete 2>/dev/null || true
+
+# Force remove any remaining nested node_modules (background)
+find . -name "node_modules" -type d -exec rm -rf {} + 2>/dev/null &
+
+echo "   2c. Pruning pnpm store..."
+pnpm store prune
+
+
 # Install dependencies
 pnpm install
 ```
@@ -155,8 +172,61 @@ for port in "${ports[@]}"; do
   fi
 done
 ```
-[Cursor: add instructions and simple commands to lsof services that occupy port and kill them to free up ports]
+### how to kill an occupied port:
+lsof -i :5433
+docker ps -a
+expect the following: 
+CONTAINER ID   IMAGE                              COMMAND                  CREATED          STATUS
+
+PORTS                                                      NAMES
+c3564df5f6a3   postgres:16-alpine                 "docker-entrypoint.s…"   16 minutes ago   Created
+
+                                                           postgres-2d1l
+dce0cacbb59c   redis:7-alpine                     "docker-entrypoint.s…"   16 minutes ago   Up 16 minutes
+
+0.0.0.0:6379->6379/tcp                                     redis-2d1l
+16d98f55984f   neo4j:5                            "tini -g -- /startup…"   16 minutes ago   Up 16 minutes
+
+7473/tcp, 0.0.0.0:7475->7474/tcp, 0.0.0.0:7688->7687/tcp   neo4j-2d1l
+bd5cf3886c14   semitechnologies/weaviate:1.25.3   "/bin/weaviate --hos…"   16 minutes ago   Up 16 minutes
+
+0.0.0.0:8080->8080/tcp                                     weaviate-2d1l
+
+netstat -an | grep 5433
+
+docker network ls
+Expect the following
+danniwang@Dannis-MacBook-Pro 2D1L % docker network ls
+NETWORK ID     NAME                DRIVER    SCOPE
+3d5b1a3f0a54   2d1l_2d1l_network   bridge    local
+4434c4f1f8ba   bridge              bridge    local
+350f3b703009   host                host      local
+e759c2a63ab9   none                null      local
+danniwang@Dannis-MacBook-Pro 2D1L %
 ---
+sudo lsof -i :5433
+
+Expect: 
+
+danniwang@Dannis-MacBook-Pro 2D1L % sudo lsof -i :5433
+Password:
+COMMAND  PID     USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+postgres 528 postgres    7u  IPv6 0xfd217f872dedff58      0t0  TCP *:pyrrho (LISTEN)
+postgres 528 postgres    8u  IPv4 0x17e1899cd45ca9ee      0t0  TCP *:pyrrho (LISTEN)
+danniwang@Dannis-MacBook-Pro 2D1L %
+
+(Optional)
+ps aux | grep postgres
+brew services list | grep postgres
+
+More aggressively kill by PID
+sudo kill -9 528
+
+After thoroughly killing process occupying 5433 port (owned by postgres, therefore not found by lsof -ti:5433), repeat the docker commands
+docker-compose -f docker-compose.dev.yml down
+docker-compose -f docker-compose.dev.yml up -d
+docker ps
+docker exec postgres-2d1l pg_isready -U danniwang -d twodots1line
 
 ## Database Setup & Migrations
 
@@ -203,6 +273,23 @@ pnpm build
 echo "✅ Build completed. Checking dist directories..."
 find . -name "dist" -type d -not -path "./node_modules/*" | head -10
 ```
+# Find all compiled TypeScript artifacts in src directories
+find packages/*/src services/*/src workers/*/src apps/*/src \
+  -name "*.js" -o -name "*.d.ts" -o -name "*.map" -o -name "*.js.map" -o -name "*.d.ts.map" -o -name "*.tsbuildinfo" \
+  2>/dev/null | grep -v -E "(glsl\.d\.ts|express\.d\.ts|generated/)"
+
+# SAFE: Remove only obvious compiled artifacts (excludes legitimate .d.ts files)
+find packages/*/src services/*/src workers/*/src apps/*/src \
+  -name "*.js" -o -name "*.js.map" -o -name "*.d.ts.map" -o -name "*.tsbuildinfo" \
+  2>/dev/null | grep -v -E "(glsl\.d\.ts|express\.d\.ts|generated/)" | xargs rm -f
+
+# Remove ALL compiled files from src directories (use only if you're sure)
+find packages/*/src services/*/src workers/*/src \
+  -name "*.js" -o -name "*.d.ts" -o -name "*.map" -o -name "*.tsbuildinfo" \
+  -delete 2>/dev/null
+
+# Add this to package.json scripts
+"clean:src": "find packages/*/src services/*/src workers/*/src -name '*.js' -o -name '*.js.map' -o -name '*.d.ts.map' -o -name '*.tsbuildinfo' | grep -v -E '(glsl\\.d\\.ts|express\\.d\\.ts|generated/)' | xargs rm -f"
 
 ### 2. V11.0 Service Startup
 
@@ -212,15 +299,34 @@ find . -name "dist" -type d -not -path "./node_modules/*" | head -10
 pnpm start:db
 
 # Start all Node.js services and workers via PM2
-pnpm start:services
+
+echo ""
+echo "📋 PHASE 5: START SERVICES"
+echo "14. Starting all services with proper environment loading..."
+
+# Critical fix: PM2 needs environment loaded properly
+source .env
+
+# Fix environment variable mapping for workers
+export NEO4J_URI="${NEO4J_URI_HOST}"
+export NEO4J_USERNAME="${NEO4J_USER}"
+
+echo "    Environment variables configured:"
+echo "    - NEO4J_URI: ${NEO4J_URI}"
+echo "    - DATABASE_URL: ${DATABASE_URL:0:20}..."
+
+if ! pm2 start ecosystem.config.js; then
+    echo "❌ CRITICAL: Service startup failed"
+    exit 1
+fi
+
 
 # Start frontend development server
 cd apps/web-app && pnpm dev &
 cd ../..
 
 # Start Prisma Studio
-cd packages/database && pnpm prisma studio --port 5555 &
-cd ../..
+npx prisma studio --schema=./packages/database/prisma/schema.prisma
 ```
 
 #### Alternative: Step-by-Step Startup
