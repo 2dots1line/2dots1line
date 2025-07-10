@@ -14,6 +14,51 @@
       "preview_source_field": "description"
     }
   },
+  "Concept_value": {
+    "card_type": "value_card",
+    "display_data": {
+      "title_source_field": "name",
+      "preview_source_field": "description"
+    }
+  },
+  "Concept_project": {
+    "card_type": "project_card",
+    "display_data": {
+      "title_source_field": "name",
+      "preview_source_field": "description"
+    }
+  },
+  "Concept_person": {
+    "card_type": "person_card",
+    "display_data": {
+      "title_source_field": "name",
+      "preview_source_field": "description"
+    }
+  },
+  "DerivedArtifact_cycle_report": {
+    "card_type": "cycle_report_card",
+    "display_data": {
+      "title_source_field": "title",
+      "preview_source_field": "content_narrative",
+      "preview_truncate_length": 200
+    }
+  },
+  "DerivedArtifact_insight_summary": {
+    "card_type": "insight_card",
+    "display_data": {
+      "title_source_field": "title",
+      "preview_source_field": "content_narrative",
+      "preview_truncate_length": 150
+    }
+  },
+  "DerivedArtifact_trophy": {
+    "card_type": "trophy_card",
+    "display_data": {
+      "title_source_field": "title",
+      "preview_source_field": "content_narrative",
+      "preview_truncate_length": 100
+    }
+  },
   "ProactivePrompt": {
     "card_type": "quest_card",
     "display_data": {

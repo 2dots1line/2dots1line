@@ -36,6 +36,7 @@ interface CreateCardResult {
 export class CardFactory {
   private eligibilityRules: any;
   private cardTemplates: any;
+  private initialized: boolean = false;
 
   constructor(
     private readonly configService: ConfigService,
@@ -45,8 +46,21 @@ export class CardFactory {
     private readonly derivedArtifactRepository: DerivedArtifactRepository,
     private readonly proactivePromptRepository: ProactivePromptRepository
   ) {
-    this.eligibilityRules = this.configService.getCardEligibilityRules();
-    this.cardTemplates = this.configService.getCardTemplates();
+    // Don't load configs in constructor - they're async!
+    // Must call initialize() after construction
+  }
+
+  /**
+   * Initialize the CardFactory with async configuration loading
+   */
+  async initialize(): Promise<void> {
+    if (this.initialized) return;
+    
+    console.log('[CardFactory] Loading configurations...');
+    this.eligibilityRules = await this.configService.getCardEligibilityRules();
+    this.cardTemplates = await this.configService.getCardTemplates();
+    this.initialized = true;
+    console.log('[CardFactory] Configurations loaded successfully');
   }
 
   /**
@@ -56,30 +70,42 @@ export class CardFactory {
     entityInfo: { id: string; type: EntityType },
     userId: string
   ): Promise<CreateCardResult> {
+    // Ensure CardFactory is initialized before processing
+    await this.initialize();
+    
     const { id, type } = entityInfo;
+
+    console.log(`[CardFactory] Processing ${type} ${id} for user ${userId}`);
 
     const entity = await this.fetchEntity(id, type);
     if (!entity) {
+      console.log(`[CardFactory] ❌ Entity not found: ${type} ${id}`);
       return { created: false, reason: `${type} with id ${id} not found.` };
     }
+    console.log(`[CardFactory] ✅ Entity fetched: ${type} ${id}`);
 
     const isEligible = this.checkEligibility(entity, type);
     if (!isEligible) {
+      console.log(`[CardFactory] ❌ Entity not eligible: ${type} ${id}`);
       return {
         created: false,
         reason: `${type} ${id} did not meet eligibility criteria.`,
       };
     }
+    console.log(`[CardFactory] ✅ Entity eligible: ${type} ${id}`);
 
     const cardData = this.constructCardData(entity, type, userId);
     if (!cardData) {
+      console.log(`[CardFactory] ❌ Could not construct card data: ${type} ${id}`);
       return {
         created: false,
         reason: `Could not construct card data for ${type} ${id}.`,
       };
     }
+    console.log(`[CardFactory] ✅ Card data constructed: ${type} ${id}`);
 
     const newCard = await this.cardRepository.create(cardData);
+    console.log(`[CardFactory] ✅ Card created: ${newCard.card_id} for ${type} ${id}`);
     return { created: true, cardId: newCard.card_id };
   }
 
@@ -100,20 +126,39 @@ export class CardFactory {
 
   private checkEligibility(entity: CreatableEntity, type: EntityType): boolean {
     const rules = this.eligibilityRules[type];
+    console.log(`[CardFactory] Checking eligibility for ${type}:`, { rulesExist: !!rules });
+    
     if (!rules) return false;
     if (rules.always_eligible) return true;
 
     switch (type) {
       case 'MemoryUnit':
         const mu = entity as TMemoryUnit;
-        return (mu.importance_score ?? 0) >= rules.min_importance_score;
+        const muScore = mu.importance_score ?? 0;
+        const muEligible = muScore >= rules.min_importance_score;
+        console.log(`[CardFactory] MemoryUnit eligibility: score=${muScore}, threshold=${rules.min_importance_score}, eligible=${muEligible}`);
+        return muEligible;
       case 'Concept':
         const concept = entity as TConcept;
-        const salience = concept.metadata?.salience ?? concept.confidence ?? 0;
-        return salience >= rules.min_salience && rules.eligible_types.includes(concept.type);
+        const salience = concept.metadata?.salience ?? concept.confidence ?? (entity as any).salience ?? 0;
+        const typeEligible = rules.eligible_types.includes(concept.type || (entity as any).type);
+        const salienceEligible = salience >= rules.min_salience;
+        const conceptEligible = salienceEligible && typeEligible;
+        console.log(`[CardFactory] Concept eligibility:`, {
+          salience, 
+          threshold: rules.min_salience,
+          type: concept.type || (entity as any).type,
+          eligibleTypes: rules.eligible_types,
+          salienceEligible,
+          typeEligible,
+          conceptEligible
+        });
+        return conceptEligible;
       case 'DerivedArtifact':
         const da = entity as TDerivedArtifact;
-        return rules.eligible_types.includes(da.artifact_type);
+        const daEligible = rules.eligible_types.includes(da.artifact_type);
+        console.log(`[CardFactory] DerivedArtifact eligibility: type=${da.artifact_type}, eligibleTypes=${rules.eligible_types}, eligible=${daEligible}`);
+        return daEligible;
       default:
         return false;
     }
@@ -127,6 +172,12 @@ export class CardFactory {
         if (this.cardTemplates[`Concept_${conceptType}`]) {
             templateKey = `Concept_${conceptType}`;
         }
+    } else if (type === 'DerivedArtifact') {
+        const artifactType = (entity as TDerivedArtifact).artifact_type;
+        // e.g. "DerivedArtifact_cycle_report"
+        if (this.cardTemplates[`DerivedArtifact_${artifactType}`]) {
+            templateKey = `DerivedArtifact_${artifactType}`;
+        }
     }
 
     const template = this.cardTemplates[templateKey];
@@ -134,10 +185,33 @@ export class CardFactory {
 
     const displayData = this.buildDisplayData(entity, template.display_data);
 
+    // Map entity to correct ID field based on type
+    let sourceEntityId: string;
+    switch (type) {
+      case 'MemoryUnit':
+        sourceEntityId = (entity as any).muid;
+        break;
+      case 'Concept':
+        sourceEntityId = (entity as any).concept_id;
+        break;
+      case 'DerivedArtifact':
+        sourceEntityId = (entity as any).artifact_id;
+        break;
+      case 'ProactivePrompt':
+        sourceEntityId = (entity as any).prompt_id;
+        break;
+      default:
+        return null;
+    }
+
+    if (!sourceEntityId) {
+      return null;
+    }
+
     return {
       user_id: userId,
       card_type: template.card_type,
-      source_entity_id: (entity as any).muid || (entity as any).concept_id || (entity as any).artifact_id || (entity as any).prompt_id,
+      source_entity_id: sourceEntityId,
       source_entity_type: type,
       display_data: displayData,
     };

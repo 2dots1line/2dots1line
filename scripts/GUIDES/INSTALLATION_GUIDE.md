@@ -160,77 +160,205 @@ curl -f http://localhost:7475 >/dev/null 2>&1 && echo "✅ Neo4j ready"
 curl -f http://localhost:8080/v1/.well-known/ready >/dev/null 2>&1 && echo "✅ Weaviate ready"
 ```
 
-### 5. Port Verification
+### 5. Port Verification & Conflict Resolution
+
+#### **5.1 Initial Port Status Check**
 ```bash
-# Verify all required ports are accessible
+# Verify all required ports and their usage
+echo "=== 2D1L Port Status Check ==="
 ports=(3000 3001 5555 5433 6379 7475 7688 8080)
 for port in "${ports[@]}"; do
-  if lsof -i :$port >/dev/null 2>&1; then
-    echo "✅ Port $port is in use"
-  else
-    echo "❌ Port $port is not in use"
-  fi
+  echo "Port $port:"
+  lsof -i :$port 2>/dev/null | head -3
+  echo "---"
 done
 ```
-### how to kill an occupied port:
-lsof -i :5433
-docker ps -a
-expect the following: 
-CONTAINER ID   IMAGE                              COMMAND                  CREATED          STATUS
 
-PORTS                                                      NAMES
-c3564df5f6a3   postgres:16-alpine                 "docker-entrypoint.s…"   16 minutes ago   Created
+#### **5.2 Service-Specific Conflict Detection & Resolution**
 
-                                                           postgres-2d1l
-dce0cacbb59c   redis:7-alpine                     "docker-entrypoint.s…"   16 minutes ago   Up 16 minutes
-
-0.0.0.0:6379->6379/tcp                                     redis-2d1l
-16d98f55984f   neo4j:5                            "tini -g -- /startup…"   16 minutes ago   Up 16 minutes
-
-7473/tcp, 0.0.0.0:7475->7474/tcp, 0.0.0.0:7688->7687/tcp   neo4j-2d1l
-bd5cf3886c14   semitechnologies/weaviate:1.25.3   "/bin/weaviate --hos…"   16 minutes ago   Up 16 minutes
-
-0.0.0.0:8080->8080/tcp                                     weaviate-2d1l
-
-netstat -an | grep 5433
-
-docker network ls
-Expect the following
-danniwang@Dannis-MacBook-Pro 2D1L % docker network ls
-NETWORK ID     NAME                DRIVER    SCOPE
-3d5b1a3f0a54   2d1l_2d1l_network   bridge    local
-4434c4f1f8ba   bridge              bridge    local
-350f3b703009   host                host      local
-e759c2a63ab9   none                null      local
-danniwang@Dannis-MacBook-Pro 2D1L %
----
+##### **PostgreSQL (Port 5433)**
+```bash
+# Check for PostgreSQL conflicts
+echo "=== PostgreSQL Port 5433 Analysis ==="
 sudo lsof -i :5433
 
-Expect: 
+# Expected: Should show either Docker postgres process OR local postgres conflict
+# CONFLICT INDICATORS:
+# - Process owned by 'postgres' user (local installation)
+# - Command shows 'postgres' not 'com.docker.*'
 
-danniwang@Dannis-MacBook-Pro 2D1L % sudo lsof -i :5433
-Password:
-COMMAND  PID     USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
-postgres 528 postgres    7u  IPv6 0xfd217f872dedff58      0t0  TCP *:pyrrho (LISTEN)
-postgres 528 postgres    8u  IPv4 0x17e1899cd45ca9ee      0t0  TCP *:pyrrho (LISTEN)
-danniwang@Dannis-MacBook-Pro 2D1L %
-
-(Optional)
-ps aux | grep postgres
+# RESOLUTION for PostgreSQL conflicts:
 brew services list | grep postgres
+brew services stop postgresql@15  # or postgresql@14, postgresql@16
+# Alternative: sudo kill -9 [PID from lsof output]
 
-More aggressively kill by PID
-sudo kill -9 528
+# Verify resolution:
+sudo lsof -i :5433
+# Expected: No output (port free) or Docker process only
+```
 
-After thoroughly killing process occupying 5433 port (owned by postgres, therefore not found by lsof -ti:5433), repeat the docker commands
-docker-compose -f docker-compose.dev.yml down
+##### **Redis (Port 6379)**
+```bash
+# Check for Redis conflicts
+echo "=== Redis Port 6379 Analysis ==="
+lsof -i :6379
+
+# Expected: Should show Docker redis connections OR local redis conflict
+# CONFLICT INDICATORS:
+# - Process shows 'redis-server' not 'com.docker.*'
+# - User is current user, not Docker
+
+# RESOLUTION for Redis conflicts:
+brew services list | grep redis
+brew services stop redis
+# Alternative: sudo killall redis-server
+
+# Verify resolution:
+lsof -i :6379
+# Expected: Only Docker redis connections (com.docker.*)
+```
+
+##### **Neo4j (Ports 7475, 7688)**
+```bash
+# Check for Neo4j conflicts
+echo "=== Neo4j Ports 7475, 7688 Analysis ==="
+lsof -i :7475
+lsof -i :7688
+
+# CONFLICT INDICATORS:
+# - Process shows 'java' with Neo4j in command line
+# - Not owned by Docker
+
+# RESOLUTION for Neo4j conflicts:
+brew services list | grep neo4j
+brew services stop neo4j
+# Alternative: pkill -f neo4j
+
+# Verify resolution:
+lsof -i :7475 && lsof -i :7688
+# Expected: Only Docker neo4j connections or no output
+```
+
+##### **Weaviate (Port 8080)**
+```bash
+# Check for Weaviate/general port 8080 conflicts
+echo "=== Port 8080 Analysis ==="
+lsof -i :8080
+
+# COMMON CONFLICTS:
+# - Local development servers (npm, python -m http.server, etc.)
+# - Other Docker containers
+# - MacOS built-in services
+
+# RESOLUTION strategies:
+# 1. Kill specific process: sudo kill -9 [PID]
+# 2. Stop brew services: brew services stop [service]
+# 3. Check other Docker containers: docker ps -a
+
+# Verify resolution:
+lsof -i :8080
+# Expected: Only Docker weaviate process or no output
+```
+
+#### **5.3 Comprehensive Conflict Resolution Script**
+```bash
+# Automated conflict resolution for all 2D1L services
+echo "=== Stopping All Potential Local Service Conflicts ==="
+
+# Stop all brew services that might conflict
+brew services stop postgresql@15 2>/dev/null || true
+brew services stop postgresql@14 2>/dev/null || true  
+brew services stop postgresql@16 2>/dev/null || true
+brew services stop redis 2>/dev/null || true
+brew services stop neo4j 2>/dev/null || true
+
+# Kill any remaining processes on required ports
+for port in 5433 6379 7475 7688 8080; do
+  echo "Checking port $port..."
+  pids=$(lsof -ti :$port 2>/dev/null)
+  if [ -n "$pids" ]; then
+    echo "Killing processes on port $port: $pids"
+    sudo kill -9 $pids 2>/dev/null || true
+  fi
+done
+
+echo "✅ Port cleanup complete"
+```
+
+#### **5.4 Post-Resolution Verification**
+```bash
+# Verify all ports are clear for Docker
+echo "=== Final Port Verification ==="
+docker-compose -f docker-compose.dev.yml down 2>/dev/null || true
 docker-compose -f docker-compose.dev.yml up -d
-docker ps
+
+# Wait for services to start
+sleep 10
+
+# Check Docker container status
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+# Expected output:
+# NAMES                    STATUS          PORTS
+# postgres-2d1l           Up X seconds    0.0.0.0:5433->5432/tcp
+# redis-2d1l              Up X seconds    0.0.0.0:6379->6379/tcp  
+# neo4j-2d1l              Up X seconds    7473/tcp, 0.0.0.0:7475->7474/tcp, 0.0.0.0:7688->7687/tcp
+# weaviate-2d1l           Up X seconds    0.0.0.0:8080->8080/tcp
+
+# Test database connectivity
+echo "=== Database Connectivity Tests ==="
 docker exec postgres-2d1l pg_isready -U danniwang -d twodots1line
+docker exec redis-2d1l redis-cli ping
+docker exec neo4j-2d1l cypher-shell -u neo4j -p 2dots1line "RETURN 'Neo4j Connected' as status;"
+curl -s http://localhost:8080/v1/meta | jq -r '.version // "Weaviate connection failed"'
+
+# Expected: All tests should pass with success messages
+```
+
+#### **5.5 Common Troubleshooting Scenarios**
+
+##### **Scenario 1: PostgreSQL Still Conflicting**
+```bash
+# If pg_isready fails or port 5433 still occupied:
+ps aux | grep postgres | grep -v grep
+brew services list | grep postgres
+sudo pkill -f postgres
+sudo rm /usr/local/var/postgres/postmaster.pid 2>/dev/null || true
+```
+
+##### **Scenario 2: Redis Keys Missing After Switch**
+```bash
+# If BullMQ data was in local Redis and now missing:
+echo "Checking Redis key migration..."
+docker exec redis-2d1l redis-cli KEYS "bull:*" | wc -l
+# If 0: BullMQ data was in local Redis, services will recreate as needed
+```
+
+##### **Scenario 3: Neo4j Authentication Issues**
+```bash
+# If cypher-shell authentication fails:
+docker exec neo4j-2d1l neo4j-admin set-initial-password 2dots1line
+docker restart neo4j-2d1l
+```
+
+##### **Scenario 4: Port Still Occupied After Cleanup**
+```bash
+# Nuclear option for stubborn processes:
+sudo lsof -i :5433 -i :6379 -i :7475 -i :7688 -i :8080 | awk 'NR>1 {print $2}' | sort -u | xargs sudo kill -9
+```
+
+#### **5.6 Prevention Guidelines**
+1. **Always use Docker for development**: Avoid installing PostgreSQL, Redis, Neo4j via Homebrew for 2D1L project
+2. **Check ports before starting**: Run port verification before each development session
+3. **Use project-specific Redis**: Never run global Redis service during 2D1L development
+4. **Monitor Docker logs**: Use `docker logs [container-name]` to verify proper startup
+5. **Restart on conflicts**: When in doubt, run the comprehensive cleanup script and restart Docker services
 
 ## Database Setup & Migrations
 
-### 1. Generate Prisma Client
+### 1. PostgreSQL (via Prisma)
+
+#### Generate Prisma Client
 ```bash
 cd packages/database
 export DATABASE_URL="postgresql://danniwang:MaxJax2023@@localhost:5433/twodots1line"
@@ -238,26 +366,114 @@ pnpm prisma generate
 cd ../..
 ```
 
-### 2. Apply Database Schema
+#### Apply Database Schema
 ```bash
 cd packages/database
 pnpm prisma db push
 cd ../..
 ```
 
-### 3. Test Database Connections
+#### Test PostgreSQL Connection
 ```bash
-# Test PostgreSQL via Prisma
 cd packages/database
 export DATABASE_URL="postgresql://danniwang:MaxJax2023@@localhost:5433/twodots1line"
 npx prisma db pull --print >/dev/null && echo "✅ PostgreSQL via Prisma OK"
 cd ../..
+```
 
-# Test Redis
-redis-cli -p 6379 ping >/dev/null 2>&1 && echo "✅ Redis connection OK"
+### 2. Neo4j Graph Database
 
-# Test Neo4j
-echo "RETURN 'Neo4j connection test' as message;" | docker exec -i $(docker ps -q -f "name=neo4j") cypher-shell -u neo4j -p password123
+#### Apply Neo4j Schema (Constraints & Indexes)
+```bash
+# Apply schema from cypher file
+docker exec neo4j-2d1l cypher-shell -u neo4j -p password123 -f /var/lib/neo4j/import/schemas/neo4j.cypher || \
+cat packages/database/schemas/neo4j.cypher | docker exec -i neo4j-2d1l cypher-shell -u neo4j -p password123
+
+echo "✅ Neo4j schema applied"
+```
+
+#### Verify Neo4j Schema
+```bash
+echo "=== Neo4j Constraints ==="
+docker exec neo4j-2d1l cypher-shell -u neo4j -p password123 "SHOW CONSTRAINTS;"
+
+echo "=== Neo4j Indexes ==="
+docker exec neo4j-2d1l cypher-shell -u neo4j -p password123 "SHOW INDEXES;" | head -10
+
+echo "✅ Neo4j schema verification complete"
+```
+
+#### Test Neo4j Connection
+```bash
+echo "RETURN 'Neo4j connection test' as message;" | docker exec -i neo4j-2d1l cypher-shell -u neo4j -p password123
+```
+
+### 3. Weaviate Vector Database
+
+#### Apply Weaviate Schema
+```bash
+# Create UserKnowledgeItem class schema
+curl -X POST "http://localhost:8080/v1/schema" \
+  -H "Content-Type: application/json" \
+  -d @packages/database/schemas/weaviate_schema.json && \
+echo "✅ Weaviate schema applied" || echo "⚠️ Weaviate schema may already exist"
+```
+
+#### Verify Weaviate Schema
+```bash
+echo "=== Weaviate Classes ==="
+curl -s -X GET "http://localhost:8080/v1/schema" | jq '.classes[].class'
+
+echo "=== UserKnowledgeItem Properties ==="
+curl -s -X GET "http://localhost:8080/v1/schema/UserKnowledgeItem" | jq '.properties[].name'
+
+echo "✅ Weaviate schema verification complete"
+```
+
+#### Test Weaviate Connection
+```bash
+curl -s -X GET "http://localhost:8080/v1/meta" | jq '.version' && echo "✅ Weaviate connection OK"
+```
+
+### 4. Redis Cache & Queue Storage
+
+#### Test Redis Connection
+```bash
+docker exec redis-2d1l redis-cli ping && echo "✅ Redis connection OK"
+```
+
+#### Verify Redis Configuration
+```bash
+echo "=== Redis Keyspace Notifications ==="
+docker exec redis-2d1l redis-cli CONFIG GET notify-keyspace-events
+
+echo "=== Redis Memory Usage ==="
+docker exec redis-2d1l redis-cli INFO memory | grep used_memory_human
+
+echo "✅ Redis verification complete"
+```
+
+### 5. Comprehensive Database Health Check
+```bash
+echo "=== COMPREHENSIVE DATABASE HEALTH CHECK ==="
+
+# PostgreSQL
+echo "1. PostgreSQL:"
+docker exec postgres-2d1l psql -U danniwang -d twodots1line -c "SELECT 'PostgreSQL' as db, version();" | head -3
+
+# Neo4j
+echo "2. Neo4j:"
+docker exec neo4j-2d1l cypher-shell -u neo4j -p password123 "CALL dbms.components() YIELD name, versions RETURN name, versions[0] as version;"
+
+# Weaviate
+echo "3. Weaviate:"
+curl -s -X GET "http://localhost:8080/v1/meta" | jq -r '"Weaviate version: " + .version'
+
+# Redis
+echo "4. Redis:"
+docker exec redis-2d1l redis-cli INFO server | grep redis_version
+
+echo "✅ All databases healthy and schemas applied"
 ```
 
 ---
@@ -300,26 +516,7 @@ pnpm start:db
 
 # Start all Node.js services and workers via PM2
 
-echo ""
-echo "📋 PHASE 5: START SERVICES"
-echo "14. Starting all services with proper environment loading..."
-
-# Critical fix: PM2 needs environment loaded properly
-source .env
-
-# Fix environment variable mapping for workers
-export NEO4J_URI="${NEO4J_URI_HOST}"
-export NEO4J_USERNAME="${NEO4J_USER}"
-
-echo "    Environment variables configured:"
-echo "    - NEO4J_URI: ${NEO4J_URI}"
-echo "    - DATABASE_URL: ${DATABASE_URL:0:20}..."
-
-if ! pm2 start ecosystem.config.js; then
-    echo "❌ CRITICAL: Service startup failed"
-    exit 1
-fi
-
+pm2 start ecosystem.config.js
 
 # Start frontend development server
 cd apps/web-app && pnpm dev &
@@ -352,7 +549,7 @@ echo $PRISMA_PID > ../../.prisma-studio-pid
 cd ../..
 ```
 or
-    npx prisma studio --schema=./packages/database/prisma/schema.prisma
+npx prisma studio --schema=./packages/database/prisma/schema.prisma
     
 ### 3. V11.0 Service Management Commands
 ```bash
@@ -364,6 +561,7 @@ pm2 restart api-gateway       # Restart specific service
 pm2 restart all               # Restart all services
 pm2 stop all                  # Stop all services
 pm2 delete all                # Delete all services
+pm2 flush                     # Delete all logs
 
 # Quick Management via pnpm scripts
 pnpm start:services           # Start all PM2 services
@@ -837,3 +1035,56 @@ docker stats --no-stream
 ```
 
 This comprehensive V11.0 installation guide provides everything needed to manage the 2D1L system efficiently with the new headless service architecture and PM2 process management.
+
+# Flush all logs (clears log files)
+pm2 flush
+
+# View logs for all services
+pm2 logs
+
+# View logs for specific service with line limit
+pm2 logs graph-projection-worker --lines 20
+
+# Monitor logs in real-time for all services
+pm2 logs --timestamp
+
+# View only error logs
+pm2 logs --error
+
+# View logs from last 1 hour
+pm2 logs --since 1h
+
+# Quick status overview
+pm2 status
+
+# Detailed monitoring dashboard (updates every 2 seconds)
+pm2 monit
+
+# Show detailed info for specific service
+pm2 describe graph-projection-worker
+
+# Show process list with more details
+pm2 list
+
+# Real-time monitoring dashboard (press 'q' to quit)
+pm2 monit
+
+# Check memory usage
+pm2 status | grep memory
+
+# Check restart counts (should stay stable)
+pm2 status | grep "↺"
+
+# Check if any services are errored
+pm2 status | grep -E "(error|stopped|errored)"
+
+# Restart specific service if needed
+pm2 restart graph-projection-worker
+
+# Reload all services (zero-downtime)
+pm2 reload ecosystem.config.js
+
+After any restart, wait 30 seconds then run pm2 status to ensure stability
+Monitor restart counts (↺ column) - should stay low and stable
+Check logs after changes with pm2 logs --lines 20 --timestamp
+Use pm2 monit for real-time monitoring when needed

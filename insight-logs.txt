@@ -1,0 +1,17 @@
+
+> @2dots1line/insight-worker@1.0.0 start /Users/danniwang/Documents/GitHub/202506062D1L/2D1L/workers/insight-worker
+> node dist/index.js
+
+Insight worker started, connected to insight queue
+Processing insight job 1 { userId: 'dev-user-123' }
+Job 1 completed
+Processing insight job 2 { userId: 'dev-user-123' }
+Job 2 completed
+Processing insight job 3 { userId: 'dev-user-123' }
+Job 3 completed
+Processing insight job 5 { userId: 'dev-user-123' }
+Job 5 completed
+Processing insight job 7 { userId: 'dev-user-123' }
+Job 7 completed
+Processing insight job 8 { userId: 'dev-user-123' }
+Job 8 completed

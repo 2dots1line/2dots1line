@@ -3,40 +3,122 @@
  * Processes the insight generation queue
  */
 
-import { InsightJob } from '@2dots1line/shared-types';
-import { Worker, Job } from 'bullmq';
+import { ConfigService } from '@2dots1line/config-service';
+import { DatabaseService } from '@2dots1line/database';
+import { StrategicSynthesisTool } from '@2dots1line/tools';
+import { Worker, Queue } from 'bullmq';
 
-// Worker configuration
-const QUEUE_NAME = 'insight';
-const CONNECTION = {
-  host: process.env.REDIS_HOST || 'localhost',
-  port: parseInt(process.env.REDIS_PORT || '6379')
-};
+import { InsightEngine, InsightJobData } from './InsightEngine';
 
-// Create worker
-const worker: Worker<InsightJob, { status: string }, string> = new Worker(QUEUE_NAME, async (job: Job<InsightJob>) => {
-  console.log(`Processing insight job ${job.id}`, job.data);
-  
-  // This is a placeholder for actual implementation
-  // Will use the insight engine to generate insights
-  return { status: 'processed' };
-}, { connection: CONNECTION });
+async function main() {
+  console.log('[InsightWorker] Starting V11.0 insight worker...');
 
-// Event handlers
-worker.on('completed', (job) => {
-  console.log(`Job ${job.id} completed`);
-});
+  try {
+    // 1. Initialize all dependencies
+    const configService = new ConfigService();
+    await configService.initialize();
+    console.log('[InsightWorker] ConfigService initialized');
 
-worker.on('failed', (job, error) => {
-  console.error(`Job ${job?.id} failed:`, error);
-});
+    const dbService = DatabaseService.getInstance();
+    console.log('[InsightWorker] DatabaseService initialized');
 
-// For graceful shutdown
-process.on('SIGTERM', async () => {
-  await worker.close();
-  process.exit(0);
-});
+    // 2. Directly instantiate the StrategicSynthesisTool
+    const strategicSynthesisTool = new StrategicSynthesisTool(configService);
+    console.log('[InsightWorker] StrategicSynthesisTool instantiated');
 
-console.log(`Insight worker started, connected to ${QUEUE_NAME} queue`);
+    // 3. Initialize BullMQ queues
+    const redisConnection = {
+      host: process.env.REDIS_HOST || 'localhost',
+      port: parseInt(process.env.REDIS_PORT || '6379'),
+      password: process.env.REDIS_PASSWORD,
+    };
 
-export default worker; 
+    const cardAndGraphQueue = new Queue('card-and-graph-queue', { connection: redisConnection });
+    console.log('[InsightWorker] BullMQ queues initialized');
+
+    // 4. Instantiate the InsightEngine with its dependencies
+    const insightEngine = new InsightEngine(
+      strategicSynthesisTool,
+      dbService,
+      cardAndGraphQueue
+    );
+
+    console.log('[InsightWorker] InsightEngine instantiated');
+
+    // 5. Create and start the BullMQ worker
+    const worker = new Worker<InsightJobData>(
+      'insight',
+      async (job) => {
+        console.log(`[InsightWorker] Processing job ${job.id}: ${job.data.userId}`);
+        await insightEngine.processUserCycle(job);
+        console.log(`[InsightWorker] Completed job ${job.id}`);
+      },
+      {
+        connection: redisConnection,
+        concurrency: 1, // Process one cycle at a time
+      }
+    );
+
+    // DEBUGGING: Verify worker object state
+    console.log(`[InsightWorker] DEBUGGING - Worker created with name: ${worker.name}`);
+    console.log(`[InsightWorker] DEBUGGING - Worker opts:`, JSON.stringify(worker.opts, null, 2));
+    console.log(`[InsightWorker] DEBUGGING - Worker connection config:`, JSON.stringify(redisConnection, null, 2));
+    
+    // Test worker connection by trying to get Redis info
+    try {
+      // Access the internal Redis client to test connection
+      const redisClient = (worker as any).blockingConnection;
+      if (redisClient) {
+        const pingResult = await redisClient.ping();
+        console.log(`[InsightWorker] DEBUGGING - Worker Redis connection ping: ${pingResult}`);
+      } else {
+        console.log(`[InsightWorker] DEBUGGING - No Redis client found on worker`);
+      }
+    } catch (debugError: any) {
+      console.log(`[InsightWorker] DEBUGGING - Error testing worker connection:`, debugError.message);
+    }
+
+    // Handle worker events
+    worker.on('completed', (job) => {
+      console.log(`[InsightWorker] Job ${job.id} completed successfully`);
+    });
+
+    worker.on('failed', (job, err) => {
+      console.error(`[InsightWorker] Job ${job?.id} failed:`, err);
+    });
+
+    worker.on('error', (err) => {
+      console.error('[InsightWorker] Worker error:', err);
+    });
+
+    // Add event listener for job start
+    worker.on('active', (job) => {
+      console.log(`[InsightWorker] DEBUGGING - Job ${job.id} became active, processing started`);
+    });
+
+    console.log('[InsightWorker] Worker is running and listening for jobs on insight queue');
+
+    // Graceful shutdown
+    process.on('SIGINT', async () => {
+      console.log('[InsightWorker] Received SIGINT, shutting down gracefully...');
+      await worker.close();
+      await cardAndGraphQueue.close();
+      console.log('[InsightWorker] Shutdown complete');
+      process.exit(0);
+    });
+
+    process.on('SIGTERM', async () => {
+      console.log('[InsightWorker] Received SIGTERM, shutting down gracefully...');
+      await worker.close();
+      await cardAndGraphQueue.close();
+      console.log('[InsightWorker] Shutdown complete');
+      process.exit(0);
+    });
+
+  } catch (error) {
+    console.error('[InsightWorker] Failed to start:', error);
+    process.exit(1);
+  }
+}
+
+main().catch(console.error); 

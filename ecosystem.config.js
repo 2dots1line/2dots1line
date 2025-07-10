@@ -42,7 +42,7 @@ module.exports = {
 
     // --- Workers ---
     { ...baseConfig, name: 'card-worker', script: buildScript(path.join(workersPath, 'card-worker')) },
-    { ...baseConfig, name: 'conversation-timeout-worker', script: buildScriptSrc(path.join(workersPath, 'conversation-timeout-worker')) },
+    { ...baseConfig, name: 'conversation-timeout-worker', script: buildScript(path.join(workersPath, 'conversation-timeout-worker')) },
     { ...baseConfig, name: 'embedding-worker', script: buildScript(path.join(workersPath, 'embedding-worker')) },
     { ...baseConfig, name: 'graph-projection-worker', script: buildScript(path.join(workersPath, 'graph-projection-worker')) },
     { ...baseConfig, name: 'ingestion-worker', script: buildScript(path.join(workersPath, 'ingestion-worker')), instances: 2 },
