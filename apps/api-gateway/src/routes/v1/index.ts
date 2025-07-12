@@ -58,10 +58,8 @@ v1Router.get('/users/me/dashboard/growth-summary', authMiddleware, userControlle
 // --- Graph Routes (Authenticated) --- V11.0: Real-time metrics from Neo4j source of truth
 v1Router.get('/nodes/:nodeId/metrics', authMiddleware, graphController.getNodeMetrics);
 
-// Legacy route for graph projection (keep for compatibility)
-v1Router.get('/graph-projection/latest', authMiddleware, (req, res) => {
-  res.status(501).json({ message: 'Graph projection endpoint not yet implemented.' });
-});
+// --- Graph Projection Routes (Authenticated) --- V11.0: 3D visualization data
+v1Router.get('/graph-projection/latest', authMiddleware, graphController.getLatestGraphProjection);
 
 // Agent routes
 v1Router.use('/agent', createAgentRoutes(conversationController));

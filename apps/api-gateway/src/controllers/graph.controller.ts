@@ -8,12 +8,80 @@ import Redis from 'ioredis';
 
 export class GraphController {
   private neo4jService: Neo4jService;
+  private databaseService: DatabaseService;
   private redis: Redis;
 
   constructor(databaseService: DatabaseService) {
     this.neo4jService = new Neo4jService(databaseService);
+    this.databaseService = databaseService;
     this.redis = databaseService.redis;
   }
+
+  /**
+   * GET /api/v1/graph-projection/latest
+   * V11.0: Get latest graph projection for 3D visualization
+   * Returns the most recent graph projection data from PostgreSQL
+   */
+  public getLatestGraphProjection = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+      
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authorization required'
+          }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      // Query PostgreSQL for the latest graph projection
+      const latestProjection = await this.databaseService.prisma.user_graph_projections.findFirst({
+        where: { user_id: userId },
+        orderBy: { created_at: 'desc' }
+      });
+
+      if (!latestProjection) {
+        res.status(404).json({
+          success: false,
+          error: {
+            code: 'NO_PROJECTION_FOUND',
+            message: 'No graph projection found for this user'
+          }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      const projectionData = latestProjection.projection_data as any;
+      
+      res.status(200).json({
+        success: true,
+        data: {
+          projectionId: latestProjection.projection_id,
+          createdAt: latestProjection.created_at,
+          projectionData: projectionData,
+          metadata: {
+            nodeCount: projectionData?.nodes?.length || 0,
+            edgeCount: projectionData?.edges?.length || 0
+          }
+        },
+        message: 'Latest graph projection retrieved successfully'
+      } as TApiResponse<any>);
+
+    } catch (error: any) {
+      console.error(`[GraphController] Error getting latest graph projection:`, error);
+      
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to retrieve graph projection'
+        }
+      } as TApiResponse<any>);
+    }
+  };
 
   /**
    * GET /api/v1/nodes/:nodeId/metrics

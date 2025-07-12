@@ -31,6 +31,21 @@
     },
     {
       "path": "../../packages/database/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/tools/tsconfig.build.json"
+    },
+    {
+      "path": "../../services/config-service/tsconfig.build.json"
+    },
+    {
+      "path": "../../services/dialogue-service/tsconfig.build.json"
+    },
+    {
+      "path": "../../services/user-service/tsconfig.build.json"
+    },
+    {
+      "path": "../../services/card-service/tsconfig.build.json"
     }
   ]
 }

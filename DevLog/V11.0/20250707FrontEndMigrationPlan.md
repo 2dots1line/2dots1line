@@ -32,13 +32,10 @@ After analyzing prototype code in `DevLog/3DFrontUI/`, this plan details:
 │       │   │   ├── Cloud3.mp4         # ✅ KEEP: Existing asset
 │       │   │   ├── Cloud4.mp4         # ✅ KEEP: Existing asset
 │       │   │   └── Cloud5.mp4         # ✅ KEEP: Existing asset
-│       │   └── images/                # ➕ ADD: New directory for card assets
-│       │       └── cards/             # ➕ ADD: Card image collections
-│       │           ├── mathematics/   # ➕ ADD: Math-themed card images
-│       │           ├── programming/   # ➕ ADD: Programming-themed card images
-│       │           ├── languages/     # ➕ ADD: Language-themed card images
-│       │           ├── science/       # ➕ ADD: Science-themed card images
-│       │           └── abstract/      # ➕ ADD: Abstract/artistic card images
+│       │   └── images/                # ➕ ADD: New directory for intelligent card assets
+│       │       └── cards/             # ➕ ADD: Semantic image library (see detailed structure above)
+│       │           ├── library/       # ➕ ADD: Curated images with semantic tags
+│       │           └── metadata/      # ➕ ADD: JSON files for image-to-content mapping
 │       ├── src/
 │       │   ├── app/
 │       │   │   ├── layout.tsx         # ✅ KEEP: No changes needed
@@ -80,21 +77,13 @@ After analyzing prototype code in `DevLog/3DFrontUI/`, this plan details:
 │   │   ├── tsconfig.json              # ✅ KEEP: No changes needed
 │   │   └── tsconfig.build.json        # ✅ KEEP: No changes needed
 │   ├── core-utils/                     # ✅ KEEP: No changes needed
-│   ├── database/                       # 🔄 MODIFY: Add card schema support
+│   ├── database/                       # 🔄 MODIFY: Minor migration for background_image_url field
 │   │   ├── package.json               # ✅ KEEP: No changes needed
 │   │   ├── prisma/
-│   │   │   ├── migrations/            # 🔄 MODIFY: Add card-related migrations
-│   │   │   └── schema.prisma          # 🔄 MODIFY: Add Card, CardProgress models
-│   │   ├── src/
-│   │   │   ├── DatabaseService.ts     # ✅ KEEP: No changes needed
-│   │   │   ├── index.ts               # ✅ KEEP: No changes needed
-│   │   │   ├── prisma-client.ts       # ✅ KEEP: No changes needed
-│   │   │   ├── repositories/
-│   │   │   │   ├── [existing repos]   # ✅ KEEP: All existing repositories
-│   │   │   │   ├── CardRepository.ts  # ➕ ADD: Card data access layer
-│   │   │   │   └── CardProgressRepository.ts # ➕ ADD: User card progress tracking
-│   │   │   └── services/              # ✅ KEEP: Existing services
-│   │   ├── schemas/                    # ✅ KEEP: Existing schemas
+│   │   │   ├── migrations/            # 🔄 MODIFY: Add background_image_url migration
+│   │   │   └── schema.prisma          # 🔄 MODIFY: Add background_image_url field to cards table
+│   │   ├── src/                       # ✅ KEEP: All existing repositories sufficient  
+│   │   ├── schemas/                   # ✅ KEEP: Existing schemas
 │   │   ├── scripts/                   # ✅ KEEP: Existing scripts
 │   │   ├── tsconfig.json              # ✅ KEEP: No changes needed
 │   │   └── tsconfig.build.json        # ✅ KEEP: No changes needed
@@ -119,10 +108,8 @@ After analyzing prototype code in `DevLog/3DFrontUI/`, this plan details:
 │   │   │   ├── ai/                    # ✅ KEEP: Existing AI types
 │   │   │   ├── api/                   # ✅ KEEP: Existing API types
 │   │   │   ├── entities/
-│   │   │   │   ├── [existing].ts      # ✅ KEEP: All existing entity types
-│   │   │   │   ├── Card.ts            # ➕ ADD: Card entity types
-│   │   │   │   ├── CardProgress.ts    # ➕ ADD: User card progress types
-│   │   │   │   └── KnowledgeGraph.ts  # ➕ ADD: 3D cosmos graph types
+│   │   │   │   ├── [existing].ts      # ✅ KEEP: All existing entity types (including card.types.ts)
+│   │   │   │   └── CosmosNode.ts      # ➕ ADD: 3D node representation types (frontend-only)
 │   │   │   ├── ui/                    # ✅ KEEP: Existing UI types
 │   │   │   ├── workers/               # ✅ KEEP: Existing worker types
 │   │   │   └── index.ts               # 🔄 MODIFY: Export new card types
@@ -135,16 +122,22 @@ After analyzing prototype code in `DevLog/3DFrontUI/`, this plan details:
 │       ├── src/
 │       │   ├── components/
 │       │   │   ├── [existing].tsx     # ✅ KEEP: All existing components
-│       │   │   ├── cards/             # ➕ ADD: Complete card system
+│       │   │   ├── cards/             # ➕ ADD: Simplified card system (8 components total)
 │       │   │   │   ├── InfiniteCardGallery.tsx # ➕ ADD: Adapted from prototype
 │       │   │   │   ├── CardTile.tsx     # ➕ ADD: Glassmorphic card design
-│       │   │   │   ├── CardDetailView.tsx # ➕ ADD: 2D detail view with carousel
-│       │   │   │   ├── FlippableCard.tsx # ➕ ADD: Card flip animation
-│       │   │   │   └── [+4 more components] # ➕ ADD: Complete card interaction system
-│       │   │   ├── cosmos/            # ➕ ADD: 3D cosmos system
+│       │   │   │   ├── CardDetailView.tsx # ➕ ADD: 2D detail view
+│       │   │   │   ├── CardGrid.tsx     # ➕ ADD: Grid layout manager
+│       │   │   │   ├── CardSearchFilter.tsx # ➕ ADD: Search and filter controls
+│       │   │   │   ├── CardImageLoader.tsx # ➕ ADD: Intelligent image loading
+│       │   │   │   ├── CardActionMenu.tsx # ➕ ADD: Favorite, share, archive
+│       │   │   │   └── CardMetadata.tsx # ➕ ADD: Display metadata and tags
+│       │   │   ├── cosmos/            # ➕ ADD: 3D cosmos system (6 components total)
 │       │   │   │   ├── CosmosCanvas.tsx # ➕ ADD: 3D starfield canvas
-│       │   │   │   ├── KnowledgeNodeOverlay.tsx # ➕ ADD: 2D UI overlays
-│       │   │   │   └── [+2 more components] # ➕ ADD: 3D navigation components
+│       │   │   │   ├── CardDetailOverlay.tsx # ➕ ADD: 2D card overlay in 3D space
+│       │   │   │   ├── CosmosNavigationControls.tsx # ➕ ADD: 3D navigation UI
+│       │   │   │   ├── NodeConnectionVisualizer.tsx # ➕ ADD: Node relationships
+│       │   │   │   ├── CosmosSearchInterface.tsx # ➕ ADD: Search nodes in 3D
+│       │   │   │   └── CosmosNodeTooltip.tsx # ➕ ADD: Hover tooltip for nodes
 │       │   │   └── index.ts           # 🔄 MODIFY: Export card and cosmos components
 │       │   ├── hooks/
 │       │   │   ├── index.ts           # 🔄 MODIFY: Export new hooks
@@ -167,10 +160,8 @@ After analyzing prototype code in `DevLog/3DFrontUI/`, this plan details:
 │       └── tsconfig.build.json        # ✅ KEEP: No changes needed
 ├── services/                          # ✅ KEEP: All existing services (no card logic here per V11.0 spec)
 ├── workers/                           # ✅ KEEP: All existing workers (no card logic here per V11.0 spec)
-├── config/                            # 🔄 MODIFY: Add card configuration
+├── config/                            # 🔄 MODIFY: Add intelligent image mapping
 │   ├── [existing configs]             # ✅ KEEP: All existing configuration
-│   ├── card_collections.json          # ➕ ADD: Card image collection definitions (adapted from prototype)
-│   ├── card_progression_rules.json    # ➕ ADD: Card level progression and merging rules
 │   └── cosmos_layout.json             # ➕ ADD: 3D cosmos visualization configuration
 └── [other directories]                # ✅ KEEP: All other directories unchanged
 ```
@@ -789,3 +780,415 @@ packages/ui-components/src/components/GlassmorphicPanel.tsx
 - [ ] **Integration Complete**: Backend connected, assets optimized
 
 This approach maintains all the excellent UX patterns from the prototype while seamlessly integrating with the existing production architecture and design system.
+
+## 1. Intelligent Card Background Architecture
+
+### Semantic Image Mapping System
+```
+apps/web-app/public/images/cards/
+├── library/                          # ➕ ADD: Curated image library  
+│   ├── abstract/                     # Abstract concepts, philosophy
+│   │   ├── networks-001.jpg          # Tagged: ["network", "connection", "graph", "relationship"]
+│   │   ├── particles-002.jpg         # Tagged: ["physics", "quantum", "particle", "energy"]
+│   │   └── fractals-003.jpg          # Tagged: ["mathematics", "geometry", "pattern", "recursive"]
+│   ├── technology/                   # Programming, AI, digital
+│   │   ├── code-matrix-001.jpg       # Tagged: ["programming", "code", "algorithm", "software"]
+│   │   ├── ai-neural-002.jpg         # Tagged: ["artificial intelligence", "neural", "machine learning"]
+│   │   └── circuits-003.jpg          # Tagged: ["electronics", "hardware", "circuit", "computer"]
+│   ├── nature/                       # Biological, environmental, organic
+│   │   ├── cells-001.jpg             # Tagged: ["biology", "cell", "organism", "life"]
+│   │   ├── forest-002.jpg            # Tagged: ["nature", "growth", "ecosystem", "environment"]
+│   │   └── ocean-003.jpg             # Tagged: ["fluid", "flow", "depth", "vast"]
+│   ├── science/                      # Laboratory, research, discovery
+│   │   ├── laboratory-001.jpg        # Tagged: ["research", "experiment", "science", "discovery"]
+│   │   ├── molecules-002.jpg         # Tagged: ["chemistry", "molecule", "compound", "reaction"]
+│   │   └── space-003.jpg             # Tagged: ["astronomy", "space", "cosmic", "universe"]
+│   └── human/                        # Social, psychology, culture
+│       ├── community-001.jpg         # Tagged: ["social", "community", "people", "connection"]
+│       ├── mind-002.jpg              # Tagged: ["psychology", "thought", "mind", "consciousness"]
+│       └── culture-003.jpg           # Tagged: ["culture", "tradition", "society", "heritage"]
+└── metadata/                         # ➕ ADD: Image metadata and mapping
+    ├── image-tags.json               # Maps images to semantic tags
+    ├── concept-mappings.json         # Maps concept types to preferred images
+    └── fallback-images.json          # Default images per card type
+```
+
+### User-Driven Image Selection System
+```typescript
+// packages/ui-components/src/hooks/cards/useCardImage.ts
+interface ImageMetadata {
+  filename: string;
+  tags: string[];
+  category: string;
+  url: string;
+}
+
+const useCardImage = (card: TCard) => {
+  const getCardImageUrl = useMemo(() => {
+    // 1. Use persisted user selection if available
+    if (card.background_image_url) {
+      return card.background_image_url;
+    }
+    
+    // 2. Fallback to default category-based image for new cards
+    const fallbackImage = getFallbackImageByCategory(card.card_type);
+    return fallbackImage;
+  }, [card]);
+  
+  return getCardImageUrl;
+};
+
+// Image browser component for user selection
+const CardImageBrowser = ({ card, onImageSelect }) => {
+  const [selectedCategory, setSelectedCategory] = useState('abstract');
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  const filteredImages = useMemo(() => {
+    return imageLibrary
+      .filter(img => img.category === selectedCategory)
+      .filter(img => 
+        searchTerm === '' || 
+        img.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()))
+      );
+  }, [selectedCategory, searchTerm]);
+  
+  return (
+    <div className="image-browser">
+      <CategoryTabs 
+        categories={['abstract', 'technology', 'nature', 'science', 'human']}
+        selected={selectedCategory}
+        onSelect={setSelectedCategory}
+      />
+      
+      <SearchInput 
+        value={searchTerm}
+        onChange={setSearchTerm}
+        placeholder="Search by tags..."
+      />
+      
+      <ImageGrid 
+        images={filteredImages}
+        onSelect={(imageUrl) => onImageSelect(card.card_id, imageUrl)}
+      />
+    </div>
+  );
+};
+```
+
+---
+
+## 2. CosmosModal Architecture
+
+### Purpose & Functionality
+```typescript
+// apps/web-app/src/components/modal/CosmosModal.tsx
+const CosmosModal = ({ isOpen, onClose }) => {
+  const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
+  const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
+  
+  return (
+    <div className="fixed inset-0 z-modal bg-black/95">
+      {/* 3D Cosmos Canvas - Full screen immersive experience */}
+      <CosmosCanvas 
+        onNodeHover={setHoveredNode}
+        onNodeClick={setSelectedNode}         // 👈 Simply set selected node
+        onBackgroundClick={() => setSelectedNode(null)}
+      />
+      
+      {/* Non-blocking Side Panel - Appears when node is clicked */}
+      {selectedNode && (
+        <CardDetailSidePanel 
+          node={selectedNode}
+          onClose={() => setSelectedNode(null)}
+          onCardAction={handleCardAction}
+        />
+      )}
+      
+      {/* Hover Tooltip - Appears when node is hovered */}
+      {hoveredNode && !selectedNode && (
+        <CosmosNodeTooltip 
+          node={hoveredNode}
+          position={hoveredNode.screenPosition}
+        />
+      )}
+      
+      {/* Top Navigation Controls - Non-blocking */}
+      <div className="absolute top-4 left-4 z-60">
+        <CosmosNavigationControls 
+          onZoomIn={handleZoomIn}
+          onResetView={handleResetView}
+          onFilterNodes={handleFilterNodes}
+        />
+      </div>
+      
+      {/* Close button */}
+      <GlassButton 
+        onClick={onClose}
+        className="absolute top-4 right-4 z-60"
+      >
+        <X size={20} />
+      </GlassButton>
+    </div>
+  );
+};
+```
+
+**CosmosModal provides**:
+- **3D Knowledge Graph Visualization**: Interactive starfield showing concepts, memory units, artifacts
+- **Non-blocking Side Panel**: Click any 3D node → compact side panel appears (bottom-right)
+- **Continuous 3D Navigation**: Card details don't block 3D exploration
+- **Hover Tooltips**: Quick node preview on hover
+- **Persistent Navigation**: Always-visible zoom, pan, filter controls
+
+---
+
+## 3. Card Detail in Cosmos View Integration
+
+### 3D → 2D Side Panel Architecture
+```typescript
+// packages/ui-components/src/components/cosmos/CardDetailSidePanel.tsx
+interface CardDetailSidePanelProps {
+  node: GraphNode;              // 3D cosmos node data
+  onClose: () => void;          // Close side panel
+  onCardAction: (action: string) => void;
+}
+
+const CardDetailSidePanel = ({ node, onClose, onCardAction }) => {
+  // Convert 3D node to 2D card format
+  const card = useMemo(() => convertNodeToCard(node), [node]);
+  
+  return (
+    <div className="fixed bottom-4 right-4 z-50 w-96 max-h-[60vh]">
+      <GlassmorphicPanel 
+        variant="glass-panel" 
+        rounded="xl" 
+        padding="md"
+        className="overflow-hidden shadow-2xl border border-white/20"
+      >
+        {/* Compact header with close button */}
+        <div className="flex items-center justify-between mb-4 pb-2 border-b border-white/10">
+          <h3 className="font-brand text-sm font-semibold text-white truncate">
+            {card.source_entity_type}: {card.title}
+          </h3>
+          <GlassButton 
+            onClick={onClose}
+            className="p-1 hover:bg-white/20"
+            size="sm"
+          >
+            <X size={16} />
+          </GlassButton>
+        </div>
+        
+        {/* Compact card preview */}
+        <div className="mb-4">
+          <CardTile 
+            card={card}
+            size="sm"                         // 👈 Smaller size for side panel
+            onClick={() => {}}               // Disabled click in cosmos context
+            showMetadata={true}              // Show card metadata
+          />
+        </div>
+        
+        {/* Cosmos-specific actions - compact layout */}
+        <div className="space-y-2">
+          <GlassButton 
+            onClick={() => onCardAction('explore-connections')}
+            className="w-full justify-start text-xs"
+            size="sm"
+          >
+            🔗 Explore Connections
+          </GlassButton>
+          <GlassButton 
+            onClick={() => onCardAction('focus-node')}
+            className="w-full justify-start text-xs"
+            size="sm"
+          >
+            🎯 Focus on Node
+          </GlassButton>
+          <GlassButton 
+            onClick={() => onCardAction('add-to-workspace')}
+            className="w-full justify-start text-xs"
+            size="sm"
+          >
+            ➕ Add to Workspace
+          </GlassButton>
+        </div>
+        
+        {/* Node connection preview */}
+        <div className="mt-4 pt-3 border-t border-white/10">
+          <p className="text-xs text-white/60 mb-2">Connected to:</p>
+          <div className="flex flex-wrap gap-1">
+            {node.connections?.slice(0, 3).map(conn => (
+              <span 
+                key={conn.id}
+                className="px-2 py-1 text-xs bg-white/10 rounded-md text-white/80"
+              >
+                {conn.label}
+              </span>
+            ))}
+            {node.connections?.length > 3 && (
+              <span className="px-2 py-1 text-xs text-white/60">
+                +{node.connections.length - 3} more
+              </span>
+            )}
+          </div>
+        </div>
+      </GlassmorphicPanel>
+    </div>
+  );
+};
+```
+
+---
+
+## 4. Simplified Card Architecture (No Progression/Merging)
+
+### Removed Complexity
+❌ **REMOVED**:
+- Card progression system (purple→yellow→red→blue)
+- Card merging mechanics (3 cards → 1 higher level)
+- Deck tiers (starter, student, scholars, master)
+- Card level indicators
+- Progression tracking models
+- Prisma schema changes
+
+✅ **KEPT**:
+- Existing `TCard` interface from `packages/shared-types/src/entities/card.types.ts`
+- Simple card display and interaction
+- Image-based card backgrounds
+- 2D gallery with infinite scroll
+
+### Minor Database Extension Required
+The existing `TCard` interface needs one additional field:
+```typescript
+// Updated: packages/shared-types/src/entities/card.types.ts
+export interface TCard {
+  card_id: string;
+  user_id: string;
+  card_type: string;              // Uses existing types: 'memory_unit', 'concept', etc.
+  source_entity_id: string;
+  source_entity_type: string;
+  status: string;
+  is_favorited: boolean;
+  display_data?: Record<string, any>;
+  background_image_url?: string;  // ➕ ADD: User-selected background image URL
+  // ... existing fields
+}
+```
+
+**Database Migration Required**:
+```sql
+-- Add background image URL field to existing cards table
+ALTER TABLE cards ADD COLUMN background_image_url VARCHAR(500) NULL;
+```
+
+---
+
+## 5. Complete UI Components List
+
+### Card Components (9 total)
+```typescript
+packages/ui-components/src/components/cards/
+├── index.ts                          # Component exports
+├── InfiniteCardGallery.tsx           # Main 2D infinite gallery (adapted from prototype)
+├── CardTile.tsx                      # Individual card with user-selected background
+├── CardDetailView.tsx                # Detailed card view with image browser  
+├── CardGrid.tsx                      # Grid layout manager for cards
+├── CardSearchFilter.tsx              # Search and filter controls
+├── CardImageBrowser.tsx              # User image selection interface
+├── CardImageLoader.tsx               # Load and display selected background images
+├── CardActionMenu.tsx                # Favorite, share, archive, change background
+└── CardMetadata.tsx                  # Display card metadata and tags
+```
+
+### Cosmos Components (6 total)  
+```typescript
+packages/ui-components/src/components/cosmos/
+├── index.ts                          # Component exports
+├── CosmosCanvas.tsx                  # 3D starfield canvas (adapted from Starfield prototype)
+├── CardDetailSidePanel.tsx           # Non-blocking side panel for card details
+├── CosmosNavigationControls.tsx      # 3D navigation UI (zoom, pan, filter)
+├── NodeConnectionVisualizer.tsx      # Show node relationships in 3D
+├── CosmosSearchInterface.tsx         # Search nodes in 3D space
+└── CosmosNodeTooltip.tsx            # Hover tooltip for 3D nodes
+```
+
+---
+
+## 6. Simplified Hooks Architecture
+
+### Card Hooks (4 total)
+```typescript
+packages/ui-components/src/hooks/cards/
+├── useCardImage.ts                   # Intelligent image selection based on semantic similarity
+├── useInfiniteCardGrid.ts           # Viewport-based rendering for infinite scroll performance
+├── useCardInteractions.ts           # Click, hover, favorite, share actions  
+└── useCardSearch.ts                 # Search and filter functionality
+```
+
+**Hook Explanations**:
+- **`useCardImage`**: Loads persisted user-selected background images, with fallbacks for new cards
+- **`useInfiniteCardGrid`**: Renders only cards visible in viewport + buffer zone for smooth infinite scrolling (adapted from prototype's efficient rendering)
+- **`useCardInteractions`**: Handles all card interactions (click → detail view, hover → preview, favorite toggle, background change)
+- **`useCardSearch`**: Manages search state, filtering by content, type, status, with debounced search
+
+### Cosmos Hooks (3 total)
+```typescript  
+packages/ui-components/src/hooks/cosmos/
+├── useStarfield3D.ts                # 3D starfield rendering and animation
+├── useCosmosNavigation.ts           # 3D camera controls (zoom, pan, rotate)
+└── useNodeInteractions.ts          # 3D node hover, click, selection state
+```
+
+---
+
+## 7. Infinite Gallery Confirmation ✅
+
+**Yes, the 2D card gallery is truly infinite**:
+
+```typescript
+// Adapted from InfiniteCanvas.tsx prototype
+const InfiniteCardGallery = () => {
+  // 1. Viewport-based rendering - only renders visible cards
+  const visibleCards = useMemo(() => {
+    const viewportBounds = calculateViewportBounds(offset);
+    return generateCardsForViewport(viewportBounds); // Generates cards on-demand
+  }, [offset]);
+  
+  // 2. Infinite scroll in all directions
+  const handleDrag = (deltaX: number, deltaY: number) => {
+    setOffset(prev => ({
+      x: prev.x + deltaX, // ← → infinite horizontal
+      y: prev.y + deltaY  // ↑ ↓ infinite vertical  
+    }));
+  };
+  
+  // 3. Seeded generation for consistency
+  const generateCardForPosition = (gridX: number, gridY: number) => {
+    const seed = gridX * 1000 + gridY;
+    return createCardAtPosition(seed); // Same card always appears at same position
+  };
+};
+```
+
+**Infinite Features**:
+- ✅ **Unlimited scrolling** in all directions (↑↓←→)
+- ✅ **Performance optimized** - only renders ~20-50 visible cards at once
+- ✅ **Consistent positioning** - same cards always appear at same coordinates
+- ✅ **Memory efficient** - cards generated on-demand, garbage collected when off-screen
+
+---
+
+## Updated Repository Structure (Simplified)
+
+```
+packages/shared-types/src/entities/
+├── [existing].ts                     # ✅ KEEP: All existing entity types (including card.types.ts)
+└── CosmosNode.ts                     # ➕ ADD: 3D node representation types (frontend-only)
+```
+
+**No new Card types needed** - using existing `TCard` interface.
+**No Prisma schema changes** - no card progression/merging complexity.
+**CosmosNode.ts only** - for 3D frontend visualization, not new backend entities.
+
+This simplified approach leverages existing backend architecture while providing a sophisticated, intelligent frontend experience.

@@ -1,71 +1,141 @@
-const path = require('path');
-require('dotenv').config(); // Load .env file explicitly
+// SYSTEMATIC SOLUTION for PM2 Environment Loading Issues
+// Addresses: LESSONS 6, 6A, 6B, 17, 18 from CRITICAL_LESSONS_LEARNED.md
 
-const appsPath = path.resolve(__dirname, 'apps');
-const workersPath = path.resolve(__dirname, 'workers');
+// Use the new EnvironmentLoader to solve all environment loading patterns
+const path = require('path');
+const { EnvironmentLoader } = require('./packages/core-utils/dist/environment/EnvironmentLoader');
+
+// Initialize environment loader
+const envLoader = EnvironmentLoader.getInstance();
+const env = envLoader.load();
+
+// Generate consistent environment for all PM2 processes
+const baseEnv = envLoader.generateEcosystemEnv();
+
+console.log('✅ Environment loaded for PM2 ecosystem from:', Object.keys(baseEnv).length, 'variables');
 
 const baseConfig = {
-  exec_mode: 'fork',
-  instances: 1,
-  env_file: path.resolve(__dirname, '.env'),
-  env: {
-    NODE_ENV: 'development',
-    // Explicitly pass critical environment variables
-    DATABASE_URL: process.env.DATABASE_URL,
-    GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
-    JWT_SECRET: process.env.JWT_SECRET,
-    REDIS_URL: process.env.REDIS_URL,
-    NEO4J_URI: process.env.NEO4J_URI,
-    NEO4J_USERNAME: process.env.NEO4J_USERNAME,
-    NEO4J_PASSWORD: process.env.NEO4J_PASSWORD,
-    WEAVIATE_URL: process.env.WEAVIATE_URL,
-  },
+  env: baseEnv,
   env_production: {
-    NODE_ENV: 'production'
-  }
+    NODE_ENV: 'production',
+    ...baseEnv,
+  },
+  // Remove unreliable env_file property (LESSON 6A)
+  // env_file: '.env',  // ❌ This is unreliable
+  max_memory_restart: '1G',
+  restart_delay: 4000,
+  error_file: path.join(__dirname, 'logs', 'pm2-error.log'),
+  out_file: path.join(__dirname, 'logs', 'pm2-out.log'),
+  log_file: path.join(__dirname, 'logs', 'pm2-combined.log'),
+  time: true,
+  merge_logs: true,
 };
-
-// Workers that build to dist/src/index.js
-const buildScriptSrc = (packagePath) => `${packagePath}/dist/src/index.js`;
-// Workers that build to dist/index.js
-const buildScript = (packagePath) => `${packagePath}/dist/index.js`;
-const apiBuildScript = (packagePath) => `${packagePath}/dist/server.js`;
 
 module.exports = {
   apps: [
-    // --- API Gateway ---
     {
-      ...baseConfig,
       name: 'api-gateway',
-      script: apiBuildScript(path.join(appsPath, 'api-gateway')),
-    },
-
-    // --- Workers ---
-    { ...baseConfig, name: 'card-worker', script: buildScript(path.join(workersPath, 'card-worker')) },
-    { ...baseConfig, name: 'conversation-timeout-worker', script: buildScript(path.join(workersPath, 'conversation-timeout-worker')) },
-    { ...baseConfig, name: 'embedding-worker', script: buildScript(path.join(workersPath, 'embedding-worker')) },
-    { ...baseConfig, name: 'graph-projection-worker', script: buildScript(path.join(workersPath, 'graph-projection-worker')) },
-    { ...baseConfig, name: 'ingestion-worker', script: buildScript(path.join(workersPath, 'ingestion-worker')), instances: 2 },
-    { ...baseConfig, name: 'insight-worker', script: buildScript(path.join(workersPath, 'insight-worker')) },
-    { ...baseConfig, name: 'maintenance-worker', script: buildScript(path.join(workersPath, 'maintenance-worker')) },
-    { ...baseConfig, name: 'notification-worker', script: buildScript(path.join(workersPath, 'notification-worker')) },
-
-    // --- Python Services ---
-    {
+      script: './apps/api-gateway/dist/server.js',
+      instances: 1,
+      exec_mode: 'cluster',
+      watch: false,
       ...baseConfig,
-      name: 'dimension-reducer',
-      script: path.join(__dirname, 'py-services', 'dimension-reducer', 'venv', 'bin', 'python3'),
-      args: ['app.py'],
-      cwd: path.join(__dirname, 'py-services', 'dimension-reducer'),
-      env: {
-        ...baseConfig.env,
-        PYTHONPATH: path.join(__dirname, 'py-services', 'dimension-reducer'),
-        PORT: '8000',
-        VIRTUAL_ENV: path.join(__dirname, 'py-services', 'dimension-reducer', 'venv'),
-        PYTHONIOENCODING: 'utf-8',
-        LC_ALL: 'en_US.UTF-8',
-        LANG: 'en_US.UTF-8'
-      }
     },
-  ]
+    {
+      name: 'dialogue-service',
+      script: './services/dialogue-service/dist/index.js',
+      instances: 1,
+      exec_mode: 'fork',
+      watch: false,
+      ...baseConfig,
+    },
+    {
+      name: 'user-service',
+      script: './services/user-service/dist/index.js',
+      instances: 1,
+      exec_mode: 'fork',
+      watch: false,
+      ...baseConfig,
+    },
+    {
+      name: 'config-service',
+      script: './services/config-service/dist/index.js',
+      instances: 1,
+      exec_mode: 'fork',
+      watch: false,
+      ...baseConfig,
+    },
+    {
+      name: 'card-service',
+      script: './services/card-service/dist/index.js',
+      instances: 1,
+      exec_mode: 'fork',
+      watch: false,
+      ...baseConfig,
+    },
+    {
+      name: 'ingestion-worker',
+      script: './workers/ingestion-worker/dist/index.js',
+      instances: 1,
+      exec_mode: 'fork',
+      watch: false,
+      ...baseConfig,
+    },
+    {
+      name: 'insight-worker',
+      script: './workers/insight-worker/dist/index.js',
+      instances: 1,
+      exec_mode: 'fork',
+      watch: false,
+      ...baseConfig,
+    },
+    {
+      name: 'card-worker',
+      script: './workers/card-worker/dist/index.js',
+      instances: 1,
+      exec_mode: 'fork',
+      watch: false,
+      ...baseConfig,
+    },
+    {
+      name: 'embedding-worker',
+      script: './workers/embedding-worker/dist/index.js',
+      instances: 1,
+      exec_mode: 'fork',
+      watch: false,
+      ...baseConfig,
+    },
+    {
+      name: 'graph-projection-worker',
+      script: './workers/graph-projection-worker/dist/index.js',
+      instances: 1,
+      exec_mode: 'fork',
+      watch: false,
+      ...baseConfig,
+    },
+    {
+      name: 'conversation-timeout-worker',
+      script: './workers/conversation-timeout-worker/dist/index.js',
+      instances: 1,
+      exec_mode: 'fork',
+      watch: false,
+      ...baseConfig,
+    },
+    {
+      name: 'maintenance-worker',
+      script: './workers/maintenance-worker/dist/index.js',
+      instances: 1,
+      exec_mode: 'fork',
+      watch: false,
+      ...baseConfig,
+    },
+    {
+      name: 'notification-worker',
+      script: './workers/notification-worker/dist/index.js',
+      instances: 1,
+      exec_mode: 'fork',
+      watch: false,
+      ...baseConfig,
+    },
+  ],
 }; 

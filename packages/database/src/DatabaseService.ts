@@ -28,25 +28,38 @@ export class DatabaseService {
     this.prisma = prisma;
 
     // 2. Initialize Neo4j Client
+    // Use NEO4J_URI for host connections (PM2 processes) and NEO4J_URI_DOCKER for Docker containers
+    const neo4jUri = process.env.NEO4J_URI || process.env.NEO4J_URI_DOCKER || 'bolt://localhost:7687';
     this.neo4j = neo4jDriver(
-      process.env.NEO4J_URI_DOCKER || 'bolt://localhost:7687',
+      neo4jUri,
       neo4jAuth.basic(process.env.NEO4J_USER!, process.env.NEO4J_PASSWORD!)
     );
 
     // 3. Initialize Weaviate Client
+    // Use WEAVIATE_URL for host connections (PM2 processes) and WEAVIATE_HOST_DOCKER for Docker containers
+    const weaviateUrl = process.env.WEAVIATE_URL || `${process.env.WEAVIATE_SCHEME_DOCKER || 'http'}://${process.env.WEAVIATE_HOST_DOCKER || 'localhost:8080'}`;
+    const weaviateScheme = weaviateUrl.startsWith('https') ? 'https' : 'http';
+    const weaviateHost = weaviateUrl.replace(/^https?:\/\//, '');
+    
     this.weaviate = weaviate.client({
-      scheme: (process.env.WEAVIATE_SCHEME_DOCKER as 'http' | 'https') || 'http',
-      host: process.env.WEAVIATE_HOST_DOCKER || 'localhost:8080',
+      scheme: weaviateScheme as 'http' | 'https',
+      host: weaviateHost,
     });
 
     // 4. Initialize Redis Client
-    const redisHost = process.env.NODE_ENV === 'production' 
-      ? (process.env.REDIS_HOST_DOCKER || 'localhost')
-      : 'localhost'; // Always use localhost in development
+    // Use REDIS_URL for host connections (PM2 processes) and Docker-specific vars for containers
+    const redisUrl = process.env.REDIS_URL;
+    let redisHost = 'localhost';
+    let redisPort = 6379;
     
-    const redisPort = process.env.NODE_ENV === 'production'
-      ? parseInt(process.env.REDIS_PORT_FOR_APP_IN_DOCKER || '6379')
-      : 6379; // Always use standard port in development
+    if (redisUrl) {
+      const url = new URL(redisUrl);
+      redisHost = url.hostname;
+      redisPort = parseInt(url.port) || 6379;
+    } else if (process.env.NODE_ENV === 'production') {
+      redisHost = process.env.REDIS_HOST_DOCKER || 'localhost';
+      redisPort = parseInt(process.env.REDIS_PORT_FOR_APP_IN_DOCKER || '6379');
+    }
     
     this.redis = new Redis({
       host: redisHost,
