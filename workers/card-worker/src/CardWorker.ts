@@ -10,16 +10,21 @@
  * is completely decoupled from UI presentation.
  */
 
-import { CardFactory } from '@2dots1line/card-service';
 import { ConfigService } from '@2dots1line/config-service';
-import { DatabaseService ,
-  CardRepository,
-  MemoryRepository,
-  ConceptRepository,
-  DerivedArtifactRepository,
-  ProactivePromptRepository
-} from '@2dots1line/database';
+import { DatabaseService, CardRepository, MemoryRepository, ConceptRepository, DerivedArtifactRepository, ProactivePromptRepository } from '@2dots1line/database';
+import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
 import { Worker, Job } from 'bullmq';
+import { 
+  CardEvent, 
+  TCardGenerationResult,
+  NewEntityEvent,
+  GraphOntologyUpdatedEvent,
+  UserSessionEndedEvent,
+  TCard,
+  CardGenerationSpecificCard
+} from '@2dots1line/shared-types';
+
+import { CardFactory } from './CardFactory';
 
 // Event types from V9.5 Event Queue Contracts
 export interface NewEntitiesCreatedEvent {
@@ -47,6 +52,10 @@ export interface CardWorkerConfig {
   retryDelay?: number;
 }
 
+/**
+ * CardWorker class for processing card generation events
+ * V11.0 Production-Grade Implementation
+ */
 export class CardWorker {
   private worker: Worker;
   private config: CardWorkerConfig;
@@ -64,6 +73,11 @@ export class CardWorker {
     private configService: ConfigService,
     config: CardWorkerConfig = {}
   ) {
+    // CRITICAL: Load environment variables first
+    console.log('[CardWorker] Loading environment variables...');
+    environmentLoader.load();
+    console.log('[CardWorker] Environment variables loaded successfully');
+
     this.config = {
       queueName: 'card-and-graph-queue',
       concurrency: 5,
@@ -89,12 +103,14 @@ export class CardWorker {
       this.proactivePromptRepository
     );
 
-    // Initialize BullMQ worker
+    // Initialize BullMQ worker with EnvironmentLoader
     const redisConnection = {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
-      password: process.env.REDIS_PASSWORD,
+      host: environmentLoader.get('REDIS_HOST') || 'localhost',
+      port: parseInt(environmentLoader.get('REDIS_PORT') || '6379'),
+      password: environmentLoader.get('REDIS_PASSWORD'),
     };
+
+    console.log(`[CardWorker] Redis connection configured: ${redisConnection.host}:${redisConnection.port}`);
 
     this.worker = new Worker(
       this.config.queueName!,

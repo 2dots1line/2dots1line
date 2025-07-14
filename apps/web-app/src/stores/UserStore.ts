@@ -46,7 +46,7 @@ export const useUserStore = create<UserState>()(
       isAuthenticated: false,
       isLoading: false,
       error: null,
-      hasHydrated: false,
+      hasHydrated: true, // Set to true immediately to avoid loading screen
 
       // Actions
       login: async (email: string, password: string) => {
@@ -195,18 +195,77 @@ export const useUserStore = create<UserState>()(
       initializeAuth: () => {
         console.log('UserStore.initializeAuth - Starting initialization');
         
-        // Set hydrated to true immediately for faster loading
-        set({ hasHydrated: true });
+        const state = get();
+        console.log('UserStore.initializeAuth - Current state:', { 
+          isAuthenticated: state.isAuthenticated, 
+          hasHydrated: state.hasHydrated,
+          user: state.user ? 'exists' : 'null'
+        });
+        
+        // Set hydrated to true if not already set
+        if (!state.hasHydrated) {
+          set({ hasHydrated: true });
+        }
         
         // Only check auth state on client side
         if (typeof window !== 'undefined') {
-          const state = get();
-          console.log('UserStore.initializeAuth - Current state:', { 
-            isAuthenticated: state.isAuthenticated, 
-            hasHydrated: state.hasHydrated 
-          });
+          // If already authenticated (from rehydration), just ensure token is set
+          if (state.isAuthenticated && state.user) {
+            const token = localStorage.getItem('auth_token');
+            if (token) {
+              axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+              console.log('UserStore.initializeAuth - User already authenticated, token restored');
+            }
+            console.log('UserStore.initializeAuth - Initialization complete (already authenticated)');
+            return;
+          }
           
-          if (state.isAuthenticated) {
+          // Development mode: automatically set up dev authentication
+          if (process.env.NODE_ENV === 'development') {
+            const token = localStorage.getItem('auth_token');
+            
+            if (!token) {
+              console.log('UserStore.initializeAuth - Development mode: setting up dev token');
+              
+              // Set up development token and user
+              localStorage.setItem('auth_token', 'dev-token');
+              axios.defaults.headers.common['Authorization'] = `Bearer dev-token`;
+              
+              // Set up mock user data
+              const mockUser: User = {
+                user_id: 'dev-user-123',
+                email: 'dev@example.com',
+                name: 'Developer User',
+                region: 'US',
+                timezone: 'UTC',
+                language_preference: 'en',
+                profile_picture_url: null,
+                created_at: new Date().toISOString(),
+                last_active_at: new Date().toISOString(),
+                account_status: 'active',
+                growth_profile: {},
+                preferences: {}
+              };
+              
+              set({
+                user: mockUser,
+                isAuthenticated: true,
+                isLoading: false,
+                error: null,
+              });
+              
+              console.log('UserStore.initializeAuth - Development authentication set up');
+              console.log('UserStore.initializeAuth - Initialization complete');
+              return;
+            } else {
+              // Token exists, set up axios header
+              axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+              console.log('UserStore.initializeAuth - Set axios header for existing token');
+            }
+          }
+          
+          // If we have a token but no authenticated state, clear inconsistent state
+          if (state.isAuthenticated && !state.user) {
             const token = localStorage.getItem('auth_token');
             console.log('UserStore.initializeAuth - Found token:', !!token);
             
@@ -256,6 +315,7 @@ export const useUserStore = create<UserState>()(
               }
             }
           }
+          console.log('UserStore - Rehydration complete');
         };
       },
     }

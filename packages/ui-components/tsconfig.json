@@ -24,5 +24,7 @@
     "**/*.stories.ts",
     "**/*.stories.tsx"
   ],
-  "references": []
+  "references": [
+    { "path": "../shared-types" }
+  ]
 }

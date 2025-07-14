@@ -18,6 +18,7 @@
     "db:weaviate:schema": "tsx ./scripts/apply_weaviate_schema.ts"
   },
   "dependencies": {
+    "@2dots1line/core-utils": "workspace:*",
     "@prisma/client": "^6.10.1",
     "denque": "^2.1.0",
     "form-data": "^4.0.2",

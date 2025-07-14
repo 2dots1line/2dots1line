@@ -4,6 +4,7 @@
  */
 
 import { DatabaseService, ConversationRepository } from '@2dots1line/database';
+import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
 import { Queue } from 'bullmq';
 import Redis from 'ioredis';
 
@@ -12,63 +13,70 @@ import { ConversationTimeoutWorker } from './ConversationTimeoutWorker';
 async function main() {
   console.log('🚀 Starting Conversation Timeout Worker...');
 
-  // Initialize dependencies
-  const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-  console.log(`🔗 Redis URL: ${redisUrl}`);
-  
-  const redis = new Redis(redisUrl);
-  const subscriberRedis = new Redis(redisUrl);
-  
-  // Debug Redis connection
-  console.log(`📡 Redis connection status: ${redis.status}`);
-  console.log(`📡 Subscriber Redis connection status: ${subscriberRedis.status}`);
-  
-  const databaseService = DatabaseService.getInstance();
-  const conversationRepo = new ConversationRepository(databaseService);
-  
-  const ingestionQueue = new Queue('ingestion-queue', {
-    connection: {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
-    },
-  });
-
-  // Create worker instance with injected dependencies
-  const worker = new ConversationTimeoutWorker(
-    {
-      redis,
-      subscriberRedis,
-      conversationRepo,
-      ingestionQueue
-    },
-    {
-      timeoutDurationMinutes: parseInt(process.env.CONVERSATION_TIMEOUT_MINUTES || '5'),
-      checkIntervalSeconds: parseInt(process.env.TIMEOUT_CHECK_INTERVAL_SECONDS || '30'),
-      enableIngestionQueue: process.env.ENABLE_INGESTION_QUEUE !== 'false'
-    }
-  );
-
-  // Handle graceful shutdown
-  const shutdown = async (signal: string) => {
-    console.log(`\n📛 Received ${signal}, shutting down gracefully...`);
-    await worker.stop();
-    await redis.quit();
-    await subscriberRedis.quit();
-    await ingestionQueue.close();
-    process.exit(0);
-  };
-
-  process.on('SIGINT', () => shutdown('SIGINT'));
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
-
   try {
+    // CRITICAL: Load environment variables first using EnvironmentLoader
+    console.log('[ConversationTimeoutWorker] Loading environment variables...');
+    environmentLoader.load();
+    console.log('[ConversationTimeoutWorker] Environment variables loaded successfully');
+
+    // Initialize dependencies with EnvironmentLoader
+    const redisUrl = environmentLoader.get('REDIS_URL') || 'redis://localhost:6379';
+    console.log(`🔗 Redis URL: ${redisUrl}`);
+    
+    const redis = new Redis(redisUrl);
+    const subscriberRedis = new Redis(redisUrl);
+    
+    // Debug Redis connection
+    console.log(`📡 Redis connection status: ${redis.status}`);
+    console.log(`📡 Subscriber Redis connection status: ${subscriberRedis.status}`);
+    
+    const databaseService = DatabaseService.getInstance();
+    const conversationRepo = new ConversationRepository(databaseService);
+    
+    const ingestionQueue = new Queue('ingestion-queue', {
+      connection: {
+        host: environmentLoader.get('REDIS_HOST') || 'localhost',
+        port: parseInt(environmentLoader.get('REDIS_PORT') || '6379'),
+        password: environmentLoader.get('REDIS_PASSWORD'),
+      },
+    });
+
+    console.log(`[ConversationTimeoutWorker] Ingestion queue configured with Redis: ${environmentLoader.get('REDIS_HOST') || 'localhost'}:${environmentLoader.get('REDIS_PORT') || '6379'}`);
+
+    // Create worker instance with injected dependencies
+    const worker = new ConversationTimeoutWorker(
+      {
+        redis,
+        subscriberRedis,
+        conversationRepo,
+        ingestionQueue
+      },
+      {
+        timeoutDurationMinutes: parseInt(environmentLoader.get('CONVERSATION_TIMEOUT_MINUTES') || '5'),
+        checkIntervalSeconds: parseInt(environmentLoader.get('TIMEOUT_CHECK_INTERVAL_SECONDS') || '30'),
+        enableIngestionQueue: environmentLoader.get('ENABLE_INGESTION_QUEUE') !== 'false'
+      }
+    );
+
+    console.log('[ConversationTimeoutWorker] Worker configured and starting...');
+
     // Start the worker
     await worker.start();
-    console.log('✅ Conversation Timeout Worker is running');
-    console.log('Press Ctrl+C to stop');
 
-    // Keep the process alive
-    process.stdin.resume();
+    // Handle graceful shutdown
+    const shutdown = async (signal: string) => {
+      console.log(`\n📛 Received ${signal}, shutting down gracefully...`);
+      await worker.stop();
+      await redis.quit();
+      await subscriberRedis.quit();
+      await ingestionQueue.close();
+      process.exit(0);
+    };
+
+    process.on('SIGINT', () => shutdown('SIGINT'));
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+    console.log('✅ Conversation Timeout Worker started successfully');
 
   } catch (error) {
     console.error('❌ Failed to start Conversation Timeout Worker:', error);

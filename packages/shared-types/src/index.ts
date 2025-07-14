@@ -128,7 +128,9 @@ export type {
   // Card types (V9.7 new)
   TCard,
   CardStatus,
-  CardType
+  CardType,
+  DisplayCard,
+  ImageCollection
 } from './entities/card.types';
 
 export type {
@@ -150,6 +152,21 @@ export type {
   TDerivedArtifact,
   DerivedArtifactType
 } from './entities/derived-artifact.types';
+
+export type {
+  // Cosmos node types (V11.0 new - 3D visualization)
+  Vector3D,
+  ScreenPosition,
+  NodeConnection,
+  NodeAppearance,
+  CosmosNode,
+  NodeCluster,
+  CosmosScene,
+  NodeInteractionEvent,
+  CosmosNavigationState,
+  CosmosSearchResult,
+  LayoutConfig
+} from './entities/CosmosNode';
 
 // Deprecated entity types (kept for backward compatibility)
 // Note: TAnnotation and TChunk have been deprecated and removed

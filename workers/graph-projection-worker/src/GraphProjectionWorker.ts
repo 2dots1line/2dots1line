@@ -11,7 +11,8 @@
  * into spatial coordinates for 3D rendering in the web interface.
  */
 
-import { DatabaseService , GraphProjectionRepository, GraphProjectionData , Neo4jService } from '@2dots1line/database';
+import { DatabaseService, GraphProjectionRepository, GraphProjectionData, Neo4jService } from '@2dots1line/database';
+import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
 import { Worker, Job } from 'bullmq';
 
 // Event types that trigger projection updates
@@ -84,6 +85,13 @@ export interface GraphProjection {
   };
 }
 
+/**
+ * GraphProjectionWorker V11.0 Production Implementation
+ * 
+ * Processes graph projection updates for the 3D Knowledge Cosmos.
+ * Integrates Neo4j graph structure, Weaviate embeddings, and Python ML services.
+ * Uses EnvironmentLoader for consistent environment management.
+ */
 export class GraphProjectionWorker {
   private worker: Worker;
   private config: GraphProjectionWorkerConfig;
@@ -94,26 +102,35 @@ export class GraphProjectionWorker {
     private databaseService: DatabaseService,
     config: GraphProjectionWorkerConfig = {}
   ) {
+    // CRITICAL: Load environment variables first
+    console.log('[GraphProjectionWorker] Loading environment variables...');
+    environmentLoader.load();
+    console.log('[GraphProjectionWorker] Environment variables loaded successfully');
+
     this.config = {
       queueName: 'card-and-graph-queue',
       concurrency: 2,
       retryAttempts: 3,
       retryDelay: 5000,
-      dimensionReducerUrl: process.env.DIMENSION_REDUCER_URL || 'http://localhost:8000',
+      dimensionReducerUrl: environmentLoader.get('DIMENSION_REDUCER_URL') || 'http://localhost:8000',
       projectionMethod: 'umap',
       ...config
     };
+
+    console.log(`[GraphProjectionWorker] Using dimension reducer at: ${this.config.dimensionReducerUrl}`);
 
     // Initialize repositories and services
     this.graphProjectionRepo = new GraphProjectionRepository(databaseService);
     this.neo4jService = new Neo4jService(databaseService);
 
-    // Initialize BullMQ worker
+    // Initialize BullMQ worker with EnvironmentLoader
     const redisConnection = {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
-      password: process.env.REDIS_PASSWORD,
+      host: environmentLoader.get('REDIS_HOST') || 'localhost',
+      port: parseInt(environmentLoader.get('REDIS_PORT') || '6379'),
+      password: environmentLoader.get('REDIS_PASSWORD'),
     };
+
+    console.log(`[GraphProjectionWorker] Redis connection configured: ${redisConnection.host}:${redisConnection.port}`);
 
     this.worker = new Worker(
       this.config.queueName!,
@@ -387,10 +404,10 @@ export class GraphProjectionWorker {
    * REAL IMPLEMENTATION: Store projection in database using GraphProjectionRepository
    */
   private async storeProjection(projection: GraphProjection): Promise<void> {
-    try {
-      // Convert GraphProjection to GraphProjectionData format
-      const projectionData: GraphProjectionData = {
-        nodes: projection.nodes.map(node => ({
+          try {
+        // Convert GraphProjection to GraphProjectionData format
+        const projectionData: GraphProjectionData = {
+          nodes: projection.nodes.map((node: any) => ({
           id: node.id,
           position: { 
             x: node.position[0], 
@@ -434,10 +451,10 @@ export class GraphProjectionWorker {
       };
 
              // Store using repository
-       const storedProjection = await this.graphProjectionRepo.create({
-         userId: projection.userId,
-         projectionData: projectionData as any, // Cast to satisfy Prisma InputJsonValue
-         status: 'completed',
+               const storedProjection = await this.graphProjectionRepo.create({
+          userId: projection.userId,
+          projectionData: projectionData as any, // Cast to satisfy Prisma InputJsonValue
+          status: 'completed',
          metadata: {
            version: projection.version,
            createdAt: projection.createdAt,

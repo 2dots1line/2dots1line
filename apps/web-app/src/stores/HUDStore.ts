@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type ModalType = 'dashboard' | 'chat' | 'card' | 'graph' | 'settings' | null;
+export type ModalType = 'dashboard' | 'chat' | 'card' | 'cosmos' | 'settings' | 'cardMatrix' | null;
 
 interface HUDState {
   // State

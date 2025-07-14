@@ -10,6 +10,7 @@
     "clean": "rm -rf .next"
   },
   "dependencies": {
+    "@2dots1line/shared-types": "workspace:*",
     "@2dots1line/ui-components": "workspace:*",
     "axios": "^1.6.0",
     "bcryptjs": "^2.4.3",

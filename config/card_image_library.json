@@ -1,0 +1,418 @@
+{
+  "version": "1.0",
+  "description": "Card Image Library with Semantic Tagging - V11.0 Phase 4.2",
+  "lastUpdated": "2025-01-07",
+  "imageCollections": {
+    "abstract": {
+      "name": "Abstract & Geometric",
+      "description": "Abstract patterns, geometric shapes, and artistic compositions",
+      "tags": ["abstract", "geometric", "pattern", "artistic", "modern"],
+      "images": [
+        {
+          "id": "abstract_001",
+          "filename": "geometric_waves_blue.jpg",
+          "url": "/assets/images/card-backgrounds/abstract/geometric_waves_blue.jpg",
+          "semanticTags": ["flowing", "waves", "blue", "calm", "movement"],
+          "emotions": ["peaceful", "flowing", "dynamic"],
+          "cardTypes": ["reflection", "meditation", "insight"],
+          "colorPalette": ["#1e3a8a", "#3b82f6", "#60a5fa", "#93c5fd"],
+          "dominantColor": "#3b82f6",
+          "mood": "calm",
+          "energy": "medium"
+        },
+        {
+          "id": "abstract_002",
+          "filename": "fractal_spiral_purple.jpg",
+          "url": "/assets/images/card-backgrounds/abstract/fractal_spiral_purple.jpg",
+          "semanticTags": ["spiral", "fractal", "purple", "infinite", "depth"],
+          "emotions": ["mysterious", "deep", "contemplative"],
+          "cardTypes": ["dream", "vision", "breakthrough"],
+          "colorPalette": ["#581c87", "#7c3aed", "#a855f7", "#c084fc"],
+          "dominantColor": "#7c3aed",
+          "mood": "mysterious",
+          "energy": "high"
+        },
+        {
+          "id": "abstract_003",
+          "filename": "crystalline_structure_green.jpg",
+          "url": "/assets/images/card-backgrounds/abstract/crystalline_structure_green.jpg",
+          "semanticTags": ["crystal", "structure", "green", "growth", "formation"],
+          "emotions": ["growth", "structured", "organic"],
+          "cardTypes": ["goal", "habit", "progress"],
+          "colorPalette": ["#14532d", "#16a34a", "#22c55e", "#4ade80"],
+          "dominantColor": "#16a34a",
+          "mood": "optimistic",
+          "energy": "medium"
+        }
+      ]
+    },
+    "nature": {
+      "name": "Nature & Landscapes",
+      "description": "Natural landscapes, organic patterns, and environmental scenes",
+      "tags": ["nature", "landscape", "organic", "peaceful", "earth"],
+      "images": [
+        {
+          "id": "nature_001",
+          "filename": "misty_forest_dawn.jpg",
+          "url": "/assets/images/card-backgrounds/nature/misty_forest_dawn.jpg",
+          "semanticTags": ["forest", "mist", "dawn", "peaceful", "serene"],
+          "emotions": ["peaceful", "mystical", "grounding"],
+          "cardTypes": ["meditation", "reflection", "wisdom"],
+          "colorPalette": ["#065f46", "#059669", "#10b981", "#6ee7b7"],
+          "dominantColor": "#059669",
+          "mood": "serene",
+          "energy": "low"
+        },
+        {
+          "id": "nature_002",
+          "filename": "mountain_peaks_sunset.jpg",
+          "url": "/assets/images/card-backgrounds/nature/mountain_peaks_sunset.jpg",
+          "semanticTags": ["mountains", "peaks", "sunset", "majestic", "achievement"],
+          "emotions": ["inspired", "elevated", "accomplished"],
+          "cardTypes": ["achievement", "goal", "milestone"],
+          "colorPalette": ["#dc2626", "#ea580c", "#f59e0b", "#fbbf24"],
+          "dominantColor": "#ea580c",
+          "mood": "inspiring",
+          "energy": "high"
+        },
+        {
+          "id": "nature_003",
+          "filename": "ocean_waves_calm.jpg",
+          "url": "/assets/images/card-backgrounds/nature/ocean_waves_calm.jpg",
+          "semanticTags": ["ocean", "waves", "calm", "blue", "flowing"],
+          "emotions": ["calm", "flowing", "vast"],
+          "cardTypes": ["emotion", "flow", "intuition"],
+          "colorPalette": ["#1e40af", "#2563eb", "#3b82f6", "#60a5fa"],
+          "dominantColor": "#2563eb",
+          "mood": "tranquil",
+          "energy": "low"
+        }
+      ]
+    },
+    "cosmic": {
+      "name": "Cosmic & Space",
+      "description": "Space scenes, celestial bodies, and cosmic phenomena",
+      "tags": ["space", "cosmic", "stars", "infinite", "wonder"],
+      "images": [
+        {
+          "id": "cosmic_001",
+          "filename": "nebula_purple_pink.jpg",
+          "url": "/assets/images/card-backgrounds/cosmic/nebula_purple_pink.jpg",
+          "semanticTags": ["nebula", "purple", "pink", "cosmic", "ethereal"],
+          "emotions": ["wonder", "infinite", "dreamy"],
+          "cardTypes": ["vision", "dream", "inspiration"],
+          "colorPalette": ["#7c2d92", "#a855f7", "#ec4899", "#f472b6"],
+          "dominantColor": "#a855f7",
+          "mood": "dreamy",
+          "energy": "medium"
+        },
+        {
+          "id": "cosmic_002",
+          "filename": "starfield_deep_blue.jpg",
+          "url": "/assets/images/card-backgrounds/cosmic/starfield_deep_blue.jpg",
+          "semanticTags": ["stars", "deep", "blue", "infinite", "vast"],
+          "emotions": ["vast", "infinite", "contemplative"],
+          "cardTypes": ["reflection", "meditation", "wisdom"],
+          "colorPalette": ["#0c4a6e", "#0369a1", "#0284c7", "#0ea5e9"],
+          "dominantColor": "#0369a1",
+          "mood": "contemplative",
+          "energy": "low"
+        },
+        {
+          "id": "cosmic_003",
+          "filename": "galaxy_spiral_gold.jpg",
+          "url": "/assets/images/card-backgrounds/cosmic/galaxy_spiral_gold.jpg",
+          "semanticTags": ["galaxy", "spiral", "gold", "rotation", "infinite"],
+          "emotions": ["majestic", "infinite", "centered"],
+          "cardTypes": ["insight", "breakthrough", "transformation"],
+          "colorPalette": ["#92400e", "#d97706", "#f59e0b", "#fbbf24"],
+          "dominantColor": "#d97706",
+          "mood": "majestic",
+          "energy": "high"
+        }
+      ]
+    },
+    "minimalist": {
+      "name": "Minimalist & Clean",
+      "description": "Simple, clean designs with minimal visual noise",
+      "tags": ["minimal", "clean", "simple", "focus", "clarity"],
+      "images": [
+        {
+          "id": "minimal_001",
+          "filename": "gradient_soft_blue.jpg",
+          "url": "/assets/images/card-backgrounds/minimalist/gradient_soft_blue.jpg",
+          "semanticTags": ["gradient", "soft", "blue", "smooth", "clean"],
+          "emotions": ["calm", "clean", "focused"],
+          "cardTypes": ["note", "task", "reminder"],
+          "colorPalette": ["#dbeafe", "#bfdbfe", "#93c5fd", "#60a5fa"],
+          "dominantColor": "#93c5fd",
+          "mood": "calm",
+          "energy": "low"
+        },
+        {
+          "id": "minimal_002",
+          "filename": "geometric_lines_gray.jpg",
+          "url": "/assets/images/card-backgrounds/minimalist/geometric_lines_gray.jpg",
+          "semanticTags": ["geometric", "lines", "gray", "structured", "minimal"],
+          "emotions": ["structured", "organized", "clear"],
+          "cardTypes": ["planning", "organization", "system"],
+          "colorPalette": ["#f3f4f6", "#e5e7eb", "#d1d5db", "#9ca3af"],
+          "dominantColor": "#d1d5db",
+          "mood": "neutral",
+          "energy": "medium"
+        },
+        {
+          "id": "minimal_003",
+          "filename": "texture_paper_white.jpg",
+          "url": "/assets/images/card-backgrounds/minimalist/texture_paper_white.jpg",
+          "semanticTags": ["texture", "paper", "white", "subtle", "clean"],
+          "emotions": ["clean", "pure", "fresh"],
+          "cardTypes": ["journal", "writing", "documentation"],
+          "colorPalette": ["#ffffff", "#f9fafb", "#f3f4f6", "#e5e7eb"],
+          "dominantColor": "#f9fafb",
+          "mood": "pure",
+          "energy": "low"
+        }
+      ]
+    },
+    "artistic": {
+      "name": "Artistic & Creative",
+      "description": "Artistic compositions, creative patterns, and expressive designs",
+      "tags": ["artistic", "creative", "expressive", "colorful", "dynamic"],
+      "images": [
+        {
+          "id": "artistic_001",
+          "filename": "watercolor_splash_multi.jpg",
+          "url": "/assets/images/card-backgrounds/artistic/watercolor_splash_multi.jpg",
+          "semanticTags": ["watercolor", "splash", "multicolor", "fluid", "expressive"],
+          "emotions": ["creative", "expressive", "joyful"],
+          "cardTypes": ["creative", "inspiration", "expression"],
+          "colorPalette": ["#dc2626", "#f59e0b", "#10b981", "#3b82f6"],
+          "dominantColor": "#f59e0b",
+          "mood": "joyful",
+          "energy": "high"
+        },
+        {
+          "id": "artistic_002",
+          "filename": "ink_drops_black_gold.jpg",
+          "url": "/assets/images/card-backgrounds/artistic/ink_drops_black_gold.jpg",
+          "semanticTags": ["ink", "drops", "black", "gold", "contrast"],
+          "emotions": ["dramatic", "elegant", "sophisticated"],
+          "cardTypes": ["important", "milestone", "achievement"],
+          "colorPalette": ["#000000", "#374151", "#d97706", "#fbbf24"],
+          "dominantColor": "#374151",
+          "mood": "elegant",
+          "energy": "medium"
+        },
+        {
+          "id": "artistic_003",
+          "filename": "brush_strokes_rainbow.jpg",
+          "url": "/assets/images/card-backgrounds/artistic/brush_strokes_rainbow.jpg",
+          "semanticTags": ["brush", "strokes", "rainbow", "vibrant", "energetic"],
+          "emotions": ["energetic", "vibrant", "dynamic"],
+          "cardTypes": ["celebration", "success", "breakthrough"],
+          "colorPalette": ["#dc2626", "#f59e0b", "#10b981", "#3b82f6", "#7c3aed"],
+          "dominantColor": "#f59e0b",
+          "mood": "energetic",
+          "energy": "high"
+        }
+      ]
+    },
+    "textural": {
+      "name": "Textural & Material",
+      "description": "Material textures, surfaces, and tactile patterns",
+      "tags": ["texture", "material", "surface", "tactile", "physical"],
+      "images": [
+        {
+          "id": "textural_001",
+          "filename": "wood_grain_warm.jpg",
+          "url": "/assets/images/card-backgrounds/textural/wood_grain_warm.jpg",
+          "semanticTags": ["wood", "grain", "warm", "natural", "organic"],
+          "emotions": ["warm", "grounded", "natural"],
+          "cardTypes": ["habit", "routine", "grounding"],
+          "colorPalette": ["#92400e", "#b45309", "#d97706", "#f59e0b"],
+          "dominantColor": "#b45309",
+          "mood": "warm",
+          "energy": "low"
+        },
+        {
+          "id": "textural_002",
+          "filename": "stone_surface_gray.jpg",
+          "url": "/assets/images/card-backgrounds/textural/stone_surface_gray.jpg",
+          "semanticTags": ["stone", "surface", "gray", "solid", "enduring"],
+          "emotions": ["solid", "enduring", "stable"],
+          "cardTypes": ["foundation", "strength", "resilience"],
+          "colorPalette": ["#4b5563", "#6b7280", "#9ca3af", "#d1d5db"],
+          "dominantColor": "#6b7280",
+          "mood": "stable",
+          "energy": "low"
+        },
+        {
+          "id": "textural_003",
+          "filename": "fabric_weave_blue.jpg",
+          "url": "/assets/images/card-backgrounds/textural/fabric_weave_blue.jpg",
+          "semanticTags": ["fabric", "weave", "blue", "pattern", "comfort"],
+          "emotions": ["comfortable", "connected", "woven"],
+          "cardTypes": ["relationship", "connection", "comfort"],
+          "colorPalette": ["#1e40af", "#2563eb", "#3b82f6", "#60a5fa"],
+          "dominantColor": "#2563eb",
+          "mood": "comfortable",
+          "energy": "medium"
+        }
+      ]
+    },
+    "seasonal": {
+      "name": "Seasonal & Time",
+      "description": "Seasonal themes, time-based imagery, and temporal concepts",
+      "tags": ["seasonal", "time", "temporal", "cyclical", "natural"],
+      "images": [
+        {
+          "id": "seasonal_001",
+          "filename": "spring_blossoms_pink.jpg",
+          "url": "/assets/images/card-backgrounds/seasonal/spring_blossoms_pink.jpg",
+          "semanticTags": ["spring", "blossoms", "pink", "renewal", "growth"],
+          "emotions": ["renewal", "fresh", "hopeful"],
+          "cardTypes": ["new_beginning", "growth", "renewal"],
+          "colorPalette": ["#fdf2f8", "#fce7f3", "#f9a8d4", "#ec4899"],
+          "dominantColor": "#f9a8d4",
+          "mood": "hopeful",
+          "energy": "medium"
+        },
+        {
+          "id": "seasonal_002",
+          "filename": "autumn_leaves_orange.jpg",
+          "url": "/assets/images/card-backgrounds/seasonal/autumn_leaves_orange.jpg",
+          "semanticTags": ["autumn", "leaves", "orange", "change", "transformation"],
+          "emotions": ["nostalgic", "transformative", "reflective"],
+          "cardTypes": ["reflection", "change", "transition"],
+          "colorPalette": ["#dc2626", "#ea580c", "#f59e0b", "#fbbf24"],
+          "dominantColor": "#ea580c",
+          "mood": "reflective",
+          "energy": "medium"
+        },
+        {
+          "id": "seasonal_003",
+          "filename": "winter_crystals_blue.jpg",
+          "url": "/assets/images/card-backgrounds/seasonal/winter_crystals_blue.jpg",
+          "semanticTags": ["winter", "crystals", "blue", "clarity", "precision"],
+          "emotions": ["clear", "precise", "calm"],
+          "cardTypes": ["clarity", "focus", "precision"],
+          "colorPalette": ["#0c4a6e", "#0369a1", "#0284c7", "#0ea5e9"],
+          "dominantColor": "#0369a1",
+          "mood": "clear",
+          "energy": "low"
+        }
+      ]
+    },
+    "energetic": {
+      "name": "Energetic & Dynamic",
+      "description": "High-energy patterns, dynamic compositions, and vibrant designs",
+      "tags": ["energetic", "dynamic", "vibrant", "active", "powerful"],
+      "images": [
+        {
+          "id": "energetic_001",
+          "filename": "lightning_electric_blue.jpg",
+          "url": "/assets/images/card-backgrounds/energetic/lightning_electric_blue.jpg",
+          "semanticTags": ["lightning", "electric", "blue", "power", "energy"],
+          "emotions": ["powerful", "electric", "intense"],
+          "cardTypes": ["breakthrough", "insight", "inspiration"],
+          "colorPalette": ["#0c4a6e", "#0ea5e9", "#38bdf8", "#7dd3fc"],
+          "dominantColor": "#0ea5e9",
+          "mood": "intense",
+          "energy": "high"
+        },
+        {
+          "id": "energetic_002",
+          "filename": "fire_flames_red.jpg",
+          "url": "/assets/images/card-backgrounds/energetic/fire_flames_red.jpg",
+          "semanticTags": ["fire", "flames", "red", "passion", "intensity"],
+          "emotions": ["passionate", "intense", "transformative"],
+          "cardTypes": ["passion", "drive", "transformation"],
+          "colorPalette": ["#7f1d1d", "#dc2626", "#ef4444", "#f87171"],
+          "dominantColor": "#dc2626",
+          "mood": "passionate",
+          "energy": "high"
+        },
+        {
+          "id": "energetic_003",
+          "filename": "neon_lights_multi.jpg",
+          "url": "/assets/images/card-backgrounds/energetic/neon_lights_multi.jpg",
+          "semanticTags": ["neon", "lights", "multicolor", "vibrant", "modern"],
+          "emotions": ["vibrant", "modern", "exciting"],
+          "cardTypes": ["innovation", "creativity", "modern"],
+          "colorPalette": ["#dc2626", "#f59e0b", "#10b981", "#3b82f6", "#7c3aed"],
+          "dominantColor": "#3b82f6",
+          "mood": "exciting",
+          "energy": "high"
+        }
+      ]
+    }
+  },
+  "semanticMappings": {
+    "cardTypeToCollections": {
+      "reflection": ["nature", "cosmic", "minimalist"],
+      "meditation": ["nature", "cosmic", "minimalist"],
+      "insight": ["cosmic", "abstract", "artistic"],
+      "goal": ["nature", "energetic", "artistic"],
+      "habit": ["textural", "minimalist", "nature"],
+      "creative": ["artistic", "energetic", "abstract"],
+      "emotional": ["artistic", "nature", "seasonal"],
+      "planning": ["minimalist", "textural", "abstract"],
+      "celebration": ["artistic", "energetic", "seasonal"],
+      "breakthrough": ["cosmic", "energetic", "abstract"],
+      "wisdom": ["cosmic", "nature", "textural"],
+      "growth": ["nature", "seasonal", "abstract"],
+      "transformation": ["cosmic", "artistic", "seasonal"],
+      "connection": ["textural", "nature", "artistic"],
+      "focus": ["minimalist", "textural", "cosmic"],
+      "inspiration": ["cosmic", "artistic", "energetic"],
+      "achievement": ["nature", "energetic", "artistic"],
+      "comfort": ["textural", "nature", "seasonal"],
+      "clarity": ["minimalist", "cosmic", "seasonal"],
+      "strength": ["textural", "nature", "energetic"]
+    },
+    "moodToImages": {
+      "calm": ["abstract_001", "nature_001", "nature_003", "minimal_001"],
+      "energetic": ["energetic_001", "energetic_002", "energetic_003", "artistic_003"],
+      "contemplative": ["cosmic_002", "nature_001", "textural_002"],
+      "joyful": ["artistic_001", "artistic_003", "seasonal_001"],
+      "mysterious": ["abstract_002", "cosmic_001"],
+      "inspiring": ["nature_002", "cosmic_003", "energetic_001"],
+      "peaceful": ["nature_001", "nature_003", "minimal_001"],
+      "creative": ["artistic_001", "artistic_002", "abstract_001"],
+      "focused": ["minimal_002", "textural_002", "seasonal_003"],
+      "warm": ["textural_001", "seasonal_002", "nature_002"]
+    },
+    "emotionToColors": {
+      "calm": ["#3b82f6", "#10b981", "#93c5fd"],
+      "energetic": ["#dc2626", "#f59e0b", "#0ea5e9"],
+      "peaceful": ["#059669", "#2563eb", "#f9fafb"],
+      "creative": ["#a855f7", "#f59e0b", "#ec4899"],
+      "focused": ["#6b7280", "#0369a1", "#d1d5db"],
+      "inspiring": ["#ea580c", "#d97706", "#0ea5e9"],
+      "mysterious": ["#7c3aed", "#a855f7", "#374151"],
+      "warm": ["#b45309", "#ea580c", "#f59e0b"],
+      "joyful": ["#f59e0b", "#ec4899", "#10b981"],
+      "contemplative": ["#0369a1", "#059669", "#6b7280"]
+    }
+  },
+  "fallbackImages": {
+    "default": "minimal_001",
+    "error": "minimal_002",
+    "loading": "minimal_003"
+  },
+  "imageResolutions": {
+    "thumbnail": "150x100",
+    "card": "400x250",
+    "detail": "800x500",
+    "fullscreen": "1920x1200"
+  },
+  "metadata": {
+    "totalImages": 24,
+    "totalCollections": 8,
+    "supportedFormats": ["jpg", "png", "webp"],
+    "maxFileSize": "2MB",
+    "compressionQuality": 85,
+    "cacheExpiry": "30d"
+  }
+} 

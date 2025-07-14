@@ -1,6 +1,7 @@
 /**
  * ConfigService.ts
  * Centralized configuration loader and validator for 2dots1line system
+ * V11.0 - Integrated with EnvironmentLoader for consistent environment management
  */
 
 import * as fs from 'fs/promises';
@@ -8,6 +9,7 @@ import * as path from 'path';
 import yaml from 'js-yaml';
 import { Redis } from 'ioredis';
 import { CoreIdentity } from '@2dots1line/shared-types';
+import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
 
 export class ConfigService {
   private configCache = new Map<string, any>();
@@ -15,8 +17,15 @@ export class ConfigService {
   private initialized = false;
 
   constructor(private redisClient?: Redis) {
+    // CRITICAL: Load environment variables first
+    console.log('[ConfigService] Loading environment variables...');
+    environmentLoader.load();
+    console.log('[ConfigService] Environment variables loaded successfully');
+
     // Find the monorepo root by looking for package.json with workspaces
     this.configDir = this.findMonorepoRoot();
+    
+    console.log(`[ConfigService] Config directory resolved: ${this.configDir}`);
   }
 
   private findMonorepoRoot(): string {
@@ -50,127 +59,150 @@ export class ConfigService {
       const yamlFiles = ['CoreIdentity.yaml', 'prompt_templates.yaml'];
       const jsonFiles = ['card_templates.json', 'card_eligibility_rules.json'];
 
-      for (const file of yamlFiles) {
-        const filePath = path.join(this.configDir, file);
-        const content = await fs.readFile(filePath, 'utf8');
-        const configKey = path.basename(file, path.extname(file));
-        const parsedContent = yaml.load(content) as any;
-        this.configCache.set(configKey, parsedContent);
-        console.log(`Loaded YAML config: ${configKey}`);
-      }
+             // Load YAML files
+       for (const fileName of yamlFiles) {
+         try {
+           const configName = fileName.replace('.yaml', '');
+           await this.loadConfigFile(configName);
+           console.log(`Loaded YAML config: ${configName}`);
+         } catch (error) {
+           console.warn(`Failed to load YAML config ${fileName}:`, error);
+         }
+       }
 
-      for (const file of jsonFiles) {
-        const filePath = path.join(this.configDir, file);
-        const configKey = path.basename(file, path.extname(file));
-        try {
-          const content = await fs.readFile(filePath, 'utf8');
-          const parsedContent = JSON.parse(content);
-          this.configCache.set(configKey, parsedContent);
-          console.log(`Loaded JSON config: ${configKey}`);
-        } catch (error: any) {
-            if (error.code === 'ENOENT') {
-                console.warn(`WARN: Config file ${file} not found. Using fallback for '${configKey}'.`);
-                if (configKey === 'card_eligibility_rules') {
-                    const fallbackRules = {
-                      "MemoryUnit": { "min_importance_score": 5.0 },
-                      "Concept": { "min_salience": 0.6 },
-                      "DerivedArtifact": { "eligible_types": ["cycle_report", "insight_summary"] },
-                      "ProactivePrompt": { "always_eligible": true }
-                    };
-                    this.configCache.set(configKey, fallbackRules);
-                }
-            } else {
-                throw error;
-            }
-        }
-      }
-      
+       // Load JSON files  
+       for (const fileName of jsonFiles) {
+         try {
+           const configName = fileName.replace('.json', '');
+           await this.loadConfigFile(configName);
+           console.log(`Loaded JSON config: ${configName}`);
+         } catch (error) {
+           console.warn(`Failed to load JSON config ${fileName}:`, error);
+         }
+       }
+
       this.initialized = true;
-      console.log("All configurations loaded into memory cache.");
-      
-      // Optionally, cache in Redis for cross-service access
-      if (this.redisClient) {
-        for (const [key, value] of this.configCache.entries()) {
-          await this.redisClient.setex(`config:${key}`, 3600, JSON.stringify(value));
-        }
-        console.log("Configurations cached in Redis.");
-      }
+      console.log('All configurations loaded into memory cache.');
+
     } catch (error) {
-      console.error('Failed to initialize ConfigService:', error);
-      throw new Error(`ConfigService initialization failed: ${error}`);
+      console.error('ConfigService initialization failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get environment variable using EnvironmentLoader
+   */
+  public getEnv(key: string, defaultValue?: string): string | undefined {
+    return environmentLoader.get(key) || defaultValue;
+  }
+
+  /**
+   * Get required environment variable using EnvironmentLoader
+   */
+  public getRequiredEnv(key: string): string {
+    return environmentLoader.getRequired(key);
+  }
+
+  /**
+   * Validate that required environment variables are present
+   */
+  public validateEnvironment(requiredVars: string[]): void {
+    const missing = requiredVars.filter(varName => !environmentLoader.get(varName));
+    
+    if (missing.length > 0) {
+      throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
     }
   }
 
   public getCoreIdentity(): CoreIdentity {
-    if (!this.initialized) {
-      throw new Error('ConfigService not initialized. Call initialize() first.');
+    const config = this.configCache.get('CoreIdentity');
+    if (!config) {
+      throw new Error('CoreIdentity configuration not loaded');
     }
-    
-    const identity = this.configCache.get('CoreIdentity');
-    if (!identity) {
-      throw new Error('CoreIdentity configuration not found');
-    }
-    
-    return identity as CoreIdentity;
+    return config;
   }
 
   public getTemplate(templateName: string): string {
-    if (!this.initialized) {
-      throw new Error('ConfigService not initialized. Call initialize() first.');
-    }
-    
     const templates = this.configCache.get('prompt_templates');
-    if (!templates) {
-      throw new Error('prompt_templates configuration not found');
+    if (!templates || !templates.templates) {
+      throw new Error('Prompt templates not loaded');
     }
     
-    const template = templates[templateName];
-    if (template === undefined) {
-      throw new Error(`Template '${templateName}' not found in prompt_templates.yaml`);
+    const template = templates.templates[templateName];
+    if (!template) {
+      throw new Error(`Template '${templateName}' not found`);
     }
     
-    return template || '';
+    return template;
   }
 
   public getAllTemplates(): Record<string, string> {
-    if (!this.initialized) {
-      throw new Error('ConfigService not initialized. Call initialize() first.');
-    }
-    
     const templates = this.configCache.get('prompt_templates');
-    if (!templates) {
-      throw new Error('prompt_templates configuration not found');
+    if (!templates || !templates.templates) {
+      throw new Error('Prompt templates not loaded');
     }
-    
-    return templates;
+    return templates.templates;
   }
 
   public getCardTemplates(): any {
-    if (!this.initialized) {
-      throw new Error('ConfigService not initialized. Call initialize() first.');
+    const config = this.configCache.get('card_templates');
+    if (!config) {
+      throw new Error('Card templates configuration not loaded');
     }
-    const templates = this.configCache.get('card_templates');
-    if (!templates) {
-      throw new Error('card_templates configuration not found');
-    }
-    return templates;
+    return config;
   }
 
   public getCardEligibilityRules(): any {
-    if (!this.initialized) {
-      throw new Error('ConfigService not initialized. Call initialize() first.');
+    const config = this.configCache.get('card_eligibility_rules');
+    if (!config) {
+      throw new Error('Card eligibility rules configuration not loaded');
     }
-    const rules = this.configCache.get('card_eligibility_rules');
-    if (!rules) {
-      throw new Error('card_eligibility_rules configuration not found');
-    }
-    return rules;
+    return config;
   }
 
-  // Placeholder methods for future configuration loading and validation
+  // Internal method for loading config files during initialization
+  private async loadConfigFile(configName: string): Promise<any> {
+    const yamlPath = path.join(this.configDir, `${configName}.yaml`);
+    const jsonPath = path.join(this.configDir, `${configName}.json`);
+    
+    try {
+      // Try YAML first
+      if (await this.fileExists(yamlPath)) {
+        const content = await fs.readFile(yamlPath, 'utf8');
+        const parsed = yaml.load(content);
+        this.configCache.set(configName, parsed);
+        return parsed;
+      }
+      
+      // Try JSON next
+      if (await this.fileExists(jsonPath)) {
+        const content = await fs.readFile(jsonPath, 'utf8');
+        const parsed = JSON.parse(content);
+        this.configCache.set(configName, parsed);
+        return parsed;
+      }
+      
+      throw new Error(`Config file not found: ${configName}.yaml or ${configName}.json`);
+    } catch (error) {
+      console.warn(`Failed to load config ${configName}:`, error);
+      throw error;
+    }
+  }
+
+  private async fileExists(filePath: string): Promise<boolean> {
+    try {
+      await fs.access(filePath);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // Public method for getting loaded config
   async loadConfig(configName: string): Promise<any> {
     if (!this.initialized) {
-      await this.initialize();
+      throw new Error('ConfigService not initialized. Call initialize() first.');
     }
     
     return this.configCache.get(configName);

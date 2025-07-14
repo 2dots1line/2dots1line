@@ -15,6 +15,138 @@
 
 ---
 
+## 🚨 **V11.0 ENVIRONMENT LOADING SYSTEM**
+
+**CRITICAL FOR PREVENTING DATABASE CONNECTION ISSUES**
+
+### **Environment Loading Architecture**
+
+V11.0 uses a comprehensive **EnvironmentLoader** system that automatically loads environment variables from multiple sources:
+
+1. **process.env** (highest priority)
+2. **.env file** (project root)
+3. **.env.local** 
+4. **.env.development**
+5. **Default values** (lowest priority)
+
+### **🟢 CORRECT Development Workflow**
+
+**ALWAYS use PM2 for backend services** - This ensures EnvironmentLoader is used:
+
+```bash
+# ✅ CORRECT: Start all backend services via PM2
+pm2 start ecosystem.config.js
+
+# ✅ CORRECT: Start frontend manually
+cd apps/web-app && pnpm dev
+
+# ✅ CORRECT: Check service status
+pm2 status
+```
+
+### **🔴 INCORRECT Development Workflow**
+
+**NEVER manually start individual services** - This bypasses EnvironmentLoader:
+
+```bash
+# ❌ WRONG: Manual service startup bypasses environment loading
+cd apps/api-gateway && pnpm start
+
+# ❌ WRONG: Manual worker startup
+cd workers/ingestion-worker && pnpm start
+```
+
+### **Environment Loading Troubleshooting**
+
+#### **Error: "Environment variable not found: DATABASE_URL"**
+**Root Cause**: Service started manually, not via PM2
+**Solution**:
+```bash
+# Stop manual process
+pkill -f "node.*server.js"
+
+# Start via PM2 instead
+pm2 start ecosystem.config.js
+```
+
+#### **Error: "listen EADDRINUSE: address already in use"**
+**Root Cause**: PM2 process already running
+**Solution**:
+```bash
+# Check what's running
+pm2 status
+
+# Use PM2 management instead of manual startup
+pm2 restart api-gateway
+```
+
+#### **Database Connection Errors**
+**Root Cause**: Environment variables not loaded consistently
+**Solution**:
+```bash
+# Ensure PM2 processes have latest environment
+pm2 restart all
+
+# Verify database schema is up to date
+cd packages/database && pnpm prisma migrate deploy
+```
+
+### **Environment Variable Management**
+
+#### **Making Environment Changes**
+```bash
+# 1. Edit .env file (in project root)
+vi .env
+
+# 2. Restart PM2 processes to load new variables
+pm2 restart all
+
+# 3. Verify changes took effect
+pm2 logs api-gateway --lines 5
+```
+
+#### **Checking Environment Status**
+```bash
+# Check what environment variables are loaded
+pm2 show api-gateway --all
+
+# Check database connection status
+curl -s http://localhost:3001/api/health | jq
+```
+
+### **Development Session Startup (V11.0)**
+
+**Follow this exact sequence for consistent environment loading:**
+
+```bash
+# 1. Start databases
+pnpm start:db
+
+# 2. Wait for databases to be ready
+sleep 10
+
+# 3. Start all backend services via PM2 (uses EnvironmentLoader)
+pm2 start ecosystem.config.js
+
+# 4. Start frontend manually
+cd apps/web-app && pnpm dev &
+
+# 5. Verify all services are running
+pm2 status
+curl -s http://localhost:3001/api/health
+```
+
+### **Why This Prevents Issues**
+
+1. **Consistent Database URLs**: All services use the same DATABASE_URL from .env
+2. **Automatic Fallbacks**: EnvironmentLoader provides sensible defaults
+3. **Error Prevention**: Missing variables are caught early with clear error messages
+4. **Development Efficiency**: No manual environment variable management needed
+
+**KEY PRINCIPLE**: If you see environment variable errors, you're not using PM2. Always use PM2 for backend services in V11.0.
+
+---
+
 ## 🚨 **V11.0 ARCHITECTURE OVERVIEW**
 
 **KEY V11.0 CHANGES:**

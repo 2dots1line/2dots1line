@@ -1,5 +1,6 @@
 import { ConfigService } from '@2dots1line/config-service';
 import { DatabaseService } from '@2dots1line/database';
+import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
 
 import { HolisticAnalysisTool } from '@2dots1line/tools';
 import { Worker, Queue } from 'bullmq';
@@ -10,6 +11,11 @@ async function main() {
   console.log('[IngestionWorker] Starting ingestion worker...');
 
   try {
+    // CRITICAL: Load environment variables first using EnvironmentLoader
+    console.log('[IngestionWorker] Loading environment variables...');
+    environmentLoader.load();
+    console.log('[IngestionWorker] Environment variables loaded successfully');
+
     // 1. Initialize all dependencies
     const configService = new ConfigService();
     await configService.initialize();
@@ -24,12 +30,14 @@ async function main() {
     const holisticAnalysisTool = new HolisticAnalysisTool(configService);
     console.log('[IngestionWorker] HolisticAnalysisTool instantiated');
 
-    // 3. Initialize BullMQ queues
+    // 3. Initialize BullMQ queues with EnvironmentLoader
     const redisConnection = {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
-      password: process.env.REDIS_PASSWORD,
+      host: environmentLoader.get('REDIS_HOST') || 'localhost',
+      port: parseInt(environmentLoader.get('REDIS_PORT') || '6379'),
+      password: environmentLoader.get('REDIS_PASSWORD'),
     };
+
+    console.log(`[IngestionWorker] Redis connection configured: ${redisConnection.host}:${redisConnection.port}`);
 
     const embeddingQueue = new Queue('embedding-queue', { connection: redisConnection });
     const cardAndGraphQueue = new Queue('card-and-graph-queue', { connection: redisConnection });

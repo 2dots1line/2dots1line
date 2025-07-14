@@ -6,7 +6,8 @@ import {
   MessageCircle, 
   CreditCard, 
   Network, 
-  Settings 
+  Settings,
+  Grid3x3 
 } from 'lucide-react';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 
@@ -20,8 +21,9 @@ interface HUDContainerProps {
 const HUD_BUTTONS: Array<{ id: ModalType; label: string; icon: React.ComponentType<any> }> = [
   { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
   { id: 'chat', label: 'Chat', icon: MessageCircle },
-  { id: 'card', label: 'Card', icon: CreditCard },
-  { id: 'graph', label: 'Graph', icon: Network },
+  { id: 'card', label: 'Cards', icon: CreditCard },
+  { id: 'cardMatrix', label: 'Card Matrix', icon: Grid3x3 },
+  { id: 'cosmos', label: 'Cosmos', icon: Network },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 

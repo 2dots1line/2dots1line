@@ -3,9 +3,10 @@ import { Driver as Neo4jDriver, driver as neo4jDriver, auth as neo4jAuth } from 
 import weaviate, { WeaviateClient } from 'weaviate-ts-client';
 import Redis from 'ioredis';
 import { prisma } from './prisma-client';
+import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
 
 /**
- * V9.7 DatabaseService
+ * V9.7 DatabaseService with EnvironmentLoader Integration
  * 
  * Centralized service for managing all database client connections.
  * This service provides a single point of access to all persistence layers:
@@ -24,20 +25,23 @@ export class DatabaseService {
 
   // Use a private constructor to enforce singleton pattern for the service itself
   private constructor() {
+    // CRITICAL: Load environment variables first
+    console.log('DatabaseService: Loading environment variables...');
+    environmentLoader.load();
+    
     // 1. Assign the singleton Prisma client
     this.prisma = prisma;
 
     // 2. Initialize Neo4j Client
     // Use NEO4J_URI for host connections (PM2 processes) and NEO4J_URI_DOCKER for Docker containers
-    const neo4jUri = process.env.NEO4J_URI || process.env.NEO4J_URI_DOCKER || 'bolt://localhost:7687';
-    this.neo4j = neo4jDriver(
-      neo4jUri,
-      neo4jAuth.basic(process.env.NEO4J_USER!, process.env.NEO4J_PASSWORD!)
-    );
+    const neo4jUri = environmentLoader.get('NEO4J_URI') || environmentLoader.get('NEO4J_URI_DOCKER') || 'bolt://localhost:7687';
+    const neo4jUser = environmentLoader.get('NEO4J_USER') || environmentLoader.get('NEO4J_USERNAME') || 'neo4j';
+    const neo4jPassword = environmentLoader.getRequired('NEO4J_PASSWORD');
+    
+    this.neo4j = neo4jDriver(neo4jUri, neo4jAuth.basic(neo4jUser, neo4jPassword));
 
     // 3. Initialize Weaviate Client
-    // Use WEAVIATE_URL for host connections (PM2 processes) and WEAVIATE_HOST_DOCKER for Docker containers
-    const weaviateUrl = process.env.WEAVIATE_URL || `${process.env.WEAVIATE_SCHEME_DOCKER || 'http'}://${process.env.WEAVIATE_HOST_DOCKER || 'localhost:8080'}`;
+    const weaviateUrl = environmentLoader.get('WEAVIATE_URL') || `${environmentLoader.get('WEAVIATE_SCHEME_DOCKER') || 'http'}://${environmentLoader.get('WEAVIATE_HOST_DOCKER') || 'localhost:8080'}`;
     const weaviateScheme = weaviateUrl.startsWith('https') ? 'https' : 'http';
     const weaviateHost = weaviateUrl.replace(/^https?:\/\//, '');
     
@@ -47,33 +51,27 @@ export class DatabaseService {
     });
 
     // 4. Initialize Redis Client
-    // Use REDIS_URL for host connections (PM2 processes) and Docker-specific vars for containers
-    const redisUrl = process.env.REDIS_URL;
-    let redisHost = 'localhost';
-    let redisPort = 6379;
-    
+    const redisUrl = environmentLoader.get('REDIS_URL');
     if (redisUrl) {
-      const url = new URL(redisUrl);
-      redisHost = url.hostname;
-      redisPort = parseInt(url.port) || 6379;
-    } else if (process.env.NODE_ENV === 'production') {
-      redisHost = process.env.REDIS_HOST_DOCKER || 'localhost';
-      redisPort = parseInt(process.env.REDIS_PORT_FOR_APP_IN_DOCKER || '6379');
+      this.redis = new Redis(redisUrl);
+    } else {
+      const redisHost = environmentLoader.get('REDIS_HOST') || environmentLoader.get('REDIS_HOST_DOCKER') || 'localhost';
+      const redisPort = parseInt(environmentLoader.get('REDIS_PORT') || environmentLoader.get('REDIS_PORT_DOCKER') || '6379');
+      this.redis = new Redis({ host: redisHost, port: redisPort });
     }
-    
-    this.redis = new Redis({
-      host: redisHost,
-      port: redisPort,
-      connectTimeout: 5000,
-      lazyConnect: true,
-      maxRetriesPerRequest: 3
-    });
 
-    console.log(`DatabaseService Redis configured: ${redisHost}:${redisPort} (NODE_ENV: ${process.env.NODE_ENV || 'development'})`);
-    console.log("DatabaseService initialized with all clients.");
+    console.log('DatabaseService Redis configured:', 
+      redisUrl || `${environmentLoader.get('REDIS_HOST') || 'localhost'}:${environmentLoader.get('REDIS_PORT') || '6379'}`,
+      `(NODE_ENV: ${environmentLoader.get('NODE_ENV') || 'development'})`
+    );
+
+    console.log('DatabaseService initialized with all clients.');
   }
 
-  // Public method to get the singleton instance of the DatabaseService
+  /**
+   * Get the singleton instance of DatabaseService
+   * Ensures environment variables are loaded before any database connections
+   */
   public static getInstance(): DatabaseService {
     if (!DatabaseService.instance) {
       DatabaseService.instance = new DatabaseService();

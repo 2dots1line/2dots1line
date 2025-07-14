@@ -11,8 +11,8 @@
  */
 
 import { DatabaseService } from '@2dots1line/database';
-import type { IExecutableTool, TTextEmbeddingInputPayload, TTextEmbeddingResult } from '@2dots1line/shared-types';
-import { TextEmbeddingTool } from '@2dots1line/tools';
+import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
+import { TextEmbeddingTool, TTextEmbeddingInputPayload, TTextEmbeddingResult, IExecutableTool } from '@2dots1line/tools';
 import { Worker, Job } from 'bullmq';
 
 export interface EmbeddingJob {
@@ -30,6 +30,10 @@ export interface EmbeddingWorkerConfig {
   embeddingModelVersion?: string;
 }
 
+/**
+ * EmbeddingWorker - Processes embedding generation jobs
+ * V11.0 Production Implementation with EnvironmentLoader integration
+ */
 export class EmbeddingWorker {
   private worker: Worker;
   private textEmbeddingTool: IExecutableTool<TTextEmbeddingInputPayload, TTextEmbeddingResult>;
@@ -39,6 +43,11 @@ export class EmbeddingWorker {
     private databaseService: DatabaseService,
     config: EmbeddingWorkerConfig = {}
   ) {
+    // CRITICAL: Load environment variables first
+    console.log('[EmbeddingWorker] Loading environment variables...');
+    environmentLoader.load();
+    console.log('[EmbeddingWorker] Environment variables loaded successfully');
+
     this.config = {
       queueName: 'embedding-queue',
       concurrency: 3,
@@ -51,12 +60,14 @@ export class EmbeddingWorker {
     // Use TextEmbeddingTool as singleton instance
     this.textEmbeddingTool = TextEmbeddingTool;
 
-    // Initialize BullMQ worker
+    // Initialize BullMQ worker with EnvironmentLoader
     const redisConnection = {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
-      password: process.env.REDIS_PASSWORD,
+      host: environmentLoader.get('REDIS_HOST') || 'localhost',
+      port: parseInt(environmentLoader.get('REDIS_PORT') || '6379'),
+      password: environmentLoader.get('REDIS_PASSWORD'),
     };
+
+    console.log(`[EmbeddingWorker] Redis connection configured: ${redisConnection.host}:${redisConnection.port}`);
 
     this.worker = new Worker(
       this.config.queueName!,

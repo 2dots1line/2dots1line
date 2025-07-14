@@ -49,4 +49,25 @@ export enum CardType {
   CONCEPT = 'concept',
   DERIVED_ARTIFACT = 'derived_artifact',
   PROACTIVE_PROMPT = 'proactive_prompt'
+}
+
+/**
+ * Extended card interface with display and background image support
+ * Used by UI components for rendering cards with additional metadata
+ */
+export interface DisplayCard extends TCard {
+  background_image_url?: string;
+  title?: string;
+  subtitle?: string;
+  description?: string;
+}
+
+/**
+ * Image collection interface for card background selection
+ * Used by UI components for organizing and selecting card backgrounds
+ */
+export interface ImageCollection {
+  name: string;
+  source: string;
+  images: string[];
 } 

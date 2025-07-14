@@ -7,18 +7,28 @@ import {
   SSEMessage,
   NotificationJobPayload 
 } from '@2dots1line/shared-types';
+import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
 import { Worker, Job } from 'bullmq';
 import { Redis } from 'ioredis';
 
 const NOTIFICATION_QUEUE_NAME = 'notification-queue';
-const REDIS_PUB_SUB_CHANNEL = process.env.NOTIFICATION_REDIS_CHANNEL || 'sse_notifications_channel';
 
 export class NotificationWorker {
   private worker: Worker;
   private publisher: Redis;
   private isShuttingDown: boolean = false;
+  private redisPubSubChannel: string;
 
   constructor(redisConnection: Redis) {
+    // CRITICAL: Load environment variables first
+    console.log('[NotificationWorker] Loading environment variables...');
+    environmentLoader.load();
+    console.log('[NotificationWorker] Environment variables loaded successfully');
+
+    // Get Redis pub/sub channel from EnvironmentLoader
+    this.redisPubSubChannel = environmentLoader.get('NOTIFICATION_REDIS_CHANNEL') || 'sse_notifications_channel';
+    console.log(`[NotificationWorker] Using Redis pub/sub channel: ${this.redisPubSubChannel}`);
+
     // Duplicate connection for non-blocking publishing
     this.publisher = redisConnection.duplicate();
 
@@ -30,32 +40,29 @@ export class NotificationWorker {
         concurrency: 10 // Process multiple notifications concurrently
       }
     );
+
+    this.setupEventHandlers();
   }
 
-  public async initialize(): Promise<void> {
-    console.log('[NotificationWorker] Initializing and listening to notification-queue...');
-
-    this.worker.on('completed', (job: Job) => {
-      console.log(`[NotificationWorker] ✅ Completed job ${job.id} of type ${job.data.type} for user ${job.data.userId}`);
+  /**
+   * Set up event handlers for worker lifecycle
+   */
+  private setupEventHandlers(): void {
+    this.worker.on('completed', (job) => {
+      console.log(`[NotificationWorker] ✅ Job ${job.id} completed successfully`);
     });
 
-    this.worker.on('failed', (job: Job | undefined, err: Error) => {
-      if (job) {
-        console.error(`[NotificationWorker] ❌ Failed job ${job.id} of type ${job.data.type} for user ${job.data.userId}`, err);
-      } else {
-        console.error(`[NotificationWorker] ❌ A job failed with no job data`, err);
-      }
+    this.worker.on('failed', (job, err) => {
+      console.error(`[NotificationWorker] ❌ Job ${job?.id} failed:`, err);
     });
 
-    this.worker.on('error', (err: Error) => {
+    this.worker.on('error', (err) => {
       console.error('[NotificationWorker] Worker error:', err);
     });
 
-    // Handle graceful shutdown
-    process.on('SIGTERM', () => this.gracefulShutdown());
-    process.on('SIGINT', () => this.gracefulShutdown());
-
-    console.log('[NotificationWorker] Initialized successfully');
+    this.worker.on('active', (job) => {
+      console.log(`[NotificationWorker] 🔄 Job ${job.id} started processing`);
+    });
   }
 
   /**
@@ -89,7 +96,7 @@ export class NotificationWorker {
       if (sseMessage) {
         // Publish the formatted message to the Redis Pub/Sub channel.
         // The API Gateway will handle the final delivery to connected clients.
-        await this.publisher.publish(REDIS_PUB_SUB_CHANNEL, JSON.stringify(sseMessage));
+        await this.publisher.publish(this.redisPubSubChannel, JSON.stringify(sseMessage));
         console.log(`[NotificationWorker] Broadcast ${type} notification to Redis channel for user ${userId}`);
       }
     } catch (error) {
@@ -134,7 +141,6 @@ export class NotificationWorker {
    * Starts the worker and begins processing jobs.
    */
   public async start(): Promise<void> {
-    await this.initialize();
     console.log('[NotificationWorker] Started successfully and ready to process notifications');
   }
 

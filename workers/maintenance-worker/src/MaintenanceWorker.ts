@@ -1,35 +1,66 @@
 /**
  * MaintenanceWorker.ts
- * V11.0 CORRECT IMPLEMENTATION
+ * V11.0 CORRECT IMPLEMENTATION with EnvironmentLoader Integration
  * Worker responsible for data hygiene, integrity, and infrastructure optimization.
  */
 
 import { DatabaseService } from '@2dots1line/database';
+import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
 import * as cron from 'node-cron';
 
-// V11.0: All thresholds and schedules are configuration-driven
-const CONFIG = {
-  ENABLE_REDIS_CLEANUP: process.env.ENABLE_REDIS_CLEANUP_TASK === 'true',
-  ENABLE_INTEGRITY_CHECK: process.env.ENABLE_INTEGRITY_CHECK_TASK === 'true',
-  ENABLE_DB_OPTIMIZATION: process.env.ENABLE_DB_OPTIMIZATION_TASK === 'true',
-  ENABLE_ARCHIVING: process.env.ENABLE_ARCHIVING_TASK === 'true', // Default to false for safety
-
-  REDIS_CLEANUP_CRON: process.env.CLEANUP_REDIS_CRON || '0 * * * *', // Hourly
-  INTEGRITY_CHECK_CRON: process.env.INTEGRITY_CHECK_CRON || '0 2 * * *', // Daily at 2 AM
-  DB_OPTIMIZATION_CRON: process.env.DB_OPTIMIZATION_CRON || '0 3 * * 1', // Weekly on Monday at 3 AM
-  ARCHIVING_CRON: process.env.ARCHIVING_CRON || '0 4 1 * *', // Monthly on the 1st at 4 AM
-
-  STALE_REDIS_KEY_THRESHOLD_HOURS: parseInt(process.env.STALE_REDIS_KEY_THRESHOLD_HOURS || '24', 10),
-  ARCHIVE_CONVERSATIONS_AFTER_DAYS: parseInt(process.env.ARCHIVE_CONVERSATIONS_AFTER_DAYS || '730', 10),
-  INTEGRITY_CHECK_BATCH_SIZE: parseInt(process.env.INTEGRITY_CHECK_BATCH_SIZE || '1000', 10),
-};
-
+/**
+ * MaintenanceWorker V11.0 Configuration with EnvironmentLoader
+ * All thresholds and schedules are configuration-driven via environment variables
+ */
 export class MaintenanceWorker {
   private dbService: DatabaseService;
+  private tasks: cron.ScheduledTask[] = [];
   private isRunning: boolean = false;
   private isShuttingDown: boolean = false;
+  private config: {
+    ENABLE_REDIS_CLEANUP: boolean;
+    ENABLE_INTEGRITY_CHECK: boolean;
+    ENABLE_DB_OPTIMIZATION: boolean;
+    ENABLE_ARCHIVING: boolean;
+    REDIS_CLEANUP_CRON: string;
+    INTEGRITY_CHECK_CRON: string;
+    DB_OPTIMIZATION_CRON: string;
+    ARCHIVING_CRON: string;
+    STALE_REDIS_KEY_THRESHOLD_HOURS: number;
+    ARCHIVE_CONVERSATIONS_AFTER_DAYS: number;
+    INTEGRITY_CHECK_BATCH_SIZE: number;
+  };
 
   constructor() {
+    // CRITICAL: Load environment variables first
+    console.log('[MaintenanceWorker] Loading environment variables...');
+    environmentLoader.load();
+    console.log('[MaintenanceWorker] Environment variables loaded successfully');
+
+    // Load configuration from EnvironmentLoader
+    this.config = {
+      ENABLE_REDIS_CLEANUP: environmentLoader.get('ENABLE_REDIS_CLEANUP_TASK') === 'true',
+      ENABLE_INTEGRITY_CHECK: environmentLoader.get('ENABLE_INTEGRITY_CHECK_TASK') === 'true',
+      ENABLE_DB_OPTIMIZATION: environmentLoader.get('ENABLE_DB_OPTIMIZATION_TASK') === 'true',
+      ENABLE_ARCHIVING: environmentLoader.get('ENABLE_ARCHIVING_TASK') === 'true', // Default to false for safety
+
+      REDIS_CLEANUP_CRON: environmentLoader.get('CLEANUP_REDIS_CRON') || '0 * * * *', // Hourly
+      INTEGRITY_CHECK_CRON: environmentLoader.get('INTEGRITY_CHECK_CRON') || '0 2 * * *', // Daily at 2 AM
+      DB_OPTIMIZATION_CRON: environmentLoader.get('DB_OPTIMIZATION_CRON') || '0 3 * * 1', // Weekly on Monday at 3 AM
+      ARCHIVING_CRON: environmentLoader.get('ARCHIVING_CRON') || '0 4 1 * *', // Monthly on the 1st at 4 AM
+
+      STALE_REDIS_KEY_THRESHOLD_HOURS: parseInt(environmentLoader.get('STALE_REDIS_KEY_THRESHOLD_HOURS') || '24', 10),
+      ARCHIVE_CONVERSATIONS_AFTER_DAYS: parseInt(environmentLoader.get('ARCHIVE_CONVERSATIONS_AFTER_DAYS') || '730', 10),
+      INTEGRITY_CHECK_BATCH_SIZE: parseInt(environmentLoader.get('INTEGRITY_CHECK_BATCH_SIZE') || '1000', 10),
+    };
+
+    console.log('[MaintenanceWorker] Configuration loaded:', {
+      redisCleanup: this.config.ENABLE_REDIS_CLEANUP,
+      integrityCheck: this.config.ENABLE_INTEGRITY_CHECK,
+      dbOptimization: this.config.ENABLE_DB_OPTIMIZATION,
+      archiving: this.config.ENABLE_ARCHIVING,
+    });
+
     this.dbService = DatabaseService.getInstance();
   }
 
@@ -37,7 +68,7 @@ export class MaintenanceWorker {
     console.log('[MaintenanceWorker] Initializing V11.0 maintenance worker...');
     
     // Schedule the main maintenance cycle (daily at 2 AM)
-    cron.schedule(CONFIG.INTEGRITY_CHECK_CRON, async () => {
+    cron.schedule(this.config.INTEGRITY_CHECK_CRON, async () => {
       if (!this.isRunning && !this.isShuttingDown) {
         await this.runMaintenanceCycle();
       }
@@ -47,7 +78,7 @@ export class MaintenanceWorker {
     process.on('SIGTERM', () => this.gracefulShutdown());
     process.on('SIGINT', () => this.gracefulShutdown());
 
-    console.log(`[MaintenanceWorker] Maintenance cycle scheduled: ${CONFIG.INTEGRITY_CHECK_CRON}`);
+    console.log(`[MaintenanceWorker] Maintenance cycle scheduled: ${this.config.INTEGRITY_CHECK_CRON}`);
     console.log('[MaintenanceWorker] V11.0 initialization complete');
   }
 
@@ -70,17 +101,17 @@ export class MaintenanceWorker {
       { 
         name: 'Cleanup Stale Redis Keys', 
         fn: () => this.cleanupStaleRedisKeys(), 
-        enabled: CONFIG.ENABLE_REDIS_CLEANUP 
+        enabled: this.config.ENABLE_REDIS_CLEANUP 
       },
       { 
         name: 'Run Data Integrity Check', 
         fn: () => this.runDataIntegrityCheck(), 
-        enabled: CONFIG.ENABLE_INTEGRITY_CHECK 
+        enabled: this.config.ENABLE_INTEGRITY_CHECK 
       },
       { 
         name: 'Run Database Optimization', 
         fn: () => this.runDatabaseOptimization(), 
-        enabled: CONFIG.ENABLE_DB_OPTIMIZATION 
+        enabled: this.config.ENABLE_DB_OPTIMIZATION 
       },
       
       // REFACTORED TASKS (corrected per tech lead review)
@@ -92,7 +123,7 @@ export class MaintenanceWorker {
       { 
         name: 'Archive Old Conversations', 
         fn: () => this.archiveOldConversations(), 
-        enabled: CONFIG.ENABLE_ARCHIVING 
+        enabled: this.config.ENABLE_ARCHIVING 
       },
       // Note: Media cleanup tasks commented out until storage deletion is implemented
       // { name: 'Cleanup Orphaned Media Items', fn: () => this.cleanupOrphanedMediaItems(), enabled: true },
@@ -182,7 +213,7 @@ export class MaintenanceWorker {
   private async checkConceptIntegrity(): Promise<void> {
     const conceptsInPg = await this.dbService.prisma.concepts.findMany({ 
       select: { concept_id: true },
-      take: CONFIG.INTEGRITY_CHECK_BATCH_SIZE
+      take: this.config.INTEGRITY_CHECK_BATCH_SIZE
     });
     const conceptIdsInPg = new Set(conceptsInPg.map(c => c.concept_id));
     
@@ -190,7 +221,7 @@ export class MaintenanceWorker {
     try {
       const result = await neo4jSession.run(
         'MATCH (c:Concept) RETURN c.conceptId AS conceptId LIMIT $limit',
-        { limit: CONFIG.INTEGRITY_CHECK_BATCH_SIZE }
+        { limit: this.config.INTEGRITY_CHECK_BATCH_SIZE }
       );
       const conceptIdsInNeo4j = new Set(result.records.map(r => r.get('conceptId')));
 
@@ -211,7 +242,7 @@ export class MaintenanceWorker {
   private async checkMemoryUnitIntegrity(): Promise<void> {
     const memoryUnitsInPg = await this.dbService.prisma.memory_units.findMany({ 
       select: { muid: true },
-      take: CONFIG.INTEGRITY_CHECK_BATCH_SIZE
+      take: this.config.INTEGRITY_CHECK_BATCH_SIZE
     });
     const memoryUnitIdsInPg = new Set(memoryUnitsInPg.map(m => m.muid));
     
@@ -219,7 +250,7 @@ export class MaintenanceWorker {
     try {
       const result = await neo4jSession.run(
         'MATCH (m:MemoryUnit) RETURN m.memoryUnitId AS memoryUnitId LIMIT $limit',
-        { limit: CONFIG.INTEGRITY_CHECK_BATCH_SIZE }
+        { limit: this.config.INTEGRITY_CHECK_BATCH_SIZE }
       );
       const memoryUnitIdsInNeo4j = new Set(result.records.map(r => r.get('memoryUnitId')));
 
@@ -301,7 +332,7 @@ export class MaintenanceWorker {
    */
   private async archiveOldConversations(): Promise<void> {
     const archiveDate = new Date();
-    archiveDate.setDate(archiveDate.getDate() - CONFIG.ARCHIVE_CONVERSATIONS_AFTER_DAYS);
+    archiveDate.setDate(archiveDate.getDate() - this.config.ARCHIVE_CONVERSATIONS_AFTER_DAYS);
 
     const result = await this.dbService.prisma.conversations.updateMany({
       where: {
@@ -311,7 +342,7 @@ export class MaintenanceWorker {
       data: { status: 'archived' },
     });
     
-    console.log(`[MaintenanceWorker] Archived ${result.count} conversations older than ${CONFIG.ARCHIVE_CONVERSATIONS_AFTER_DAYS} days.`);
+    console.log(`[MaintenanceWorker] Archived ${result.count} conversations older than ${this.config.ARCHIVE_CONVERSATIONS_AFTER_DAYS} days.`);
   }
 
   // NOTE: updateUserActivityStats() REMOVED per tech lead directive

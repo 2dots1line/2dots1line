@@ -6,6 +6,7 @@
 import { ConfigService } from '@2dots1line/config-service';
 import { DatabaseService } from '@2dots1line/database';
 import { StrategicSynthesisTool } from '@2dots1line/tools';
+import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
 import { Worker, Queue } from 'bullmq';
 
 import { InsightEngine, InsightJobData } from './InsightEngine';
@@ -14,6 +15,11 @@ async function main() {
   console.log('[InsightWorker] Starting V11.0 insight worker...');
 
   try {
+    // CRITICAL: Load environment variables first using EnvironmentLoader
+    console.log('[InsightWorker] Loading environment variables...');
+    environmentLoader.load();
+    console.log('[InsightWorker] Environment variables loaded successfully');
+
     // 1. Initialize all dependencies
     const configService = new ConfigService();
     await configService.initialize();
@@ -26,12 +32,14 @@ async function main() {
     const strategicSynthesisTool = new StrategicSynthesisTool(configService);
     console.log('[InsightWorker] StrategicSynthesisTool instantiated');
 
-    // 3. Initialize BullMQ queues
+    // 3. Initialize BullMQ queues with EnvironmentLoader
     const redisConnection = {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
-      password: process.env.REDIS_PASSWORD,
+      host: environmentLoader.get('REDIS_HOST') || 'localhost',
+      port: parseInt(environmentLoader.get('REDIS_PORT') || '6379'),
+      password: environmentLoader.get('REDIS_PASSWORD'),
     };
+
+    console.log(`[InsightWorker] Redis connection configured: ${redisConnection.host}:${redisConnection.port}`);
 
     const cardAndGraphQueue = new Queue('card-and-graph-queue', { connection: redisConnection });
     console.log('[InsightWorker] BullMQ queues initialized');

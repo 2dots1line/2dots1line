@@ -9,6 +9,7 @@ import LoginModal from '../components/modal/LoginModal';
 import SignupModal from '../components/modal/SignupModal';
 import { useHUDStore } from '../stores/HUDStore';
 import { useUserStore } from '../stores/UserStore';
+import { useAutoLoadCards } from '../components/hooks/useAutoLoadCards';
 
 const HomePage = () => {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
@@ -16,6 +17,9 @@ const HomePage = () => {
   
   const { user, isAuthenticated, logout, initializeAuth, hasHydrated } = useUserStore();
   const { setActiveModal, activeModal } = useHUDStore();
+  
+  // Automatically load cards when user is authenticated
+  const { isLoading: cardsLoading, cardsLoaded, totalCards } = useAutoLoadCards();
 
   // Memoize initializeAuth to prevent unnecessary re-renders
   const memoizedInitializeAuth = useCallback(() => {
@@ -123,6 +127,11 @@ const HomePage = () => {
                   className="text-sm text-onSurface"
                 >
                   Welcome, {user?.name || user?.email?.split('@')[0] || 'User'}
+                  {cardsLoaded && (
+                    <span className="ml-2 text-xs opacity-75">
+                      ({totalCards} cards)
+                    </span>
+                  )}
                 </GlassmorphicPanel>
                 {/* Logout Button */}
                 <GlassButton 

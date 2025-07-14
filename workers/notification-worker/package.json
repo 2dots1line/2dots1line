@@ -10,6 +10,7 @@
     "test": "jest"
   },
   "dependencies": {
+    "@2dots1line/core-utils": "workspace:*",
     "@2dots1line/database": "workspace:*",
     "@2dots1line/shared-types": "workspace:*",
     "bullmq": "^4.0.0",
