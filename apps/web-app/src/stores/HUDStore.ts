@@ -1,23 +1,27 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type ModalType = 'dashboard' | 'chat' | 'card' | 'cosmos' | 'settings' | 'cardMatrix' | null;
+export type ViewType = 'dashboard' | 'chat' | 'cards' | 'cosmos' | 'settings' | null;
 
 interface HUDState {
   // State
   isExpanded: boolean;
-  activeModal: ModalType;
+  activeView: ViewType; // Unified state for all views
   isDragging: boolean;
   position: { x: number; y: number };
+  
+  // Card detail modal (overlays on cards view)
+  cardDetailModalOpen: boolean;
   
   // Actions
   toggleHUD: () => void;
   expandHUD: () => void;
   minimizeHUD: () => void;
-  setActiveModal: (modal: ModalType) => void;
+  setActiveView: (view: ViewType) => void;
   setIsDragging: (dragging: boolean) => void;
   updatePosition: (position: { x: number; y: number }) => void;
   resetPosition: () => void;
+  setCardDetailModalOpen: (open: boolean) => void;
 }
 
 const DEFAULT_POSITION = { x: 20, y: 120 }; // 20px from right, 120px from top
@@ -27,9 +31,10 @@ export const useHUDStore = create<HUDState>()(
     (set, get) => ({
       // Initial state - Start expanded for better visibility
       isExpanded: true,
-      activeModal: null,
+      activeView: null, // Unified view state
       isDragging: false,
       position: DEFAULT_POSITION,
+      cardDetailModalOpen: false,
 
       // Actions
       toggleHUD: () => {
@@ -45,10 +50,10 @@ export const useHUDStore = create<HUDState>()(
         set({ isExpanded: false });
       },
 
-      setActiveModal: (modal: ModalType) => {
-        set({ activeModal: modal });
-        // Auto-expand HUD when a modal is selected
-        if (modal) {
+      setActiveView: (view: ViewType) => {
+        set({ activeView: view });
+        // Auto-expand HUD when a view is selected
+        if (view) {
           set({ isExpanded: true });
         }
       },
@@ -63,6 +68,10 @@ export const useHUDStore = create<HUDState>()(
 
       resetPosition: () => {
         set({ position: DEFAULT_POSITION });
+      },
+
+      setCardDetailModalOpen: (open: boolean) => {
+        set({ cardDetailModalOpen: open });
       },
     }),
     {

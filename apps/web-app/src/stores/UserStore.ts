@@ -239,7 +239,7 @@ export const useUserStore = create<UserState>()(
                 region: 'US',
                 timezone: 'UTC',
                 language_preference: 'en',
-                profile_picture_url: null,
+                profile_picture_url: undefined,
                 created_at: new Date().toISOString(),
                 last_active_at: new Date().toISOString(),
                 account_status: 'active',

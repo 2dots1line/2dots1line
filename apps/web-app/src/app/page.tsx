@@ -1,25 +1,34 @@
 'use client';
 
-import { GlassmorphicPanel, GlassButton } from '@2dots1line/ui-components';
+import { GlassmorphicPanel, GlassButton, InfiniteCardCanvas } from '@2dots1line/ui-components';
 import React, { useState, useEffect, useCallback } from 'react';
 
-import { HUDContainer } from '../components/hud';
-import { ModalContainer } from '../components/modal';
+import { useAutoLoadCards } from '../components/hooks/useAutoLoadCards';
+import { HUDContainer } from '../components/hud/HUDContainer';
 import LoginModal from '../components/modal/LoginModal';
+import { ModalContainer } from '../components/modal/ModalContainer';
 import SignupModal from '../components/modal/SignupModal';
+import { useCardStore } from '../stores/CardStore';
 import { useHUDStore } from '../stores/HUDStore';
 import { useUserStore } from '../stores/UserStore';
-import { useAutoLoadCards } from '../components/hooks/useAutoLoadCards';
 
 const HomePage = () => {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isSignupModalOpen, setIsSignupModalOpen] = useState(false);
   
   const { user, isAuthenticated, logout, initializeAuth, hasHydrated } = useUserStore();
-  const { setActiveModal, activeModal } = useHUDStore();
+  const { setActiveView, activeView, setCardDetailModalOpen } = useHUDStore();
+  const { cards, loadCards, isLoading, setSelectedCard } = useCardStore();
   
   // Automatically load cards when user is authenticated
-  const { isLoading: cardsLoading, cardsLoaded, totalCards } = useAutoLoadCards();
+  const { cardsLoaded, totalCards } = useAutoLoadCards();
+  
+  // Load cards when cards view becomes active
+  useEffect(() => {
+    if (isAuthenticated && activeView === 'cards') {
+      loadCards();
+    }
+  }, [isAuthenticated, activeView, loadCards]);
 
   // Memoize initializeAuth to prevent unnecessary re-renders
   const memoizedInitializeAuth = useCallback(() => {
@@ -45,12 +54,12 @@ const HomePage = () => {
     return () => clearTimeout(hydrationTimeout);
   }, [memoizedInitializeAuth, user, isAuthenticated, hasHydrated]);
 
-  // Auto-open dashboard when user is authenticated and no modal is active
+  // Auto-open dashboard when user is authenticated and no view is active
   useEffect(() => {
-    if (isAuthenticated && hasHydrated && !activeModal) {
-      setActiveModal('dashboard');
+    if (isAuthenticated && hasHydrated && !activeView) {
+      setActiveView('dashboard');
     }
-  }, [isAuthenticated, hasHydrated, activeModal, setActiveModal]);
+  }, [isAuthenticated, hasHydrated, activeView, setActiveView]);
 
   // Handle opening login modal
   const openLoginModal = () => {
@@ -73,9 +82,15 @@ const HomePage = () => {
   // Handle logout
   const handleLogout = () => {
     logout();
-    // Clear active modal on logout
-    setActiveModal(null);
+    // Clear active view on logout
+    setActiveView(null);
   };
+  
+  // Handle card selection from InfiniteCardCanvas
+  const handleCardSelect = useCallback((card: any) => {
+    setSelectedCard(card);
+    setCardDetailModalOpen(true); // Open card detail modal over cards view
+  }, [setSelectedCard, setCardDetailModalOpen]);
 
   // Don't render auth-dependent UI until hydration is complete
   if (!hasHydrated) {
@@ -183,10 +198,27 @@ const HomePage = () => {
       {/* Navigation HUD - Layer 3 */}
       {isAuthenticated && <HUDContainer />}
 
-      {/* Navigation Modals - Layer 4 */}
+      {/* Main Views - Layer 4 (z-30) - Mutually Exclusive */}
+      {isAuthenticated && activeView === 'cards' && (
+        <>
+          {isLoading ? (
+            <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/20">
+              <div className="text-white text-xl">Loading your cards...</div>
+            </div>
+          ) : (
+            <InfiniteCardCanvas
+              cards={cards}
+              onCardSelect={handleCardSelect}
+              className="z-30"
+            />
+          )}
+        </>
+      )}
+
+      {/* Modal Container - Handles all modals (main views + overlays) */}
       {isAuthenticated && <ModalContainer />}
 
-      {/* Authentication Modals - Layer 5 (highest) */}
+      {/* Authentication Modals - Layer 6 (highest) */}
       <LoginModal
         isOpen={isLoginModalOpen}
         onClose={closeModals}

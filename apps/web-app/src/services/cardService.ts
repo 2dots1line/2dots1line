@@ -3,8 +3,7 @@
  * V11.0 - Card system integration with API Gateway
  */
 
-import { TCard, CardStatus, CardType } from '@2dots1line/shared-types';
-import { DisplayCard } from '../stores/CardStore';
+import { CardStatus, CardType, DisplayCard } from '@2dots1line/shared-types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
 

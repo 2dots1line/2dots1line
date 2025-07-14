@@ -28,4 +28,9 @@ export type { FileAttachmentProps } from './FileAttachment';
 
 export { default as VoiceRecordingIndicator } from './VoiceRecordingIndicator';
 
+// Card Components
+export { CardTile } from './cards/CardTile';
+export type { CardSize } from './cards/CardTile';
+export { InfiniteCardCanvas } from './cards/InfiniteCardCanvas';
+
 // Add other component exports here 

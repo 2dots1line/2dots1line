@@ -294,11 +294,13 @@ export const useNodeInteractions = (options: UseNodeInteractionsOptions = {}): U
   const createConnection = useCallback((fromNode: CosmosNode, toNode: CosmosNode) => {
     const connection: NodeConnection = {
       id: `${fromNode.id}-${toNode.id}`,
-      fromNodeId: fromNode.id,
-      toNodeId: toNode.id,
-      type: 'semantic',
-      weight: 1,
-      color: '#00ff66',
+      target_node_id: toNode.id,
+      connection_type: 'related',
+      strength: 1,
+      metadata: {
+        from_node_id: fromNode.id,
+        color: '#00ff66'
+      }
     };
     
     setInteractionState(prev => ({

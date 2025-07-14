@@ -1,6 +1,7 @@
 /**
  * Export all entity types
  */
+export * from './card.types';
 export * from './community.types';
 export * from './concept.types';
 export * from './interaction.types';

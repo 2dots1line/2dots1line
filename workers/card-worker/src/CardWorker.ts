@@ -1,12 +1,12 @@
 /**
  * CardWorker.ts
- * V9.5 Production-Grade Worker for creating UI cards from knowledge entities
+ * V11.0 Production-Grade Worker for creating UI cards from knowledge entities
  * 
  * This worker subscribes to the card-and-graph-queue and processes events published
- * by IngestionAnalyst and InsightEngine. For each entity in an event, it uses the
- * CardFactory to determine eligibility and create Card records.
+ * by IngestionAnalyst and InsightEngine. For each entity in an event, it directly
+ * creates Card records for eligible entities.
  * 
- * ARCHITECTURE: Follows V9.5 presentation layer separation - knowledge generation
+ * ARCHITECTURE: Follows V11.0 presentation layer separation - knowledge generation
  * is completely decoupled from UI presentation.
  */
 
@@ -15,16 +15,8 @@ import { DatabaseService, CardRepository, MemoryRepository, ConceptRepository, D
 import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
 import { Worker, Job } from 'bullmq';
 import { 
-  CardEvent, 
-  TCardGenerationResult,
-  NewEntityEvent,
-  GraphOntologyUpdatedEvent,
-  UserSessionEndedEvent,
-  TCard,
-  CardGenerationSpecificCard
+  TCard
 } from '@2dots1line/shared-types';
-
-import { CardFactory } from './CardFactory';
 
 // Event types from V9.5 Event Queue Contracts
 export interface NewEntitiesCreatedEvent {
@@ -59,7 +51,6 @@ export interface CardWorkerConfig {
 export class CardWorker {
   private worker: Worker;
   private config: CardWorkerConfig;
-  private cardFactory: CardFactory;
   
   // Repository instances
   private cardRepository: CardRepository;
@@ -92,16 +83,6 @@ export class CardWorker {
     this.conceptRepository = new ConceptRepository(databaseService);
     this.derivedArtifactRepository = new DerivedArtifactRepository(databaseService);
     this.proactivePromptRepository = new ProactivePromptRepository(databaseService);
-
-    // Initialize CardFactory with all required dependencies
-    this.cardFactory = new CardFactory(
-      configService,
-      this.cardRepository,
-      this.memoryRepository,
-      this.conceptRepository,
-      this.derivedArtifactRepository,
-      this.proactivePromptRepository
-    );
 
     // Initialize BullMQ worker with EnvironmentLoader
     const redisConnection = {
@@ -158,14 +139,14 @@ export class CardWorker {
   }
 
   /**
-   * Process a single entity using CardFactory
+   * Process a single entity by creating a card directly
    */
   private async processEntity(
     entity: { id: string; type: string }, 
     userId: string
   ): Promise<{ created: boolean; cardId?: string; reason?: string }> {
     try {
-      // Map entity type to CardFactory expected format
+      // Map entity type to card format
       const entityType = this.mapEntityType(entity.type);
       if (!entityType) {
         return { 
@@ -174,13 +155,29 @@ export class CardWorker {
         };
       }
 
-      // Use CardFactory to determine eligibility and create card
-      const result = await this.cardFactory.createCardForEntity(
-        { id: entity.id, type: entityType },
-        userId
-      );
+      // Check if card already exists
+      const existingCard = await this.cardRepository.findBySourceEntity(entity.id, entityType);
+      if (existingCard) {
+        return { 
+          created: false, 
+          reason: `Card already exists for ${entityType} ${entity.id}` 
+        };
+      }
 
-      return result;
+      // Create new card
+      const cardData = {
+        user_id: userId,
+        card_type: entityType.toLowerCase(),
+        source_entity_id: entity.id,
+        source_entity_type: entityType,
+        display_data: {}
+      };
+
+      const newCard = await this.cardRepository.create(cardData);
+      return { 
+        created: true, 
+        cardId: newCard.card_id 
+      };
       
     } catch (error) {
       console.error(`[CardWorker] Error processing entity ${entity.type} ${entity.id}:`, error);
@@ -192,7 +189,7 @@ export class CardWorker {
   }
 
   /**
-   * Map event entity types to CardFactory entity types
+   * Map event entity types to card entity types
    */
   private mapEntityType(eventType: string): 'MemoryUnit' | 'Concept' | 'DerivedArtifact' | 'ProactivePrompt' | null {
     switch (eventType) {

@@ -6,12 +6,10 @@ import React from 'react';
 
 import { useHUDStore } from '../../stores/HUDStore';
 
-import ChatModal from './ChatModal';
-import DashboardModal from './DashboardModal';
 import { CardModal } from './CardModal';
+import ChatModal from './ChatModal';
 import { CosmosModal } from './CosmosModal';
-import { FullscreenCardMatrix } from '../cards/FullscreenCardMatrix';
-import { useCardStore } from '../../stores/CardStore';
+import DashboardModal from './DashboardModal';
 
 interface ModalContainerProps {
   className?: string;
@@ -48,58 +46,44 @@ const SettingsModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
 export const ModalContainer: React.FC<ModalContainerProps> = ({
   className,
 }) => {
-  const { activeModal, setActiveModal } = useHUDStore();
-  const { filteredCards, setSelectedCard, setCurrentView, loadCards, cards, isLoading } = useCardStore();
-
-  // Load cards when cardMatrix modal opens if no cards are present
-  React.useEffect(() => {
-    if (activeModal === 'cardMatrix' && cards.length === 0 && !isLoading) {
-      loadCards();
-    }
-  }, [activeModal, cards.length, isLoading, loadCards]);
-
+  const { activeView, setActiveView, cardDetailModalOpen, setCardDetailModalOpen } = useHUDStore();
+  
   const handleClose = () => {
-    setActiveModal(null);
+    setActiveView(null);
   };
 
-  const handleCardSelect = (card: any) => {
-    setSelectedCard(card);
-    setCurrentView('detail');
-    setActiveModal('card');
+  const handleCardModalClose = () => {
+    setCardDetailModalOpen(false);
   };
 
   return (
     <div className={className}>
-      <DashboardModal 
-        isOpen={activeModal === 'dashboard'} 
-        onClose={handleClose} 
-      />
-      <ChatModal 
-        isOpen={activeModal === 'chat'} 
-        onClose={handleClose} 
-      />
-      <CardModal 
-        isOpen={activeModal === 'card'} 
-        onClose={handleClose} 
-      />
-      <CosmosModal 
-        isOpen={activeModal === 'cosmos'} 
-        onClose={handleClose} 
-      />
-      <SettingsModal 
-        isOpen={activeModal === 'settings'} 
-        onClose={handleClose} 
-      />
+      {/* Main View Modals - Only show when not in cards view (mutually exclusive) */}
+      {activeView && activeView !== 'cards' && (
+        <>
+          <DashboardModal 
+            isOpen={activeView === 'dashboard'} 
+            onClose={handleClose} 
+          />
+          <ChatModal 
+            isOpen={activeView === 'chat'} 
+            onClose={handleClose} 
+          />
+          <CosmosModal 
+            isOpen={activeView === 'cosmos'} 
+            onClose={handleClose} 
+          />
+          <SettingsModal 
+            isOpen={activeView === 'settings'} 
+            onClose={handleClose} 
+          />
+        </>
+      )}
       
-      {/* Fullscreen Card Matrix */}
-      <FullscreenCardMatrix
-        cards={cards}
-        onCardSelect={handleCardSelect}
-        onClose={handleClose}
-        cardSize="md"
-        showSearch={true}
-        showFilters={true}
-        isVisible={activeModal === 'cardMatrix'}
+      {/* Card Detail Modal - Can overlay on cards view */}
+      <CardModal 
+        isOpen={cardDetailModalOpen} 
+        onClose={handleCardModalClose} 
       />
     </div>
   );

@@ -12,7 +12,8 @@
 
 import { DatabaseService } from '@2dots1line/database';
 import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
-import { TextEmbeddingTool, TTextEmbeddingInputPayload, TTextEmbeddingResult, IExecutableTool } from '@2dots1line/tools';
+import { TextEmbeddingTool } from '@2dots1line/tools';
+import { TTextEmbeddingInputPayload, TTextEmbeddingResult, IExecutableTool } from '@2dots1line/shared-types';
 import { Worker, Job } from 'bullmq';
 
 export interface EmbeddingJob {

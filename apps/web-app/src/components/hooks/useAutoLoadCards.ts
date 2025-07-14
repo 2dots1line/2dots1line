@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
-import { useUserStore } from '../../stores/UserStore';
+
 import { useCardStore } from '../../stores/CardStore';
+import { useUserStore } from '../../stores/UserStore';
 
 /**
  * Hook to automatically load cards when user is authenticated

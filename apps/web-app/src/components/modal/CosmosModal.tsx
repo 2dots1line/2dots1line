@@ -4,11 +4,13 @@
  * Simplified version to avoid circular dependencies
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { X, Search, Filter, Settings, Info } from 'lucide-react';
+import type { DisplayCard } from '@2dots1line/shared-types';
 import { GlassButton } from '@2dots1line/ui-components';
-import { useCardStore, type DisplayCard } from '../../stores/CardStore';
+import { X, Search, Filter, Settings, Info } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+
 import { cardService } from '../../services/cardService';
+import { useCardStore } from '../../stores/CardStore';
 
 // Simplified cosmos types to avoid dependency issues
 interface Vector3D {
@@ -63,7 +65,7 @@ const PlaceholderCosmosCanvas: React.FC<{
   connections: SimpleNodeConnection[];
   onNodeSelect: (node: SimpleCosmosNode) => void;
   className?: string;
-}> = ({ nodes, connections, onNodeSelect, className }) => {
+}> = ({ nodes, connections, className }) => {
   return (
     <div className={`${className} bg-black/50 border border-white/20 rounded-lg p-8 flex items-center justify-center`}>
       <div className="text-center">
@@ -97,7 +99,7 @@ export const CosmosModal: React.FC<CosmosModalProps> = ({
   const [sidePanelOpen, setSidePanelOpen] = useState(false);
   
   // Card store
-  const { cards, setCards } = useCardStore();
+  const { cards, refreshCards } = useCardStore();
   
   // Generate cosmos nodes from cards
   const cosmosNodes = useMemo(() => {
@@ -199,7 +201,7 @@ export const CosmosModal: React.FC<CosmosModalProps> = ({
   }, [cosmosNodes, cards]);
   
   // Navigation hooks (for navigation controls)
-  const [navigationState, setNavigationState] = useState<NavigationState>({
+  const [navigationState] = useState<NavigationState>({
     cameraMode: 'free',
     isFlying: false,
     isOrbiting: false,
@@ -225,7 +227,7 @@ export const CosmosModal: React.FC<CosmosModalProps> = ({
       });
       
       if (response.success && response.cards) {
-        setCards(response.cards);
+        // setCards(response.cards); // TODO: Update for simplified CardStore
       } else {
         setError(response.error || 'Failed to load cards');
       }
@@ -234,7 +236,7 @@ export const CosmosModal: React.FC<CosmosModalProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [setCards]);
+  }, []);
   
   // Handle node selection
   const handleNodeSelect = useCallback(async (node: SimpleCosmosNode) => {
@@ -266,10 +268,8 @@ export const CosmosModal: React.FC<CosmosModalProps> = ({
       });
       
       if (response.success) {
-        // Update local state
-        setCards(cards.map(c => 
-          (c as any).card_id === cardId ? { ...c, is_favorited: !(c as any).is_favorited } : c
-        ));
+        // Refresh cards from server to get latest data
+        refreshCards();
         
         // Update selected card if it's the same
         if (selectedCard && (selectedCard as any).card_id === cardId) {
@@ -279,7 +279,7 @@ export const CosmosModal: React.FC<CosmosModalProps> = ({
     } catch (err) {
       console.error('Failed to toggle favorite:', err);
     }
-  }, [cards, selectedCard, setCards]);
+  }, [cards, selectedCard, refreshCards]);
   
   if (!isOpen) return null;
   

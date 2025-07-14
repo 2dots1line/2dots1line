@@ -41,6 +41,8 @@ interface CardTileProps {
   showMetadata?: boolean;
   showActions?: boolean;
   className?: string;
+  style?: React.CSSProperties; // NEW: Support for absolute positioning in infinite grid
+  optimizeForInfiniteGrid?: boolean; // NEW: Performance optimizations for infinite grid
 }
 
 export const CardTile: React.FC<CardTileProps> = ({
@@ -56,7 +58,9 @@ export const CardTile: React.FC<CardTileProps> = ({
   isHovered = false,
   showMetadata = true,
   showActions = true,
-  className
+  className,
+  style, // NEW: Positioning styles for infinite grid
+  optimizeForInfiniteGrid = false // NEW: Performance optimization flag
 }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [showActionMenu, setShowActionMenu] = useState(false);
@@ -144,12 +148,14 @@ export const CardTile: React.FC<CardTileProps> = ({
     <div
       ref={cardRef}
       className={cn(
+        'card-tile', // Added base class for infinite grid CSS targeting
         'relative group cursor-pointer transition-all duration-300 ease-out',
-        SIZE_CLASSES[size],
+        !optimizeForInfiniteGrid && SIZE_CLASSES[size], // Skip size classes in infinite grid
         isSelected && 'ring-2 ring-primary ring-offset-2 ring-offset-transparent',
         isHovered && 'scale-105 z-10',
         className
       )}
+      style={style} // Apply positioning styles for infinite grid
       onClick={(e) => handleCardClick(card, e)}
       onMouseEnter={(e) => handleCardHover(card, e)}
       onMouseLeave={handleCardHoverEnd}
@@ -169,7 +175,11 @@ export const CardTile: React.FC<CardTileProps> = ({
         )}
       >
         {/* Background Image - Takes up most of the card */}
-        <div className={cn('relative overflow-hidden rounded-t-xl', IMAGE_CLASSES[size])}>
+        <div className={cn(
+          'card-background', // Added for infinite grid CSS targeting
+          'relative overflow-hidden rounded-t-xl', 
+          !optimizeForInfiniteGrid && IMAGE_CLASSES[size] // Skip size classes in infinite grid
+        )}>
           {imageUrl && (
             <>
               {/* Check if imageUrl is a CSS gradient or regular image */}
@@ -278,7 +288,10 @@ export const CardTile: React.FC<CardTileProps> = ({
         </div>
         
         {/* Card Content - Compact, Apple-like text layout */}
-        <div className="p-2 flex-1 flex flex-col justify-center bg-black/20 backdrop-blur-sm">
+        <div className={cn(
+          'card-content', // Added for infinite grid CSS targeting
+          'p-2 flex-1 flex flex-col justify-center bg-black/20 backdrop-blur-sm'
+        )}>
           {/* Title - Center aligned like Apple icons */}
           <h3 className={cn(
             'font-brand font-medium text-white text-center line-clamp-1',

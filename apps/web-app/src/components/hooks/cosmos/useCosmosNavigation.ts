@@ -4,8 +4,8 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { useFrame } from '@react-three/fiber';
-import { Camera, Vector3 } from 'three';
+import { useFrame, useThree, ThreeEvent, RootState } from '@react-three/fiber';
+import { Camera, Vector3, CatmullRomCurve3 } from 'three';
 import { CosmosNode, CosmosNavigationState } from '@2dots1line/shared-types';
 
 // Local types to avoid circular dependencies
@@ -27,10 +27,10 @@ interface NavigationState {
 }
 
 interface FlightPath {
-  start: THREE.Vector3;
-  end: THREE.Vector3;
+  start: Vector3;
+  end: Vector3;
   duration: number;
-  curve?: THREE.CatmullRomCurve3;
+  curve?: CatmullRomCurve3;
   onComplete?: () => void;
 }
 
@@ -49,32 +49,32 @@ interface UseCosmosNavigationReturn {
   
   // Camera controls
   flyToNode: (node: CosmosNode, duration?: number) => void;
-  flyToPosition: (position: THREE.Vector3, duration?: number) => void;
+  flyToPosition: (position: Vector3, duration?: number) => void;
   orbitNode: (node: CosmosNode, radius?: number) => void;
   followNode: (node: CosmosNode, distance?: number) => void;
   
   // Movement controls
-  moveCamera: (direction: THREE.Vector3, speed?: number) => void;
+  moveCamera: (direction: Vector3, speed?: number) => void;
   setCameraMode: (mode: NavigationState['cameraMode']) => void;
   setFlySpeed: (speed: number) => void;
   setOrbitSpeed: (speed: number) => void;
   
   // Utilities
-  getCurrentCameraPosition: () => THREE.Vector3;
-  getCurrentTarget: () => THREE.Vector3;
+  getCurrentCameraPosition: () => Vector3;
+  getCurrentTarget: () => Vector3;
   resetCamera: () => void;
   stopAllMovement: () => void;
   
   // Path generation
-  createFlightPath: (start: THREE.Vector3, end: THREE.Vector3, waypoints?: THREE.Vector3[]) => THREE.CatmullRomCurve3;
+  createFlightPath: (start: Vector3, end: Vector3, waypoints?: Vector3[]) => CatmullRomCurve3;
   
   // Keyboard/Mouse state
   keys: { [key: string]: boolean };
   mousePosition: { x: number; y: number };
 }
 
-const DEFAULT_CAMERA_POSITION = new THREE.Vector3(0, 100, 500);
-const DEFAULT_CAMERA_TARGET = new THREE.Vector3(0, 0, 0);
+const DEFAULT_CAMERA_POSITION = new Vector3(0, 100, 500);
+const DEFAULT_CAMERA_TARGET = new Vector3(0, 0, 0);
 const DEFAULT_FLY_SPEED = 2;
 const DEFAULT_ORBIT_SPEED = 0.5;
 
@@ -104,7 +104,7 @@ export const useCosmosNavigation = (options: UseCosmosNavigationOptions = {}): U
   // Animation state
   const currentFlight = useRef<FlightPath | null>(null);
   const flightProgress = useRef(0);
-  const orbitCenter = useRef<THREE.Vector3>(new THREE.Vector3());
+  const orbitCenter = useRef<Vector3>(new Vector3());
   const orbitRadius = useRef(300);
   const orbitAngle = useRef(0);
   
@@ -113,14 +113,14 @@ export const useCosmosNavigation = (options: UseCosmosNavigationOptions = {}): U
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   
   // Camera targets
-  const cameraTarget = useRef<THREE.Vector3>(DEFAULT_CAMERA_TARGET.clone());
-  const cameraVelocity = useRef<THREE.Vector3>(new THREE.Vector3());
+  const cameraTarget = useRef<Vector3>(DEFAULT_CAMERA_TARGET.clone());
+  const cameraVelocity = useRef<Vector3>(new Vector3());
 
   // Flight to node
   const flyToNode = useCallback((node: CosmosNode, duration = 2000) => {
     if (!node.position) return;
     
-    const targetPosition = new THREE.Vector3(
+    const targetPosition = new Vector3(
       node.position.x + 100, // Offset to view the node
       node.position.y + 50,
       node.position.z + 100
@@ -139,7 +139,7 @@ export const useCosmosNavigation = (options: UseCosmosNavigationOptions = {}): U
   }, [debug]);
 
   // Flight to position
-  const flyToPosition = useCallback((position: THREE.Vector3, duration = 2000) => {
+  const flyToPosition = useCallback((position: Vector3, duration = 2000) => {
     const startPosition = camera.position.clone();
     
     currentFlight.current = {
@@ -184,7 +184,7 @@ export const useCosmosNavigation = (options: UseCosmosNavigationOptions = {}): U
   const followNode = useCallback((node: CosmosNode, distance = 200) => {
     if (!node.position) return;
     
-    const followPosition = new THREE.Vector3(
+    const followPosition = new Vector3(
       node.position.x,
       node.position.y + distance * 0.5,
       node.position.z + distance
@@ -202,7 +202,7 @@ export const useCosmosNavigation = (options: UseCosmosNavigationOptions = {}): U
   }, [debug]);
 
   // Move camera
-  const moveCamera = useCallback((direction: THREE.Vector3, speed = navigationState.flySpeed) => {
+  const moveCamera = useCallback((direction: Vector3, speed = navigationState.flySpeed) => {
     const normalizedDirection = direction.clone().normalize();
     const velocity = normalizedDirection.multiplyScalar(speed);
     
@@ -277,7 +277,7 @@ export const useCosmosNavigation = (options: UseCosmosNavigationOptions = {}): U
   }, [debug]);
 
   // Create flight path
-  const createFlightPath = useCallback((start: THREE.Vector3, end: THREE.Vector3, waypoints?: THREE.Vector3[]) => {
+  const createFlightPath = useCallback((start: Vector3, end: Vector3, waypoints?: Vector3[]) => {
     const points = [start];
     
     if (waypoints) {
@@ -286,11 +286,11 @@ export const useCosmosNavigation = (options: UseCosmosNavigationOptions = {}): U
     
     points.push(end);
     
-    return new THREE.CatmullRomCurve3(points);
+    return new CatmullRomCurve3(points);
   }, []);
 
   // Animation frame
-  useFrame((state, delta) => {
+  useFrame((state: RootState, delta: number) => {
     // Handle flight animations
     if (currentFlight.current && navigationState.isFlying) {
       flightProgress.current += delta * 1000 / currentFlight.current.duration;
@@ -329,7 +329,7 @@ export const useCosmosNavigation = (options: UseCosmosNavigationOptions = {}): U
     if (navigationState.cameraMode === 'free' && !navigationState.isFlying) {
       // Apply velocity
       if (cameraVelocity.current.length() > 0) {
-        camera.position.add(cameraVelocity.current.multiplyScalar(delta));
+        camera.position.add(cameraVelocity.current.clone().multiplyScalar(delta));
         cameraVelocity.current.multiplyScalar(0.95); // Damping
       }
       
@@ -338,16 +338,28 @@ export const useCosmosNavigation = (options: UseCosmosNavigationOptions = {}): U
         const moveSpeed = navigationState.flySpeed * delta * 60;
         
         if (keys['w'] || keys['ArrowUp']) {
-          camera.position.add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(moveSpeed));
+          const direction = new Vector3();
+          camera.getWorldDirection(direction);
+          camera.position.add(direction.multiplyScalar(moveSpeed));
         }
         if (keys['s'] || keys['ArrowDown']) {
-          camera.position.add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(-moveSpeed));
+          const direction = new Vector3();
+          camera.getWorldDirection(direction);
+          camera.position.add(direction.multiplyScalar(-moveSpeed));
         }
         if (keys['a'] || keys['ArrowLeft']) {
-          camera.position.add(new THREE.Vector3().crossVectors(camera.up, camera.getWorldDirection(new THREE.Vector3())).multiplyScalar(moveSpeed));
+          const direction = new Vector3();
+          const worldDirection = new Vector3();
+          camera.getWorldDirection(worldDirection);
+          direction.crossVectors(camera.up, worldDirection);
+          camera.position.add(direction.multiplyScalar(moveSpeed));
         }
         if (keys['d'] || keys['ArrowRight']) {
-          camera.position.add(new THREE.Vector3().crossVectors(camera.getWorldDirection(new THREE.Vector3()), camera.up).multiplyScalar(moveSpeed));
+          const direction = new Vector3();
+          const worldDirection = new Vector3();
+          camera.getWorldDirection(worldDirection);
+          direction.crossVectors(worldDirection, camera.up);
+          camera.position.add(direction.multiplyScalar(moveSpeed));
         }
         if (keys['q']) {
           camera.position.y += moveSpeed;
@@ -360,13 +372,14 @@ export const useCosmosNavigation = (options: UseCosmosNavigationOptions = {}): U
     
     // Handle follow mode
     if (navigationState.cameraMode === 'follow' && navigationState.currentTarget && !navigationState.isFlying) {
-      const targetPos = new THREE.Vector3(
+      const targetPos = new Vector3(
         navigationState.currentTarget.position?.x || 0,
         navigationState.currentTarget.position?.y || 0,
         navigationState.currentTarget.position?.z || 0
       );
       
-      camera.position.lerp(targetPos.clone().add(new THREE.Vector3(100, 50, 100)), delta * 2);
+      const offset = new Vector3(100, 50, 100);
+      camera.position.lerp(targetPos.clone().add(offset), delta * 2);
       camera.lookAt(targetPos);
     }
   });

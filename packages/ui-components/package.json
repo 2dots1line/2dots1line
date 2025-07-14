@@ -5,7 +5,8 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && npm run copy:css",
+    "copy:css": "find src -name '*.css' | while read file; do mkdir -p \"dist/$(dirname \"${file#src/}\")\" && cp \"$file\" \"dist/${file#src/}\"; done",
     "dev": "tsc --watch",
     "lint": "eslint src --max-warnings 0",
     "test": "jest"

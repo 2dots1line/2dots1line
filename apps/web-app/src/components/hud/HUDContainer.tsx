@@ -6,38 +6,36 @@ import {
   MessageCircle, 
   CreditCard, 
   Network, 
-  Settings,
-  Grid3x3 
+  Settings
 } from 'lucide-react';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 
-import { useHUDStore, ModalType } from '../../stores/HUDStore';
+import { useHUDStore, ViewType } from '../../stores/HUDStore';
 
 interface HUDContainerProps {
-  onModalSelect?: (modal: ModalType) => void;
+  onViewSelect?: (view: ViewType) => void;
   className?: string;
 }
 
-const HUD_BUTTONS: Array<{ id: ModalType; label: string; icon: React.ComponentType<any> }> = [
+const HUD_BUTTONS: Array<{ id: ViewType; label: string; icon: React.ComponentType<any> }> = [
   { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
   { id: 'chat', label: 'Chat', icon: MessageCircle },
-  { id: 'card', label: 'Cards', icon: CreditCard },
-  { id: 'cardMatrix', label: 'Card Matrix', icon: Grid3x3 },
+  { id: 'cards', label: 'Cards', icon: CreditCard },
   { id: 'cosmos', label: 'Cosmos', icon: Network },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
 export const HUDContainer: React.FC<HUDContainerProps> = ({
-  onModalSelect,
+  onViewSelect,
   className,
 }) => {
   const {
     isExpanded,
-    activeModal,
+    activeView,
     isDragging,
     position,
     toggleHUD,
-    setActiveModal,
+    setActiveView,
     setIsDragging,
     updatePosition,
   } = useHUDStore();
@@ -47,8 +45,8 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
 
   // Debug: Log HUD state
   useEffect(() => {
-    console.log('HUDContainer - State:', { isExpanded, position, activeModal });
-  }, [isExpanded, position, activeModal]);
+    console.log('HUDContainer - State:', { isExpanded, position, activeView });
+  }, [isExpanded, position, activeView]);
 
   // Handle mouse down for dragging
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -99,10 +97,10 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
     };
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
-  // Handle button click
-  const handleButtonClick = (modalId: ModalType) => {
-    setActiveModal(modalId);
-    onModalSelect?.(modalId);
+  // Handle view button click
+  const handleButtonClick = (viewId: ViewType) => {
+    setActiveView(viewId);
+    onViewSelect?.(viewId);
   };
 
   console.log('HUDContainer - Rendering with isExpanded:', isExpanded, 'position:', position);
@@ -146,7 +144,7 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
             </div>
           </DragHandle>
 
-          {/* Navigation Buttons */}
+          {/* Navigation Buttons - All views are now equal peers */}
           <div className="space-y-2">
             {HUD_BUTTONS.map((button) => {
               const IconComponent = button.icon;
@@ -156,7 +154,7 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
                   onClick={() => handleButtonClick(button.id)}
                   className={`
                     w-full justify-start text-left transition-all duration-200
-                    ${activeModal === button.id 
+                    ${activeView === button.id 
                       ? 'bg-white/25 border-white/40 text-white shadow-lg' 
                       : 'text-white/80 hover:text-white'
                     }
