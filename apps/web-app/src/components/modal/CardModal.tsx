@@ -8,6 +8,7 @@ import { X } from 'lucide-react';
 import React from 'react';
 
 import { useCardStore } from '../../stores/CardStore';
+import './CardModal.css';
 
 interface CardModalProps {
   isOpen: boolean;
@@ -33,7 +34,7 @@ export const CardModal: React.FC<CardModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
       <div 
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="absolute inset-0 card-modal-backdrop"
         onClick={handleClose}
       />
       
@@ -43,11 +44,11 @@ export const CardModal: React.FC<CardModalProps> = ({
           variant="glass-panel"
           rounded="xl"
           padding="lg"
-          className="relative overflow-hidden"
+          className="relative overflow-hidden card-modal-panel"
         >
           {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-white">
+          <div className="card-modal-header">
+            <h2 className="card-modal-title">
               {selectedCard.display_data?.title || selectedCard.card_type?.replace(/_/g, ' ') || 'Card Details'}
             </h2>
             <GlassButton
@@ -59,46 +60,46 @@ export const CardModal: React.FC<CardModalProps> = ({
           </div>
           
           {/* Card Content */}
-          <div className="space-y-4">
+          <div className="card-modal-content">
             {/* Card Type */}
-            <div>
-              <h3 className="text-sm font-medium text-white/70 mb-2">Type</h3>
-              <p className="text-white">{selectedCard.card_type?.replace(/_/g, ' ')}</p>
+            <div className="card-modal-section">
+              <div className="card-modal-label">Type</div>
+              <div className="card-modal-value">{selectedCard.card_type?.replace(/_/g, ' ')}</div>
             </div>
             
             {/* Card Description */}
             {selectedCard.display_data?.preview && (
-              <div>
-                <h3 className="text-sm font-medium text-white/70 mb-2">Description</h3>
-                <p className="text-white">{selectedCard.display_data.preview}</p>
+              <div className="card-modal-section">
+                <div className="card-modal-label">Description</div>
+                <div className="card-modal-value">{selectedCard.display_data.preview}</div>
               </div>
             )}
             
             {/* Card Status */}
-            <div>
-              <h3 className="text-sm font-medium text-white/70 mb-2">Status</h3>
-              <p className="text-white">{selectedCard.status || 'Unknown'}</p>
+            <div className="card-modal-section">
+              <div className="card-modal-label">Status</div>
+              <div className="card-modal-value">{selectedCard.status || 'Unknown'}</div>
             </div>
             
             {/* Source Entity */}
             {selectedCard.source_entity_type && (
-              <div>
-                <h3 className="text-sm font-medium text-white/70 mb-2">Source</h3>
-                <p className="text-white">{selectedCard.source_entity_type.replace(/_/g, ' ')}</p>
+              <div className="card-modal-section">
+                <div className="card-modal-label">Source</div>
+                <div className="card-modal-value">{selectedCard.source_entity_type.replace(/_/g, ' ')}</div>
               </div>
             )}
             
             {/* Created Date */}
             {selectedCard.created_at && (
-              <div>
-                <h3 className="text-sm font-medium text-white/70 mb-2">Created</h3>
-                <p className="text-white">{new Date(selectedCard.created_at).toLocaleDateString()}</p>
+              <div className="card-modal-section">
+                <div className="card-modal-label">Created</div>
+                <div className="card-modal-value">{new Date(selectedCard.created_at).toLocaleDateString()}</div>
               </div>
             )}
           </div>
           
           {/* Actions */}
-          <div className="flex justify-end mt-8 space-x-3">
+          <div className="card-modal-actions">
             <GlassButton
               onClick={handleClose}
               className="px-6 py-2"

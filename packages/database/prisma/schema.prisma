@@ -54,9 +54,6 @@ model concepts {
   concepts               concepts?           @relation("conceptsToconcepts", fields: [merged_into_concept_id], references: [concept_id], onDelete: NoAction, onUpdate: NoAction)
   other_concepts         concepts[]          @relation("conceptsToconcepts")
   users                  users               @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  derived_artifacts      derived_artifacts[]
-
-  @@unique([user_id, name, type])
 }
 
 model conversation_messages {
@@ -92,31 +89,28 @@ model conversations {
 }
 
 model derived_artifacts {
-  artifact_id           String        @id
+  artifact_id           String        @id @default(uuid())
   user_id               String
   artifact_type         String
   title                 String
-  source_memory_unit_id String?
+  source_memory_unit_ids String[]     // Array of memory unit IDs
+  source_concept_ids     String[]     // Array of concept IDs
   created_at            DateTime      @default(now())
   content_data          Json?
   content_narrative     String?
-  source_concept_id     String?
-  concepts              concepts?     @relation(fields: [source_concept_id], references: [concept_id])
-  memory_units          memory_units? @relation(fields: [source_memory_unit_id], references: [muid])
   users                 users         @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 }
 
 model growth_events {
-  event_id    String   @id
-  user_id     String
-  entity_id   String
-  entity_type String
-  dim_key     String
-  delta       Float
-  source      String
-  created_at  DateTime @default(now())
-  details     Json?
-  users       users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  event_id              String   @id @default(uuid())
+  user_id               String
+  related_memory_units  String[] // Array of memory unit IDs
+  related_concepts      String[] // Array of concept IDs
+  growth_dimensions     Json     // Array of { dim_key: String, delta: Float }
+  source                String
+  created_at            DateTime @default(now())
+  details               Json?    // Rationale, evidence, etc.
+  users                 users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 }
 
 model interaction_logs {
@@ -165,7 +159,6 @@ model memory_units {
   importance_score       Float?
   sentiment_score        Float?
   source_conversation_id String?
-  derived_artifacts      derived_artifacts[]
   media_items            media_items[]
   conversations          conversations?      @relation(fields: [source_conversation_id], references: [id])
   users                  users               @relation(fields: [user_id], references: [user_id], onDelete: Cascade)

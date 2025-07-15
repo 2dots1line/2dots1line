@@ -56,6 +56,9 @@ importers:
       prettier:
         specifier: ^3.2.4
         version: 3.6.2
+      prisma:
+        specifier: ^6.10.1
+        version: 6.11.1(typescript@5.8.3)
       ts-jest:
         specifier: ^29.1.2
         version: 29.4.0(@babel/core@7.28.0)(jest@29.7.0)(typescript@5.8.3)

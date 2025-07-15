@@ -1,0 +1,22 @@
+{
+  "llm": {
+    "provider": "deepseek",
+    "model": "deepseek-chat",
+    "apiKeyEnv": "DEEPSEEK_API_KEY"
+  },
+  "embedding": {
+    "provider": "deepseek",
+    "model": "deepseek-embedding",
+    "apiKeyEnv": "DEEPSEEK_API_KEY"
+  },
+  "vision": {
+    "provider": "qwen",
+    "model": "qwen-vl-plus",
+    "apiKeyEnv": "QWEN_API_KEY"
+  },
+  "audio": {
+    "provider": "qwen",
+    "model": "qwen-audio-stt",
+    "apiKeyEnv": "QWEN_API_KEY"
+  }
+} 

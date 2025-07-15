@@ -186,13 +186,6 @@ export const InfiniteCardCanvas: React.FC<InfiniteCardCanvasProps> = ({
         ))}
       </div>
       {/* Debug info (development only) */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="debug-info">
-          <div>Total Cards: {cards.length}</div>
-          <div>Visible Cards: {visibleCards.length}</div>
-          <div>Offset: ({Math.round(offset.x)}, {Math.round(offset.y)})</div>
-        </div>
-      )}
     </div>
   );
 }; 
