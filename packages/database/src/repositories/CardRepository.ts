@@ -214,16 +214,30 @@ export class CardRepository {
     });
 
     // Transform to CardData format
-    const cardData: CardData[] = cards.map(card => ({
-      id: card.card_id,
-      type: card.card_type as 'memory_unit' | 'concept' | 'derived_artifact',
-      title: `Card ${card.card_id}`, // Simplified - should derive from source entity
-      preview: `Preview for ${card.card_id}`,
-      evolutionState: 'seed', // Simplified - should calculate based on business logic
-      importanceScore: 0.5, // Simplified - should calculate from data
-      createdAt: card.created_at,
-      updatedAt: card.updated_at,
-    }));
+    const cardData: CardData[] = cards.map(card => {
+      // Parse display_data if present
+      let displayData: any = {};
+      if (card.display_data) {
+        try {
+          displayData = typeof card.display_data === 'string' ? JSON.parse(card.display_data) : card.display_data;
+        } catch (e) {
+          displayData = {};
+        }
+      }
+      return {
+        id: card.card_id,
+        type: card.card_type as 'memory_unit' | 'concept' | 'derived_artifact',
+        title: displayData.title || '',
+        preview: displayData.preview || displayData.previewText || '',
+        evolutionState: 'seed', // Simplified - should calculate based on business logic
+        importanceScore: 0.5, // Simplified - should calculate from data
+        createdAt: card.created_at,
+        updatedAt: card.updated_at,
+        // Pass through display_data and background_image_url for downstream use
+        display_data: displayData,
+        background_image_url: card.background_image_url || null,
+      };
+    });
 
     return {
       cards: cardData,

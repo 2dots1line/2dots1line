@@ -27,6 +27,8 @@ export interface Card {
   connections: number;
   insights: number;
   tags: string[];
+  display_data?: any; // Pass through display_data for frontend use
+  background_image_url?: string | null; // Pass through background_image_url for frontend use
 }
 
 export interface GetCardsRequest {
@@ -206,7 +208,9 @@ export class CardService {
       updatedAt: cardData.updatedAt,
       connections: 0, // Default values since CardData doesn't have these
       insights: 0,
-      tags: []
+      tags: [],
+      display_data: (cardData as any).display_data || {},
+      background_image_url: (cardData as any).background_image_url || null,
     };
   }
 

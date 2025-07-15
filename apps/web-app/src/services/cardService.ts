@@ -154,7 +154,7 @@ class CardService {
         title: apiCard.title,
         subtitle: apiCard.preview,
         description: `${apiCard.type} - ${apiCard.evolutionState}`,
-        background_image_url: null // Will be handled by useCardImage hook
+        background_image_url: apiCard.background_image_url || null // Pass through from API
       }));
 
       console.log('cardService.getCards - Transformed cards:', transformedCards.length);

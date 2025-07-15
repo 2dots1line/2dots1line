@@ -1,233 +1,191 @@
-import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { DisplayCard } from '@2dots1line/shared-types';
-import { CardTile } from './CardTile';
 import './InfiniteCardCanvas.css';
 
+/**
+ * InfiniteCardCanvas
+ * Renders an infinite, responsive grid of real user cards with modern styling and infinite swiping.
+ * Cards are placed in a grid, with each cell using a seeded random function to select a card (allowing repetition).
+ * Card backgrounds use the card.background_image_url field (Unsplash/Pexels/etc.).
+ *
+ * Props:
+ *   - cards: DisplayCard[] (real user cards, each with background_image_url)
+ *   - onCardSelect?: (card: DisplayCard) => void
+ *   - className?: string
+ */
 interface InfiniteCardCanvasProps {
   cards: DisplayCard[];
   onCardSelect?: (card: DisplayCard) => void;
   className?: string;
 }
 
-interface CardPosition extends DisplayCard {
-  x: number;
-  y: number;
-}
+// Constants for grid layout (match prototype, responsive via CSS)
+const CARD_SIZE = 200; // Container size (px)
+const ICON_SIZE = 180; // Icon size (px)
+const CARD_GAP = 48;   // Gap between cards (px)
+const GRID_PADDING = 64; // Padding (px)
+const CELL_WIDTH = CARD_SIZE + CARD_GAP;
+const CELL_HEIGHT = CARD_SIZE + CARD_GAP;
 
-interface ViewportOffset {
-  x: number;
-  y: number;
+// Seeded random number generator for consistent card selection
+function seededRandom(seed: number): number {
+  const x = Math.sin(seed) * 10000;
+  return x - Math.floor(x);
 }
 
 export const InfiniteCardCanvas: React.FC<InfiniteCardCanvasProps> = ({
   cards,
   onCardSelect,
-  className = ''
+  className = '',
 }) => {
-  // Viewport state for infinite scrolling
-  const [offset, setOffset] = useState<ViewportOffset>({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
-  
-  // Refs for performance
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const [start, setStart] = useState({ x: 0, y: 0 });
+  const [hasDragged, setHasDragged] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const animationFrameRef = useRef<number>();
 
-  // Constants for card grid layout
-  const CARD_WIDTH = 320;
-  const CARD_HEIGHT = 200;
-  const CARD_SPACING = 40;
-  const GRID_SIZE_X = 8; // Cards per row in virtual grid
-  const GRID_SIZE_Y = 6; // Rows in virtual grid
-  const VIEWPORT_BUFFER = 200; // Extra rendering buffer around viewport
-
-  // Seeded random function for consistent card positioning
-  const seededRandom = useCallback((seed: string): number => {
-    let hash = 0;
-    for (let i = 0; i < seed.length; i++) {
-      const char = seed.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32-bit integer
-    }
-    return Math.abs(hash) / 2147483647; // Normalize to 0-1
-  }, []);
-
-  // Generate card positions using seeded random for consistency
-  const cardPositions = useMemo<CardPosition[]>(() => {
-    return cards.map((card, index) => {
-      // Use card ID for consistent seeding, fallback to index
-      const seed = card.card_id || `card-${index}`;
-      const seedValue = seededRandom(seed);
-      
-      // Create infinite grid with some randomness
-      const baseGridX = index % GRID_SIZE_X;
-      const baseGridY = Math.floor(index / GRID_SIZE_X);
-      
-      // Add seeded randomness to position within grid cell
-      const randomOffsetX = (seedValue * 0.5 - 0.25) * CARD_SPACING;
-      const randomOffsetY = (seededRandom(seed + 'y') * 0.5 - 0.25) * CARD_SPACING;
-      
-      const x = baseGridX * (CARD_WIDTH + CARD_SPACING) + randomOffsetX;
-      const y = baseGridY * (CARD_HEIGHT + CARD_SPACING) + randomOffsetY;
-
-      return {
-        ...card,
-        x,
-        y
-      };
-    });
-  }, [cards, seededRandom]);
-
-  // Calculate visible cards based on current viewport
+  // Calculate visible cards based on current offset and viewport size
   const visibleCards = useMemo(() => {
-    if (!containerRef.current) return cardPositions;
-
-    const viewport = containerRef.current.getBoundingClientRect();
-    const viewportLeft = -offset.x - VIEWPORT_BUFFER;
-    const viewportRight = -offset.x + viewport.width + VIEWPORT_BUFFER;
-    const viewportTop = -offset.y - VIEWPORT_BUFFER;
-    const viewportBottom = -offset.y + viewport.height + VIEWPORT_BUFFER;
-
-    return cardPositions.filter(card => 
-      card.x + CARD_WIDTH >= viewportLeft &&
-      card.x <= viewportRight &&
-      card.y + CARD_HEIGHT >= viewportTop &&
-      card.y <= viewportBottom
-    );
-  }, [cardPositions, offset]);
-
-  // Mouse/touch event handlers for dragging
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    setIsDragging(true);
-    setLastMousePos({ x: e.clientX, y: e.clientY });
-    e.preventDefault();
-  }, []);
-
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDragging) return;
-
-    const deltaX = e.clientX - lastMousePos.x;
-    const deltaY = e.clientY - lastMousePos.y;
-
-    // Use requestAnimationFrame for smooth updates
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-    }
-
-    animationFrameRef.current = requestAnimationFrame(() => {
-      setOffset(prev => ({
-        x: prev.x + deltaX,
-        y: prev.y + deltaY
-      }));
-    });
-
-    setLastMousePos({ x: e.clientX, y: e.clientY });
-  }, [isDragging, lastMousePos]);
-
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false);
-  }, []);
-
-  // Touch event handlers for mobile
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (e.touches.length === 1) {
-      const touch = e.touches[0];
-      setIsDragging(true);
-      setLastMousePos({ x: touch.clientX, y: touch.clientY });
-      e.preventDefault();
-    }
-  }, []);
-
-  const handleTouchMove = useCallback((e: TouchEvent) => {
-    if (!isDragging || e.touches.length !== 1) return;
-
-    const touch = e.touches[0];
-    const deltaX = touch.clientX - lastMousePos.x;
-    const deltaY = touch.clientY - lastMousePos.y;
-
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-    }
-
-    animationFrameRef.current = requestAnimationFrame(() => {
-      setOffset(prev => ({
-        x: prev.x + deltaX,
-        y: prev.y + deltaY
-      }));
-    });
-
-    setLastMousePos({ x: touch.clientX, y: touch.clientY });
-  }, [isDragging, lastMousePos]);
-
-  const handleTouchEnd = useCallback(() => {
-    setIsDragging(false);
-  }, []);
-
-  // Set up global event listeners for drag operations
-  useEffect(() => {
-    if (isDragging) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      document.addEventListener('touchmove', handleTouchMove, { passive: false });
-      document.addEventListener('touchend', handleTouchEnd);
-      
-      return () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-        document.removeEventListener('touchmove', handleTouchMove);
-        document.removeEventListener('touchend', handleTouchEnd);
-      };
-    }
-  }, [isDragging, handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd]);
-
-  // Cleanup animation frame on unmount
-  useEffect(() => {
-    return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
+    if (typeof window === 'undefined' || cards.length === 0) return [];
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    // Calculate bounds
+    const leftBound = -offset.x - CARD_SIZE;
+    const rightBound = -offset.x + viewportWidth + CARD_SIZE;
+    const topBound = -offset.y - CARD_SIZE;
+    const bottomBound = -offset.y + viewportHeight + CARD_SIZE;
+    // Grid positions
+    const startCol = Math.floor(leftBound / CELL_WIDTH);
+    const endCol = Math.ceil(rightBound / CELL_WIDTH);
+    const startRow = Math.floor(topBound / CELL_HEIGHT);
+    const endRow = Math.ceil(bottomBound / CELL_HEIGHT);
+    const result = [];
+    for (let row = startRow; row <= endRow; row++) {
+      for (let col = startCol; col <= endCol; col++) {
+        // Seeded random selection from cards array
+        const seed = row * 1000 + col;
+        const cardIndex = Math.floor(Math.abs(seededRandom(seed)) * cards.length) % cards.length;
+        const card = cards[cardIndex];
+        result.push({
+          ...card,
+          x: col * CELL_WIDTH + GRID_PADDING,
+          y: row * CELL_HEIGHT + GRID_PADDING,
+          gridRow: row,
+          gridCol: col,
+        });
       }
-    };
-  }, []);
-
-  // Handle card selection
-  const handleCardClick = useCallback((card: DisplayCard) => {
-    if (!isDragging) { // Only trigger if not in middle of drag
-      onCardSelect?.(card);
     }
-  }, [isDragging, onCardSelect]);
+    return result;
+  }, [offset, cards]);
+
+  // Mouse drag logic
+  function onMouseDown(e: React.MouseEvent) {
+    setDragging(true);
+    setHasDragged(false);
+    setStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
+  }
+  function onMouseMove(e: React.MouseEvent) {
+    if (!dragging) return;
+    setHasDragged(true);
+    setOffset({ x: e.clientX - start.x, y: e.clientY - start.y });
+  }
+  function onMouseUp() {
+    setDragging(false);
+    setTimeout(() => setHasDragged(false), 100);
+  }
+
+  // Touch support (optional, can be expanded)
+  function onTouchStart(e: React.TouchEvent) {
+    if (e.touches.length === 1) {
+      setDragging(true);
+      setHasDragged(false);
+      setStart({ x: e.touches[0].clientX - offset.x, y: e.touches[0].clientY - offset.y });
+    }
+  }
+  function onTouchMove(e: React.TouchEvent) {
+    if (!dragging || e.touches.length !== 1) return;
+    setHasDragged(true);
+    setOffset({ x: e.touches[0].clientX - start.x, y: e.touches[0].clientY - start.y });
+  }
+  function onTouchEnd() {
+    setDragging(false);
+    setTimeout(() => setHasDragged(false), 100);
+  }
+
+  // Add log for offset state changes
+  React.useEffect(() => {
+  }, [offset]);
+
+  // Card click handler
+  function handleCardClick(card: DisplayCard) {
+    if (dragging || hasDragged) return;
+    onCardSelect?.(card);
+  }
 
   return (
-    <div 
+    <div
       ref={containerRef}
-      className={`infinite-card-canvas ${className}`}
-      onMouseDown={handleMouseDown}
-      onTouchStart={handleTouchStart}
-      style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
+      className={`infinite-card-canvas${dragging ? ' dragging' : ''} ${className}`}
+      onMouseDown={onMouseDown}
+      onMouseMove={onMouseMove}
+      onMouseUp={onMouseUp}
+      onMouseLeave={onMouseUp}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      style={{ cursor: dragging ? 'grabbing' : 'grab' }}
     >
       {/* Infinite card container */}
-      <div 
-        className="infinite-card-container" 
+      <div
+        className="infinite-card-container"
         style={{ transform: `translate(${offset.x}px, ${offset.y}px)` }}
       >
-        {visibleCards.map((card) => (
-          <CardTile
-            key={card.card_id || `card-${card.x}-${card.y}`}
-            card={card}
-            size="md"
-            onClick={() => handleCardClick(card)}
-            optimizeForInfiniteGrid={true}
+        {visibleCards.map((card, idx) => (
+          <div
+            key={`${card.card_id || idx}-${card.gridRow}-${card.gridCol}`}
+            className="card-tile"
             style={{
               position: 'absolute',
               left: card.x,
               top: card.y,
-              width: CARD_WIDTH,
-              height: CARD_HEIGHT,
+              width: CARD_SIZE,
+              height: CARD_SIZE,
+              borderRadius: 24,
+              overflow: 'hidden',
+              background: 'transparent',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08)',
+              cursor: 'pointer',
             }}
-          />
+            onClick={() => handleCardClick(card)}
+          >
+            {/* Card background image */}
+            <div
+              className="card-background"
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                backgroundImage: card.background_image_url ? `url(${card.background_image_url})` : undefined,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat',
+                zIndex: 1,
+                transition: 'transform 0.4s cubic-bezier(0.4,0,0.2,1)',
+              }}
+            />
+            {/* Overlay for text readability */}
+            <div className="card-overlay" />
+            {/* Card content */}
+            <div className="card-content">
+              <h3 className="card-title">{card.title}</h3>
+              <p className="card-subtitle">{card.subtitle || card.display_data?.preview || ""}</p>
+            </div>
+          </div>
         ))}
       </div>
-
-      {/* Debug info (remove in production) */}
+      {/* Debug info (development only) */}
       {process.env.NODE_ENV === 'development' && (
         <div className="debug-info">
           <div>Total Cards: {cards.length}</div>
