@@ -177,12 +177,17 @@ export class IngestionAnalyst {
       for (const growthEvent of persistence_payload.detected_growth_events) {
         const growthData: CreateGrowthEventData = {
           user_id: userId,
-          entity_id: conversationId,
-          entity_type: 'conversation',
-          dim_key: growthEvent.dim_key,
-          delta: growthEvent.delta,
+          related_memory_units: [], // Provide actual IDs if available
+          related_concepts: [],     // Provide actual IDs if available
+          growth_dimensions: [],    // Provide actual dimensions if available
           source: 'IngestionAnalyst',
-          details: { rationale: growthEvent.rationale }
+          details: {
+            rationale: growthEvent.rationale,
+            entity_id: conversationId,
+            entity_type: 'conversation',
+            dim_key: growthEvent.dim_key,
+            delta: growthEvent.delta
+          }
         };
 
         const createdGrowthEvent = await this.growthEventRepository.create(growthData);

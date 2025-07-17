@@ -508,8 +508,6 @@ cd ../..
 #### Test PostgreSQL Connection
 ```bash
 cd packages/database
-export DATABASE_URL="postgresql://danniwang:MaxJax2023@@localhost:5433/twodots1line"
-npx prisma db pull --print >/dev/null && echo "✅ PostgreSQL via Prisma OK"
 cd ../..
 ```
 

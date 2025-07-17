@@ -39,9 +39,10 @@ class DimensionReductionRequest(BaseModel):
     method: Literal["umap", "tsne"] = Field(default="umap", description="Reduction method")
     target_dimensions: int = Field(default=3, ge=2, le=3, description="Target dimensions (2 or 3)")
     n_neighbors: Optional[int] = Field(default=15, ge=2, description="Number of neighbors for UMAP")
-    min_dist: Optional[float] = Field(default=0.1, ge=0.0, le=1.0, description="Minimum distance for UMAP")
+    min_dist: Optional[float] = Field(default=1.0, ge=0.0, le=1.0, description="Minimum distance for UMAP")
     perplexity: Optional[float] = Field(default=30.0, ge=5.0, le=50.0, description="Perplexity for t-SNE")
     random_state: Optional[int] = Field(default=42, description="Random state for reproducibility")
+    spread: Optional[float] = Field(default=5.0, ge=0.1, le=10.0, description="Spread for UMAP")
 
 class DimensionReductionResponse(BaseModel):
     coordinates: List[List[float]] = Field(..., description="Reduced coordinates")
@@ -175,16 +176,17 @@ def _reduce_with_umap(X: np.ndarray, request: DimensionReductionRequest) -> np.n
         reducer = umap.UMAP(
             n_components=request.target_dimensions,
             n_neighbors=n_neighbors,
-            min_dist=request.min_dist or 0.1,
+            min_dist=request.min_dist if request.min_dist is not None else 1.0,
+            spread=request.spread if request.spread is not None else 5.0,
             random_state=request.random_state or 42,
-            metric='cosine',  # Good for embeddings
+            metric='cosine',
             verbose=False
         )
         
         coordinates = reducer.fit_transform(X)
         
         # Normalize coordinates to reasonable range [-10, 10]
-        coordinates = _normalize_coordinates(coordinates)
+        coordinates = _normalize_coordinates(coordinates, target_range=50.0)
         
         return coordinates
         
@@ -217,7 +219,7 @@ def _reduce_with_tsne(X: np.ndarray, request: DimensionReductionRequest) -> np.n
         coordinates = reducer.fit_transform(X)
         
         # Normalize coordinates to reasonable range [-10, 10]
-        coordinates = _normalize_coordinates(coordinates)
+        coordinates = _normalize_coordinates(coordinates, target_range=50.0)
         
         return coordinates
         

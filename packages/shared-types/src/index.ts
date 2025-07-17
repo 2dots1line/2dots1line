@@ -168,6 +168,49 @@ export type {
   LayoutConfig
 } from './entities/CosmosNode';
 
+export interface UserGraphProjection {
+  version: string;
+  createdAt: string;
+  nodeCount: number;
+  edgeCount: number;
+  nodes: {
+    id: string;
+    type: 'Concept' | 'MemoryUnit' | 'DerivedArtifact';
+    label: string;
+    position: [number, number, number];
+    community_id: string;
+    metadata?: Record<string, any>;
+  }[];
+  edges: {
+    id: string;
+    source: string;
+    target: string;
+    type: string;
+    weight?: number;
+    metadata?: Record<string, any>;
+  }[];
+  communities: {
+    id: string;
+    label: string;
+    description: string;
+    color: string;
+    centroid: [number, number, number];
+    radius: number;
+    member_node_ids: string[];
+  }[];
+  metadata: {
+    dimension_reduction_algorithm: string;
+    vector_dimensionality: string;
+    semantic_similarity_threshold: number;
+    communities: {
+      id: string;
+      label: string;
+      description: string;
+      color: string;
+    }[];
+  };
+}
+
 // Deprecated entity types (kept for backward compatibility)
 // Note: TAnnotation and TChunk have been deprecated and removed
 

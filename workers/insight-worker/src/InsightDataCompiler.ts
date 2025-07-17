@@ -81,6 +81,13 @@ export interface StrategicInsightPackage {
   }>;
 }
 
+// Type guard for growth event details
+function isGrowthEventDetails(val: unknown): val is { dim_key?: string; delta?: number } {
+  return typeof val === 'object' && val !== null && (
+    'dim_key' in val || 'delta' in val
+  );
+}
+
 export class InsightDataCompiler {
   constructor(
     private dbService: DatabaseService,
@@ -149,10 +156,7 @@ export class InsightDataCompiler {
             lte: cycleDates.cycleEndDate
           }
         },
-        select: {
-          dim_key: true,
-          delta: true
-        }
+        // Remove select: { dim_key: true, delta: true }
       });
 
       // Analyze memory themes
@@ -167,7 +171,15 @@ export class InsightDataCompiler {
       const conceptDistribution = this.analyzeConceptDistribution(conceptsWithDescriptions);
 
       // Analyze growth event summary
-      const growthEventSummary = this.analyzeGrowthEvents(growthEvents);
+      const growthEventSummary = this.analyzeGrowthEvents(
+        growthEvents.map(event => {
+          const details = event.details;
+          return {
+            dim_key: isGrowthEventDetails(details) && typeof details.dim_key === 'string' ? details.dim_key : 'unknown',
+            delta: isGrowthEventDetails(details) && typeof details.delta === 'number' ? details.delta : 0,
+          };
+        })
+      );
 
       return {
         totalConversations: conversations.length,
@@ -437,7 +449,10 @@ export class InsightDataCompiler {
       }
     });
 
-    const totalDelta = growthEvents.reduce((sum, event) => sum + event.delta, 0);
+    const totalDelta = growthEvents.reduce((sum, event) => {
+      const details = event.details;
+      return sum + (isGrowthEventDetails(details) && typeof details.delta === 'number' ? details.delta : 0);
+    }, 0);
     const avgDelta = growthEvents.length > 0 ? totalDelta / growthEvents.length : 0;
 
     return {

@@ -20,10 +20,10 @@ export interface TDerivedArtifact {
   content_narrative: string | null;
   /** Structured data content (JSON object, optional) */
   content_data: any | null;
-  /** ID of the source memory unit (optional) */
-  source_memory_unit_id: string | null;
-  /** ID of the source concept (optional) */
-  source_concept_id: string | null;
+  /** IDs of the source memory units (optional) */
+  source_memory_unit_ids: string[];
+  /** IDs of the source concepts (optional) */
+  source_concept_ids: string[];
   /** Timestamp when the artifact was created */
   created_at: Date;
 }

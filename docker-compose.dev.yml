@@ -69,6 +69,17 @@ services:
       - 2d1l_network
     restart: unless-stopped
 
+  dimension-reducer:
+    build:
+      context: ./py-services/dimension-reducer
+      dockerfile: Dockerfile
+    container_name: dimension-reducer
+    ports:
+      - "8000:8000"
+    networks:
+      - 2d1l_network
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   neo4j_data:

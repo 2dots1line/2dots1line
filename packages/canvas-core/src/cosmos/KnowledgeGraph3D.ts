@@ -57,6 +57,15 @@ export interface GraphVisualization {
   animateEdges: boolean;
 }
 
+// (A) Node type color map
+const NODE_TYPE_COLORS: Record<string, number> = {
+  Concept: 0x00bfff,         // blue
+  MemoryUnit: 0xffb300,      // orange
+  DerivedArtifact: 0x8e44ad, // purple
+  Community: 0xe74c3c,       // red
+  default: 0xcccccc          // gray
+};
+
 export class KnowledgeGraph3D {
   private nodes: Map<string, GraphNode> = new Map();
   private edges: Map<string, GraphEdge> = new Map();
@@ -99,6 +108,10 @@ export class KnowledgeGraph3D {
   }
   
   public addNode(nodeData: Partial<GraphNode> & { id: string }): void {
+    // (B) Determine node type
+    const nodeType = nodeData.type || nodeData.metadata?.type || 'default';
+    // (C) Assign color based on type
+    const nodeColor = new THREE.Color(NODE_TYPE_COLORS[nodeType] || NODE_TYPE_COLORS.default);
     const node: GraphNode = {
       label: nodeData.id,
       position: nodeData.position || new THREE.Vector3(),
@@ -106,14 +119,13 @@ export class KnowledgeGraph3D {
       force: new THREE.Vector3(),
       mass: 1,
       size: 1,
-      color: new THREE.Color(0x00ff88),
+      color: nodeColor,
       fixed: false,
-      type: 'default',
+      type: nodeType,
       connections: [],
       metadata: {},
       ...nodeData,
     };
-    
     this.nodes.set(node.id, node);
     this.needsLayoutUpdate = true;
     this.needsVisualizationUpdate = true;
@@ -213,187 +225,17 @@ export class KnowledgeGraph3D {
     
     this.lastUpdateTime = now;
     
-    if (this.isSimulating && this.needsLayoutUpdate) {
-      this.updateLayout();
-    }
+    // REMOVE/DISABLE: Do not update layout, always use backend positions
+    // if (this.isSimulating && this.needsLayoutUpdate) {
+    //   this.updateLayout();
+    // }
     
     if (this.needsVisualizationUpdate) {
       this.updateVisualization();
     }
   }
   
-  private updateLayout(): void {
-    switch (this.layout.type) {
-      case 'force':
-        this.updateForceLayout();
-        break;
-      case 'hierarchical':
-        this.updateHierarchicalLayout();
-        break;
-      case 'circular':
-        this.updateCircularLayout();
-        break;
-      case 'grid':
-        this.updateGridLayout();
-        break;
-      case 'spiral':
-        this.updateSpiralLayout();
-        break;
-    }
-    
-    this.simulationStep++;
-    
-    // Check for convergence
-    if (this.simulationStep >= this.layout.parameters.iterations) {
-      this.isSimulating = false;
-      this.needsLayoutUpdate = false;
-    }
-  }
-  
-  private updateForceLayout(): void {
-    const { repulsion, attraction, damping, centerForce } = this.layout.parameters;
-    
-    // Reset forces
-    for (const node of this.nodes.values()) {
-      node.force.set(0, 0, 0);
-    }
-    
-    // Calculate repulsion forces between all nodes
-    const nodeArray = Array.from(this.nodes.values());
-    for (let i = 0; i < nodeArray.length; i++) {
-      for (let j = i + 1; j < nodeArray.length; j++) {
-        const nodeA = nodeArray[i];
-        const nodeB = nodeArray[j];
-        
-        const distance = nodeA.position.distanceTo(nodeB.position);
-        if (distance === 0) continue;
-        
-        const force = repulsion / (distance * distance);
-        const direction = new THREE.Vector3()
-          .subVectors(nodeA.position, nodeB.position)
-          .normalize();
-        
-        nodeA.force.add(direction.clone().multiplyScalar(force));
-        nodeB.force.add(direction.clone().multiplyScalar(-force));
-      }
-    }
-    
-    // Calculate attraction forces along edges
-    for (const edge of this.edges.values()) {
-      const sourceNode = this.nodes.get(edge.source);
-      const targetNode = this.nodes.get(edge.target);
-      
-      if (!sourceNode || !targetNode) continue;
-      
-      const distance = sourceNode.position.distanceTo(targetNode.position);
-      const force = attraction * (distance - edge.length);
-      
-      const direction = new THREE.Vector3()
-        .subVectors(targetNode.position, sourceNode.position)
-        .normalize();
-      
-      sourceNode.force.add(direction.clone().multiplyScalar(force));
-      targetNode.force.add(direction.clone().multiplyScalar(-force));
-    }
-    
-    // Apply center force
-    for (const node of this.nodes.values()) {
-      const centerDirection = new THREE.Vector3().subVectors(new THREE.Vector3(), node.position);
-      const centerDistance = centerDirection.length();
-      
-      if (centerDistance > 0) {
-        centerDirection.normalize().multiplyScalar(centerForce * centerDistance);
-        node.force.add(centerDirection);
-      }
-    }
-    
-    // Update positions
-    for (const node of this.nodes.values()) {
-      if (node.fixed) continue;
-      
-      // Update velocity
-      node.velocity.add(node.force.clone().multiplyScalar(1 / node.mass));
-      node.velocity.multiplyScalar(damping);
-      
-      // Update position
-      node.position.add(node.velocity);
-      
-      // Keep within bounds
-      node.position.clamp(this.boundingBox.min, this.boundingBox.max);
-    }
-  }
-  
-  private updateHierarchicalLayout(): void {
-    // Implement hierarchical layout based on node connections
-    const levels = this.calculateHierarchicalLevels();
-    const { nodeSpacing } = this.layout.parameters;
-    
-    for (const [level, nodeIds] of levels) {
-      const y = level * nodeSpacing;
-      const count = nodeIds.length;
-      
-      nodeIds.forEach((nodeId, index) => {
-        const node = this.nodes.get(nodeId);
-        if (!node) return;
-        
-        const x = (index - (count - 1) / 2) * nodeSpacing;
-        const z = Math.sin(index * 0.5) * nodeSpacing * 0.2;
-        
-        node.position.set(x, y, z);
-      });
-    }
-    
-    this.needsLayoutUpdate = false;
-  }
-  
-  private updateCircularLayout(): void {
-    const nodeArray = Array.from(this.nodes.values());
-    const radius = this.layout.parameters.nodeSpacing * nodeArray.length / (2 * Math.PI);
-    
-    nodeArray.forEach((node, index) => {
-      const angle = (index / nodeArray.length) * Math.PI * 2;
-      const x = Math.cos(angle) * radius;
-      const z = Math.sin(angle) * radius;
-      const y = Math.sin(index * 0.3) * radius * 0.1;
-      
-      node.position.set(x, y, z);
-    });
-    
-    this.needsLayoutUpdate = false;
-  }
-  
-  private updateGridLayout(): void {
-    const nodeArray = Array.from(this.nodes.values());
-    const { nodeSpacing } = this.layout.parameters;
-    const gridSize = Math.ceil(Math.sqrt(nodeArray.length));
-    
-    nodeArray.forEach((node, index) => {
-      const x = (index % gridSize) * nodeSpacing;
-      const z = Math.floor(index / gridSize) * nodeSpacing;
-      const y = Math.sin(index * 0.1) * nodeSpacing * 0.1;
-      
-      node.position.set(x, y, z);
-    });
-    
-    this.needsLayoutUpdate = false;
-  }
-  
-  private updateSpiralLayout(): void {
-    const nodeArray = Array.from(this.nodes.values());
-    const { nodeSpacing } = this.layout.parameters;
-    
-    nodeArray.forEach((node, index) => {
-      const t = index * 0.5;
-      const r = t * nodeSpacing * 0.1;
-      const x = Math.cos(t) * r;
-      const z = Math.sin(t) * r;
-      const y = t * nodeSpacing * 0.05;
-      
-      node.position.set(x, y, z);
-    });
-    
-    this.needsLayoutUpdate = false;
-  }
+  // REMOVE/DISABLE: All layout update methods (updateLayout, updateForceLayout, updateHierarchicalLayout, updateCircularLayout, updateGridLayout, updateSpiralLayout)
   
   private calculateHierarchicalLevels(): Map<number, string[]> {
     const levels = new Map<number, string[]>();

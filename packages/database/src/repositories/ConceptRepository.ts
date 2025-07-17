@@ -47,7 +47,6 @@ export class ConceptRepository {
         communities: true,
         concepts: true,
         other_concepts: true,
-        derived_artifacts: true,
       },
     });
   }
@@ -66,7 +65,6 @@ export class ConceptRepository {
         communities: true,
         concepts: true,
         other_concepts: true,
-        derived_artifacts: true,
       },
       orderBy: { salience: 'desc' },
     });
@@ -87,22 +85,6 @@ export class ConceptRepository {
       orderBy: { created_at: 'desc' },
       include: {
         communities: true,
-      },
-    });
-  }
-
-  async findByNameAndType(
-    userId: string,
-    name: string,
-    type: string
-  ): Promise<concepts | null> {
-    return this.db.prisma.concepts.findUnique({
-      where: {
-        user_id_name_type: {
-          user_id: userId,
-          name,
-          type,
-        },
       },
     });
   }
@@ -247,4 +229,4 @@ export class ConceptRepository {
     });
   }
 
-} 
+}

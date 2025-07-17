@@ -34,3 +34,9 @@ export type { CardSize } from './cards/CardTile';
 export { InfiniteCardCanvas } from './cards/InfiniteCardCanvas';
 
 // Add other component exports here 
+export { StarfieldBackground } from './cosmos/StarfieldBackground';
+export { NodeMesh } from './cosmos/NodeMesh';
+export { EdgeMesh } from './cosmos/EdgeMesh';
+export { NodeLabel } from './cosmos/NodeLabel';
+export { CameraController } from './cosmos/CameraController';
+export { Graph3D } from './cosmos/Graph3D'; 

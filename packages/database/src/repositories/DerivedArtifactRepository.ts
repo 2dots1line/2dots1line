@@ -13,8 +13,8 @@ export interface CreateDerivedArtifactData {
   title: string;
   content_narrative?: string;
   content_data?: any;
-  source_memory_unit_id?: string;
-  source_concept_id?: string;
+  source_memory_unit_ids?: string[];
+  source_concept_ids?: string[];
 }
 
 export interface UpdateDerivedArtifactData {
@@ -30,7 +30,13 @@ export class DerivedArtifactRepository {
     const artifact = await this.db.prisma.derived_artifacts.create({
       data: {
         artifact_id: randomUUID(),
-        ...data,
+        user_id: data.user_id,
+        artifact_type: data.artifact_type,
+        title: data.title,
+        content_narrative: data.content_narrative ?? null,
+        content_data: data.content_data ?? null,
+        source_memory_unit_ids: data.source_memory_unit_ids ?? [],
+        source_concept_ids: data.source_concept_ids ?? [],
       },
     });
     return artifact;
@@ -39,10 +45,6 @@ export class DerivedArtifactRepository {
   async findById(artifactId: string): Promise<derived_artifacts | null> {
     return this.db.prisma.derived_artifacts.findUnique({
       where: { artifact_id: artifactId },
-      include: {
-        memory_units: true,
-        concepts: true,
-      },
     });
   }
 
@@ -68,14 +70,14 @@ export class DerivedArtifactRepository {
 
   async findBySourceMemoryUnit(memoryUnitId: string): Promise<derived_artifacts[]> {
     return this.db.prisma.derived_artifacts.findMany({
-      where: { source_memory_unit_id: memoryUnitId },
+      where: { source_memory_unit_ids: { has: memoryUnitId } },
       orderBy: { created_at: 'desc' },
     });
   }
 
   async findBySourceConcept(conceptId: string): Promise<derived_artifacts[]> {
     return this.db.prisma.derived_artifacts.findMany({
-      where: { source_concept_id: conceptId },
+      where: { source_concept_ids: { has: conceptId } },
       orderBy: { created_at: 'desc' },
     });
   }
@@ -101,4 +103,4 @@ export class DerivedArtifactRepository {
       },
     });
   }
-} 
+}

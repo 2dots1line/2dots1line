@@ -3,16 +3,19 @@
  * V9.7 Repository for GrowthEvent operations
  */
 
-import type { growth_events, Prisma } from '@2dots1line/database';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { DatabaseService } from '../DatabaseService';
 import { randomUUID } from 'crypto';
 
+// Use the correct type for growth_events
+// If you need the type for a growth event record:
+type GrowthEvent = Prisma.growth_eventsGetPayload<{}>;
+
 export interface CreateGrowthEventData {
   user_id: string;
-  entity_id: string;
-  entity_type: string;
-  dim_key: string;
-  delta: number;
+  related_memory_units: string[];
+  related_concepts: string[];
+  growth_dimensions: any;
   source: string;
   details: any;
 }
@@ -28,7 +31,7 @@ export interface GrowthDimensionData {
 export class GrowthEventRepository {
   constructor(private db: DatabaseService) {}
 
-  async create(data: CreateGrowthEventData): Promise<growth_events> {
+  async create(data: CreateGrowthEventData): Promise<GrowthEvent> {
     const event = await this.db.prisma.growth_events.create({
       data: {
         event_id: randomUUID(),
@@ -38,13 +41,13 @@ export class GrowthEventRepository {
     return event;
   }
 
-  async findById(eventId: string): Promise<growth_events | null> {
+  async findById(eventId: string): Promise<GrowthEvent | null> {
     return this.db.prisma.growth_events.findUnique({
       where: { event_id: eventId },
     });
   }
 
-  async findByUserId(userId: string, limit = 50, offset = 0): Promise<growth_events[]> {
+  async findByUserId(userId: string, limit = 50, offset = 0): Promise<GrowthEvent[]> {
     return this.db.prisma.growth_events.findMany({
       where: { user_id: userId },
       take: limit,
@@ -53,28 +56,34 @@ export class GrowthEventRepository {
     });
   }
 
-  async findByEntity(entityId: string, entityType: string): Promise<growth_events[]> {
+  async findByEntity(entityId: string, entityType: 'memory_unit' | 'concept'): Promise<GrowthEvent[]> {
+    const whereClause: Prisma.growth_eventsWhereInput = {};
+    if (entityType === 'memory_unit') {
+      whereClause.related_memory_units = { has: entityId };
+    } else {
+      whereClause.related_concepts = { has: entityId };
+    }
     return this.db.prisma.growth_events.findMany({
-      where: {
-        entity_id: entityId,
-        entity_type: entityType,
-      },
+      where: whereClause,
       orderBy: { created_at: 'desc' },
     });
   }
 
-  async findByDimension(userId: string, dimKey: string, limit = 50): Promise<growth_events[]> {
+  async findByDimension(userId: string, dimKey: string, limit = 50): Promise<GrowthEvent[]> {
     return this.db.prisma.growth_events.findMany({
       where: {
         user_id: userId,
-        dim_key: dimKey,
+        growth_dimensions: {
+          path: ['$[*].dim_key'],
+          array_contains: dimKey
+        }
       },
       take: limit,
       orderBy: { created_at: 'desc' },
     });
   }
 
-  async findBySource(userId: string, source: string, limit = 50): Promise<growth_events[]> {
+  async findBySource(userId: string, source: string, limit = 50): Promise<GrowthEvent[]> {
     return this.db.prisma.growth_events.findMany({
       where: {
         user_id: userId,
@@ -90,24 +99,18 @@ export class GrowthEventRepository {
     event_count: number;
     avg_delta: number;
   }> {
-    const result = await this.db.prisma.growth_events.aggregate({
-      where: {
-        user_id: userId,
-        dim_key: dimKey,
-      },
-      _sum: { delta: true },
-      _count: { event_id: true },
-      _avg: { delta: true },
-    });
-
+    // The underlying schema has changed, and this aggregation is no longer possible in this form.
+    // It requires processing the JSON field, which is not directly supported by Prisma aggregate.
+    // This will require a more complex query or processing in the application layer.
+    console.warn('getGrowthSummaryByDimension is not implemented yet due to schema changes');
     return {
-      total_delta: result._sum.delta || 0,
-      event_count: result._count.event_id || 0,
-      avg_delta: result._avg.delta || 0,
+      total_delta: 0,
+      event_count: 0,
+      avg_delta: 0,
     };
   }
 
-  async getRecentGrowthEvents(userId: string, days = 30, limit = 100): Promise<growth_events[]> {
+  async getRecentGrowthEvents(userId: string, days = 30, limit = 100): Promise<GrowthEvent[]> {
     const dateThreshold = new Date();
     dateThreshold.setDate(dateThreshold.getDate() - days);
 
@@ -124,11 +127,18 @@ export class GrowthEventRepository {
   }
 
   async count(userId?: string, dimKey?: string): Promise<number> {
+    const where: Prisma.growth_eventsWhereInput = {};
+    if (userId) {
+      where.user_id = userId;
+    }
+    if (dimKey) {
+      where.growth_dimensions = {
+        path: ['$[*].dim_key'],
+        array_contains: dimKey,
+      };
+    }
     return this.db.prisma.growth_events.count({
-      where: {
-        ...(userId && { user_id: userId }),
-        ...(dimKey && { dim_key: dimKey }),
-      },
+      where,
     });
   }
 
@@ -137,4 +147,4 @@ export class GrowthEventRepository {
       where: { event_id: eventId },
     });
   }
-} 
+}

@@ -130,14 +130,11 @@ export class StarfieldEngine {
   private generateClusteredPosition(radius: number, index: number): THREE.Vector3 {
     const clusterCount = 5;
     const clusterRadius = radius * 0.3;
-    const clusterIndex = Math.floor(index / (this.config.starCount / clusterCount));
-    
+    // Removed unused clusterIndex
     // Generate cluster center
     const clusterCenter = this.generateUniformPosition(radius * 0.7);
-    
     // Generate position within cluster
     const localPosition = this.generateUniformPosition(clusterRadius);
-    
     return clusterCenter.clone().add(localPosition);
   }
   

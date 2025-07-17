@@ -34,15 +34,22 @@
     "fix:conflicts": "./scripts/AUTOMATION/build-system/fix-build-conflicts.sh",
     "audit:system": "./scripts/AUTOMATION/systematic-audit.sh"
   },
+  "dependencies": {
+    "bullmq": "^5.56.4",
+    "immer": "^10.1.1",
+    "three": "^0.164.1"
+  },
   "devDependencies": {
     "@jest/globals": "^30.0.4",
     "@types/jest": "^29.5.14",
     "@types/node": "^20.19.6",
+    "@types/three": "^0.164.1",
     "@typescript-eslint/eslint-plugin": "^8.35.1",
     "@typescript-eslint/parser": "^8.35.1",
     "@typescript-eslint/typescript-estree": "^8.35.1",
     "dotenv-cli": "^7.3.0",
     "eslint": "^8.57.1",
+    "eslint-config-next": "^14.0.3",
     "eslint-config-prettier": "^10.1.5",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-prettier": "^5.5.1",

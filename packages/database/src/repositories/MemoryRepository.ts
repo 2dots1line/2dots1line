@@ -43,7 +43,6 @@ export class MemoryRepository {
       where: { muid },
       include: {
         media_items: true,
-        derived_artifacts: true,
         conversations: true,
       },
     });
@@ -60,7 +59,6 @@ export class MemoryRepository {
       },
       include: {
         media_items: true,
-        derived_artifacts: true,
         conversations: true,
       },
       orderBy: { creation_ts: 'desc' }
@@ -161,4 +159,4 @@ export class MemoryRepository {
     });
     return result._avg.importance_score || 0;
   }
-} 
+}
