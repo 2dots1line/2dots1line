@@ -4,6 +4,10 @@
  */
 
 import { DatabaseService } from '@2dots1line/database';
+import { environmentLoader } from '@2dots1line/core-utils';
+
+// Load environment variables using the established EnvironmentLoader
+environmentLoader.load();
 
 import { GraphProjectionWorker } from './GraphProjectionWorker';
 

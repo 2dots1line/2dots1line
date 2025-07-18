@@ -58,7 +58,12 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({ node, onClick }) => {
   const glowRef = useRef<THREE.Mesh>(null!);
   const [hovered, setHovered] = useState(false);
 
-  const position = useMemo(() => new THREE.Vector3(node.x, node.y, node.z), [node.x, node.y, node.z]);
+  // Use positions directly without scaling
+  const position = useMemo(() => new THREE.Vector3(
+    node.x, 
+    node.y, 
+    node.z
+  ), [node.x, node.y, node.z]);
 
   useFrame(() => {
     if (meshRef.current) {
@@ -77,16 +82,16 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({ node, onClick }) => {
         onPointerOver={() => setHovered(true)}
         onPointerOut={() => setHovered(false)}
         onClick={() => onClick(node)}
-        scale={hovered ? 1.5 : 1}
+        scale={hovered ? 1.2 : 1}
       >
         <sphereGeometry args={[1, 16, 16]} />
         <meshBasicMaterial color="#00ff88" />
       </mesh>
-      <mesh ref={glowRef} scale={2}>
-        <sphereGeometry args={[1.5, 16, 16]} />
+      <mesh ref={glowRef} scale={1.5}>
+        <sphereGeometry args={[1.2, 16, 16]} />
         <GlowMaterial color="#00ff66" hover={hovered} />
       </mesh>
-      <NodeLabel text={node.name} position={new THREE.Vector3(0, 4, 0)} hovered={hovered} />
+      <NodeLabel text={node.title || node.name} position={new THREE.Vector3(0, 1.5, 0)} hovered={hovered} />
     </group>
   );
 };

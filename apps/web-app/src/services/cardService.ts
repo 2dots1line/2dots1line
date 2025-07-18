@@ -341,6 +341,64 @@ class CardService {
   }
 
   /**
+   * Get a single card by ID
+   */
+  async getCard(cardId: string): Promise<{ success: boolean; card?: DisplayCard; error?: string }> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/cards/${cardId}`, {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      // Transform the API response to match frontend expectations
+      const transformedCard = data.data ? {
+        card_id: data.data.id,
+        user_id: 'dev-user-123',
+        card_type: data.data.type,
+        source_entity_id: data.data.id,
+        source_entity_type: data.data.type,
+        status: 'active_canvas',
+        is_favorited: false,
+        display_data: {
+          title: data.data.title,
+          preview: data.data.preview,
+          evolutionState: data.data.evolutionState,
+          growthDimensions: data.data.growthDimensions,
+          importanceScore: data.data.importanceScore,
+          connections: data.data.connections,
+          insights: data.data.insights,
+          tags: data.data.tags
+        },
+        is_synced: true,
+        created_at: new Date(data.data.createdAt),
+        updated_at: new Date(data.data.updatedAt),
+        title: data.data.title,
+        subtitle: data.data.preview,
+        description: `${data.data.type} - ${data.data.evolutionState}`,
+        background_image_url: data.data.background_image_url || null
+      } : null;
+
+      return {
+        success: data.success,
+        card: transformedCard || undefined,
+        error: data.error
+      };
+    } catch (error) {
+      console.error('Error fetching card:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to fetch card'
+      };
+    }
+  }
+
+  /**
    * Get cards by type
    */
   async getCardsByType(cardType: CardType, limit: number = 50): Promise<GetCardsResponse> {

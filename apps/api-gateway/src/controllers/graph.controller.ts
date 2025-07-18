@@ -56,15 +56,44 @@ export class GraphController {
 
       const projectionData = latestProjection.projection_data as any;
       
+      // Transform nodes to flat structure for frontend compatibility
+      const transformedNodes = projectionData?.nodes?.map((node: any) => ({
+        id: node.id,
+        title: node.properties?.title || node.title || 'Untitled',
+        content: node.properties?.content || node.content || '',
+        type: node.properties?.type || node.type || 'Unknown',
+        x: node.position?.x || node.x || 0,
+        y: node.position?.y || node.y || 0,
+        z: node.position?.z || node.z || 0,
+        importance: node.properties?.importance || node.importance || 0.5,
+        connections: node.properties?.connections || node.connections || [],
+        metadata: node.properties?.metadata || node.metadata || {}
+      })) || [];
+      
+      // Transform edges to flat structure
+      const transformedEdges = projectionData?.edges?.map((edge: any) => ({
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        type: edge.properties?.type || edge.type || 'related',
+        weight: edge.properties?.weight || edge.weight || 1.0,
+        color: edge.properties?.color || edge.color || '#ffffff'
+      })) || [];
+      
+      const transformedProjectionData = {
+        nodes: transformedNodes,
+        edges: transformedEdges
+      };
+      
       res.status(200).json({
         success: true,
         data: {
           projectionId: latestProjection.projection_id,
           createdAt: latestProjection.created_at,
-          projectionData: projectionData,
+          projectionData: transformedProjectionData,
           metadata: {
-            nodeCount: projectionData?.nodes?.length || 0,
-            edgeCount: projectionData?.edges?.length || 0
+            nodeCount: transformedNodes.length,
+            edgeCount: transformedEdges.length
           }
         },
         message: 'Latest graph projection retrieved successfully'

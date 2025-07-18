@@ -11,14 +11,12 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
-    "@2dots1line/shared-types": "workspace:^0.1.0",
-    "three": "^0.160.0"
+    "@2dots1line/shared-types": "workspace:*",
+    "@2dots1line/core-utils": "workspace:*",
+    "three": "^0.164.1"
   },
   "devDependencies": {
-    "@types/jest": "^29.5.0",
-    "@types/node": "^20.17.0",
-    "@types/three": "^0.160.0",
-    "rimraf": "^5.0.1",
+    "@types/three": "^0.164.1",
     "typescript": "^5.8.3"
   }
 }

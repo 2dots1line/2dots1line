@@ -6,7 +6,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { CosmosNode, NodeConnection, NodeInteractionEvent } from '@2dots1line/shared-types';
+import { CosmosNode, NodeConnection } from '@2dots1line/shared-types';
 
 // Local types to avoid circular dependencies
 interface SimpleCosmosNode {

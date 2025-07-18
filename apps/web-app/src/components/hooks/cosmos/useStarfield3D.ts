@@ -4,7 +4,6 @@
  */
 
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { CosmosNode } from '@2dots1line/shared-types';
 
@@ -81,7 +80,6 @@ export const useStarfield3D = (options: UseStarfield3DOptions = {}): UseStarfiel
   const {
     config: configOverrides = {},
     nodes = [],
-    enableAnimations = true,
     debug = false,
   } = options;
 

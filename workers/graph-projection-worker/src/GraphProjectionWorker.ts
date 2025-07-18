@@ -72,6 +72,13 @@ export interface GraphProjection {
   version: string;
   createdAt: string;
   nodes: Node3D[];
+  edges: Array<{
+    id: string;
+    source: string;
+    target: string;
+    type: string;
+    properties: Record<string, any>;
+  }>;
   statistics: {
     totalNodes: number;
     memoryUnits: number;
@@ -105,6 +112,7 @@ export class GraphProjectionWorker {
     // CRITICAL: Load environment variables first
     console.log('[GraphProjectionWorker] Loading environment variables...');
     environmentLoader.load();
+    environmentLoader.injectIntoProcess();
     console.log('[GraphProjectionWorker] Environment variables loaded successfully');
 
     this.config = {
@@ -202,12 +210,12 @@ export class GraphProjectionWorker {
   /**
    * Generate complete 3D projection for a user
    */
-  private async generateProjection(userId: string): Promise<GraphProjection> {
+  public async generateProjection(userId: string): Promise<GraphProjection> {
     console.log(`[GraphProjectionWorker] Starting projection generation for user ${userId}`);
 
     // Step 1: Fetch graph structure from Neo4j using real service
     const graphData = await this.fetchGraphStructureFromNeo4j(userId);
-    console.log(`[GraphProjectionWorker] Fetched ${graphData.nodes.length} nodes from Neo4j`);
+    console.log(`[GraphProjectionWorker] Fetched ${graphData.nodes.length} nodes and ${graphData.edges.length} edges from Neo4j`);
 
     if (graphData.nodes.length === 0) {
       console.log(`[GraphProjectionWorker] No nodes found for user ${userId}, creating empty projection`);
@@ -242,6 +250,13 @@ export class GraphProjectionWorker {
       createdAt: string;
       connections: string[];
     }>;
+    edges: Array<{
+      id: string;
+      source: string;
+      target: string;
+      type: string;
+      properties: Record<string, any>;
+    }>;
   }> {
     try {
       // Use Neo4jService to fetch full graph structure
@@ -251,10 +266,10 @@ export class GraphProjectionWorker {
         // Determine node type from labels
         const nodeType = node.labels.includes('Concept') ? 'Concept' : 'MemoryUnit';
         
-                 // Extract connections from edges
-         const connections = graphStructure.edges
-           .filter(edge => edge.source === node.id)
-           .map(edge => edge.target);
+        // Extract connections from edges
+        const connections = graphStructure.edges
+          .filter(edge => edge.source === node.id)
+          .map(edge => edge.target);
         
         return {
           id: node.id,
@@ -267,13 +282,22 @@ export class GraphProjectionWorker {
         };
       });
       
-      console.log(`[GraphProjectionWorker] ✅ Fetched ${processedNodes.length} nodes from Neo4j for user ${userId}`);
-      return { nodes: processedNodes };
+      // Process edges to match the expected format
+      const processedEdges = graphStructure.edges.map(edge => ({
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        type: edge.type,
+        properties: edge.properties
+      }));
+      
+      console.log(`[GraphProjectionWorker] ✅ Fetched ${processedNodes.length} nodes and ${processedEdges.length} edges from Neo4j for user ${userId}`);
+      return { nodes: processedNodes, edges: processedEdges };
       
     } catch (error) {
       console.error(`[GraphProjectionWorker] ❌ Neo4j query failed:`, error);
       // Return empty structure on failure
-      return { nodes: [] };
+      return { nodes: [], edges: [] };
     }
   }
 
@@ -403,8 +427,13 @@ export class GraphProjectionWorker {
   /**
    * REAL IMPLEMENTATION: Store projection in database using GraphProjectionRepository
    */
-  private async storeProjection(projection: GraphProjection): Promise<void> {
+  public async storeProjection(projection: GraphProjection): Promise<void> {
           try {
+        // Use edges directly from the projection
+        const edges = projection.edges || [];
+
+        console.log(`[GraphProjectionWorker] Using ${edges.length} edges from projection data`);
+
         // Convert GraphProjection to GraphProjectionData format
         const projectionData: GraphProjectionData = {
           nodes: projection.nodes.map((node: any) => ({
@@ -422,7 +451,15 @@ export class GraphProjectionWorker {
             metadata: node.metadata
           }
         })),
-        edges: [], // TODO: Extract edges from node connections if needed
+        edges: edges.map(edge => ({
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
+          properties: {
+            type: edge.type,
+            weight: edge.properties?.weight || 1.0
+          }
+        })),
         metadata: {
           algorithm: projection.projectionMethod,
           parameters: {
@@ -616,6 +653,9 @@ export class GraphProjectionWorker {
       }
     }));
 
+    // Use edges from graph data
+    const edges = graphData.edges || [];
+
     const memoryUnits = nodes.filter(n => n.type === 'MemoryUnit').length;
     const concepts = nodes.filter(n => n.type === 'Concept').length;
     const totalConnections = nodes.reduce((sum, node) => sum + node.connections.length, 0);
@@ -628,6 +668,7 @@ export class GraphProjectionWorker {
       version: `v${Date.now()}`,
       createdAt: new Date().toISOString(),
       nodes,
+      edges,
       statistics: {
         totalNodes: nodes.length,
         memoryUnits,
@@ -678,6 +719,7 @@ export class GraphProjectionWorker {
       version: `v${Date.now()}`,
       createdAt: new Date().toISOString(),
       nodes: [],
+      edges: [],
       statistics: {
         totalNodes: 0,
         memoryUnits: 0,

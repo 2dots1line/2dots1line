@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      bullmq:
-        specifier: ^5.56.4
-        version: 5.56.4
       immer:
         specifier: ^10.1.1
         version: 10.1.1
@@ -425,7 +422,7 @@ importers:
         version: 2.1.0
       form-data:
         specifier: ^4.0.2
-        version: 4.0.4
+        version: 4.0.3
       graphql-request:
         specifier: ^7.2.0
         version: 7.2.0(graphql@16.11.0)
@@ -478,19 +475,25 @@ importers:
 
   packages/orb-core:
     dependencies:
-      '@2dots1line/core-utils':
-        specifier: workspace:*
-        version: link:../core-utils
       '@2dots1line/shared-types':
-        specifier: workspace:*
+        specifier: workspace:^0.1.0
         version: link:../shared-types
       three:
-        specifier: ^0.164.1
-        version: 0.164.1
+        specifier: ^0.160.0
+        version: 0.160.1
     devDependencies:
+      '@types/jest':
+        specifier: ^29.5.0
+        version: 29.5.14
+      '@types/node':
+        specifier: ^20.17.0
+        version: 20.19.8
       '@types/three':
-        specifier: ^0.164.1
-        version: 0.164.1
+        specifier: ^0.160.0
+        version: 0.160.0
+      rimraf:
+        specifier: ^5.0.1
+        version: 5.0.10
       typescript:
         specifier: ^5.8.3
         version: 5.8.3
@@ -3444,7 +3447,7 @@ packages:
     resolution: {integrity: sha512-8nneRWKCg3rMtF69nLQJnOYUcbafYeFSjqkw3jCRLsqkWFlHaoQrr5mXmofFGOx3DKn7UfmBMyov8ySvLRVldA==}
     dependencies:
       '@types/node': 20.19.8
-      form-data: 4.0.4
+      form-data: 4.0.3
     dev: false
 
   /@types/node@18.19.119:
@@ -3543,7 +3546,7 @@ packages:
       '@types/cookiejar': 2.1.5
       '@types/methods': 1.1.4
       '@types/node': 20.19.8
-      form-data: 4.0.4
+      form-data: 4.0.3
     dev: true
 
   /@types/supertest@6.0.3:
@@ -3551,6 +3554,15 @@ packages:
     dependencies:
       '@types/methods': 1.1.4
       '@types/superagent': 8.1.9
+    dev: true
+
+  /@types/three@0.160.0:
+    resolution: {integrity: sha512-jWlbUBovicUKaOYxzgkLlhkiEQJkhCVvg4W2IYD2trqD2om3VK4DGLpHH5zQHNr7RweZK/5re/4IVhbhvxbV9w==}
+    dependencies:
+      '@types/stats.js': 0.17.4
+      '@types/webxr': 0.5.22
+      fflate: 0.6.10
+      meshoptimizer: 0.18.1
     dev: true
 
   /@types/three@0.164.1:
@@ -4262,7 +4274,7 @@ packages:
     resolution: {integrity: sha512-/1xYAC4MP/HEG+3duIhFr4ZQXR4sQXOIe+o6sdqzeykGLx6Upp/1p8MHqhINOvGeP7xyNHe7tsiJByc4SSVUxw==}
     dependencies:
       follow-redirects: 1.15.9
-      form-data: 4.0.4
+      form-data: 4.0.3
       proxy-from-env: 1.1.0
     transitivePeerDependencies:
       - debug
@@ -4490,20 +4502,6 @@ packages:
       glob: 8.1.0
       ioredis: 5.6.1
       lodash: 4.17.21
-      msgpackr: 1.11.4
-      node-abort-controller: 3.1.1
-      semver: 7.7.2
-      tslib: 2.8.1
-      uuid: 9.0.1
-    transitivePeerDependencies:
-      - supports-color
-    dev: false
-
-  /bullmq@5.56.4:
-    resolution: {integrity: sha512-5wSHd0oXs2jS6P+6tay/01Iz0cWRK8iYcscKtpS/GewEq0bJZwbkMZc77GJVOT9SP+UQuXA2y+pQTdCQJel7kQ==}
-    dependencies:
-      cron-parser: 4.9.0
-      ioredis: 5.6.1
       msgpackr: 1.11.4
       node-abort-controller: 3.1.1
       semver: 7.7.2
@@ -5826,7 +5824,6 @@ packages:
 
   /fflate@0.6.10:
     resolution: {integrity: sha512-IQrh3lEPM93wVCEczc9SaAOvkmcoQn/G8Bo1e8ZPlY3X3bnAxWaBdvTdvM1hP62iZp0BXWDy4vTAy4fF0+Dlpg==}
-    dev: false
 
   /fflate@0.8.2:
     resolution: {integrity: sha512-cPJU47OaAoCbg0pBvzsgpTPhmhqI5eJjh/JIu8tPj5q+T7iLvW/JAYUqmE7KOB4R1ZyEhzBaIQpQpardBF5z8A==}
@@ -5937,8 +5934,8 @@ packages:
       mime-types: 2.1.35
     dev: false
 
-  /form-data@4.0.4:
-    resolution: {integrity: sha512-KrGhL9Q4zjj0kiUt5OO4Mr/A/jlI2jDYs5eHBpYHPcBEVSiipAvn2Ko2HnPe20rmcuuvMHNdZFp+4IlGTMF0Ow==}
+  /form-data@4.0.3:
+    resolution: {integrity: sha512-qsITQPfmvMOSAdeyZ+12I1c+CKSstAFAwu+97zrnWAbIr5u8wfsExUzCesVLC8NgHuRUqNN4Zy6UPWUTRGslcA==}
     engines: {node: '>= 6'}
     dependencies:
       asynckit: 0.4.0
@@ -9342,7 +9339,7 @@ packages:
       cookiejar: 2.1.4
       debug: 4.4.1
       fast-safe-stringify: 2.1.1
-      form-data: 4.0.4
+      form-data: 4.0.3
       formidable: 2.1.5
       methods: 1.1.2
       mime: 2.6.0
@@ -9487,6 +9484,10 @@ packages:
       fflate: 0.6.10
       potpack: 1.0.2
       three: 0.164.1
+    dev: false
+
+  /three@0.160.1:
+    resolution: {integrity: sha512-Bgl2wPJypDOZ1stAxwfWAcJ0WQf7QzlptsxkjYiURPz+n5k4RBDLsq+6f9Y75TYxn6aHLcWz+JNmwTOXWrQTBQ==}
     dev: false
 
   /three@0.164.1:

@@ -4,9 +4,9 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { useFrame, useThree, ThreeEvent, RootState } from '@react-three/fiber';
-import { Camera, Vector3, CatmullRomCurve3 } from 'three';
-import { CosmosNode, CosmosNavigationState } from '@2dots1line/shared-types';
+import { useFrame, useThree, RootState } from '@react-three/fiber';
+import { Vector3, CatmullRomCurve3 } from 'three';
+import { CosmosNode } from '@2dots1line/shared-types';
 
 // Local types to avoid circular dependencies
 interface SimpleCosmosNode {
@@ -89,7 +89,7 @@ export const useCosmosNavigation = (options: UseCosmosNavigationOptions = {}): U
   } = options;
 
   // Three.js context
-  const { camera, scene } = useThree();
+  const { camera } = useThree();
   
   // Navigation state
   const [navigationState, setNavigationState] = useState<NavigationState>({
