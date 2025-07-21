@@ -1,37 +1,61 @@
-const path = require('path');
-const { DatabaseService } = require(path.join(__dirname, '..', 'packages', 'database', 'dist'));
-const { Neo4jService } = require(path.join(__dirname, '..', 'packages', 'database', 'dist'));
+/**
+ * Test script to verify Neo4jService is correctly fetching all node types
+ */
+
+import { DatabaseService } from '@2dots1line/database';
+import { Neo4jService } from '@2dots1line/database';
+import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
 
 async function testNeo4jService() {
+  console.log('[TestScript] Testing Neo4jService...');
+  
   try {
-    console.log('Testing Neo4jService...');
+    // Load environment
+    environmentLoader.load();
     
-    const databaseService = DatabaseService.getInstance();
-    const neo4jService = new Neo4jService(databaseService);
+    // Initialize database service
+    const dbService = DatabaseService.getInstance();
+    const neo4jService = new Neo4jService(dbService);
     
-    console.log('✅ Neo4jService created');
+    const userId = 'dev-user-123';
     
-    // Test fetching graph structure
-    console.log('Testing fetchFullGraphStructure...');
-    const graphStructure = await neo4jService.fetchFullGraphStructure('dev-user-123');
+    console.log('[TestScript] Fetching graph structure...');
+    const graphStructure = await neo4jService.fetchFullGraphStructure(userId);
     
-    console.log('✅ Graph structure fetched:', {
-      nodeCount: graphStructure.nodes.length,
-      edgeCount: graphStructure.edges.length
+    console.log(`[TestScript] ✅ Fetched ${graphStructure.nodes.length} nodes and ${graphStructure.edges.length} edges`);
+    
+    // Group nodes by type
+    const nodeTypes = {};
+    graphStructure.nodes.forEach(node => {
+      const labels = node.labels.join(', ');
+      if (!nodeTypes[labels]) {
+        nodeTypes[labels] = [];
+      }
+      nodeTypes[labels].push({
+        id: node.id,
+        title: node.properties.title || node.properties.name || 'Untitled',
+        labels: node.labels
+      });
     });
     
-    if (graphStructure.nodes.length > 0) {
-      console.log('Sample node:', graphStructure.nodes[0]);
-    }
+    console.log('\n[TestScript] Node types found:');
+    Object.entries(nodeTypes).forEach(([labels, nodes]) => {
+      console.log(`  ${labels}: ${nodes.length} nodes`);
+      nodes.slice(0, 3).forEach(node => {
+        console.log(`    - ${node.id}: ${node.title}`);
+      });
+      if (nodes.length > 3) {
+        console.log(`    ... and ${nodes.length - 3} more`);
+      }
+    });
     
-    if (graphStructure.edges.length > 0) {
-      console.log('Sample edge:', graphStructure.edges[0]);
-    }
+    console.log('\n[TestScript] ✅ Neo4jService test completed successfully!');
     
   } catch (error) {
-    console.error('❌ Error:', error.message);
-    console.error('Stack:', error.stack);
+    console.error('[TestScript] ❌ Error testing Neo4jService:', error);
+    throw error;
   }
 }
 
-testNeo4jService(); 
+// Run the test
+testNeo4jService().catch(console.error); 

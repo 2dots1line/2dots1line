@@ -144,6 +144,7 @@ const CosmosScene: React.FC = () => {
         edgeOpacity={edgeOpacity}
         edgeWidth={edgeWidth}
         animatedEdges={animatedEdges}
+        modalOpen={!!selectedNode}
       />
       
       {/* Edge Controls */}

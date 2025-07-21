@@ -38,6 +38,7 @@ export class InsightEngine {
     private strategicSynthesisTool: StrategicSynthesisTool,
     private dbService: DatabaseService,
     private cardAndGraphQueue: Queue,
+    private embeddingQueue: Queue,
     private neo4jClient?: any // Neo4j client for ontology updates
   ) {
     this.conversationRepository = new ConversationRepository(dbService);
@@ -191,6 +192,9 @@ export class InsightEngine {
         console.log(`[InsightEngine] Created proactive prompt: ${createdPrompt.prompt_id} - ${prompt.title}`);
       }
 
+      // Publish embedding jobs for new entities
+      await this.publishEmbeddingJobs(userId, newEntities);
+
       // Update user strategic state
       await this.userRepository.update(userId, {
         last_cycle_started_at: new Date(),
@@ -205,6 +209,81 @@ export class InsightEngine {
     }
 
     return newEntities;
+  }
+
+  /**
+   * Publish embedding jobs for newly created entities
+   */
+  private async publishEmbeddingJobs(userId: string, newEntities: Array<{ id: string; type: string }>) {
+    const embeddingJobs = [];
+
+    for (const entity of newEntities) {
+      try {
+        // Extract text content based on entity type
+        const textContent = await this.extractTextContentForEntity(entity.id, entity.type);
+        
+        if (textContent) {
+          embeddingJobs.push({
+            entityId: entity.id,
+            entityType: entity.type as 'DerivedArtifact' | 'ProactivePrompt' | 'Community',
+            textContent,
+            userId
+          });
+          
+          console.log(`[InsightEngine] Prepared embedding job for ${entity.type} ${entity.id}`);
+        }
+      } catch (error) {
+        console.error(`[InsightEngine] Error preparing embedding job for ${entity.type} ${entity.id}:`, error);
+      }
+    }
+
+    if (embeddingJobs.length > 0) {
+      try {
+        // Add embedding jobs to queue
+        for (const job of embeddingJobs) {
+          await this.embeddingQueue.add('generate_embedding', job, {
+            attempts: 3,
+            backoff: {
+              type: 'exponential',
+              delay: 2000
+            }
+          });
+        }
+        
+        console.log(`[InsightEngine] Published ${embeddingJobs.length} embedding jobs for user ${userId}`);
+      } catch (error) {
+        console.error(`[InsightEngine] Error publishing embedding jobs for user ${userId}:`, error);
+      }
+    }
+  }
+
+  /**
+   * Extract text content for embedding based on entity type
+   */
+  private async extractTextContentForEntity(entityId: string, entityType: string): Promise<string | null> {
+    try {
+      switch (entityType) {
+        case 'DerivedArtifact':
+          const artifact = await this.derivedArtifactRepository.findById(entityId);
+          return artifact ? `${artifact.title}\n\n${artifact.content_narrative}` : null;
+          
+        case 'ProactivePrompt':
+          const prompt = await this.proactivePromptRepository.findById(entityId);
+          return prompt ? prompt.prompt_text : null;
+          
+        case 'Community':
+          // For communities, we might need to aggregate content from multiple sources
+          // For now, return a placeholder - this would need to be implemented based on community structure
+          return `Community entity ${entityId}`;
+          
+        default:
+          console.warn(`[InsightEngine] Unknown entity type for embedding: ${entityType}`);
+          return null;
+      }
+    } catch (error) {
+      console.error(`[InsightEngine] Error extracting text content for ${entityType} ${entityId}:`, error);
+      return null;
+    }
   }
 
   private async publishCycleArtifacts(userId: string, newEntities: Array<{ id: string; type: string }>) {

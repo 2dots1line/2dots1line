@@ -17,8 +17,8 @@ import { TextEmbeddingTool } from '@2dots1line/tools';
 import { Worker, Job } from 'bullmq';
 
 export interface EmbeddingJob {
-  entityId: string;           // UUID of the MemoryUnit or Concept
-  entityType: 'MemoryUnit' | 'Concept';
+  entityId: string;           // UUID of the entity
+  entityType: 'MemoryUnit' | 'Concept' | 'DerivedArtifact' | 'Community' | 'ProactivePrompt';
   textContent: string;        // The text to be embedded
   userId: string;             // For multi-tenant indexing
 }
@@ -165,19 +165,20 @@ export class EmbeddingWorker {
         return 'weaviate-client-unavailable';
       }
 
-      const className = data.entityType === 'MemoryUnit' ? 'MemoryUnit' : 'Concept';
-      
+      // Use unified UserKnowledgeItem class for all entity types
       const result = await this.databaseService.weaviate
         .data
         .creator()
-        .withClassName(className)
+        .withClassName('UserKnowledgeItem')
         .withProperties({
-          entity_id: data.entityId,
-          user_id: data.userId,
-          content: data.textContent,
-          entity_type: data.entityType,
-          created_at: new Date().toISOString(),
-          model_version: this.config.embeddingModelVersion!
+          externalId: data.entityId,
+          userId: data.userId,
+          title: data.textContent.substring(0, 200), // Use first 200 chars as title
+          textContent: data.textContent,
+          sourceEntityType: data.entityType,
+          sourceEntityId: data.entityId,
+          createdAt: new Date().toISOString(),
+          modelVersion: this.config.embeddingModelVersion!
         })
         .withVector(data.vector)
         .do();

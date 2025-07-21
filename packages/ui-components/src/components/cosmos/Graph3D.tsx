@@ -1,10 +1,11 @@
-import React from 'react';
-import { Canvas } from '@react-three/fiber';
+import React, { useState, useRef, useCallback } from 'react';
+import { Canvas, useThree } from '@react-three/fiber';
 import { PerspectiveCamera } from '@react-three/drei';
 import { StarfieldBackground } from './StarfieldBackground';
 import { CameraController } from './CameraController';
 import { NodeMesh } from './NodeMesh';
 import { EdgeMesh, AnimatedEdgeMesh } from './EdgeMesh';
+import { EdgeLabel } from './EdgeLabel';
 import * as THREE from 'three';
 
 // TODO: Define proper types for graph data
@@ -21,6 +22,7 @@ interface Graph3DProps {
   edgeOpacity?: number;
   edgeWidth?: number;
   animatedEdges?: boolean;
+  modalOpen?: boolean;
 }
 
 export const Graph3D: React.FC<Graph3DProps> = ({ 
@@ -29,8 +31,12 @@ export const Graph3D: React.FC<Graph3DProps> = ({
   showEdges = true,
   edgeOpacity = 1.0,
   edgeWidth = 8,
-  animatedEdges = false
+  animatedEdges = false,
+  modalOpen = false
 }) => {
+  // State for hover management
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  
   // Normalize edge data - handle both 'links' and 'edges' properties
   const edges = graphData.links || graphData.edges || [];
   
@@ -43,6 +49,12 @@ export const Graph3D: React.FC<Graph3DProps> = ({
     edgeOpacity,
     edgeWidth
   });
+
+  // Debug: Log all unique entity types
+  const entityTypes = [...new Set(graphData.nodes.map(node => 
+    node.entityType || node.type || node.category || 'unknown'
+  ))];
+  console.log('🔍 Graph3D: Entity types found:', entityTypes);
 
   // Debug: Check if nodes have valid positions
   if (graphData.nodes.length > 0) {
@@ -82,6 +94,82 @@ export const Graph3D: React.FC<Graph3DProps> = ({
     return edge.weight || edge.strength || 1.0;
   };
 
+  // Helper function to format edge label text
+  const formatEdgeLabel = (text: string): string => {
+    // Convert to lowercase and replace underscores with spaces
+    return text
+      .toLowerCase()
+      .replace(/_/g, ' ')
+      .trim();
+  };
+
+  // Helper function to get edge label text
+  const getEdgeLabel = (edge: any): string => {
+    let labelText = '';
+    
+    // Check for various possible label properties
+    if (edge.label) labelText = edge.label;
+    else if (edge.relationship) labelText = edge.relationship;
+    else if (edge.type) labelText = edge.type;
+    else if (edge.name) labelText = edge.name;
+    else {
+      // Default based on edge type
+      switch (edge.type) {
+        case 'related':
+          labelText = 'related to';
+          break;
+        case 'temporal':
+          labelText = 'follows';
+          break;
+        case 'semantic':
+          labelText = 'similar to';
+          break;
+        case 'hierarchical':
+          labelText = 'contains';
+          break;
+        case 'causal':
+          labelText = 'causes';
+          break;
+        default:
+          labelText = 'connects';
+          break;
+      }
+    }
+    
+    // Format the label text
+    return formatEdgeLabel(labelText);
+  };
+
+  // Helper function to find nodes connected to a given node
+  const getConnectedNodes = (nodeId: string): string[] => {
+    const connectedIds = new Set<string>();
+    
+    edges.forEach(edge => {
+      if (edge.source === nodeId) {
+        connectedIds.add(edge.target);
+      } else if (edge.target === nodeId) {
+        connectedIds.add(edge.source);
+      }
+    });
+    
+    return Array.from(connectedIds);
+  };
+
+  // Helper function to check if an edge should be visible
+  const shouldShowEdge = (edge: any): boolean => {
+    // Only show edges when a node is hovered
+    if (!hoveredNodeId) return false;
+    
+    // Show edge if it connects to the hovered node
+    return edge.source === hoveredNodeId || edge.target === hoveredNodeId;
+  };
+
+  // Camera auto-positioning disabled - keeping manual camera control
+  const positionCameraForNode = useCallback((nodeId: string) => {
+    // Camera positioning disabled - keeping manual camera control
+    console.log('🔍 Camera positioning disabled for node:', nodeId);
+  }, []);
+
   return (
     <Canvas
       style={{
@@ -95,20 +183,55 @@ export const Graph3D: React.FC<Graph3DProps> = ({
         powerPreference: 'high-performance',
       }}
     >
-      <PerspectiveCamera makeDefault position={[0, 0, 50]} fov={75} near={0.1} far={10000} />
+      <PerspectiveCamera 
+        makeDefault 
+        position={[0, 0, 50]} 
+        fov={75} 
+        near={0.1} 
+        far={10000} 
+      />
       <StarfieldBackground />
       <CameraController />
-      <ambientLight intensity={0.3} />
-      <directionalLight position={[10, 10, 5]} intensity={0.5} />
-      <pointLight position={[0, 0, 0]} intensity={0.2} />
+      {/* Ambient light for overall illumination */}
+      <ambientLight intensity={0.2} />
+      
+      {/* Main directional light from upper right corner */}
+      <directionalLight 
+        position={[20, 20, 10]} 
+        intensity={0.8} 
+        castShadow={false}
+      />
+      
+      {/* Secondary fill light from opposite direction */}
+      <directionalLight 
+        position={[-10, 10, 5]} 
+        intensity={0.3} 
+        castShadow={false}
+      />
       
       {/* Render nodes */}
       {graphData.nodes.map((node) => (
-        <NodeMesh key={node.id} node={node} onClick={onNodeClick} />
+        <NodeMesh 
+          key={node.id} 
+          node={node} 
+          onClick={onNodeClick} 
+          modalOpen={modalOpen}
+          onHover={(nodeId) => {
+            setHoveredNodeId(nodeId);
+            if (nodeId) {
+              positionCameraForNode(nodeId);
+            }
+          }}
+          isHighlighted={hoveredNodeId === node.id || 
+            (!!hoveredNodeId && getConnectedNodes(hoveredNodeId).includes(node.id))}
+        />
       ))}
 
-      {/* Render edges */}
+      {/* Render edges - only show edges connected to hovered node */}
       {showEdges && edges.map((edge, index) => {
+        // Only show edge if it's connected to the hovered node
+        if (!shouldShowEdge(edge)) return null;
+        
         const sourceNode = graphData.nodes.find((n) => n.id === edge.source);
         const targetNode = graphData.nodes.find((n) => n.id === edge.target);
         
@@ -125,28 +248,39 @@ export const Graph3D: React.FC<Graph3DProps> = ({
         
         const edgeColor = getEdgeColor(edge);
         const edgeWeight = getEdgeWeight(edge);
+        const edgeLabel = getEdgeLabel(edge);
         
-        return animatedEdges ? (
-          <AnimatedEdgeMesh 
-            key={`edge-${index}`}
-            points={points}
-            color={edgeColor}
-            width={edgeWidth}
-            opacity={edgeOpacity}
-            type={edge.type}
-            weight={edgeWeight}
-            animated={true}
-          />
-        ) : (
-          <EdgeMesh 
-            key={`edge-${index}`}
-            points={points}
-            color={edgeColor}
-            width={edgeWidth}
-            opacity={edgeOpacity}
-            type={edge.type}
-            weight={edgeWeight}
-          />
+        return (
+          <group key={`edge-${index}`}>
+            {animatedEdges ? (
+              <AnimatedEdgeMesh 
+                points={points}
+                color={edgeColor}
+                width={edgeWidth}
+                opacity={edgeOpacity}
+                type={edge.type}
+                weight={edgeWeight}
+                animated={true}
+              />
+            ) : (
+              <EdgeMesh 
+                points={points}
+                color={edgeColor}
+                width={edgeWidth}
+                opacity={edgeOpacity}
+                type={edge.type}
+                weight={edgeWeight}
+              />
+            )}
+            
+            {/* Edge label */}
+            <EdgeLabel 
+              points={points}
+              label={edgeLabel}
+              color={edgeColor}
+              edgeId={`${edge.source}-${edge.target}`}
+            />
+          </group>
         );
       })}
     </Canvas>

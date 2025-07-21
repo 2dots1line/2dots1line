@@ -4,58 +4,24 @@ import { Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { NodeLabel } from './NodeLabel';
 
-// A custom shader material for the glow effect
-const GlowMaterial = React.forwardRef<THREE.ShaderMaterial, { color: string; hover: boolean }>(({ color, hover }, ref) => {
-  const uniforms = useMemo(() => ({
-    color: { value: new THREE.Color(color) },
-    hover: { value: hover ? 1.0 : 0.0 },
-    time: { value: 0 },
-  }), [color, hover]);
 
-  useFrame((state) => {
-    if (uniforms) {
-      uniforms.time.value = state.clock.elapsedTime;
-    }
-  });
-
-  return (
-    <shaderMaterial
-      ref={ref}
-      uniforms={uniforms}
-      vertexShader={`
-        varying vec3 vPosition;
-        void main() {
-          vPosition = position;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `}
-      fragmentShader={`
-        uniform vec3 color;
-        uniform float hover;
-        uniform float time;
-        varying vec3 vPosition;
-        void main() {
-          float pulse = sin(time * 2.0 + vPosition.x * 0.1) * 0.5 + 0.5;
-          float glow = pow(0.5 - distance(gl_PointCoord, vec2(0.5)), 2.0);
-          float intensity = hover > 0.5 ? 1.5 : 1.0;
-          gl_FragColor = vec4(color, glow * intensity * (0.8 + pulse * 0.4));
-        }
-      `}
-      transparent
-      blending={THREE.AdditiveBlending}
-      depthWrite={false}
-    />
-  );
-});
 
 interface NodeMeshProps {
   node: any;
   onClick: (node: any) => void;
+  modalOpen?: boolean;
+  onHover?: (nodeId: string | null) => void;
+  isHighlighted?: boolean;
 }
 
-export const NodeMesh: React.FC<NodeMeshProps> = ({ node, onClick }) => {
+export const NodeMesh: React.FC<NodeMeshProps> = ({ 
+  node, 
+  onClick, 
+  modalOpen = false, 
+  onHover,
+  isHighlighted = false 
+}) => {
   const meshRef = useRef<THREE.Mesh>(null!);
-  const glowRef = useRef<THREE.Mesh>(null!);
   const [hovered, setHovered] = useState(false);
 
   // Use positions directly without scaling
@@ -65,33 +31,92 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({ node, onClick }) => {
     node.z
   ), [node.x, node.y, node.z]);
 
+  // Calculate importance-based size and color
+  const importance = node.importance || 0.5;
+  const baseSize = 0.3 + importance * 1.2; // Size varies from 0.3 to 1.5
+  const hoverSize = baseSize * (hovered ? 1.2 : 1.0);
+  
+  // Color scheme based on entity type
+  const getNodeColor = () => {
+    let baseColor;
+    
+    // Get entity type from node properties
+    const entityType = node.entityType || node.type || node.category || 'unknown';
+    
+    // Debug logging for first few nodes
+    if (node.id === 'mu-001' || node.id === 'concept-def' || node.id === 'community-def') {
+      console.log(`🔍 NodeMesh ${node.id}:`, {
+        entityType,
+        nodeType: node.type,
+        nodeCategory: node.category,
+        nodeEntityType: node.entityType,
+        finalEntityType: entityType
+      });
+    }
+    
+    // Color coding by entity type
+    switch (entityType) {
+      case 'MemoryUnit':
+        baseColor = '#4488ff'; // Blue for memory units
+        break;
+      case 'Concept':
+        baseColor = '#44ff44'; // Green for concepts
+        break;
+      case 'Community':
+        baseColor = '#ff8844'; // Orange for communities
+        break;
+      case 'DerivedArtifact':
+      case 'Artifact':
+        baseColor = '#ff4488'; // Pink for derived artifacts
+        break;
+      default:
+        baseColor = '#888888'; // Gray for unknown types
+        break;
+    }
+    
+    // Only dim nodes if there's an active hover state
+    if (isHighlighted) {
+      return baseColor; // Keep original color for highlighted nodes
+    } else if (hovered) {
+      return baseColor; // Keep original color for hovered node
+    } else {
+      // Show all nodes normally when no hover is active
+      return baseColor; // Keep original color for all nodes
+    }
+  };
+
   useFrame(() => {
     if (meshRef.current) {
+      // Simple, slow rotation
       meshRef.current.rotation.y += 0.005;
-    }
-    if (glowRef.current) {
-      const targetScale = hovered ? 3 : 2;
-      glowRef.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.1);
     }
   });
 
   return (
     <group position={position}>
+      {/* Simple 3D globe with proper lighting */}
       <mesh
         ref={meshRef}
-        onPointerOver={() => setHovered(true)}
-        onPointerOut={() => setHovered(false)}
+        onPointerOver={() => {
+          setHovered(true);
+          onHover?.(node.id);
+        }}
+        onPointerOut={() => {
+          setHovered(false);
+          onHover?.(null);
+        }}
         onClick={() => onClick(node)}
-        scale={hovered ? 1.2 : 1}
+        scale={hoverSize}
       >
-        <sphereGeometry args={[1, 16, 16]} />
-        <meshBasicMaterial color="#00ff88" />
+        <sphereGeometry args={[baseSize, 32, 32]} />
+        <meshPhongMaterial 
+          color={getNodeColor()} 
+          shininess={100}
+          specular={0x444444}
+        />
       </mesh>
-      <mesh ref={glowRef} scale={1.5}>
-        <sphereGeometry args={[1.2, 16, 16]} />
-        <GlowMaterial color="#00ff66" hover={hovered} />
-      </mesh>
-      <NodeLabel text={node.title || node.name} position={new THREE.Vector3(0, 1.5, 0)} hovered={hovered} />
+      
+      <NodeLabel text={node.title || node.name} position={position} hovered={hovered} nodeId={node.id} modalOpen={modalOpen} />
     </group>
   );
 };

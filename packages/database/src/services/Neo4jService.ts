@@ -72,8 +72,8 @@ export class Neo4jService {
       RETURN n, r, m, 
              id(n) as nId, 
              id(m) as mId,
-             COALESCE(n.id, n.muid, toString(id(n))) as nExternalId,
-             COALESCE(m.id, m.muid, toString(id(m))) as mExternalId
+             COALESCE(n.id, n.muid, n.conceptId, n.artifact_id, n.community_id, toString(id(n))) as nExternalId,
+             COALESCE(m.id, m.muid, m.conceptId, m.artifact_id, m.community_id, toString(id(m))) as mExternalId
     `;
     
     const records = await this.runReadQuery(cypher, { userId });

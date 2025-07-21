@@ -37,7 +37,7 @@ export interface NewEntitiesCreatedEvent {
   timestamp: string;
   entities: Array<{
     id: string;
-    type: "MemoryUnit" | "Concept";
+    type: "MemoryUnit" | "Concept" | "DerivedArtifact" | "Community";
   }>;
 }
 
@@ -54,7 +54,7 @@ export interface GraphProjectionWorkerConfig {
 
 export interface Node3D {
   id: string;
-  type: 'MemoryUnit' | 'Concept';
+  type: 'MemoryUnit' | 'Concept' | 'DerivedArtifact' | 'Community';
   title: string;
   content: string;
   position: [number, number, number]; // 3D coordinates
@@ -83,6 +83,8 @@ export interface GraphProjection {
     totalNodes: number;
     memoryUnits: number;
     concepts: number;
+    derivedArtifacts: number;
+    communities: number;
     connections: number;
   };
   projectionMethod: string;
@@ -263,8 +265,21 @@ export class GraphProjectionWorker {
       const graphStructure = await this.neo4jService.fetchFullGraphStructure(userId);
       
       const processedNodes = graphStructure.nodes.map(node => {
-        // Determine node type from labels
-        const nodeType = node.labels.includes('Concept') ? 'Concept' : 'MemoryUnit';
+        // Determine node type from labels - support all 4 types
+        let nodeType: 'Concept' | 'MemoryUnit' | 'DerivedArtifact' | 'Community';
+        if (node.labels.includes('Concept')) {
+          nodeType = 'Concept';
+        } else if (node.labels.includes('MemoryUnit')) {
+          nodeType = 'MemoryUnit';
+        } else if (node.labels.includes('DerivedArtifact')) {
+          nodeType = 'DerivedArtifact';
+        } else if (node.labels.includes('Community')) {
+          nodeType = 'Community';
+        } else {
+          // Fallback to MemoryUnit for unknown types
+          nodeType = 'MemoryUnit';
+          console.warn(`[GraphProjectionWorker] Unknown node type for node ${node.id}, labels: ${node.labels.join(', ')}`);
+        }
         
         // Extract connections from edges
         const connections = graphStructure.edges
@@ -315,24 +330,32 @@ export class GraphProjectionWorker {
       
       for (const node of nodes) {
         try {
-          const className = node.type === 'Concept' ? 'Concept' : 'MemoryUnit';
-          
-          // Query Weaviate for the specific entity by ID
+          // Use unified UserKnowledgeItem class with sourceEntityType filter
           const result = await this.databaseService.weaviate
             .graphql
             .get()
-            .withClassName(className)
-            .withFields('entity_id embedding')
+            .withClassName('UserKnowledgeItem')
+            .withFields('externalId embedding sourceEntityType sourceEntityId')
             .withWhere({
-              path: ['entity_id'],
-              operator: 'Equal',
-              valueString: node.id
+              operator: 'And',
+              operands: [
+                {
+                  path: ['sourceEntityType'],
+                  operator: 'Equal',
+                  valueString: node.type
+                },
+                {
+                  path: ['sourceEntityId'],
+                  operator: 'Equal',
+                  valueString: node.id
+                }
+              ]
             })
             .withLimit(1)
             .do();
 
-          if (result.data?.Get?.[className]?.[0]?.embedding) {
-            const embedding = result.data.Get[className][0].embedding;
+          if (result.data?.Get?.UserKnowledgeItem?.[0]?.embedding) {
+            const embedding = result.data.Get.UserKnowledgeItem[0].embedding;
             vectors.push(embedding);
             console.log(`[GraphProjectionWorker] ✅ Retrieved embedding for ${node.type} ${node.id}`);
           } else {
@@ -340,8 +363,13 @@ export class GraphProjectionWorker {
             const fallbackResult = await this.databaseService.weaviate
               .graphql
               .get()
-              .withClassName(className)
-              .withFields('entity_id embedding')
+              .withClassName('UserKnowledgeItem')
+              .withFields('externalId embedding sourceEntityType sourceEntityId')
+              .withWhere({
+                path: ['sourceEntityType'],
+                operator: 'Equal',
+                valueString: node.type
+              })
               .withNearText({ 
                 concepts: [node.content || node.title],
                 distance: 0.7 
@@ -349,12 +377,12 @@ export class GraphProjectionWorker {
               .withLimit(1)
               .do();
 
-            if (fallbackResult.data?.Get?.[className]?.[0]?.embedding) {
-              const embedding = fallbackResult.data.Get[className][0].embedding;
+            if (fallbackResult.data?.Get?.UserKnowledgeItem?.[0]?.embedding) {
+              const embedding = fallbackResult.data.Get.UserKnowledgeItem[0].embedding;
               vectors.push(embedding);
               console.log(`[GraphProjectionWorker] ✅ Retrieved fallback embedding for ${node.type} ${node.id}`);
             } else {
-              throw new Error('No embedding found in Weaviate');
+              throw new Error(`No embedding found in Weaviate for ${node.type} ${node.id}`);
             }
           }
                  } catch (nodeError: any) {
@@ -658,6 +686,8 @@ export class GraphProjectionWorker {
 
     const memoryUnits = nodes.filter(n => n.type === 'MemoryUnit').length;
     const concepts = nodes.filter(n => n.type === 'Concept').length;
+    const derivedArtifacts = nodes.filter(n => n.type === 'DerivedArtifact').length;
+    const communities = nodes.filter(n => n.type === 'Community').length;
     const totalConnections = nodes.reduce((sum, node) => sum + node.connections.length, 0);
 
     // Calculate bounding box
@@ -673,6 +703,8 @@ export class GraphProjectionWorker {
         totalNodes: nodes.length,
         memoryUnits,
         concepts,
+        derivedArtifacts,
+        communities,
         connections: totalConnections
       },
       projectionMethod: this.config.projectionMethod!,
@@ -724,6 +756,8 @@ export class GraphProjectionWorker {
         totalNodes: 0,
         memoryUnits: 0,
         concepts: 0,
+        derivedArtifacts: 0,
+        communities: 0,
         connections: 0
       },
       projectionMethod: this.config.projectionMethod!,

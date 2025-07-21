@@ -1,42 +1,94 @@
-import React, { useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
-import { Text } from '@react-three/drei';
+import React, { useRef, useEffect, useState } from 'react';
+import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 
 interface NodeLabelProps {
   text: string;
   position: THREE.Vector3;
   hovered: boolean;
+  nodeId: string;
+  modalOpen?: boolean;
 }
 
-export const NodeLabel: React.FC<NodeLabelProps> = ({ text, position, hovered }) => {
-  const textRef = useRef<any>();
+export const NodeLabel: React.FC<NodeLabelProps> = ({ text, position, hovered, nodeId, modalOpen = false }) => {
+  const { camera, gl } = useThree();
+  const [screenPosition, setScreenPosition] = useState({ x: 0, y: 0, visible: false });
+  const displayName = text && text.length > 25 ? text.substring(0, 25) + '...' : text || 'Unknown';
 
-  useFrame(({ camera }) => {
-    if (textRef.current) {
-      const distance = camera.position.distanceTo(position);
-      const scale = Math.max(0.1, Math.min(2, distance * 0.01));
-      textRef.current.scale.setScalar(scale);
-      textRef.current.lookAt(camera.position);
+  // Convert 3D position to 2D screen coordinates
+  useFrame(() => {
+    // Use the world position directly (position is already the node's world position)
+    const vector = position.clone();
+    vector.project(camera);
+    
+    // Debug logging for first few nodes
+    if (nodeId === 'mu-001' || nodeId === 'concept-def') {
+      console.log(`🔍 NodeLabel ${nodeId}:`, {
+        worldPosition: { x: position.x, y: position.y, z: position.z },
+        projectedVector: { x: vector.x, y: vector.y, z: vector.z },
+        screenCoords: { 
+          x: (vector.x * 0.5 + 0.5) * gl.domElement.clientWidth,
+          y: (vector.y * -0.5 + 0.5) * gl.domElement.clientHeight
+        },
+        canvasSize: { width: gl.domElement.clientWidth, height: gl.domElement.clientHeight }
+      });
     }
+    
+    const x = (vector.x * 0.5 + 0.5) * gl.domElement.clientWidth;
+    const y = (vector.y * -0.5 + 0.5) * gl.domElement.clientHeight;
+    
+    // Check if the point is in front of the camera
+    const visible = vector.z < 1;
+    
+    setScreenPosition({ x, y, visible });
   });
 
-  const displayName = text && text.length > 30 ? text.substring(0, 30) + '...' : text || 'Unknown';
+  // Create HTML overlay element
+  useEffect(() => {
+    const labelElement = document.createElement('div');
+    labelElement.id = `node-label-${nodeId}`;
+    labelElement.className = 'node-label-overlay';
+    labelElement.textContent = displayName;
+    labelElement.style.cssText = `
+      position: absolute;
+      pointer-events: none;
+      color: ${hovered ? '#00ffff' : '#ffffff'};
+      font-size: 12px;
+      font-weight: 500;
+      text-align: center;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+      white-space: nowrap;
+      transform: translate(-50%, -100%);
+      z-index: 1000;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      opacity: 0.6;
+    `;
+    
+    document.body.appendChild(labelElement);
+    
+    return () => {
+      const existingElement = document.getElementById(`node-label-${nodeId}`);
+      if (existingElement) {
+        existingElement.remove();
+      }
+    };
+  }, [nodeId, displayName, hovered]);
 
-  return (
-    <Text
-      ref={textRef}
-      position={position}
-      fontSize={3}
-      color={hovered ? '#00ffff' : '#00ffcc'}
-      anchorX="center"
-      anchorY="bottom"
-      outlineWidth={0.2}
-      outlineColor="#000000"
-      maxWidth={20}
-      textAlign="center"
-    >
-      {displayName}
-    </Text>
-  );
+  // Update position of HTML element
+  useEffect(() => {
+    const labelElement = document.getElementById(`node-label-${nodeId}`);
+    if (labelElement) {
+      if (screenPosition.visible && !modalOpen) {
+        labelElement.style.left = `${screenPosition.x}px`;
+        labelElement.style.top = `${screenPosition.y}px`;
+        labelElement.style.display = 'block';
+        labelElement.style.zIndex = '1000';
+      } else {
+        labelElement.style.display = 'none';
+      }
+    }
+  }, [screenPosition, nodeId, modalOpen]);
+
+  // Return null since we're using HTML overlays
+  return null;
 };
