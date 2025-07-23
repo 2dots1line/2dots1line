@@ -58,6 +58,9 @@ v1Router.get('/users/me/dashboard/growth-summary', authMiddleware, userControlle
 // --- Graph Routes (Authenticated) --- V11.0: Real-time metrics from Neo4j source of truth
 v1Router.get('/nodes/:nodeId/metrics', authMiddleware, graphController.getNodeMetrics);
 
+// --- Node Details Routes (Authenticated) --- V11.0: Rich node information from PostgreSQL
+v1Router.get('/nodes/:nodeId/details', authMiddleware, graphController.getNodeDetails);
+
 // --- Graph Projection Routes (Authenticated) --- V11.0: 3D visualization data
 v1Router.get('/graph-projection/latest', authMiddleware, graphController.getLatestGraphProjection);
 

@@ -1,31 +1,32 @@
 /**
- * Enhanced CosmosNodeModal
- * Displays rich node details from PostgreSQL instead of raw JSON for graph nodes
+ * EnhancedCardModal - Card detail modal using entity system for consistency
+ * V11.0 - Unified data source for both cards and nodes
  */
 
 import React from 'react';
 import { X, RefreshCw, AlertCircle } from 'lucide-react';
 import { NodeDetailsDisplay } from '../cosmos/NodeDetailsDisplay';
 import { useEntityDetails } from '../../hooks/cosmos/useEntityDetails';
+import { DisplayCard } from '@2dots1line/shared-types';
 
-interface CosmosNodeModalProps {
-  node: any;
+interface EnhancedCardModalProps {
+  card: DisplayCard;
+  isOpen: boolean;
   onClose: () => void;
-  onCardAction?: (action: string, cardId: string) => void;
 }
 
-const CosmosNodeModal: React.FC<CosmosNodeModalProps> = ({ 
-  node, 
-  onClose, 
-  onCardAction 
+export const EnhancedCardModal: React.FC<EnhancedCardModalProps> = ({ 
+  card, 
+  isOpen, 
+  onClose 
 }) => {
-  const { entityDetails, isLoading, error, refetch } = useEntityDetails(node);
+  const { entityDetails, isLoading, error, refetch } = useEntityDetails(card);
 
   const handleRefresh = async () => {
     await refetch();
   };
 
-  if (!node) {
+  if (!isOpen || !card) {
     return null;
   }
 
@@ -43,7 +44,7 @@ const CosmosNodeModal: React.FC<CosmosNodeModalProps> = ({
         <div className="flex items-center justify-between p-6 border-b border-white/20">
           <div className="flex items-center gap-3">
             <h2 className="text-xl font-semibold text-white">
-              Node Details
+              {entityDetails?.title || card.title || 'Card Details'}
             </h2>
             {isLoading && (
               <div className="flex items-center gap-2 text-white/60">
@@ -79,7 +80,7 @@ const CosmosNodeModal: React.FC<CosmosNodeModalProps> = ({
             <div className="mb-6 p-4 bg-red-500/20 border border-red-500/30 rounded-lg">
               <div className="flex items-center gap-2 text-red-300 mb-2">
                 <AlertCircle size={16} />
-                <span className="font-medium">Error Loading Node Details</span>
+                <span className="font-medium">Error Loading Entity Details</span>
               </div>
               <p className="text-red-200 text-sm">{error}</p>
               <button
@@ -106,15 +107,52 @@ const CosmosNodeModal: React.FC<CosmosNodeModalProps> = ({
             <div className="space-y-6">
               <NodeDetailsDisplay nodeDetails={entityDetails} />
 
-              {/* Raw Node Data (Development Only) */}
+              {/* Card-Specific Information */}
+              <div className="border-t border-white/20 pt-6">
+                <h3 className="text-lg font-semibold text-white mb-4">Card Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <div className="text-sm">
+                      <span className="text-white/60">Card ID: </span>
+                      <span className="text-white/90 font-mono">{card.card_id}</span>
+                    </div>
+                    <div className="text-sm">
+                      <span className="text-white/60">Card Type: </span>
+                      <span className="text-white/90">{card.card_type?.replace(/_/g, ' ')}</span>
+                    </div>
+                    <div className="text-sm">
+                      <span className="text-white/60">Status: </span>
+                      <span className="text-white/90">{card.status || 'Unknown'}</span>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="text-sm">
+                      <span className="text-white/60">Source Entity: </span>
+                      <span className="text-white/90">{card.source_entity_id}</span>
+                    </div>
+                    <div className="text-sm">
+                      <span className="text-white/60">Entity Type: </span>
+                      <span className="text-white/90">{card.source_entity_type?.replace(/_/g, ' ')}</span>
+                    </div>
+                    <div className="text-sm">
+                      <span className="text-white/60">Created: </span>
+                      <span className="text-white/90">
+                        {card.created_at ? new Date(card.created_at).toLocaleDateString() : 'Unknown'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Raw Card Data (Development Only) */}
               {process.env.NODE_ENV === 'development' && (
                 <div className="border-t border-white/20 pt-6">
                   <details className="text-white/60">
                     <summary className="cursor-pointer hover:text-white/80">
-                      Raw Node Data (Debug)
+                      Raw Card Data (Debug)
                     </summary>
                     <pre className="mt-2 p-4 bg-white/5 rounded-lg text-xs overflow-x-auto">
-                      {JSON.stringify(node, null, 2)}
+                      {JSON.stringify(card, null, 2)}
                     </pre>
                   </details>
                 </div>
@@ -125,6 +163,4 @@ const CosmosNodeModal: React.FC<CosmosNodeModalProps> = ({
       </div>
     </div>
   );
-};
-
-export default CosmosNodeModal;
+}; 

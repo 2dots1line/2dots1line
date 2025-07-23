@@ -5,8 +5,9 @@ import { X } from 'lucide-react';
 import React from 'react';
 
 import { useHUDStore } from '../../stores/HUDStore';
+import { useCardStore } from '../../stores/CardStore';
 
-import { CardModal } from './CardModal';
+import { EnhancedCardModal } from './EnhancedCardModal';
 import ChatModal from './ChatModal';
 import { CosmosModal } from './CosmosModal';
 import DashboardModal from './DashboardModal';
@@ -47,6 +48,7 @@ export const ModalContainer: React.FC<ModalContainerProps> = ({
   className,
 }) => {
   const { activeView, setActiveView, cardDetailModalOpen, setCardDetailModalOpen } = useHUDStore();
+  const { selectedCard } = useCardStore();
   
   const handleClose = () => {
     setActiveView(null);
@@ -81,10 +83,13 @@ export const ModalContainer: React.FC<ModalContainerProps> = ({
       )}
       
       {/* Card Detail Modal - Can overlay on cards view */}
-      <CardModal 
-        isOpen={cardDetailModalOpen} 
-        onClose={handleCardModalClose} 
-      />
+      {selectedCard && (
+        <EnhancedCardModal
+          card={selectedCard}
+          isOpen={cardDetailModalOpen}
+          onClose={handleCardModalClose}
+        />
+      )}
     </div>
   );
 }; 

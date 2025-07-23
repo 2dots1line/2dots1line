@@ -57,18 +57,34 @@ export class GraphController {
       const projectionData = latestProjection.projection_data as any;
       
       // Transform nodes to flat structure for frontend compatibility
-      const transformedNodes = projectionData?.nodes?.map((node: any) => ({
-        id: node.id,
-        title: node.properties?.title || node.title || 'Untitled',
-        content: node.properties?.content || node.content || '',
-        type: node.properties?.type || node.type || 'Unknown',
-        x: node.position?.x || node.x || 0,
-        y: node.position?.y || node.y || 0,
-        z: node.position?.z || node.z || 0,
-        importance: node.properties?.importance || node.importance || 0.5,
-        connections: node.properties?.connections || node.connections || [],
-        metadata: node.properties?.metadata || node.metadata || {}
-      })) || [];
+      const transformedNodes = projectionData?.nodes?.map((node: any) => {
+        // Handle position as array [x, y, z] or object {x, y, z}
+        let x = 0, y = 0, z = 0;
+        if (Array.isArray(node.position)) {
+          [x, y, z] = node.position;
+        } else if (node.position && typeof node.position === 'object') {
+          x = node.position.x || 0;
+          y = node.position.y || 0;
+          z = node.position.z || 0;
+        } else {
+          x = node.x || 0;
+          y = node.y || 0;
+          z = node.z || 0;
+        }
+        
+        return {
+          id: node.id,
+          title: node.properties?.title || node.title || 'Untitled',
+          content: node.properties?.content || node.content || '',
+          type: node.properties?.type || node.type || 'Unknown',
+          x: x,
+          y: y,
+          z: z,
+          importance: node.properties?.importance || node.importance || 0.5,
+          connections: node.properties?.connections || node.connections || [],
+          metadata: node.properties?.metadata || node.metadata || {}
+        };
+      }) || [];
       
       // Transform edges to flat structure
       const transformedEdges = projectionData?.edges?.map((edge: any) => ({
@@ -111,6 +127,195 @@ export class GraphController {
       } as TApiResponse<any>);
     }
   };
+
+  /**
+   * GET /api/v1/nodes/:nodeId/details
+   * V11.0: Get detailed node information from PostgreSQL
+   * Returns rich content for node details modal
+   */
+  public getNodeDetails = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { nodeId } = req.params;
+      const { entityType } = req.query;
+      const userId = req.user?.id;
+      
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authorization required'
+          }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      if (!nodeId || !entityType) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'BAD_REQUEST',
+            message: 'Node ID and entity type are required'
+          }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      let entityData: any = null;
+
+      // Fetch entity details based on type
+      switch (entityType) {
+        case 'Concept':
+          entityData = await this.databaseService.prisma.concepts.findFirst({
+            where: { 
+              concept_id: nodeId,
+              user_id: userId
+            }
+          });
+          break;
+          
+        case 'MemoryUnit':
+          entityData = await this.databaseService.prisma.memory_units.findFirst({
+            where: { 
+              muid: nodeId,
+              user_id: userId
+            }
+          });
+          break;
+          
+        case 'DerivedArtifact':
+          entityData = await this.databaseService.prisma.derived_artifacts.findFirst({
+            where: { 
+              artifact_id: nodeId,
+              user_id: userId
+            }
+          });
+          break;
+          
+        case 'Community':
+          entityData = await this.databaseService.prisma.communities.findFirst({
+            where: { 
+              community_id: nodeId,
+              user_id: userId
+            }
+          });
+          break;
+          
+        default:
+          res.status(400).json({
+            success: false,
+            error: {
+              code: 'INVALID_ENTITY_TYPE',
+              message: `Unsupported entity type: ${entityType}`
+            }
+          } as TApiResponse<any>);
+          return;
+      }
+
+      if (!entityData) {
+        res.status(404).json({
+          success: false,
+          error: {
+            code: 'ENTITY_NOT_FOUND',
+            message: `Entity not found: ${nodeId}`
+          }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      // Transform entity data for frontend
+      const transformedData = this.transformEntityData(entityData, entityType as string);
+
+      res.status(200).json({
+        success: true,
+        data: transformedData,
+        message: 'Node details retrieved successfully'
+      } as TApiResponse<any>);
+
+    } catch (error: any) {
+      console.error(`[GraphController] Error getting node details:`, error);
+      
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to retrieve node details'
+        }
+      } as TApiResponse<any>);
+    }
+  };
+
+  /**
+   * Transform entity data for frontend consumption
+   */
+  private transformEntityData(entityData: any, entityType: string): any {
+    switch (entityType) {
+      case 'Concept':
+        return {
+          id: entityData.concept_id,
+          type: 'Concept',
+          title: entityData.name,
+          description: entityData.description || 'No description available',
+          importance: entityData.salience || 0.5,
+          metadata: {
+            conceptType: entityData.type,
+            status: entityData.status,
+            createdAt: entityData.created_at,
+            lastUpdated: entityData.last_updated_ts,
+            communityId: entityData.community_id,
+            mergedInto: entityData.merged_into_concept_id
+          }
+        };
+        
+      case 'MemoryUnit':
+        return {
+          id: entityData.muid,
+          type: 'MemoryUnit',
+          title: entityData.title,
+          description: entityData.content || 'No content available',
+          importance: entityData.importance_score || 0.5,
+          metadata: {
+            sentimentScore: entityData.sentiment_score,
+            createdAt: entityData.creation_ts,
+            lastModified: entityData.last_modified_ts,
+            ingestionDate: entityData.ingestion_ts,
+            sourceConversationId: entityData.source_conversation_id
+          }
+        };
+        
+      case 'DerivedArtifact':
+        return {
+          id: entityData.artifact_id,
+          type: 'DerivedArtifact',
+          title: entityData.title,
+          description: entityData.content_narrative || 'No narrative available',
+          importance: 0.7, // Default importance for artifacts
+          metadata: {
+            artifactType: entityData.artifact_type,
+            createdAt: entityData.created_at,
+            sourceMemoryUnitIds: entityData.source_memory_unit_ids,
+            sourceConceptIds: entityData.source_concept_ids,
+            contentData: entityData.content_data
+          }
+        };
+        
+      case 'Community':
+        return {
+          id: entityData.community_id,
+          type: 'Community',
+          title: entityData.name,
+          description: entityData.description || 'No description available',
+          importance: 0.8, // Default importance for communities
+          metadata: {
+            createdAt: entityData.created_at,
+            lastAnalyzed: entityData.last_analyzed_ts
+          }
+        };
+        
+      default:
+        return entityData;
+    }
+  }
 
   /**
    * GET /api/v1/nodes/:nodeId/metrics

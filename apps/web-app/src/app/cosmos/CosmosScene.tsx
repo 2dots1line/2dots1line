@@ -56,28 +56,84 @@ const CosmosScene: React.FC = () => {
     return <CosmosError message={error} />;
   }
 
-  const POSITION_SCALE = 1; // Reduced from 10 to prevent overlapping
+  const POSITION_SCALE = 10; // Increased scale to spread nodes out
+  
+  // Check if all nodes have zero or very small positions
+  const allNodesHaveSmallPositions = (graphData.nodes ?? []).every(node => {
+    // Handle position as array [x, y, z] or object {x, y, z}
+    let x = 0, y = 0, z = 0;
+    if (Array.isArray(node.position)) {
+      [x, y, z] = node.position;
+    } else {
+      // Fallback to any properties that might exist
+      const nodeAny = node as any;
+      x = nodeAny.x || nodeAny.position?.x || 0;
+      y = nodeAny.y || nodeAny.position?.y || 0;
+      z = nodeAny.z || nodeAny.position?.z || 0;
+    }
+    return Math.abs(x) < 0.001 && Math.abs(y) < 0.001 && Math.abs(z) < 0.001;
+  });
+  
+  // Generate fallback positions if all nodes have small positions
+  const generateFallbackPositions = (nodeCount: number) => {
+    const positions: Array<[number, number, number]> = [];
+    const radius = Math.max(5, Math.sqrt(nodeCount));
+    
+    for (let i = 0; i < nodeCount; i++) {
+      // Use golden ratio spiral for better distribution
+      const goldenRatio = (1 + Math.sqrt(5)) / 2;
+      const angle = i * 2 * Math.PI / goldenRatio;
+      const y = 1 - (i / (nodeCount - 1)) * 2; // [-1, 1]
+      const radiusAtY = Math.sqrt(1 - y * y);
+      
+      const x = Math.cos(angle) * radiusAtY * radius;
+      const z = Math.sin(angle) * radiusAtY * radius;
+      
+      positions.push([x, y * radius, z]);
+    }
+    
+    return positions;
+  };
+  
+  const fallbackPositions = allNodesHaveSmallPositions ? generateFallbackPositions(graphData.nodes?.length || 0) : null;
+  
+  if (allNodesHaveSmallPositions) {
+    console.warn('⚠️ CosmosScene: All nodes have small positions, using fallback distribution');
+  }
+  
   const safeGraphData = {
     ...graphData,
-    nodes: (graphData.nodes ?? []).map(node => {
-      // Use x, y, z properties directly from API Gateway response
-      const x = node.x ?? 0;
-      const y = node.y ?? 0;
-      const z = node.z ?? 0;
+    nodes: (graphData.nodes ?? []).map((node, index) => {
+      // Handle position as array [x, y, z] or object {x, y, z}
+      let x = 0, y = 0, z = 0;
+      if (Array.isArray(node.position)) {
+        [x, y, z] = node.position;
+      } else {
+        // Fallback to any properties that might exist
+        const nodeAny = node as any;
+        x = nodeAny.x || nodeAny.position?.x || 0;
+        y = nodeAny.y || nodeAny.position?.y || 0;
+        z = nodeAny.z || nodeAny.position?.z || 0;
+      }
+      
+      // Use fallback positions if all nodes have small positions
+      if (fallbackPositions && fallbackPositions[index]) {
+        [x, y, z] = fallbackPositions[index];
+      }
       
       const scaledNode = {
         ...node,
         x: x * POSITION_SCALE,
         y: y * POSITION_SCALE,
         z: z * POSITION_SCALE,
-        name: node.title ?? node.id, // Use title from API response
+        name: node.label ?? node.id, // Use label from API response
         type: node.type,
         // Add properties field for compatibility with the modal
         properties: {
-          title: node.title ?? node.id,
+          title: node.label ?? node.id,
           type: node.type,
-          content: node.content,
-          importance: node.importance,
+          content: node.metadata?.content || '',
+          importance: node.metadata?.importance || 1,
           createdAt: node.metadata?.createdAt,
           lastUpdated: node.metadata?.lastUpdated
         }
@@ -100,6 +156,8 @@ const CosmosScene: React.FC = () => {
           scaled: { x: scaledNode.x, y: scaledNode.y, z: scaledNode.z }
         });
       }
+      
+
       
       return scaledNode;
     }),
