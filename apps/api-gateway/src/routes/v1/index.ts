@@ -41,6 +41,7 @@ v1Router.post('/auth/login', authController.login);
 // --- Conversation Routes (Authenticated) ---
 v1Router.post('/conversations/messages', authMiddleware, conversationController.postMessage);
 v1Router.post('/conversations/upload', authMiddleware, uploadSingle, handleUploadError, conversationController.uploadFile);
+v1Router.post('/conversations/:conversationId/end', authMiddleware, conversationController.endConversation);
 
 // --- Card Routes (Authenticated) ---
 v1Router.get('/cards', authMiddleware, cardController.getCards);

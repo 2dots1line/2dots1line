@@ -43,7 +43,7 @@ export class ConversationTimeoutWorker {
   ) {
     // Set configuration with defaults
     this.config = {
-      timeoutDurationMinutes: config.timeoutDurationMinutes || 5,
+      timeoutDurationMinutes: config.timeoutDurationMinutes || 0.17, // 10 seconds for testing
       checkIntervalSeconds: config.checkIntervalSeconds || 30,
       enableIngestionQueue: config.enableIngestionQueue ?? true
     };

@@ -19,19 +19,17 @@
     }
   },
   "generation_limits": {
-    "max_cards_per_session": 10,
+    "max_cards_per_session": 100,
     "cooldown_periods": {}
   },
   "MemoryUnit": {
-    "min_importance_score": 5.0,
-    "required_source_types": ["conversation_extraction", "journal_entry"]
+    "min_importance_score": 1.0
   },
   "Concept": {
-    "min_salience": 0.6,
-    "eligible_types": ["goal", "value", "project", "person"]
+    "always_eligible": true
   },
   "DerivedArtifact": {
-    "eligible_types": ["cycle_report", "insight_summary", "trophy"]
+    "always_eligible": true
   },
   "ProactivePrompt": {
     "always_eligible": true

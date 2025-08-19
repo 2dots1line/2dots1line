@@ -12,7 +12,8 @@
   "dependencies": {
     "@2dots1line/shared-types": "workspace:*",
     "@2dots1line/ui-components": "workspace:*",
-    "@react-three/fiber": "^8.15.0",
+    "@react-three/drei": "^9.105.6",
+    "@react-three/fiber": "^8.18.0",
     "axios": "^1.6.0",
     "bcryptjs": "^2.4.3",
     "lucide-react": "^0.513.0",

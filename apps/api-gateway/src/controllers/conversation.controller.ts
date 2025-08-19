@@ -121,11 +121,18 @@ export class ConversationController {
         ? await this.conversationRepository.findById(conversation_id)
         : null;
 
-      if (!conversation || conversation.user_id !== userId) {
+      // V11.1 FIX: Check if conversation exists, belongs to user, AND is not ended
+      if (!conversation || conversation.user_id !== userId || conversation.status === 'ended') {
+        // Create a new conversation if:
+        // - No conversation found
+        // - Conversation doesn't belong to this user
+        // - Conversation is already ended (CRITICAL FIX)
         conversation = await this.conversationRepository.create({
           user_id: userId,
           title: `Conversation: ${new Date().toISOString()}`,
         });
+        
+        console.log(`🔄 Created new conversation ${conversation.id} (previous: ${conversation_id}, status: ${conversation?.status})`);
       }
       const actualConversationId = conversation.id;
 
@@ -373,4 +380,88 @@ export class ConversationController {
       next(error);
     }
   }
+
+  /**
+   * POST /api/v1/conversations/:conversationId/end
+   * V11.1: Explicit conversation ending endpoint
+   * Allows frontend to explicitly end conversations and trigger ingestion processing
+   */
+  public endConversation = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ 
+          success: false, 
+          error: { code: 'UNAUTHORIZED', message: 'Authorization required' }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      const conversationId = req.params.conversationId;
+      
+      // Find the conversation and verify ownership
+      const conversation = await this.conversationRepository.findById(conversationId);
+      
+      if (!conversation) {
+        res.status(404).json({ 
+          success: false, 
+          error: { code: 'NOT_FOUND', message: 'Conversation not found' }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      if (conversation.user_id !== userId) {
+        res.status(403).json({ 
+          success: false, 
+          error: { code: 'FORBIDDEN', message: 'Access denied to this conversation' }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      if (conversation.status === 'ended') {
+        res.status(200).json({ 
+          success: true, 
+          data: {
+            message: 'Conversation already ended',
+            conversation_id: conversationId
+          }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      // Update conversation status to ended
+      await this.conversationRepository.update(conversationId, {
+        status: 'ended',
+        ended_at: new Date()
+      });
+
+      // Clear the Redis timeout key since conversation is explicitly ended
+      const heartbeatKey = `${REDIS_CONVERSATION_TIMEOUT_PREFIX}${conversationId}`;
+      await this.redis.del(heartbeatKey);
+
+      console.log(`✅ Conversation ${conversationId} explicitly ended by user ${userId}`);
+
+      // TODO: Add job to ingestion queue for immediate processing
+      // This would trigger the IngestionAnalyst to process the conversation
+
+      res.status(200).json({
+        success: true,
+        data: {
+          message: 'Conversation ended successfully',
+          conversation_id: conversationId,
+          ended_at: new Date().toISOString()
+        }
+      } as TApiResponse<any>);
+
+    } catch (error) {
+      console.error('❌ ConversationController.endConversation error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: { 
+          code: 'INTERNAL_ERROR', 
+          message: 'Failed to end conversation' 
+        }
+      } as TApiResponse<any>);
+    }
+  };
 } 

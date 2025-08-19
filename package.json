@@ -36,13 +36,14 @@
   },
   "dependencies": {
     "bullmq": "^5.56.4",
+    "has-tostringtag": "^1.0.2",
     "immer": "^10.1.1",
     "three": "^0.164.1"
   },
   "devDependencies": {
     "@jest/globals": "^30.0.4",
     "@types/jest": "^29.5.14",
-    "@types/node": "^20.19.6",
+    "@types/node": "^20.19.11",
     "@types/three": "^0.164.1",
     "@typescript-eslint/eslint-plugin": "^8.35.1",
     "@typescript-eslint/parser": "^8.35.1",

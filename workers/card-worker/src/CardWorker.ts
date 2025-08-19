@@ -17,6 +17,7 @@ import { Worker, Job } from 'bullmq';
 import { 
   TCard
 } from '@2dots1line/shared-types';
+import { writeFileSync } from 'fs';
 
 // Event types from V9.5 Event Queue Contracts
 export interface NewEntitiesCreatedEvent {
@@ -91,7 +92,7 @@ export class CardWorker {
       password: environmentLoader.get('REDIS_PASSWORD'),
     };
 
-    console.log(`[CardWorker] Redis connection configured: ${redisConnection.host}:${redisConnection.port}`);
+    console.log(`[CardWorker] Redis connection configured:`, redisConnection);
 
     this.worker = new Worker(
       this.config.queueName!,
@@ -109,29 +110,25 @@ export class CardWorker {
    * Process card creation jobs from the queue
    */
   private async processJob(job: Job<CardWorkerEvent>): Promise<void> {
+    writeFileSync('/tmp/cardworker-job-called.txt', new Date().toISOString() + '\n', { flag: 'a' });
+    // Remove test error and file write
     const event = job.data;
-    
+    console.log('[CardWorker] Received job:', job);
     console.log(`[CardWorker] Processing ${event.type} event from ${event.source} for user ${event.userId}`);
     console.log(`[CardWorker] Event contains ${event.entities.length} entities to process`);
-
     try {
       const results = [];
-      
-      // Process each entity in the event
       for (const entity of event.entities) {
         const result = await this.processEntity(entity, event.userId);
         results.push(result);
-        
         if (result.created) {
           console.log(`[CardWorker] ✅ Created card ${result.cardId} for ${entity.type} ${entity.id}`);
         } else {
           console.log(`[CardWorker] ⏭️  Skipped ${entity.type} ${entity.id}: ${result.reason}`);
         }
       }
-
       const createdCount = results.filter(r => r.created).length;
       console.log(`[CardWorker] Event processing completed: ${createdCount}/${event.entities.length} cards created`);
-      
     } catch (error) {
       console.error(`[CardWorker] Error processing ${event.type} event:`, error);
       throw error;
@@ -148,37 +145,98 @@ export class CardWorker {
     try {
       // Map entity type to card format
       const entityType = this.mapEntityType(entity.type);
+      console.log(`[CardWorker] processEntity: entity.id=${entity.id}, entity.type=${entity.type}, mappedType=${entityType}`);
       if (!entityType) {
         return { 
           created: false, 
           reason: `Unsupported entity type: ${entity.type}` 
         };
       }
-
+      // Fetch full entity data
+      let entityData: any = null;
+      if (entityType === 'Concept') {
+        entityData = await this.conceptRepository.findById(entity.id);
+      } else if (entityType === 'MemoryUnit') {
+        entityData = await this.memoryRepository.findById(entity.id);
+      } else if (entityType === 'DerivedArtifact') {
+        entityData = await this.derivedArtifactRepository.findById(entity.id);
+      } else if (entityType === 'ProactivePrompt') {
+        entityData = await this.proactivePromptRepository.findById(entity.id);
+      }
+      if (!entityData) {
+        console.log(`[CardWorker] Entity not found in DB: ${entityType} ${entity.id}`);
+        return { created: false, reason: `Entity not found in DB: ${entityType} ${entity.id}` };
+      }
+      // Load eligibility rules
+      const eligibilityRules = this.configService.getCardEligibilityRules();
+      let eligible = true;
+      let skipReason = '';
+      if (entityType === 'Concept') {
+        const rules = eligibilityRules.Concept;
+        if (rules) {
+          if (typeof entityData.salience === 'number' && entityData.salience < rules.min_salience) {
+            eligible = false;
+            skipReason = `Concept salience ${entityData.salience} < min_salience ${rules.min_salience}`;
+          }
+          if (rules.eligible_types && !rules.eligible_types.includes(entityData.type)) {
+            eligible = false;
+            skipReason = `Concept type ${entityData.type} not in eligible_types`;
+          }
+        }
+      } else if (entityType === 'MemoryUnit') {
+        const rules = eligibilityRules.MemoryUnit;
+        if (rules) {
+          if (typeof entityData.importance_score === 'number' && entityData.importance_score < rules.min_importance_score) {
+            eligible = false;
+            skipReason = `MemoryUnit importance_score ${entityData.importance_score} < min_importance_score ${rules.min_importance_score}`;
+          }
+          if (rules.required_source_types && !rules.required_source_types.includes(entityData.source_type)) {
+            eligible = false;
+            skipReason = `MemoryUnit source_type ${entityData.source_type} not in required_source_types`;
+          }
+        }
+      } else if (entityType === 'DerivedArtifact') {
+        const rules = eligibilityRules.DerivedArtifact;
+        if (rules && rules.eligible_types && !rules.eligible_types.includes(entityData.artifact_type)) {
+          eligible = false;
+          skipReason = `DerivedArtifact artifact_type ${entityData.artifact_type} not in eligible_types`;
+        }
+      } else if (entityType === 'ProactivePrompt') {
+        const rules = eligibilityRules.ProactivePrompt;
+        if (rules && rules.always_eligible !== true) {
+          eligible = false;
+          skipReason = `ProactivePrompt not always eligible`;
+        }
+      }
+      if (!eligible) {
+        console.log(`[CardWorker] Entity not eligible: ${entityType} ${entity.id} - ${skipReason}`);
+        return { created: false, reason: `Not eligible: ${skipReason}` };
+      }
       // Check if card already exists
       const existingCard = await this.cardRepository.findBySourceEntity(entity.id, entityType);
-      if (existingCard) {
-        return { 
-          created: false, 
-          reason: `Card already exists for ${entityType} ${entity.id}` 
-        };
-      }
-
+      console.log('[CardWorker] existingCard:', existingCard);
+      // if (existingCard.length > 0) {
+      //   console.log(`[CardWorker] Card already exists for ${entityType} ${entity.id}`);
+      //   return { 
+      //     created: false, 
+      //     reason: `Card already exists for ${entityType} ${entity.id}` 
+      //   };
+      // }
       // Create new card
       const cardData = {
         user_id: userId,
         card_type: entityType.toLowerCase(),
         source_entity_id: entity.id,
         source_entity_type: entityType,
-        display_data: {}
+        display_data: entityData // Optionally, filter/transform for display
       };
-
+      console.log(`[CardWorker] Creating card with data:`, cardData);
       const newCard = await this.cardRepository.create(cardData);
+      console.log(`[CardWorker] Card created:`, newCard);
       return { 
         created: true, 
         cardId: newCard.card_id 
       };
-      
     } catch (error) {
       console.error(`[CardWorker] Error processing entity ${entity.type} ${entity.id}:`, error);
       return { 

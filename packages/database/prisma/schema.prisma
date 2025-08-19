@@ -9,20 +9,20 @@ datasource db {
 }
 
 model cards {
-  card_id            String          @id
-  user_id            String
-  card_type          String
-  source_entity_id   String
-  source_entity_type String
-  status             String          @default("active_canvas")
-  is_favorited       Boolean         @default(false)
-  display_data       Json?
-  is_synced          Boolean         @default(true)
+  card_id              String          @id
+  user_id              String
+  card_type            String
+  source_entity_id     String
+  source_entity_type   String
+  status               String          @default("active_canvas")
+  is_favorited         Boolean         @default(false)
+  display_data         Json?
+  is_synced            Boolean         @default(true)
+  created_at           DateTime        @default(now())
+  updated_at           DateTime
   background_image_url String?
-  created_at         DateTime        @default(now())
-  updated_at         DateTime
-  users              users           @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  conversations      conversations[]
+  users                users           @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  conversations        conversations[]
 
   @@index([user_id, status])
 }
@@ -39,21 +39,21 @@ model communities {
 }
 
 model concepts {
-  concept_id             String              @id
+  concept_id             String       @id
   user_id                String
   name                   String
   type                   String
   description            String?
   community_id           String?
-  created_at             DateTime            @default(now())
+  created_at             DateTime     @default(now())
   last_updated_ts        DateTime
   merged_into_concept_id String?
   salience               Float?
-  status                 String              @default("active")
-  communities            communities?        @relation(fields: [community_id], references: [community_id])
-  concepts               concepts?           @relation("conceptsToconcepts", fields: [merged_into_concept_id], references: [concept_id], onDelete: NoAction, onUpdate: NoAction)
-  other_concepts         concepts[]          @relation("conceptsToconcepts")
-  users                  users               @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  status                 String       @default("active")
+  communities            communities? @relation(fields: [community_id], references: [community_id])
+  concepts               concepts?    @relation("conceptsToconcepts", fields: [merged_into_concept_id], references: [concept_id], onDelete: NoAction, onUpdate: NoAction)
+  other_concepts         concepts[]   @relation("conceptsToconcepts")
+  users                  users        @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 }
 
 model conversation_messages {
@@ -89,28 +89,28 @@ model conversations {
 }
 
 model derived_artifacts {
-  artifact_id           String        @id @default(uuid())
-  user_id               String
-  artifact_type         String
-  title                 String
-  source_memory_unit_ids String[]     // Array of memory unit IDs
-  source_concept_ids     String[]     // Array of concept IDs
-  created_at            DateTime      @default(now())
-  content_data          Json?
-  content_narrative     String?
-  users                 users         @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  artifact_id            String   @id @default(uuid())
+  user_id                String
+  artifact_type          String
+  title                  String
+  created_at             DateTime @default(now())
+  content_data           Json?
+  content_narrative      String?
+  source_concept_ids     String[]
+  source_memory_unit_ids String[]
+  users                  users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 }
 
 model growth_events {
-  event_id              String   @id @default(uuid())
-  user_id               String
-  related_memory_units  String[] // Array of memory unit IDs
-  related_concepts      String[] // Array of concept IDs
-  growth_dimensions     Json     // Array of { dim_key: String, delta: Float }
-  source                String
-  created_at            DateTime @default(now())
-  details               Json?    // Rationale, evidence, etc.
-  users                 users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  event_id             String   @id @default(uuid())
+  user_id              String
+  source               String
+  created_at           DateTime @default(now())
+  details              Json?
+  growth_dimensions    Json
+  related_concepts     String[]
+  related_memory_units String[]
+  users                users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 }
 
 model interaction_logs {
@@ -149,19 +149,19 @@ model media_items {
 }
 
 model memory_units {
-  muid                   String              @id
+  muid                   String         @id
   user_id                String
   title                  String
   content                String
   creation_ts            DateTime
-  ingestion_ts           DateTime            @default(now())
+  ingestion_ts           DateTime       @default(now())
   last_modified_ts       DateTime
   importance_score       Float?
   sentiment_score        Float?
   source_conversation_id String?
   media_items            media_items[]
-  conversations          conversations?      @relation(fields: [source_conversation_id], references: [id])
-  users                  users               @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  conversations          conversations? @relation(fields: [source_conversation_id], references: [id])
+  users                  users          @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 }
 
 model proactive_prompts {
@@ -191,8 +191,8 @@ model user_graph_projections {
   user_id         String
   status          String   @default("completed")
   projection_data Json
-  metadata        Json?
   created_at      DateTime @default(now())
+  metadata        Json?
   updated_at      DateTime @updatedAt
   users           users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
@@ -212,7 +212,6 @@ model user_sessions {
 
   @@index([user_id])
 }
-
 
 model users {
   user_id                           String                   @id

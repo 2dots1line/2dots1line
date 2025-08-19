@@ -179,7 +179,7 @@ export const InfiniteCardCanvas: React.FC<InfiniteCardCanvasProps> = ({
             <div className="card-overlay" />
             {/* Card content */}
             <div className="card-content">
-              <h3 className="card-title">{card.title}</h3>
+              <h3 className="card-title">{card.title || card.card_type || "Card"}</h3>
               <p className="card-subtitle">{card.subtitle || card.display_data?.preview || ""}</p>
             </div>
           </div>

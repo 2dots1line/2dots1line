@@ -5,10 +5,10 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { X, Heart, Share2, Archive, Image, Palette, ChevronLeft, ChevronRight, Tag, Clock, MapPin, ExternalLink, Edit3 } from 'lucide-react';
-import { TCard, CosmosNode, NodeConnection, DisplayCard, ImageCollection } from '@2dots1line/shared-types';
+import { DisplayCard, CosmosNode, NodeConnection } from '@2dots1line/shared-types';
 import { GlassmorphicPanel, GlassButton } from '@2dots1line/ui-components';
 
-// Image metadata interface for card image processing
+// Local types to avoid circular dependencies
 interface ImageMetadata {
   filename: string;
   url: string;
@@ -17,47 +17,36 @@ interface ImageMetadata {
   semantic_score?: number;
 }
 
-// Helper function to get display title from TCard
-const getCardTitle = (card: TCard): string => {
-  return card.display_data?.title || card.card_type?.replace(/_/g, ' ') || 'Card';
-};
+interface ImageMetadata {
+  filename: string;
+  url: string;
+  tags: string[];
+  category: string;
+  semantic_score?: number;
+}
 
-// Helper function to get display subtitle from TCard
-const getCardSubtitle = (card: TCard): string => {
-  return card.display_data?.subtitle || card.source_entity_type?.replace(/_/g, ' ') || 'Item';
-};
-
-// Helper function to get display description from TCard
-const getCardDescription = (card: TCard): string => {
-  return card.display_data?.description || `${getCardTitle(card)} from ${getCardSubtitle(card)}`;
-};
-
-// Simple hook for card image (placeholder implementation)
-const useCardImage = (card?: TCard) => {
-  return useMemo(() => {
-    if (!card) return null;
-    // Simple implementation - in a real app this would use the actual useCardImage hook
-    // Note: TCard doesn't have background_image_url, so we'll use a default
-    return '/images/cards/default.jpg';
-  }, [card]);
-};
+interface ImageCollection {
+  name: string;
+  category: string;
+  images: string[];
+}
 
 // Local image collections to avoid circular dependency
 const imageCollections: ImageCollection[] = [
-  { name: 'Nature', source: 'local', images: [] },
-  { name: 'Abstract', source: 'local', images: [] },
-  { name: 'Technology', source: 'local', images: [] },
-  { name: 'Art', source: 'local', images: [] }
+  { name: 'Nature', category: 'nature', images: [] },
+  { name: 'Abstract', category: 'abstract', images: [] },
+  { name: 'Technology', category: 'technology', images: [] },
+  { name: 'Art', category: 'art', images: [] }
 ];
 
 interface CardDetailSidePanelProps {
   isOpen: boolean;
   selectedNode: CosmosNode | null;
-  cardData?: TCard;
+  cardData?: DisplayCard;
   connections?: NodeConnection[];
   onClose: () => void;
   onFlyToNode?: (node: CosmosNode) => void;
-  onUpdateCard?: (cardId: string, updates: Partial<TCard>) => void;
+  onUpdateCard?: (cardId: string, updates: Partial<DisplayCard>) => void;
   onToggleFavorite?: (cardId: string) => void;
   onShareCard?: (cardId: string) => void;
   onArchiveCard?: (cardId: string) => void;
@@ -82,8 +71,8 @@ export const CardDetailSidePanel: React.FC<CardDetailSidePanelProps> = ({
   const [isAnimating, setIsAnimating] = useState(false);
   const [activeTab, setActiveTab] = useState<'details' | 'connections' | 'history'>('details');
   
-  // Get card image using the card image hook
-  const cardImage = useCardImage(cardData);
+  // Get card image - simple implementation
+  const cardImage = cardData?.background_image_url || '';
   
   // Animation handler
   useEffect(() => {
@@ -116,23 +105,17 @@ export const CardDetailSidePanel: React.FC<CardDetailSidePanelProps> = ({
   const handleFlyToConnection = useCallback((connection: NodeConnection) => {
     if (onFlyToNode) {
       // Create a temporary node for the connection target
-      const targetNode: CosmosNode = {
-        id: connection.target_node_id,
-        title: connection.target_node_id,
-        category: 'unknown',
-        position: { x: 0, y: 0, z: 0 },
-        appearance: {
-          size: 1,
-          color: '#ffffff',
-          opacity: 1,
-          glow_intensity: 0.5,
-          animation_speed: 1
-        },
-        connections: [],
-        is_selected: false,
-        is_hovered: false,
-        is_visible: true
-      };
+              const targetNode: CosmosNode = {
+          id: connection.target_node_id,
+          title: connection.target_node_id,
+          category: 'card',
+          position: { x: 0, y: 0, z: 0 }, // Position will be determined by the cosmos system
+          appearance: { size: 1, color: '#00ff66', opacity: 1, glow_intensity: 0, animation_speed: 1 },
+          connections: [],
+          is_selected: false,
+          is_hovered: false,
+          is_visible: true,
+        };
       onFlyToNode(targetNode);
     }
   }, [onFlyToNode]);
@@ -153,8 +136,12 @@ export const CardDetailSidePanel: React.FC<CardDetailSidePanelProps> = ({
         return <Tag size={16} className="text-blue-400" />;
       case 'temporal':
         return <Clock size={16} className="text-green-400" />;
-      case 'hierarchical':
+      case 'contextual':
         return <MapPin size={16} className="text-purple-400" />;
+      case 'hierarchical':
+        return <ExternalLink size={16} className="text-orange-400" />;
+      case 'derived':
+        return <ExternalLink size={16} className="text-cyan-400" />;
       default:
         return <ExternalLink size={16} className="text-gray-400" />;
     }
@@ -194,7 +181,7 @@ export const CardDetailSidePanel: React.FC<CardDetailSidePanelProps> = ({
               className="w-3 h-3 rounded-full" 
               style={{ backgroundColor: selectedNode?.appearance?.color || '#00ff66' }}
             />
-            <span>{selectedNode?.category || 'Unknown'}</span>
+                          <span>{selectedNode?.category || 'Unknown'}</span>
           </div>
         </div>
 
@@ -225,7 +212,7 @@ export const CardDetailSidePanel: React.FC<CardDetailSidePanelProps> = ({
                 <div className="w-full h-48 rounded-lg overflow-hidden">
                   <img
                     src={cardImage}
-                    alt={cardData ? getCardTitle(cardData) : 'Card'}
+                    alt={cardData?.title || 'Card'}
                     className="w-full h-full object-cover"
                   />
                 </div>
@@ -236,18 +223,18 @@ export const CardDetailSidePanel: React.FC<CardDetailSidePanelProps> = ({
                 <div className="space-y-3">
                   <div>
                     <h3 className="text-lg font-semibold text-white mb-1">
-                      {getCardTitle(cardData)}
+                      {cardData.title}
                     </h3>
-                    {getCardSubtitle(cardData) && (
-                      <p className="text-sm text-white/70">{getCardSubtitle(cardData)}</p>
+                    {cardData.subtitle && (
+                      <p className="text-sm text-white/70">{cardData.subtitle}</p>
                     )}
                   </div>
 
-                  {getCardDescription(cardData) && (
+                  {cardData.description && (
                     <div>
                       <h4 className="text-sm font-medium text-white/80 mb-2">Description</h4>
                       <p className="text-sm text-white/70 leading-relaxed">
-                        {getCardDescription(cardData)}
+                        {cardData.description}
                       </p>
                     </div>
                   )}
@@ -327,10 +314,10 @@ export const CardDetailSidePanel: React.FC<CardDetailSidePanelProps> = ({
                         {getConnectionTypeIcon(connection.connection_type)}
                         <div>
                           <div className="text-sm text-white">
-                            {connection.target_node_id}
+                                                          {connection.target_node_id}
                           </div>
                           <div className="text-xs text-white/60">
-                            {connection.connection_type} connection
+                                                          {connection.connection_type} connection
                           </div>
                         </div>
                       </div>

@@ -125,11 +125,12 @@ export class ConfigService {
 
   public getTemplate(templateName: string): string {
     const templates = this.configCache.get('prompt_templates');
-    if (!templates || !templates.templates) {
+    if (!templates) {
       throw new Error('Prompt templates not loaded');
     }
     
-    const template = templates.templates[templateName];
+    // Handle both structures: templates.templates[templateName] and templates[templateName]
+    const template = templates.templates?.[templateName] || templates[templateName];
     if (!template) {
       throw new Error(`Template '${templateName}' not found`);
     }
@@ -139,10 +140,12 @@ export class ConfigService {
 
   public getAllTemplates(): Record<string, string> {
     const templates = this.configCache.get('prompt_templates');
-    if (!templates || !templates.templates) {
+    if (!templates) {
       throw new Error('Prompt templates not loaded');
     }
-    return templates.templates;
+    
+    // Handle both structures: templates.templates and templates
+    return templates.templates || templates;
   }
 
   public getCardTemplates(): any {

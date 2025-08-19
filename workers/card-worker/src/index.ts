@@ -5,11 +5,16 @@
 
 import { ConfigService } from '@2dots1line/config-service';
 import { DatabaseService } from '@2dots1line/database';
+import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
 
 import { CardWorker } from './CardWorker';
 
 async function main() {
   console.log('[CardWorker] Starting card worker...');
+
+  // Load environment and print REDIS_URL
+  environmentLoader.load();
+  console.log('[CardWorker] Effective REDIS_URL:', process.env.REDIS_URL);
 
   try {
     // Initialize dependencies
@@ -23,6 +28,7 @@ async function main() {
     // Create and start the worker
     const cardWorker = new CardWorker(databaseService, configService);
     console.log('[CardWorker] CardWorker instance created and listening for jobs');
+    console.log('[CardWorker] CardWorker queue name:', cardWorker['config']?.queueName);
 
     // Graceful shutdown handling
     const gracefulShutdown = async (signal: string) => {

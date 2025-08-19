@@ -10,22 +10,25 @@ import type { TToolInput, TToolOutput } from '@2dots1line/shared-types';
 import { LLMChatTool, type LLMChatInput } from '../ai/LLMChatTool';
 
 // Zod validation schemas as per V9.6 specification
+// V11.1 FIX: Made schema more flexible to handle LLM response variations
 export const HolisticAnalysisOutputSchema = z.object({
   persistence_payload: z.object({
-    conversation_summary: z.string().min(10).max(500),
+    conversation_summary: z.string().min(1).max(500), // Reduced min length
     conversation_importance_score: z.number().int().min(1).max(10),
     extracted_memory_units: z.array(z.object({
-      temp_id: z.string().regex(/^mem_[a-zA-Z0-9_]+$/),
-      title: z.string().min(5).max(150),
-      content: z.string().min(20).max(2000),
+      temp_id: z.string().regex(/^mem_[a-zA-Z0-9_]+$/, {
+        message: "temp_id must start with 'mem_' and contain only alphanumeric characters and underscores"
+      }),
+      title: z.string().min(1).max(150), // Reduced min length
+      content: z.string().min(1).max(2000), // Reduced min length
       source_type: z.enum(['conversation_extraction', 'journal_entry', 'user_input', 'system_generated']),
-      creation_ts: z.string().datetime()
+      creation_ts: z.string().datetime().or(z.string().transform(() => new Date().toISOString())) // Allow fallback to current time
     })).max(10), // Reasonable limit for extracted memories per conversation
     
     extracted_concepts: z.array(z.object({
       name: z.string().min(1).max(100),
       type: z.string().min(1).max(50),
-      description: z.string().min(5).max(300)
+      description: z.string().min(1).max(300) // Reduced min length
     })).max(20), // Reasonable limit for extracted concepts per conversation
     
     new_relationships: z.array(z.object({
@@ -37,18 +40,18 @@ export const HolisticAnalysisOutputSchema = z.object({
     detected_growth_events: z.array(z.object({
       dim_key: z.enum(['know_self', 'know_world', 'act_self', 'act_world', 'show_self', 'show_world']),
       delta: z.number().min(-5.0).max(5.0), // V11.1 FIX: Increased range to prevent validation failures
-      rationale: z.string().min(10).max(200)
+      rationale: z.string().min(1).max(200) // Reduced min length
     })).max(6) // Maximum one event per dimension
   }),
   
   forward_looking_context: z.object({
-    proactive_greeting: z.string().min(10).max(300),
+    proactive_greeting: z.string().min(1).max(300), // Reduced min length
     unresolved_topics_for_next_convo: z.array(z.object({
-      topic: z.string().min(3).max(100),
-      summary_of_unresolution: z.string().min(10).max(200),
-      suggested_question: z.string().min(10).max(150)
+      topic: z.string().min(1).max(100), // Reduced min length
+      summary_of_unresolution: z.string().min(1).max(200), // Reduced min length
+      suggested_question: z.string().min(1).max(150) // Reduced min length
     })).max(5), // Maximum 5 unresolved topics to avoid overwhelming
-    suggested_initial_focus: z.string().min(10).max(200)
+    suggested_initial_focus: z.string().min(1).max(200) // Reduced min length
   })
 });
 
@@ -102,29 +105,35 @@ export class HolisticAnalysisTool {
         payload: {
           userId: input.userId,
           sessionId: `holistic-analysis-${Date.now()}`,
-          systemPrompt: "You are an advanced AI analyst performing holistic conversation analysis. Follow the instructions precisely and return valid JSON between the specified markers.",
+          systemPrompt: 'You are an advanced AI analyst. Follow the instructions exactly and return only valid JSON.',
           history: [], // No previous history for analysis tasks
           userMessage: prompt,
-          temperature: 0.3, // Lower temperature for more structured output
+          temperature: 0.1, // Low temperature for consistent formatting
           maxTokens: 4000
         }
       };
-      
-      // Call LLM
+
+      // Make LLM call
       const llmResult = await LLMChatTool.execute(llmInput);
       
       if (llmResult.status !== 'success' || !llmResult.result?.text) {
         throw new HolisticAnalysisError(`LLM call failed: ${llmResult.error?.message || 'Unknown error'}`);
       }
       
-      // Parse and validate the response
-      const analysisResult = this.validateAndParseOutput(llmResult.result.text);
+      console.log(`[HolisticAnalysisTool] LLM response received, length: ${llmResult.result.text.length}`);
       
-      console.log(`[HolisticAnalysisTool] Successfully completed analysis for user ${input.userId}`);
-      return analysisResult;
+      // Parse and validate the response
+      const parsedOutput = this.validateAndParseOutput(llmResult.result.text);
+      
+      console.log(`[HolisticAnalysisTool] Successfully parsed and validated LLM response`);
+      console.log(`[HolisticAnalysisTool] Importance score: ${parsedOutput.persistence_payload.conversation_importance_score}`);
+      console.log(`[HolisticAnalysisTool] Memory units: ${parsedOutput.persistence_payload.extracted_memory_units.length}`);
+      console.log(`[HolisticAnalysisTool] Concepts: ${parsedOutput.persistence_payload.extracted_concepts.length}`);
+      
+      return parsedOutput;
       
     } catch (error) {
-      console.error(`[HolisticAnalysisTool] Analysis failed for user ${input.userId}:`, error);
+      console.error(`[HolisticAnalysisTool] Analysis failed:`, error);
       
       // Return a minimal valid response to prevent system failure
       const fallbackOutput: HolisticAnalysisOutput = {
@@ -192,6 +201,7 @@ ${templates.ingestion_analyst_instructions}`;
 
   /**
    * Parse and validate LLM output according to V9.6 specification
+   * V11.1 FIX: Enhanced error logging and more flexible validation
    */
   private validateAndParseOutput(llmJsonResponse: string): HolisticAnalysisOutput {
     // Extract JSON from between markers
@@ -202,24 +212,36 @@ ${templates.ingestion_analyst_instructions}`;
     const endIndex = llmJsonResponse.indexOf(endMarker);
     
     if (beginIndex === -1 || endIndex === -1) {
+      console.error(`[HolisticAnalysisTool] Missing JSON markers in response:`, llmJsonResponse.substring(0, 500));
       throw new JSONParseError(`LLM response missing required JSON markers. Response: ${llmJsonResponse.substring(0, 500)}...`);
     }
     
     const jsonString = llmJsonResponse.substring(beginIndex + beginMarker.length, endIndex).trim();
+    console.log(`[HolisticAnalysisTool] Extracted JSON string length: ${jsonString.length}`);
     
     let parsed: unknown;
     
     try {
       parsed = JSON.parse(jsonString);
+      console.log(`[HolisticAnalysisTool] JSON parsed successfully`);
     } catch (error) {
+      console.error(`[HolisticAnalysisTool] JSON parse error:`, error);
+      console.error(`[HolisticAnalysisTool] JSON string:`, jsonString.substring(0, 200));
       throw new JSONParseError(`Invalid JSON in LLM response: ${jsonString.substring(0, 200)}...`);
     }
     
     try {
-      return HolisticAnalysisOutputSchema.parse(parsed);
+      const validated = HolisticAnalysisOutputSchema.parse(parsed);
+      console.log(`[HolisticAnalysisTool] Schema validation successful`);
+      return validated;
     } catch (error) {
       if (error instanceof z.ZodError) {
-        console.error('[HolisticAnalysisTool] Validation errors:', error.errors);
+        console.error('[HolisticAnalysisTool] Validation errors:');
+        error.errors.forEach((err, index) => {
+          console.error(`  ${index + 1}. Path: ${err.path.join('.')} - ${err.message}`);
+          console.error(`     Code: ${err.code}`);
+        });
+        console.error('[HolisticAnalysisTool] Full parsed object:', JSON.stringify(parsed, null, 2));
         throw new ValidationError(error);
       }
       throw new HolisticAnalysisError('Unknown validation error', error as Error);

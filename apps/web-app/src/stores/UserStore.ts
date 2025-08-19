@@ -46,7 +46,7 @@ export const useUserStore = create<UserState>()(
       isAuthenticated: false,
       isLoading: false,
       error: null,
-      hasHydrated: true, // Set to true immediately to avoid loading screen
+      hasHydrated: false, // Start as false to prevent hydration mismatch
 
       // Actions
       login: async (email: string, password: string) => {
@@ -316,6 +316,10 @@ export const useUserStore = create<UserState>()(
             }
           }
           console.log('UserStore - Rehydration complete');
+          // Mark as hydrated after rehydration
+          if (state) {
+            state.setHasHydrated(true);
+          }
         };
       },
     }

@@ -29,6 +29,8 @@ export interface Card {
   tags: string[];
   display_data?: any; // Pass through display_data for frontend use
   background_image_url?: string | null; // Pass through background_image_url for frontend use
+  source_entity_id?: string | null; // Source entity ID for entity details
+  source_entity_type?: string | null; // Source entity type for entity details
 }
 
 export interface GetCardsRequest {
@@ -211,6 +213,8 @@ export class CardService {
       tags: [],
       display_data: (cardData as any).display_data || {},
       background_image_url: (cardData as any).background_image_url || null,
+      source_entity_id: cardData.source_entity_id || null,
+      source_entity_type: cardData.source_entity_type || null,
     };
   }
 

@@ -128,34 +128,107 @@ class CardService {
       }
 
       // Transform the API response to match frontend TCard expectations
-      const transformedCards = (data.data?.cards || []).map((apiCard: any) => ({
-        // Map API fields to TCard interface
-        card_id: apiCard.id,
-        user_id: 'dev-user-123', // Default for development
-        card_type: apiCard.type,
-        source_entity_id: apiCard.id, // Use card id as source entity id
-        source_entity_type: apiCard.type,
-        status: 'active_canvas', // Default status
-        is_favorited: false, // Default
-        display_data: {
-          title: apiCard.title,
-          preview: apiCard.preview,
-          evolutionState: apiCard.evolutionState,
-          growthDimensions: apiCard.growthDimensions,
-          importanceScore: apiCard.importanceScore,
-          connections: apiCard.connections,
-          insights: apiCard.insights,
-          tags: apiCard.tags
-        },
-        is_synced: true,
-        created_at: new Date(apiCard.createdAt),
-        updated_at: new Date(apiCard.updatedAt),
-        // DisplayCard extensions
-        title: apiCard.title,
-        subtitle: apiCard.preview,
-        description: `${apiCard.type} - ${apiCard.evolutionState}`,
-        background_image_url: apiCard.background_image_url || null // Pass through from API
-      }));
+      const transformedCards = (data.data?.cards || []).map((apiCard: any) => {
+        // Ensure every card type has meaningful title and subtitle
+        let title = apiCard.title;
+        let subtitle = apiCard.preview;
+        
+        // Fallback logic for different card types when title/subtitle are empty
+        if (!title) {
+          switch (apiCard.type) {
+            case 'concept':
+              title = apiCard.display_data?.name || 
+                     apiCard.display_data?.description || 
+                     apiCard.display_data?.concept_id || 
+                     `Concept: ${apiCard.id}`;
+              break;
+            case 'proactiveprompt':
+              title = apiCard.display_data?.prompt_text || 
+                     apiCard.display_data?.prompt_id || 
+                     `Proactive Prompt: ${apiCard.id}`;
+              break;
+            case 'derivedartifact':
+              title = apiCard.display_data?.title || 
+                     apiCard.display_data?.artifact_type || 
+                     apiCard.display_data?.artifact_id || 
+                     `Derived Artifact: ${apiCard.id}`;
+              break;
+            case 'community':
+              title = apiCard.display_data?.name || 
+                     apiCard.display_data?.community_id || 
+                     `Community: ${apiCard.id}`;
+              break;
+            case 'memoryunit':
+              title = apiCard.display_data?.title || 
+                     apiCard.display_data?.memory_id || 
+                     `Memory Unit: ${apiCard.id}`;
+              break;
+            default:
+              title = `${apiCard.type.charAt(0).toUpperCase() + apiCard.type.slice(1)}: ${apiCard.id}`;
+          }
+        }
+        
+        if (!subtitle) {
+          switch (apiCard.type) {
+            case 'concept':
+              subtitle = apiCard.display_data?.description || 
+                        apiCard.display_data?.concept_id || 
+                        'Concept entity';
+              break;
+            case 'proactiveprompt':
+              subtitle = apiCard.display_data?.prompt_text || 
+                        apiCard.display_data?.prompt_id || 
+                        'Proactive prompt';
+              break;
+            case 'derivedartifact':
+              subtitle = apiCard.display_data?.artifact_type || 
+                        apiCard.display_data?.artifact_id || 
+                        'Derived artifact';
+              break;
+            case 'community':
+              subtitle = apiCard.display_data?.description || 
+                        apiCard.display_data?.community_id || 
+                        'Community entity';
+              break;
+            case 'memoryunit':
+              subtitle = apiCard.display_data?.preview || 
+                        apiCard.display_data?.memory_id || 
+                        'Memory unit';
+              break;
+            default:
+              subtitle = `${apiCard.type} entity`;
+          }
+        }
+
+        return {
+          // Map API fields to TCard interface
+          card_id: apiCard.id,
+          user_id: 'dev-user-123', // Default for development
+          card_type: apiCard.type,
+          source_entity_id: apiCard.source_entity_id || apiCard.id, // Use actual source entity id from API
+          source_entity_type: apiCard.source_entity_type || apiCard.type, // Use actual source entity type from API
+          status: 'active_canvas', // Default status
+          is_favorited: false, // Default
+          display_data: {
+            title: apiCard.title,
+            preview: apiCard.preview,
+            evolutionState: apiCard.evolutionState,
+            growthDimensions: apiCard.growthDimensions,
+            importanceScore: apiCard.importanceScore,
+            connections: apiCard.connections,
+            insights: apiCard.insights,
+            tags: apiCard.tags
+          },
+          is_synced: true,
+          created_at: new Date(apiCard.createdAt),
+          updated_at: new Date(apiCard.updatedAt),
+          // DisplayCard extensions with fallback titles/subtitles
+          title,
+          subtitle,
+          description: `${apiCard.type} - ${apiCard.evolutionState || 'Active'}`,
+          background_image_url: apiCard.background_image_url || null // Pass through from API
+        };
+      });
 
       console.log('cardService.getCards - Transformed cards:', transformedCards.length);
 
@@ -357,32 +430,105 @@ class CardService {
       }
 
       // Transform the API response to match frontend expectations
-      const transformedCard = data.data ? {
-        card_id: data.data.id,
-        user_id: 'dev-user-123',
-        card_type: data.data.type,
-        source_entity_id: data.data.id,
-        source_entity_type: data.data.type,
-        status: 'active_canvas',
-        is_favorited: false,
-        display_data: {
-          title: data.data.title,
-          preview: data.data.preview,
-          evolutionState: data.data.evolutionState,
-          growthDimensions: data.data.growthDimensions,
-          importanceScore: data.data.importanceScore,
-          connections: data.data.connections,
-          insights: data.data.insights,
-          tags: data.data.tags
-        },
-        is_synced: true,
-        created_at: new Date(data.data.createdAt),
-        updated_at: new Date(data.data.updatedAt),
-        title: data.data.title,
-        subtitle: data.data.preview,
-        description: `${data.data.type} - ${data.data.evolutionState}`,
-        background_image_url: data.data.background_image_url || null
-      } : null;
+      const transformedCard = data.data ? (() => {
+        // Ensure every card type has meaningful title and subtitle
+        let title = data.data.title;
+        let subtitle = data.data.preview;
+        
+        // Fallback logic for different card types when title/subtitle are empty
+        if (!title) {
+          switch (data.data.type) {
+            case 'concept':
+              title = data.data.display_data?.name || 
+                     data.data.display_data?.description || 
+                     data.data.display_data?.concept_id || 
+                     `Concept: ${data.data.id}`;
+              break;
+            case 'proactiveprompt':
+              title = data.data.display_data?.prompt_text || 
+                     data.data.display_data?.prompt_id || 
+                     `Proactive Prompt: ${data.data.id}`;
+              break;
+            case 'derivedartifact':
+              title = data.data.display_data?.title || 
+                     data.data.display_data?.artifact_type || 
+                     data.data.display_data?.artifact_id || 
+                     `Derived Artifact: ${data.data.id}`;
+              break;
+            case 'community':
+              title = data.data.display_data?.name || 
+                     data.data.display_data?.community_id || 
+                     `Community: ${data.data.id}`;
+              break;
+            case 'memoryunit':
+              title = data.data.display_data?.title || 
+                     data.data.display_data?.memory_id || 
+                     `Memory Unit: ${data.data.id}`;
+              break;
+            default:
+              title = `${data.data.type.charAt(0).toUpperCase() + data.data.type.slice(1)}: ${data.data.id}`;
+          }
+        }
+        
+        if (!subtitle) {
+          switch (data.data.type) {
+            case 'concept':
+              subtitle = data.data.display_data?.description || 
+                        data.data.display_data?.concept_id || 
+                        'Concept entity';
+              break;
+            case 'proactiveprompt':
+              subtitle = data.data.display_data?.prompt_text || 
+                        data.data.display_data?.prompt_id || 
+                        'Proactive prompt';
+              break;
+            case 'derivedartifact':
+              subtitle = data.data.display_data?.artifact_type || 
+                        data.data.display_data?.artifact_id || 
+                        'Derived artifact';
+              break;
+            case 'community':
+              subtitle = data.data.display_data?.description || 
+                        data.data.display_data?.community_id || 
+                        'Community entity';
+              break;
+            case 'memoryunit':
+              subtitle = data.data.display_data?.preview || 
+                        data.data.display_data?.memory_id || 
+                        'Memory unit';
+              break;
+            default:
+              subtitle = `${data.data.type} entity`;
+          }
+        }
+
+        return {
+          card_id: data.data.id,
+          user_id: 'dev-user-123',
+          card_type: data.data.type,
+          source_entity_id: data.data.source_entity_id || data.data.id,
+          source_entity_type: data.data.source_entity_type || data.data.type,
+          status: 'active_canvas',
+          is_favorited: false,
+          display_data: {
+            title: data.data.title,
+            preview: data.data.preview,
+            evolutionState: data.data.evolutionState,
+            growthDimensions: data.data.growthDimensions,
+            importanceScore: data.data.importanceScore,
+            connections: data.data.connections,
+            insights: data.data.insights,
+            tags: data.data.tags
+          },
+          is_synced: true,
+          created_at: new Date(data.data.createdAt),
+          updated_at: new Date(data.data.updatedAt),
+          title,
+          subtitle,
+          description: `${data.data.type} - ${data.data.evolutionState || 'Active'}`,
+          background_image_url: data.data.background_image_url || null
+        };
+      })() : null;
 
       return {
         success: data.success,

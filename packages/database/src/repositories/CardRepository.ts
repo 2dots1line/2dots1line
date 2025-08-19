@@ -33,6 +33,8 @@ export interface CardData {
   createdAt: Date;
   updatedAt: Date;
   growthDimensions?: GrowthDimensionData[]; // From materialized view
+  source_entity_id?: string | null;
+  source_entity_type?: string | null;
 }
 
 export interface CardFilters {
@@ -227,8 +229,8 @@ export class CardRepository {
       return {
         id: card.card_id,
         type: card.card_type as 'memory_unit' | 'concept' | 'derived_artifact',
-        title: displayData.title || '',
-        preview: displayData.preview || displayData.previewText || '',
+        title: displayData.title || displayData.name || '',
+        preview: displayData.preview || displayData.previewText || displayData.description || '',
         evolutionState: 'seed', // Simplified - should calculate based on business logic
         importanceScore: 0.5, // Simplified - should calculate from data
         createdAt: card.created_at,
@@ -236,6 +238,9 @@ export class CardRepository {
         // Pass through display_data and background_image_url for downstream use
         display_data: displayData,
         background_image_url: card.background_image_url || null,
+        // Include source entity information
+        source_entity_id: card.source_entity_id,
+        source_entity_type: card.source_entity_type,
       };
     });
 

@@ -141,9 +141,13 @@ ingestion_analyst_instructions: |
   **SECTION 1: persistence_payload**
   Extract and structure knowledge for long-term storage:
   - conversation_summary: 2-3 sentence overview of main topics and outcomes
-  - conversation_importance_score: 1-10 rating of overall significance
-  - extracted_memory_units: Array of discrete memories/experiences mentioned
-  - extracted_concepts: Array of topics, themes, interests, or entities discussed
+  - conversation_importance_score: 1-10 rating of overall significance using these criteria:
+    * 1-3: Routine daily activities, casual conversation, minor updates
+    * 4-6: Moderate personal events, work progress, relationship developments
+    * 7-8: Significant life events, major achievements, emotional breakthroughs, career milestones
+    * 9-10: Life-changing events, major personal transformations, profound insights, critical decisions
+  - extracted_memory_units: Array of discrete memories/experiences mentioned (focus on emotionally significant or transformative moments). ALWAYS extract at least 1-2 memory units from any conversation with personal content.
+  - extracted_concepts: Array of topics, themes, interests, or entities discussed. ALWAYS extract at least 2-3 concepts from any conversation with meaningful content.
   - new_relationships: Array of connections between entities (person-to-concept, concept-to-concept, etc.)
   - detected_growth_events: Array of personal development moments with quantified impact
 
@@ -161,7 +165,7 @@ ingestion_analyst_instructions: |
       "conversation_importance_score": number,
       "extracted_memory_units": [
         {
-          "temp_id": "string",
+          "temp_id": "mem_[unique_id]", // Must start with 'mem_' followed by alphanumeric characters
           "title": "string", 
           "content": "string",
           "source_type": "conversation_extraction",
@@ -184,8 +188,8 @@ ingestion_analyst_instructions: |
       ],
       "detected_growth_events": [
         {
-          "dim_key": "string",
-          "delta": number,
+          "dim_key": "know_self|know_world|act_self|act_world|show_self|show_world", // Must be one of these exact values
+          "delta": number, // Must be between -5.0 and 5.0
           "rationale": "string"
         }
       ]
@@ -200,6 +204,50 @@ ingestion_analyst_instructions: |
         }
       ],
       "suggested_initial_focus": "string"
+    }
+  }
+  ```
+
+  **EXAMPLE RESPONSE STRUCTURE:**
+  ```json
+  {
+    "persistence_payload": {
+      "conversation_summary": "User discussed their passion for quantum physics and how reading a book about consciousness changed their perspective on reality.",
+      "conversation_importance_score": 7,
+      "extracted_memory_units": [
+        {
+          "temp_id": "mem_quantum_book_insight",
+          "title": "Reading quantum physics book",
+          "content": "Read a fascinating book about quantum physics and consciousness that completely changed my perspective on reality and the mind-body problem.",
+          "source_type": "conversation_extraction",
+          "creation_ts": "2025-08-18T20:00:00.000Z"
+        }
+      ],
+      "extracted_concepts": [
+        {
+          "name": "Quantum Physics",
+          "type": "interest",
+          "description": "Fascination with quantum physics and its implications for consciousness"
+        },
+        {
+          "name": "Consciousness",
+          "type": "theme",
+          "description": "Interest in the nature of consciousness and the mind-body problem"
+        }
+      ],
+      "new_relationships": [],
+      "detected_growth_events": [
+        {
+          "dim_key": "know_world",
+          "delta": 3.0,
+          "rationale": "Gained new perspective on reality through quantum physics reading"
+        }
+      ]
+    },
+    "forward_looking_context": {
+      "proactive_greeting": "Hello! I noticed you've been exploring some fascinating ideas about quantum physics and consciousness. How has that new perspective been sitting with you?",
+      "unresolved_topics_for_next_convo": [],
+      "suggested_initial_focus": "Continue exploring the implications of quantum consciousness theories"
     }
   }
   ```

@@ -187,4 +187,189 @@ pm2 logs graph-projection-worker --lines 50
 
 ---
 
-**Would you like me to generate the exact code diff for your file, or do you want to make these changes and try them out?**
+## Postgre accessibility issue resolution
+
+
+I can see the issue! Prisma Studio is trying to connect to the database but can't reach it at `localhost:5433`. This is a common issue when the PostgreSQL database isn't running or the connection details are incorrect. Let me help you resolve this.
+
+```bash
+docker ps
+```
+Great! I can see that PostgreSQL is running on port 5433. Let me check the database connection details and verify the Prisma configuration:
+
+Read file: packages/database/prisma/schema.prisma
+```bash
+echo $DATABASE_URL
+```
+The `DATABASE_URL` environment variable is not set! Let me check the environment configuration and set it up properly:
+
+Read file: scripts/GUIDES/QUICK_CLEAN_START.md
+Perfect! I can see the correct database URL. Let me set the environment variable and start Prisma Studio properly:
+
+```bash
+export DATABASE_URL="postgresql://danniwang:MaxJax2023@@localhost:5433/twodots1line"
+```
+```bash
+echo $DATABASE_URL
+```
+Great! Now let me test the database connection and then start Prisma Studio:
+
+```bash
+cd packages/database && pnpm prisma db pull
+```
+The database connection is still failing. Let me check if PostgreSQL is actually accessible and verify the connection details:
+
+```bash
+docker logs postgres-2d1l --tail 20
+```
+I can see the issue! The PostgreSQL container is running, but there are authentication errors. Let me check the docker-compose configuration to see the correct credentials:
+
+Read file: docker-compose.dev.yml
+The docker-compose file uses environment variables. Let me check what environment variables are set:
+
+```bash
+cd /Users/danniwang/Documents/GitHub/202506062D1L/2D1L && env | grep POSTGRES
+```
+The environment variables aren't set. Let me check if there's a `.env` file and load the environment:
+
+```bash
+ls -la | grep env
+```
+```bash
+source .env && env | grep POSTGRES
+```
+Let me check the .env file directly to see the database configuration:
+
+Read file: .env
+```bash
+head -20 .env
+```
+```bash
+grep -i postgres .env
+```
+Perfect! Now I can see the issue. The environment variables are defined in the `.env` file, but they need to be loaded. Let me load them and test the connection:
+
+```bash
+export $(grep -v '^#' .env | xargs) && echo "POSTGRES_USER: $POSTGRES_USER" && echo "POSTGRES_DB: $POSTGRES_DB" && echo "DATABASE_URL: $DATABASE_URL"
+```
+The export command failed due to special characters. Let me set the variables manually:
+
+```bash
+export POSTGRES_USER=danniwang && export POSTGRES_PASSWORD="MaxJax2023@" && export POSTGRES_DB_NAME=twodots1line && export POSTGRES_DB=twodots1line && export DATABASE_URL="postgresql://danniwang:MaxJax2023@@localhost:5433/twodots1line"
+```
+Now let me test the database connection:
+
+```bash
+cd packages/database && pnpm prisma db pull
+```
+The connection is still failing. Let me test if I can connect to PostgreSQL directly using psql or telnet:
+
+```bash
+telnet localhost 5433
+```
+```bash
+nc -zv localhost 5433
+```
+The port 5433 is not accessible! Even though the Docker container shows it's running, the port mapping might not be working correctly. Let me check the container status more carefully and restart it if needed:
+
+```bash
+docker ps -a | grep postgres
+```
+The container shows it's healthy and the port mapping looks correct (`0.0.0.0:5433->5432/tcp`). Let me try to restart the PostgreSQL container to fix any potential issues:
+
+```bash
+cd /Users/danniwang/Documents/GitHub/202506062D1L/2D1L && docker restart postgres-2d1l
+```
+```bash
+sleep 5 && docker ps | grep postgres
+```
+```bash
+sleep 10 && docker ps | grep postgres
+```
+Great! Now PostgreSQL is healthy. Let me test the connection again:
+
+```bash
+nc -zv localhost 5433
+```
+Excellent! The port is now accessible. Let me test the Prisma connection:
+
+```bash
+cd packages/database && pnpm prisma db pull
+```
+Perfect! The database connection is working. Now let me generate the Prisma client and start Prisma Studio:
+
+```bash
+pnpm prisma generate
+```
+Excellent! Now let me start Prisma Studio:
+
+```bash
+pnpm prisma studio --port 5555
+```
+```bash
+sleep 3 && curl -s http://localhost:5555 | head -5
+```
+Perfect! �� **Prisma Studio is now running successfully!**
+
+## **✅ RESOLUTION SUMMARY**
+
+### **�� Issues Fixed:**
+
+1. **Environment Variables Not Set**: The `DATABASE_URL` and PostgreSQL credentials weren't loaded from the `.env` file
+2. **PostgreSQL Container Issues**: The container was running but had connection problems
+3. **Port Accessibility**: Port 5433 wasn't accessible due to container restart issues
+
+### **��️ Steps Taken:**
+
+1. **Set Environment Variables**:
+   ```bash
+   export POSTGRES_USER=danniwang
+   export POSTGRES_PASSWORD="MaxJax2023@"
+   export POSTGRES_DB_NAME=twodots1line
+   export POSTGRES_DB=twodots1line
+   export DATABASE_URL="postgresql://danniwang:MaxJax2023@@localhost:5433/twodots1line"
+   ```
+
+2. **Restarted PostgreSQL Container**:
+   ```bash
+   docker restart postgres-2d1l
+   ```
+
+3. **Verified Database Connection**:
+   - ✅ Port 5433 accessible
+   - ✅ Prisma can connect to database
+   - ✅ Database introspection successful
+
+4. **Generated Prisma Client**:
+   ```bash
+   pnpm prisma generate
+   ```
+
+5. **Started Prisma Studio**:
+   ```bash
+   pnpm prisma studio --port 5555
+   ```
+
+### **🌐 Access Prisma Studio:**
+
+**Prisma Studio is now running at: http://localhost:5555**
+
+You can now:
+- ✅ Browse and edit your database tables
+- ✅ View and modify data in the `cards`, `users`, `conversations`, etc. tables
+- ✅ Execute queries and see results
+- ✅ Manage your database schema
+
+### **📝 For Future Reference:**
+
+To avoid this issue in the future, you can use the environment loader script:
+
+```bash
+# Load environment variables
+source scripts/AUTOMATION/environment-loader.sh
+
+# Start Prisma Studio
+cd packages/database && pnpm prisma studio --port 5555
+```
+
+The database connection is now fully functional and Prisma Studio should work without any errors! 🚀

@@ -21,17 +21,20 @@ async function addJob() {
 
     const queue = new Queue('card-and-graph-queue', { connection: redisConnection });
     
+    // Accept job data from command line
+    const jobDataArg = process.argv[2];
+    if (!jobDataArg) {
+      throw new Error('No job data provided. Usage: node add-bullmq-job.js <jobDataJSON>');
+    }
+    let jobData;
+    try {
+      jobData = JSON.parse(jobDataArg);
+    } catch (e) {
+      throw new Error('Invalid JSON for job data: ' + e.message);
+    }
+    
     // Add a job to trigger projection generation
-    const job = await queue.add('new_entities_created', {
-      type: 'new_entities_created',
-      userId: 'dev-user-123',
-      source: 'InsightEngine',
-      timestamp: new Date().toISOString(),
-      entities: [
-        { id: 'da-001', type: 'DerivedArtifact' },
-        { id: 'com-001', type: 'Community' }
-      ]
-    }, {
+    const job = await queue.add(jobData.type || 'new_entities_created', jobData, {
       attempts: 3,
       backoff: {
         type: 'exponential',

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Graph3D } from '@2dots1line/ui-components';
+import { Graph3D } from '../../components/cosmos/Graph3D';
 import { useCosmosStore } from '../../stores/CosmosStore';
 import { cosmosService } from '../../services/cosmosService';
 import CosmosInfoPanel from '../../components/modal/CosmosInfoPanel';
