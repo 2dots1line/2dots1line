@@ -13,7 +13,9 @@ export class ToolRegistry {
    * @param tool - The tool instance implementing IExecutableTool.
    * @throws Error if a tool with the same name is already registered.
    */
-  public register(tool: IExecutableTool<any, any>): void {
+  public register<TInput extends Record<string, unknown> = Record<string, unknown>, TOutput extends Record<string, unknown> = Record<string, unknown>>(
+    tool: IExecutableTool<TInput, TOutput>
+  ): void {
     const { name } = tool.manifest;
     if (this.tools.has(name)) {
       console.warn(`Tool with name "${name}" already registered. Overwriting.`);
@@ -28,7 +30,7 @@ export class ToolRegistry {
    * @param tool - The tool instance implementing the basic Tool interface.
    * @param options - Additional options for the tool manifest.
    */
-  public registerSimpleTool<TInput = any, TOutput = any>(
+  public registerSimpleTool<TInput extends Record<string, unknown> = Record<string, unknown>, TOutput extends Record<string, unknown> = Record<string, unknown>>(
     tool: Tool<TToolInput<TInput>, TToolOutput<TOutput>>,
     options?: {
       availableRegions?: ('us' | 'cn')[];
@@ -67,7 +69,7 @@ export class ToolRegistry {
    * @param input - The input for the tool.
    * @returns Promise resolving to the tool output.
    */
-  public async executeSimpleTool<TInput = any, TOutput = any>(
+  public async executeSimpleTool<TInput extends Record<string, unknown> = Record<string, unknown>, TOutput extends Record<string, unknown> = Record<string, unknown>>(
     toolName: string,
     input: TToolInput<TInput>
   ): Promise<TToolOutput<TOutput>> {
@@ -77,7 +79,7 @@ export class ToolRegistry {
     }
 
     try {
-      return await tool.execute(input);
+      return await tool.execute(input) as TToolOutput<TOutput>;
     } catch (error) {
       throw new ToolExecutionError(
         `Execution failed for tool "${toolName}": ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -92,7 +94,7 @@ export class ToolRegistry {
    * @param toolName - The name of the tool.
    * @returns The tool instance or undefined if not found.
    */
-  public getTool<T extends IExecutableTool<any, any>>(toolName: string): T | undefined {
+  public getTool<T extends IExecutableTool<Record<string, unknown>, Record<string, unknown>>>(toolName: string): T | undefined {
     return this.tools.get(toolName) as T | undefined;
   }
 
@@ -101,8 +103,8 @@ export class ToolRegistry {
    * @param criteria - The search criteria (region, capability, category, name, minVersion).
    * @returns An array of tool manifests matching the criteria.
    */
-  public findTools(criteria: IToolSearchCriteria): IToolManifest<any, any>[] {
-    const foundManifests: IToolManifest<any, any>[] = [];
+  public findTools(criteria: IToolSearchCriteria): IToolManifest<Record<string, unknown>, Record<string, unknown>>[] {
+    const foundManifests: IToolManifest<Record<string, unknown>, Record<string, unknown>>[] = [];
 
     for (const tool of this.tools.values()) {
       const manifest = tool.manifest;
@@ -161,7 +163,7 @@ export class ToolRegistry {
    * @returns A promise resolving to the tool's output, conforming to TToolOutput.
    * @throws ToolExecutionError if the tool is not found, input validation fails, or execution fails.
    */
-  public async executeTool<TInput = any, TOutput = any>(
+  public async executeTool<TInput extends Record<string, unknown> = Record<string, unknown>, TOutput extends Record<string, unknown> = Record<string, unknown>>(
     toolName: string,
     input: TToolInput<TInput>
   ): Promise<TToolOutput<TOutput>> {
@@ -182,11 +184,11 @@ export class ToolRegistry {
           toolName
         );
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       throw new ToolExecutionError(
-        `Input validation error for tool "${toolName}": ${err.message}`,
+        `Input validation error for tool "${toolName}": ${err instanceof Error ? err.message : 'Unknown error'}`,
         toolName,
-        err
+        err instanceof Error ? err : undefined
       );
     }
 
@@ -194,13 +196,13 @@ export class ToolRegistry {
     let output: TToolOutput<TOutput>;
     try {
       console.debug(`Executing tool: ${toolName}`);
-      output = await tool.execute(input);
+      output = await tool.execute(input) as TToolOutput<TOutput>;
       console.debug(`Tool ${toolName} execution finished.`);
-    } catch (err: any) {
+    } catch (err: unknown) {
       throw new ToolExecutionError(
-        `Execution failed for tool "${toolName}": ${err.message}`,
+        `Execution failed for tool "${toolName}": ${err instanceof Error ? err.message : 'Unknown error'}`,
         toolName,
-        err
+        err instanceof Error ? err : undefined
       );
     }
 
@@ -213,11 +215,11 @@ export class ToolRegistry {
           toolName
         );
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       throw new ToolExecutionError(
-        `Output validation error for tool "${toolName}": ${err.message}`,
+        `Output validation error for tool "${toolName}": ${err instanceof Error ? err.message : 'Unknown error'}`,
         toolName,
-        err
+        err instanceof Error ? err : undefined
       );
     }
 
@@ -237,7 +239,7 @@ export class ToolRegistry {
    * @param toolName - The name of the tool.
    * @returns The tool's manifest, or undefined if not found.
    */
-  public getManifest(toolName: string): IToolManifest<any, any> | undefined {
+  public getManifest(toolName: string): IToolManifest<Record<string, unknown>, Record<string, unknown>> | undefined {
     return this.tools.get(toolName)?.manifest;
   }
 
@@ -245,7 +247,7 @@ export class ToolRegistry {
    * Lists all registered tools' manifests.
    * @returns An array of all tool manifests.
    */
-  public listAllTools(): IToolManifest<any, any>[] {
+  public listAllTools(): IToolManifest<Record<string, unknown>, Record<string, unknown>>[] {
     return Array.from(this.tools.values()).map(tool => tool.manifest);
   }
 
@@ -257,7 +259,7 @@ export class ToolRegistry {
    * NOTE: This method is temporarily disabled to break circular dependency.
    * Tools should be registered explicitly instead of being auto-imported.
    */
-  public buildCompositeToolForAgent(agentType: string): any {
+  public buildCompositeToolForAgent(agentType: string): never {
     // CIRCULAR DEPENDENCY FIX: Remove direct import of tools
     // This breaks the tools ↔ tool-registry circular dependency
     throw new Error(`buildCompositeToolForAgent is disabled to prevent circular dependencies. Agent type: ${agentType}. Please register tools explicitly instead.`);

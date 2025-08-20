@@ -245,24 +245,26 @@ export function useCardImage(card: DisplayCard) {
 
 // Utility function to get card title
 export function getCardTitle(card: DisplayCard): string {
-  return card.title || 
-         card.display_data?.title || 
-         card.card_type.replace(/_/g, ' ');
+  return (typeof card.title === 'string' ? card.title : '') || 
+         (typeof card.display_data?.title === 'string' ? card.display_data.title : '') || 
+         (typeof card.card_type === 'string' ? card.card_type.replace(/_/g, ' ') : '') || 
+         'Card';
 }
 
 // Utility function to get card subtitle
 export function getCardSubtitle(card: DisplayCard): string {
-  return card.subtitle || 
-         card.display_data?.subtitle || 
-         card.source_entity_type.replace(/_/g, ' ');
+  return (typeof card.subtitle === 'string' ? card.subtitle : '') || 
+         (typeof card.display_data?.subtitle === 'string' ? card.display_data.subtitle : '') || 
+         (typeof card.source_entity_type === 'string' ? card.source_entity_type.replace(/_/g, ' ') : '') || 
+         'Subtitle';
 }
 
 // Utility function to get card description
 export function getCardDescription(card: DisplayCard): string {
-  return card.description || 
-         card.display_data?.description || 
-         card.display_data?.preview || 
-         '';
+  return (typeof card.description === 'string' ? card.description : '') || 
+         (typeof card.display_data?.description === 'string' ? card.display_data.description : '') || 
+         (typeof card.display_data?.preview === 'string' ? card.display_data.preview : '') || 
+         'No description available';
 }
 
 // Hook for managing image collections

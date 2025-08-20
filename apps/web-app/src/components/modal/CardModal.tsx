@@ -49,7 +49,7 @@ export const CardModal: React.FC<CardModalProps> = ({
           {/* Header */}
           <div className="card-modal-header">
             <h2 className="card-modal-title">
-              {selectedCard.display_data?.title || selectedCard.card_type?.replace(/_/g, ' ') || 'Card Details'}
+              {typeof selectedCard.display_data?.title === 'string' ? selectedCard.display_data.title : (typeof selectedCard.card_type === 'string' ? selectedCard.card_type.replace(/_/g, ' ') : 'Card Details')}
             </h2>
             <GlassButton
               onClick={handleClose}
@@ -64,11 +64,11 @@ export const CardModal: React.FC<CardModalProps> = ({
             {/* Card Type */}
             <div className="card-modal-section">
               <div className="card-modal-label">Type</div>
-              <div className="card-modal-value">{selectedCard.card_type?.replace(/_/g, ' ')}</div>
+              <div className="card-modal-value">{typeof selectedCard.card_type === 'string' ? selectedCard.card_type.replace(/_/g, ' ') : 'Unknown'}</div>
             </div>
             
             {/* Card Description */}
-            {selectedCard.display_data?.preview && (
+            {typeof selectedCard.display_data?.preview === 'string' && (
               <div className="card-modal-section">
                 <div className="card-modal-label">Description</div>
                 <div className="card-modal-value">{selectedCard.display_data.preview}</div>
@@ -82,7 +82,7 @@ export const CardModal: React.FC<CardModalProps> = ({
             </div>
             
             {/* Source Entity */}
-            {selectedCard.source_entity_type && (
+            {typeof selectedCard.source_entity_type === 'string' && (
               <div className="card-modal-section">
                 <div className="card-modal-label">Source</div>
                 <div className="card-modal-value">{selectedCard.source_entity_type.replace(/_/g, ' ')}</div>

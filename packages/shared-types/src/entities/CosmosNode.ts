@@ -29,7 +29,7 @@ export interface NodeConnection {
   connection_type: 'related' | 'derived' | 'contextual' | 'temporal' | 'hierarchical';
   strength: number; // 0-1, visual weight of connection
   label?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**

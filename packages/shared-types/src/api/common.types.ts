@@ -18,7 +18,7 @@ export interface TApiResponseSuccess<T> {
       current_page: number;
       page_size: number;
     };
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 
@@ -33,7 +33,7 @@ export interface TApiResponseError {
     /** A human-readable error message */
     message: string;
     /** Optional details about the error */
-    details?: any;
+    details?: Record<string, unknown>;
     /** Optional unique ID for tracing the request */
     request_id?: string;
   };

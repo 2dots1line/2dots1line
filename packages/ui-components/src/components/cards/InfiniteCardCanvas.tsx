@@ -207,7 +207,7 @@ export const InfiniteCardCanvas: React.FC<InfiniteCardCanvasProps> = ({
             {/* Card content */}
             <div className="card-content">
               <h3 className="card-title">{card.title || card.card_type || "Card"}</h3>
-              <p className="card-subtitle">{card.subtitle || card.display_data?.preview || ""}</p>
+              <p className="card-subtitle">{typeof card.subtitle === 'string' ? card.subtitle : (typeof card.display_data?.preview === 'string' ? card.display_data.preview : " ")}</p>
             </div>
           </div>
         ))}

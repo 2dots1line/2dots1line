@@ -29,7 +29,7 @@ export interface TOntologyTerm {
   /** Timestamp when the term was last updated */
   last_updated_at: Date;
   /** Additional metadata (JSON object, e.g., usage examples, constraints) */
-  metadata?: Record<string, any> | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 /**

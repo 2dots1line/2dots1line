@@ -1,12 +1,11 @@
-import { UserRepository, ConversationRepository, users, conversation_messages } from '@2dots1line/database';
 import { ConfigService } from '@2dots1line/config-service';
+import { UserRepository, ConversationRepository, conversation_messages } from '@2dots1line/database';
+import { 
+  AugmentedMemoryContext
+} from '@2dots1line/shared-types';
 import { Redis } from 'ioredis';
 import Mustache from 'mustache';
-import { 
-  CoreIdentity, 
-  AugmentedMemoryContext, 
-  SummarizedConversation 
-} from '@2dots1line/shared-types';
+
 
 export interface PromptBuildInput {
   userId: string;
@@ -93,8 +92,8 @@ export class PromptBuilder {
       
       // V11.0 SIMPLIFIED LOGIC: Use flag from controller
       isNewConversation ? 
-        this.formatComponent('context_from_last_conversation', user.next_conversation_context_package) : 
-        this.formatComponent('context_from_last_turn', turnContext)
+        this.formatContextFromLastConversation(user.next_conversation_context_package) : 
+        this.formatContextFromLastTurn(turnContext)
     ];
 
     const systemPrompt = systemComponents.filter(c => c !== null).join('\n\n');
@@ -132,7 +131,7 @@ export class PromptBuilder {
    * A helper to format a component into an XML-like tag structure.
    * If content is null, undefined, or an empty array, it returns a self-closing tag.
    */
-  private formatComponent(tagName: string, content: any): string {
+  private formatComponent(tagName: string, content: unknown): string {
     if (content === null || content === undefined || (Array.isArray(content) && content.length === 0)) {
       return `<${tagName}>\n</${tagName}>`;
     }
@@ -157,5 +156,55 @@ export class PromptBuilder {
   private formatConversationHistory(messages: conversation_messages[]): string {
     // The history is fetched most-recent-first, so we reverse it for chronological order.
     return [...messages].reverse().map(msg => `${msg.role.toUpperCase()}: ${msg.content}`).join('\n');
+  }
+
+  /**
+   * Formats context from the last conversation using Mustache templating.
+   */
+  private formatContextFromLastConversation(contextPackage: any): string {
+    if (!contextPackage) {
+      return '<context_from_last_conversation>\n</context_from_last_conversation>';
+    }
+
+    const templates = this.configService.getAllTemplates();
+    const template = templates.context_from_last_conversation;
+    
+    if (!template) {
+      // Fallback if template not found
+      return `<context_from_last_conversation>\n${JSON.stringify(contextPackage, null, 2)}\n</context_from_last_conversation>`;
+    }
+
+    try {
+      const formatted = Mustache.render(template, contextPackage);
+      return formatted;
+    } catch (error) {
+      console.error('Error rendering context_from_last_conversation template:', error);
+      return `<context_from_last_conversation>\n${JSON.stringify(contextPackage, null, 2)}\n</context_from_last_conversation>`;
+    }
+  }
+
+  /**
+   * Formats context from the last turn using Mustache templating.
+   */
+  private formatContextFromLastTurn(turnContext: any): string {
+    if (!turnContext) {
+      return '<context_from_last_turn>\n</context_from_last_turn>';
+    }
+
+    const templates = this.configService.getAllTemplates();
+    const template = templates.context_from_last_turn;
+    
+    if (!template) {
+      // Fallback if template not found
+      return `<context_from_last_turn>\n${JSON.stringify(turnContext, null, 2)}\n</context_from_last_turn>`;
+    }
+
+    try {
+      const formatted = Mustache.render(template, turnContext);
+      return formatted;
+    } catch (error) {
+      console.error('Error rendering context_from_last_turn template:', error);
+      return `<context_from_last_turn>\n${JSON.stringify(turnContext, null, 2)}\n</context_from_last_turn>`;
+    }
   }
 } 

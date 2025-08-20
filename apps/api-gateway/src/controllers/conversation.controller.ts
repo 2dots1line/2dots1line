@@ -122,19 +122,25 @@ export class ConversationController {
         : null;
 
       // V11.1 FIX: Check if conversation exists, belongs to user, AND is not ended
-      if (!conversation || conversation.user_id !== userId || conversation.status === 'ended') {
+      const isConversationEnded = !conversation || 
+        conversation.user_id !== userId || 
+        conversation.status === 'ended' ||
+        conversation.ended_at !== null; // CRITICAL FIX: Check if conversation has ended_at timestamp
+
+      if (isConversationEnded) {
         // Create a new conversation if:
         // - No conversation found
         // - Conversation doesn't belong to this user
         // - Conversation is already ended (CRITICAL FIX)
+        // - Conversation has an ended_at timestamp (NEW FIX)
         conversation = await this.conversationRepository.create({
           user_id: userId,
           title: `Conversation: ${new Date().toISOString()}`,
         });
         
-        console.log(`🔄 Created new conversation ${conversation.id} (previous: ${conversation_id}, status: ${conversation?.status})`);
+        console.log(`🔄 Created new conversation ${conversation.id} (previous: ${conversation_id}, status: ${conversation?.status}, ended_at: ${conversation?.ended_at})`);
       }
-      const actualConversationId = conversation.id;
+      const actualConversationId = conversation!.id; // Use non-null assertion since we just created it
 
       // STEP 2: Log the USER'S message immediately
       await this.conversationRepository.addMessage({
@@ -234,10 +240,7 @@ export class ConversationController {
         currentMessageText: enhancedMessage,
         currentMessageMedia: [{
           type: file.mimetype,
-          filename: file.filename,
-          originalname: file.originalname,
-          size: file.size,
-          dataUrl: dataUrl
+          content: dataUrl
         }]
       });
 

@@ -17,7 +17,7 @@ export interface GraphNode {
   fixed: boolean;
   type: string;
   connections: string[];
-  metadata: any;
+  metadata: Record<string, unknown>;
 }
 
 export interface GraphEdge {
@@ -58,7 +58,7 @@ export interface GraphVisualization {
 }
 
 // (A) Node type color map
-const NODE_TYPE_COLORS: Record<string, number> = {
+const NODE_TYPE_COLORS: { [key: string]: number } = {
   Concept: 0x00bfff,         // blue
   MemoryUnit: 0xffb300,      // orange
   DerivedArtifact: 0x8e44ad, // purple
@@ -109,7 +109,7 @@ export class KnowledgeGraph3D {
   
   public addNode(nodeData: Partial<GraphNode> & { id: string }): void {
     // (B) Determine node type
-    const nodeType = nodeData.type || nodeData.metadata?.type || 'default';
+    const nodeType = (nodeData.type || nodeData.metadata?.type || 'default') as string;
     // (C) Assign color based on type
     const nodeColor = new THREE.Color(NODE_TYPE_COLORS[nodeType] || NODE_TYPE_COLORS.default);
     const node: GraphNode = {
@@ -215,7 +215,7 @@ export class KnowledgeGraph3D {
     this.isSimulating = false;
   }
   
-  public update(deltaTime: number): void {
+  public update(): void {
     const now = Date.now();
     
     // Throttle updates for performance

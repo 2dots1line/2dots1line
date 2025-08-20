@@ -69,6 +69,29 @@ export class IngestionAnalyst {
       
     } catch (error) {
       console.error(`[IngestionAnalyst] Error processing conversation ${conversationId}:`, error);
+      
+      // Handle validation errors specifically
+      if (error instanceof Error && error.name === 'ValidationError') {
+        console.error(`[IngestionAnalyst] Validation error details:`, error);
+        
+        // Update conversation with error information
+        await this.conversationRepository.update(conversationId, {
+          context_summary: `Analysis failed - validation error: ${error.message}`,
+          importance_score: 0,
+          status: 'failed'
+        });
+        
+        console.log(`[IngestionAnalyst] Conversation ${conversationId} marked as failed due to validation error`);
+        return; // Don't throw, just return to prevent job retry
+      }
+      
+      // For other errors, update conversation and re-throw
+      await this.conversationRepository.update(conversationId, {
+        context_summary: `Analysis failed - ${error instanceof Error ? error.message : 'Unknown error'}`,
+        importance_score: 0,
+        status: 'failed'
+      });
+      
       throw error;
     }
   }
@@ -155,6 +178,18 @@ export class IngestionAnalyst {
         const createdMemory = await this.memoryRepository.create(memoryData);
         newEntities.push({ id: createdMemory.muid, type: 'MemoryUnit' });
         
+        // Create Neo4j node for memory unit
+        await this.createNeo4jNode('MemoryUnit', {
+          id: createdMemory.muid,
+          userId: userId,
+          title: createdMemory.title,
+          content: createdMemory.content,
+          importance_score: createdMemory.importance_score,
+          sentiment_score: createdMemory.sentiment_score,
+          creation_ts: createdMemory.creation_ts.toISOString(),
+          source_conversation_id: createdMemory.source_conversation_id
+        });
+        
         console.log(`[IngestionAnalyst] Created memory unit: ${createdMemory.muid} - ${memoryUnit.title}`);
       }
 
@@ -169,6 +204,19 @@ export class IngestionAnalyst {
 
         const createdConcept = await this.conceptRepository.create(conceptData);
         newEntities.push({ id: createdConcept.concept_id, type: 'Concept' });
+        
+        // Create Neo4j node for concept
+        await this.createNeo4jNode('Concept', {
+          id: createdConcept.concept_id,
+          userId: userId,
+          name: createdConcept.name,
+          description: createdConcept.description,
+          type: createdConcept.type,
+          salience: createdConcept.salience,
+          status: createdConcept.status,
+          created_at: createdConcept.created_at.toISOString(),
+          community_id: createdConcept.community_id
+        });
         
         console.log(`[IngestionAnalyst] Created concept: ${createdConcept.concept_id} - ${concept.name}`);
       }
@@ -212,6 +260,75 @@ export class IngestionAnalyst {
     }
 
     return newEntities;
+  }
+
+  /**
+   * IMPLEMENTED: Create nodes in Neo4j knowledge graph
+   */
+  private async createNeo4jNode(nodeType: string, properties: Record<string, any>): Promise<void> {
+    if (!this.dbService.neo4j) {
+      console.warn(`[IngestionAnalyst] Neo4j client not available, skipping node creation`);
+      return;
+    }
+
+    const session = this.dbService.neo4j.session();
+    
+    try {
+      // Clean properties to only include primitive types
+      const cleanProperties = this.cleanNeo4jProperties(properties);
+      
+      const cypher = `
+        MERGE (n:${nodeType} {id: $id, userId: $userId})
+        SET n += $properties
+        SET n.updatedAt = datetime()
+        RETURN n
+      `;
+      
+      const result = await session.run(cypher, {
+        id: properties.id,
+        userId: properties.userId,
+        properties: cleanProperties
+      });
+      
+      if (result.records.length > 0) {
+        console.log(`[IngestionAnalyst] ✅ Created ${nodeType} node: ${properties.id}`);
+      } else {
+        console.warn(`[IngestionAnalyst] ⚠️ Failed to create ${nodeType} node: ${properties.id}`);
+      }
+      
+    } catch (error) {
+      console.error(`[IngestionAnalyst] ❌ Error creating ${nodeType} node:`, error);
+      // Don't throw - allow ingestion to continue even if node creation fails
+    } finally {
+      await session.close();
+    }
+  }
+
+  /**
+   * Clean properties to only include primitive types for Neo4j
+   */
+  private cleanNeo4jProperties(properties: Record<string, any>): Record<string, any> {
+    const clean: Record<string, any> = {};
+    
+    for (const [key, value] of Object.entries(properties)) {
+      // Skip id and userId as they're handled separately
+      if (key === 'id' || key === 'userId') continue;
+      
+      // Only include primitive types
+      if (value === null || value === undefined) {
+        continue;
+      } else if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+        clean[key] = value;
+      } else if (Array.isArray(value)) {
+        // Convert arrays to strings for Neo4j
+        clean[key] = JSON.stringify(value);
+      } else if (typeof value === 'object') {
+        // Convert objects to strings for Neo4j
+        clean[key] = JSON.stringify(value);
+      }
+    }
+    
+    return clean;
   }
 
   /**

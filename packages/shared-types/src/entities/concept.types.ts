@@ -32,7 +32,7 @@ export interface TConcept {
   /** Timestamp when the concept was last updated */
   last_updated_ts: Date;
   /** Additional metadata (JSON object, e.g., synonyms, alternative labels) */
-  metadata?: Record<string, any> | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 /**
@@ -59,7 +59,7 @@ export interface TConceptRelationship {
   /** Optional: MUID of the MemoryUnit where this relationship was primarily observed or defined */
   context_muid?: string | null;
   /** Optional metadata (JSON object) */
-  metadata?: Record<string, any> | null; // Added metadata
+  metadata?: Record<string, unknown> | null; // Added metadata
 }
 
 /**
@@ -91,7 +91,7 @@ export interface IConcept {
   /** When this concept was last updated */
   lastUpdatedTs: Date;
   /** e.g., synonyms, alternative labels */
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 /**

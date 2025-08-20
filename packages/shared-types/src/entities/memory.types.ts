@@ -55,7 +55,7 @@ export interface UserKnowledgeItem {
   /** Vector embedding (populated by Weaviate) */
   vector?: number[];
   /** Additional metadata */
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -82,7 +82,7 @@ export interface TRawContent {
   /** Hash of the content to detect duplicates or changes */
   content_hash?: string | null;
   /** Additional content-specific metadata (JSON object) */
-  metadata?: Record<string, any> | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 /**

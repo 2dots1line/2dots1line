@@ -25,9 +25,9 @@ export interface TInteractionLog {
   /** Text content of the interaction (optional) */
   content_text?: string | null;
   /** Structured content data (JSON object, optional) */
-  content_structured?: Record<string, any> | null;
+  content_structured?: Record<string, unknown> | null;
   /** Additional metadata (JSON object, optional) */
-  metadata?: Record<string, any> | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 /**

@@ -55,6 +55,7 @@ v1Router.get('/cards/:cardId', authMiddleware, cardController.getCardDetails);
 v1Router.get('/users/me/profile', authMiddleware, userController.getUserProfile);
 v1Router.get('/users/me/growth-profile', authMiddleware, userController.getGrowthProfile);
 v1Router.get('/users/me/dashboard/growth-summary', authMiddleware, userController.getDashboardGrowthSummary);
+v1Router.get('/users/:userId', authMiddleware, userController.getUserData);
 
 // --- Graph Routes (Authenticated) --- V11.0: Real-time metrics from Neo4j source of truth
 v1Router.get('/nodes/:nodeId/metrics', authMiddleware, graphController.getNodeMetrics);

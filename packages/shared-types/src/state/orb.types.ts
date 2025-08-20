@@ -11,7 +11,7 @@ export interface Orb {
   user_id: string;
   name: string;
   description?: string | null;
-  metadata?: any; // JSON
+  metadata?: unknown; // JSON
   created_at: Date;
   updated_at?: Date | null;
 }
@@ -23,8 +23,8 @@ export interface DerivedArtifact {
   artifact_type: string;
   title?: string | null;
   content_summary?: string | null;
-  insight_content?: any; // JSON
-  metadata?: any; // JSON
+  insight_content?: unknown; // JSON
+  metadata?: unknown; // JSON
   created_at: Date;
 }
 

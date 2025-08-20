@@ -21,6 +21,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './ChatModal.css';
 
 import { chatService, type ChatMessage } from '../../services/chatService';
+import { userService } from '../../services/userService';
 
 interface ChatModalProps {
   isOpen: boolean;
@@ -38,16 +39,10 @@ interface EnhancedChatMessage extends ChatMessage {
 const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [messages, setMessages] = useState<EnhancedChatMessage[]>([
-    {
-      id: '1',
-      type: 'bot',
-      content: 'Hello! I\'m here to help you explore your thoughts and experiences. What would you like to talk about today?',
-      timestamp: new Date()
-    }
-  ]);
+  const [messages, setMessages] = useState<EnhancedChatMessage[]>([]);
   const [conversationId, setConversationId] = useState<string>();
   const [currentAttachment, setCurrentAttachment] = useState<File | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -86,6 +81,47 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Initialize chat with proactive greeting when modal opens
+  useEffect(() => {
+    if (isOpen && !isInitialized) {
+      const initializeChat = async () => {
+        try {
+          // Get user ID from localStorage or use a default for development
+          const userId = localStorage.getItem('user_id') || 'dev-user-123';
+          
+          // Fetch proactive greeting
+          const proactiveGreeting = await userService.getProactiveGreeting(userId);
+          
+          // Set initial message with proactive greeting or fallback
+          const initialMessage: EnhancedChatMessage = {
+            id: '1',
+            type: 'bot',
+            content: proactiveGreeting || 'Hello! I\'m here to help you explore your thoughts and experiences. What would you like to talk about today?',
+            timestamp: new Date()
+          };
+          
+          setMessages([initialMessage]);
+          setIsInitialized(true);
+        } catch (error) {
+          console.error('Error fetching proactive greeting:', error);
+          
+          // Fallback to default greeting
+          const fallbackMessage: EnhancedChatMessage = {
+            id: '1',
+            type: 'bot',
+            content: 'Hello! I\'m here to help you explore your thoughts and experiences. What would you like to talk about today?',
+            timestamp: new Date()
+          };
+          
+          setMessages([fallbackMessage]);
+          setIsInitialized(true);
+        }
+      };
+      
+      initializeChat();
+    }
+  }, [isOpen, isInitialized]);
 
   if (!isOpen) return null;
 

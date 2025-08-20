@@ -19,7 +19,7 @@ export interface TConversationMessage {
   /** Timestamp of the message */
   timestamp: Date;
   /** LLM call metadata (JSON object) */
-  llm_call_metadata?: Record<string, any> | null;
+  llm_call_metadata?: Record<string, unknown> | null;
   /** Media IDs associated with this message */
   media_ids: string[];
 }
@@ -46,7 +46,7 @@ export interface TConversation {
   /** Summary of the conversation context */
   context_summary?: string | null;
   /** Additional conversation metadata (JSON object) */
-  metadata?: Record<string, any> | null;
+  metadata?: Record<string, unknown> | null;
   /** ID of the source card that initiated this conversation */
   source_card_id?: string | null;
 }

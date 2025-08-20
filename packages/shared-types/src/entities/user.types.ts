@@ -112,7 +112,7 @@ export interface CoreIdentity {
  * User Memory Profile structure (stored in User.memory_profile JSONB field)
  */
 export interface UserMemoryProfile {
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**

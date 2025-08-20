@@ -5,9 +5,16 @@ import { immer } from 'zustand/middleware/immer';
 export interface GraphNode {
     id: string;
     type: 'Concept' | 'MemoryUnit' | 'DerivedArtifact';
-    label: string;
-    position: [number, number, number];
-    community_id: string;
+    label?: string;
+    title?: string;
+    content?: string;
+    importance?: number;
+    // Support both flat structure (x, y, z) and nested structure (position array)
+    x?: number;
+    y?: number;
+    z?: number;
+    position?: [number, number, number];
+    community_id?: string;
     metadata?: Record<string, any>;
 }
 

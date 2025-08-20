@@ -105,6 +105,34 @@ response_format_block: |
   ###==END_JSON==###
   </response_format>
 
+# Template for context from the last conversation (proactive greeting)
+context_from_last_conversation: |
+  <context_from_last_conversation>
+  This context was generated from the user's previous conversation to provide continuity and personalized engagement:
+
+  **Proactive Greeting:** {{proactive_greeting}}
+  **Suggested Initial Focus:** {{suggested_initial_focus}}
+  **Unresolved Topics for Follow-up:**
+  {{#unresolved_topics_for_next_convo}}
+  - **{{topic}}**: {{summary_of_unresolution}}
+    *Suggested question:* {{suggested_question}}
+  {{/unresolved_topics_for_next_convo}}
+
+  **Instructions:** Use this context to provide a warm, personalized opening that acknowledges the user's previous conversation and naturally transitions into the current interaction. Reference the proactive greeting and suggested focus when appropriate.
+  </context_from_last_conversation>
+
+# Template for context from the last turn within the same conversation
+context_from_last_turn: |
+  <context_from_last_turn>
+  This context was generated from the previous turn in this conversation to maintain continuity:
+
+  **Suggested Next Focus:** {{suggested_next_focus}}
+  **Emotional Tone to Adopt:** {{emotional_tone_to_adopt}}
+  **Flags for Ingestion:** {{#flags_for_ingestion}}{{.}}, {{/flags_for_ingestion}}
+
+  **Instructions:** Use this context to maintain conversation flow and emotional continuity within the current conversation.
+  </context_from_last_turn>
+
 # Template for knowledge graph schema structure
 knowledge_graph_schema_template: |
   {
@@ -175,6 +203,10 @@ ingestion_analyst_instructions: |
   - suggested_initial_focus: One-sentence suggestion for where the next conversation should start
 
   **OUTPUT FORMAT:**
+  Return your answer **between** the exact markers
+  `###==BEGIN_JSON==###` and `###==END_JSON==###`.
+  The content **must** match this schema:
+
   ```json
   {
     "persistence_payload": {

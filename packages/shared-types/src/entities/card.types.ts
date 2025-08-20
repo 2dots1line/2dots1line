@@ -23,7 +23,7 @@ export interface TCard {
   /** Whether the card is favorited by the user */
   is_favorited: boolean;
   /** Display configuration and UI data (JSON object) */
-  display_data?: Record<string, any> | null;
+  display_data?: Record<string, unknown> | null;
   /** Whether the card is synced with the backend */
   is_synced: boolean;
   /** Timestamp when the card was created */

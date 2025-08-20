@@ -74,12 +74,12 @@ export class StarfieldEngine {
     for (let i = 0; i < starCount; i++) {
       const star: StarData = {
         position: this.generatePosition(distribution, fieldRadius, i),
-        color: this.generateColor(colorVariation, i),
-        size: this.generateSize(i),
-        brightness: this.generateBrightness(i),
+        color: this.generateColor(colorVariation),
+        size: this.generateSize(),
+        brightness: this.generateBrightness(),
         pulsePhase: Math.random() * Math.PI * 2,
         pulseSpeed: 0.5 + Math.random() * 1.5,
-        type: this.generateType(nebulae, i),
+        type: this.generateType(nebulae),
       };
       
       this.stars.push(star);
@@ -91,7 +91,7 @@ export class StarfieldEngine {
       case 'spiral':
         return this.generateSpiralPosition(radius, index);
       case 'clustered':
-        return this.generateClusteredPosition(radius, index);
+        return this.generateClusteredPosition(radius);
       default:
         return this.generateUniformPosition(radius);
     }
@@ -127,8 +127,8 @@ export class StarfieldEngine {
     );
   }
   
-  private generateClusteredPosition(radius: number, index: number): THREE.Vector3 {
-    const clusterCount = 5;
+  private generateClusteredPosition(radius: number): THREE.Vector3 {
+    // const clusterCount = 5; // Removed unused variable
     const clusterRadius = radius * 0.3;
     // Removed unused clusterIndex
     // Generate cluster center
@@ -138,7 +138,7 @@ export class StarfieldEngine {
     return clusterCenter.clone().add(localPosition);
   }
   
-  private generateColor(colorVariation: boolean, index: number): THREE.Color {
+  private generateColor(colorVariation: boolean): THREE.Color {
     if (!colorVariation) {
       return new THREE.Color(0.8, 0.9, 1.0);
     }
@@ -164,7 +164,7 @@ export class StarfieldEngine {
     }
   }
   
-  private generateSize(index: number): number {
+  private generateSize(): number {
     const { minStarSize, maxStarSize } = this.config;
     
     // Power distribution for more realistic size variation
@@ -174,13 +174,13 @@ export class StarfieldEngine {
     return minStarSize + (maxStarSize - minStarSize) * power;
   }
   
-  private generateBrightness(index: number): number {
+  private generateBrightness(): number {
     // Magnitude-based brightness distribution
     const magnitude = Math.random() * 6; // 0-6 magnitude scale
     return Math.pow(2.512, -magnitude); // Convert magnitude to brightness
   }
   
-  private generateType(nebulae: boolean, index: number): 'star' | 'nebula' | 'pulsar' {
+  private generateType(nebulae: boolean): 'star' | 'nebula' | 'pulsar' {
     const rand = Math.random();
     
     if (nebulae && rand < 0.02) {

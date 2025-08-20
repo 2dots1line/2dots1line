@@ -4,18 +4,8 @@
  * Adheres to the "Single Synthesis Call" architecture.
  */
 
-import { ConfigService } from '../../config-service/src/ConfigService';
-import { ConversationRepository, UserRepository, conversation_messages } from '@2dots1line/database';
-import { Redis } from 'ioredis';
-import { PromptBuilder, PromptBuildInput } from './PromptBuilder';
-import { 
-  LLMChatTool,
-  VisionCaptionTool,
-  AudioTranscribeTool,
-  DocumentExtractTool,
-  HybridRetrievalTool
-} from '@2dots1line/tools'; // Assuming tools are exported from a central point
 
+import { ConversationRepository } from '@2dots1line/database';
 import { 
   AugmentedMemoryContext,
   TAgentInput,
@@ -23,6 +13,18 @@ import {
   TDialogueAgentInputPayload,
   TDialogueAgentResult
 } from '@2dots1line/shared-types';
+import { 
+  LLMChatTool,
+  VisionCaptionTool,
+  AudioTranscribeTool,
+  DocumentExtractTool,
+  HybridRetrievalTool
+} from '@2dots1line/tools';
+import { Redis } from 'ioredis';
+
+import { ConfigService } from '../../config-service/src/ConfigService';
+
+import { PromptBuilder, PromptBuildInput } from './PromptBuilder';
 
 // Re-export PromptBuilder for controller access
 export { PromptBuilder } from './PromptBuilder';
@@ -73,8 +75,26 @@ export class DialogueAgent {
     userId: string;
     conversationId: string;
     currentMessageText?: string;
-    currentMessageMedia?: any[]; // Simplified type
-  }): Promise<any> { // Should return a structured DTO
+    currentMessageMedia?: Array<{
+      type: string;
+      url?: string;
+      content?: string;
+    }>;
+  }): Promise<{
+    response_text: string;
+    ui_actions: Array<{
+      action: string;
+      label: string;
+      payload: Record<string, unknown>;
+    }>;
+    metadata: {
+      execution_id: string;
+      decision: string;
+      processing_time_ms: number;
+      key_phrases_used?: string[];
+      memory_retrieval_performed?: boolean;
+    };
+  }> {
     const executionId = `da_${Date.now()}`;
     console.log(`[${executionId}] Starting turn processing for convo: ${input.conversationId}`);
 
@@ -144,7 +164,11 @@ export class DialogueAgent {
   /**
    * Converts any user input into a single text string.
    */
-  private async processInput(text?: string, media?: any[]): Promise<string> {
+  private async processInput(text?: string, media?: Array<{
+    type: string;
+    url?: string;
+    content?: string;
+  }>): Promise<string> {
     let mediaText = '';
     if (media && media.length > 0) {
       // In a real implementation, loop and call appropriate tools
@@ -160,7 +184,19 @@ export class DialogueAgent {
   private async performSingleSynthesisCall(
     input: { userId: string; conversationId: string; finalInputText: string },
     augmentedMemoryContext?: AugmentedMemoryContext
-  ): Promise<any> { // Returns the full parsed JSON from the LLM
+  ): Promise<{
+    response_plan: {
+      decision: string;
+      direct_response_text: string;
+      key_phrases_for_retrieval?: string[];
+    };
+    turn_context_package: Record<string, unknown>;
+    ui_actions: Array<{
+      action: string;
+      label: string;
+      payload: Record<string, unknown>;
+    }>;
+  }> {
     
     // V11.0 STANDARD: Determine if this is a new conversation
     const conversationHistory = await this.conversationRepo.getMostRecentMessages(input.conversationId, 10);
@@ -195,7 +231,7 @@ export class DialogueAgent {
       memoryContextBlock: augmentedMemoryContext?.relevant_memories?.join('\n') || '',
       modelConfig: {
         temperature: 0.7,
-        maxTokens: 1000,
+        maxTokens: 50000,
         topP: 0.9
       }
     };
@@ -266,7 +302,11 @@ export class DialogueAgent {
   /**
    * V11.0: Format conversation history for LLM consumption
    */
-  private formatHistoryForLLM(messages: conversation_messages[]): Array<{role: "assistant" | "user"; content: string; timestamp?: string}> {
+  private formatHistoryForLLM(messages: Array<{
+    role: string;
+    content: string;
+    timestamp?: Date;
+  }>): Array<{role: "assistant" | "user"; content: string; timestamp?: string}> {
     // Convert conversation_messages to LLM-compatible format
     // Reverse to get chronological order (most recent messages come first from DB)
           return [...messages].reverse().map(msg => ({

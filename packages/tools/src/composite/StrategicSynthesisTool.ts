@@ -165,7 +165,7 @@ export class StrategicSynthesisTool {
           history: [], // No previous history for analysis tasks
           userMessage: prompt,
           temperature: 0.4, // Balanced creativity and consistency for strategic thinking
-          maxTokens: 6000
+          maxTokens: 50000
         }
       };
       

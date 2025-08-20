@@ -25,7 +25,7 @@ export interface TGrowthEvent {
   /** Timestamp when the growth event was created */
   created_at: Date;
   /** Additional details about the growth event (JSON object) */
-  details?: Record<string, any> | null;
+  details?: Record<string, unknown> | null;
 }
 
 /**

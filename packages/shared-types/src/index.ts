@@ -179,7 +179,7 @@ export interface UserGraphProjection {
     label: string;
     position: [number, number, number];
     community_id: string;
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
   }[];
   edges: {
     id: string;
@@ -187,7 +187,7 @@ export interface UserGraphProjection {
     target: string;
     type: string;
     weight?: number;
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
   }[];
   communities: {
     id: string;
@@ -262,15 +262,15 @@ export * from './errors';
 export interface TErrorResponse {
   error_code: string;
   message: string;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
   request_id?: string;
 }
 
-export interface TSuccessResponse<TData = any> {
+export interface TSuccessResponse<TData = Record<string, unknown>> {
   data: TData;
   message?: string;
   request_id?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 // === TOOL REGISTRY TYPES (to break circular dependency) ===
@@ -281,7 +281,7 @@ import type { TToolInput, TToolOutput } from './ai/tool.types';
  * Represents the manifest for a tool that can be registered.
  * Includes metadata for discovery and execution.
  */
-export interface IToolManifest<TInput = any, TOutput = any> {
+export interface IToolManifest<TInput = Record<string, unknown>, TOutput = Record<string, unknown>> {
   /** Unique name of the tool (e.g., 'text-embedding-google', 'ner-spacy-en') */
   name: string;
   /** Human-readable description of what the tool does */
@@ -331,7 +331,7 @@ export interface IToolManifest<TInput = any, TOutput = any> {
  * Interface for an executable tool.
  * Tools must implement this to be used by the registry.
  */
-export interface IExecutableTool<TInput = any, TOutput = any> {
+export interface IExecutableTool<TInput = Record<string, unknown>, TOutput = Record<string, unknown>> {
   manifest: IToolManifest<TInput, TOutput>;
   /** 
    * Executes the tool with the given input. 

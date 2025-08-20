@@ -48,8 +48,8 @@ export const HolisticAnalysisOutputSchema = z.object({
     proactive_greeting: z.string().min(1).max(300), // Reduced min length
     unresolved_topics_for_next_convo: z.array(z.object({
       topic: z.string().min(1).max(100), // Reduced min length
-      summary_of_unresolution: z.string().min(1).max(200), // Reduced min length
-      suggested_question: z.string().min(1).max(150) // Reduced min length
+      summary_of_unresolution: z.string().min(1).max(1500), // Increased max length for more detailed summaries
+      suggested_question: z.string().min(1).max(300) // Increased max length for more thoughtful questions
     })).max(5), // Maximum 5 unresolved topics to avoid overwhelming
     suggested_initial_focus: z.string().min(1).max(200) // Reduced min length
   })
@@ -109,7 +109,7 @@ export class HolisticAnalysisTool {
           history: [], // No previous history for analysis tasks
           userMessage: prompt,
           temperature: 0.1, // Low temperature for consistent formatting
-          maxTokens: 4000
+          maxTokens: 50000
         }
       };
 
@@ -211,13 +211,32 @@ ${templates.ingestion_analyst_instructions}`;
     const beginIndex = llmJsonResponse.indexOf(beginMarker);
     const endIndex = llmJsonResponse.indexOf(endMarker);
     
-    if (beginIndex === -1 || endIndex === -1) {
-      console.error(`[HolisticAnalysisTool] Missing JSON markers in response:`, llmJsonResponse.substring(0, 500));
-      throw new JSONParseError(`LLM response missing required JSON markers. Response: ${llmJsonResponse.substring(0, 500)}...`);
+    let jsonString: string;
+    
+    if (beginIndex === -1) {
+      console.error(`[HolisticAnalysisTool] Missing BEGIN_JSON marker in response:`, llmJsonResponse.substring(0, 500));
+      throw new JSONParseError(`LLM response missing BEGIN_JSON marker. Response: ${llmJsonResponse.substring(0, 500)}...`);
     }
     
-    const jsonString = llmJsonResponse.substring(beginIndex + beginMarker.length, endIndex).trim();
-    console.log(`[HolisticAnalysisTool] Extracted JSON string length: ${jsonString.length}`);
+    if (endIndex === -1) {
+      // End marker is missing, try to extract JSON from after the begin marker
+      console.warn(`[HolisticAnalysisTool] Missing END_JSON marker, attempting to extract JSON from truncated response`);
+      const afterBeginMarker = llmJsonResponse.substring(beginIndex + beginMarker.length).trim();
+      
+      // Try to find the end of the JSON by looking for the last closing brace
+      const lastBraceIndex = afterBeginMarker.lastIndexOf('}');
+      if (lastBraceIndex === -1) {
+        console.error(`[HolisticAnalysisTool] No closing brace found in truncated response:`, afterBeginMarker.substring(0, 500));
+        throw new JSONParseError(`No valid JSON structure found in truncated response: ${afterBeginMarker.substring(0, 500)}...`);
+      }
+      
+      jsonString = afterBeginMarker.substring(0, lastBraceIndex + 1).trim();
+      console.log(`[HolisticAnalysisTool] Extracted JSON from truncated response, length: ${jsonString.length}`);
+    } else {
+      // Both markers present, extract normally
+      jsonString = llmJsonResponse.substring(beginIndex + beginMarker.length, endIndex).trim();
+      console.log(`[HolisticAnalysisTool] Extracted JSON string length: ${jsonString.length}`);
+    }
     
     let parsed: unknown;
     

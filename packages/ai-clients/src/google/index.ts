@@ -146,7 +146,10 @@ export class GoogleAIClient implements ILLMClient {
   }
 
   // Helper method to convert our message format to Google's format
-  private convertMessagesToGoogleFormat(messages: TMessage[]): any[] {
+  private convertMessagesToGoogleFormat(messages: TMessage[]): Array<{
+    role: string;
+    parts: Array<{ text: string }>;
+  }> {
     return messages.map(message => {
       // Skip system messages as they should be incorporated differently in Google's API
       if (message.role === 'system') {

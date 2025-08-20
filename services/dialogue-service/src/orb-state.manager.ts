@@ -13,7 +13,7 @@ export interface OrbVisualStateData {
   isProcessing: boolean;
   currentActivity: string | null;
   lastUpdate: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 export interface OrbStateUpdate {
@@ -22,7 +22,7 @@ export interface OrbStateUpdate {
   isSpeaking?: boolean;
   isProcessing?: boolean;
   currentActivity?: string | null;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export class OrbStateManager {

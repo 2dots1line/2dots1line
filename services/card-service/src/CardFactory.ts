@@ -116,7 +116,7 @@ export class CardFactory {
       case 'Concept':
         return this.conceptRepository.findById(id);
       case 'DerivedArtifact':
-        return this.derivedArtifactRepository.findById(id);
+        return this.derivedArtifactRepository.findById(id) as unknown as Promise<CreatableEntity | null>;
       case 'ProactivePrompt':
         return this.proactivePromptRepository.findById(id);
       default:

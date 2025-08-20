@@ -41,5 +41,5 @@ export interface TRegisterResponse {
  * Request payload for updating user preferences
  */
 export interface TUpdateUserPreferencesRequest {
-  preferences: Record<string, any>;
+  preferences: Record<string, unknown>;
 } 

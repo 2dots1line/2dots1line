@@ -11,7 +11,7 @@ export interface IBaseError {
   /** Human-readable error message */
   message: string;
   /** Additional error details */
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
 }
 
 /**

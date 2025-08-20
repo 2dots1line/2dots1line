@@ -13,7 +13,7 @@ export interface TAgentProcessingJob {
   /** Name of the agent responsible for the job */
   agent_name: string;
   /** Job payload (JSON object) */
-  payload?: Record<string, any> | null;
+  payload?: Record<string, unknown> | null;
   /** Current status of the job ('pending', 'processing', 'completed', 'failed', 'retrying') */
   status: string;
   /** Job priority */
@@ -25,7 +25,7 @@ export interface TAgentProcessingJob {
   /** Error message if the job failed */
   last_error?: string | null;
   /** Result of the job if completed successfully (JSON object) */
-  result?: Record<string, any> | null;
+  result?: Record<string, unknown> | null;
   /** Timestamp when the job was created */
   created_at: Date;
   /** Timestamp when the job was last updated */
@@ -53,7 +53,7 @@ export interface TSystemMetric {
   /** Timestamp of the metric measurement */
   timestamp: Date;
   /** Additional metadata (JSON object) */
-  metadata?: Record<string, any> | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 /**
@@ -69,7 +69,7 @@ export interface TUserActivityLog {
   /** Timestamp of the activity */
   timestamp: Date;
   /** Activity-specific details (JSON object) */
-  details?: Record<string, any> | null;
+  details?: Record<string, unknown> | null;
   /** Information about the client used (JSON object) */
-  client_info?: Record<string, any> | null;
+  client_info?: Record<string, unknown> | null;
 } 

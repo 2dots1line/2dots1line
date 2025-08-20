@@ -60,17 +60,23 @@ const CosmosScene: React.FC = () => {
   
   // Check if all nodes have zero or very small positions
   const allNodesHaveSmallPositions = (graphData.nodes ?? []).every(node => {
-    // Handle position as array [x, y, z] or object {x, y, z}
+    // Handle both flat structure (x, y, z) and nested structure (position array/object)
     let x = 0, y = 0, z = 0;
-    if (Array.isArray(node.position)) {
-      [x, y, z] = node.position;
-    } else {
-      // Fallback to any properties that might exist
-      const nodeAny = node as any;
-      x = nodeAny.x || nodeAny.position?.x || 0;
-      y = nodeAny.y || nodeAny.position?.y || 0;
-      z = nodeAny.z || nodeAny.position?.z || 0;
+    
+    // Check for flat structure first (what API actually returns)
+    const nodeAny = node as any;
+    if (typeof nodeAny.x === 'number' && typeof nodeAny.y === 'number' && typeof nodeAny.z === 'number') {
+      x = nodeAny.x;
+      y = nodeAny.y;
+      z = nodeAny.z;
+    } else if (Array.isArray(nodeAny.position)) {
+      [x, y, z] = nodeAny.position;
+    } else if (nodeAny.position && typeof nodeAny.position === 'object') {
+      x = nodeAny.position.x || 0;
+      y = nodeAny.position.y || 0;
+      z = nodeAny.position.z || 0;
     }
+    
     return Math.abs(x) < 0.001 && Math.abs(y) < 0.001 && Math.abs(z) < 0.001;
   });
   
@@ -104,16 +110,21 @@ const CosmosScene: React.FC = () => {
   const safeGraphData = {
     ...graphData,
     nodes: (graphData.nodes ?? []).map((node, index) => {
-      // Handle position as array [x, y, z] or object {x, y, z}
+      // Handle both flat structure (x, y, z) and nested structure (position array/object)
       let x = 0, y = 0, z = 0;
-      if (Array.isArray(node.position)) {
-        [x, y, z] = node.position;
-      } else {
-        // Fallback to any properties that might exist
-        const nodeAny = node as any;
-        x = nodeAny.x || nodeAny.position?.x || 0;
-        y = nodeAny.y || nodeAny.position?.y || 0;
-        z = nodeAny.z || nodeAny.position?.z || 0;
+      
+      // Check for flat structure first (what API actually returns)
+      const nodeAny = node as any;
+      if (typeof nodeAny.x === 'number' && typeof nodeAny.y === 'number' && typeof nodeAny.z === 'number') {
+        x = nodeAny.x;
+        y = nodeAny.y;
+        z = nodeAny.z;
+      } else if (Array.isArray(nodeAny.position)) {
+        [x, y, z] = nodeAny.position;
+      } else if (nodeAny.position && typeof nodeAny.position === 'object') {
+        x = nodeAny.position.x || 0;
+        y = nodeAny.position.y || 0;
+        z = nodeAny.position.z || 0;
       }
       
       // Use fallback positions if all nodes have small positions
@@ -126,38 +137,38 @@ const CosmosScene: React.FC = () => {
         x: x * POSITION_SCALE,
         y: y * POSITION_SCALE,
         z: z * POSITION_SCALE,
-        name: node.label ?? node.id, // Use label from API response
+        name: nodeAny.title ?? nodeAny.label ?? node.id, // Use title from API response
         type: node.type,
         // Add properties field for compatibility with the modal
         properties: {
-          title: node.label ?? node.id,
+          title: nodeAny.title ?? nodeAny.label ?? node.id,
           type: node.type,
-          content: node.metadata?.content || '',
-          importance: node.metadata?.importance || 1,
-          createdAt: node.metadata?.createdAt,
-          lastUpdated: node.metadata?.lastUpdated
+          content: nodeAny.content || '',
+          importance: nodeAny.importance || 1,
+          createdAt: nodeAny.metadata?.createdAt,
+          lastUpdated: nodeAny.metadata?.lastUpdated
         }
       };
       
       // Debug logging for first few nodes
-      if (node.id === graphData.nodes?.[0]?.id) {
+      if (index === 0) {
         console.log('🔍 CosmosScene: First node data:', {
           original: { x, y, z },
           scaled: { x: scaledNode.x, y: scaledNode.y, z: scaledNode.z },
           name: scaledNode.name,
-          type: scaledNode.type
+          type: scaledNode.type,
+          title: nodeAny.title
         });
       }
       
       // Log a few more nodes to understand distribution
-      if (node.id === graphData.nodes?.[1]?.id || node.id === graphData.nodes?.[2]?.id) {
-        console.log(`🔍 CosmosScene: Node ${node.id}:`, {
+      if (index === 1 || index === 2) {
+        console.log(`🔍 CosmosScene: Node ${index} (${node.id}):`, {
           original: { x, y, z },
-          scaled: { x: scaledNode.x, y: scaledNode.y, z: scaledNode.z }
+          scaled: { x: scaledNode.x, y: scaledNode.y, z: scaledNode.z },
+          title: nodeAny.title
         });
       }
-      
-
       
       return scaledNode;
     }),

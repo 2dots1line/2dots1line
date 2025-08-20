@@ -32,7 +32,7 @@ export interface TMedia {
   /** Timestamp when the media item was created/uploaded */
   created_at: Date;
   /** Additional metadata (JSON object, e.g., image dimensions, audio duration) */
-  metadata?: Record<string, any> | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 /**

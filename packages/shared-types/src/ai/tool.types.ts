@@ -6,7 +6,7 @@
 /**
  * Base interface for all tools in the system
  */
-export interface Tool<TInput = any, TOutput = any> {
+export interface Tool<TInput = Record<string, unknown>, TOutput = Record<string, unknown>> {
   /** Name of the tool */
   name: string;
   /** Description of what the tool does */
@@ -21,7 +21,7 @@ export interface Tool<TInput = any, TOutput = any> {
  * Generic structure for tool input, wrapping a specific payload.
  * Contains common fields like request_id and region.
  */
-export interface TToolInput<TPayload = any> {
+export interface TToolInput<TPayload = Record<string, unknown>> {
   /** Payload specific to the tool's task */
   payload: TPayload;
   /** Optional unique ID for tracing the request, can be passed from an agent */
@@ -29,7 +29,7 @@ export interface TToolInput<TPayload = any> {
   /** Region where the tool is intended to be executed or is contextually relevant */
   region?: 'us' | 'cn';
   /** Optional configuration for the tool not part of the direct payload */
-  config?: Record<string, any>;
+  config?: Record<string, unknown>;
   /** User ID for context if needed by the tool (e.g., for accessing user-specific resources) */
   user_id?: string;
 }
@@ -38,7 +38,7 @@ export interface TToolInput<TPayload = any> {
  * Generic structure for tool output, wrapping a specific result.
  * Contains common metadata about the execution.
  */
-export interface TToolOutput<TResult = any> {
+export interface TToolOutput<TResult = Record<string, unknown>> {
   /** Result data specific to the tool's task */
   result?: TResult; // Optional to allow for errors
   /** Status of the tool execution */
@@ -47,7 +47,7 @@ export interface TToolOutput<TResult = any> {
   error?: {
     code: string; // e.g., 'VALIDATION_ERROR', 'EXECUTION_FAILED', 'CONFIGURATION_ERROR'
     message: string;
-    details?: Record<string, any>;
+    details?: Record<string, unknown>;
   };
   /** Metadata about the tool execution */
   metadata?: {
@@ -59,7 +59,7 @@ export interface TToolOutput<TResult = any> {
     warnings?: string[];
     /** Region where tool execution occurred */
     processed_in_region?: 'us' | 'cn';
-    [key: string]: any; // For any other specific metadata a tool might want to return
+    [key: string]: unknown; // For any other specific metadata a tool might want to return
   };
 }
 
@@ -81,9 +81,9 @@ export interface IToolCapability {
   /** Capabilities provided by the tool */
   capabilities: string[]; // e.g., ['text_embedding', 'vector_search']
   /** JSON schema for validating the TToolInput<Payload> for this specific tool */
-  inputSchema: object; // JSON Schema object
+  inputSchema: Record<string, unknown>; // JSON Schema object
   /** JSON schema for validating the TToolOutput<Result> for this specific tool */
-  outputSchema: object; // JSON Schema object
+  outputSchema: Record<string, unknown>; // JSON Schema object
   /** Performance characteristics */
   performance?: {
     avgLatencyMs?: number;
@@ -141,7 +141,7 @@ export interface TVectorSearchInputPayload {
   /** Number of top_k results to return */
   top_k: number;
   /** Filters to apply during the search (e.g., { user_id: 'xyz', source_type: 'journal' }) */
-  filters?: Record<string, any>; // Specific filter structure might be refined per vector DB
+  filters?: Record<string, unknown>; // Specific filter structure might be refined per vector DB
   /** Namespace, collection, or index name to search within */
   namespace?: string | null;
   /** Whether to include the vector itself in the results */
@@ -156,7 +156,7 @@ export interface TVectorSearchInputPayload {
 export interface TVectorSearchResultItem {
   id: string;
   score: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   vector?: number[];
 }
 export interface TVectorSearchResult {
@@ -216,7 +216,7 @@ export interface LLMChatResult {
   /** Model used for generation */
   modelUsed?: string;
   /** Additional metadata from the LLM */
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export type LLMChatToolInput = TToolInput<LLMChatInputPayload>;
@@ -248,7 +248,7 @@ export interface TExtractedEntity {
   start_offset: number;
   end_offset: number;
   confidence?: number | null;
-  metadata?: Record<string, any>; // For additional details like linked KB ID
+  metadata?: Record<string, unknown>; // For additional details like linked KB ID
 }
 
 /**
@@ -300,7 +300,7 @@ export interface VisionCaptionResult {
     };
   }>;
   /** Additional metadata */
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /** @deprecated V9.7 removed vision processing tools */

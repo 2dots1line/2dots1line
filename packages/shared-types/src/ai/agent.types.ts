@@ -89,7 +89,7 @@ export interface IDialogueAgentOutput extends IAgentOutput {
     /** Display label for the action */
     label: string;
     /** Payload for the action */
-    payload: any;
+    payload: Record<string, unknown>;
   }[];
   /** Proactive insight to share */
   proactiveInsight?: {
@@ -189,16 +189,25 @@ export interface IIngestionAnalystOutput extends IAgentOutput {
     weight: number;
   }[];
   /** Media items processed */
-  mediaItems: any[];
+  mediaItems: Array<{
+    id: string;
+    type: string;
+    url: string;
+    metadata?: Record<string, unknown>;
+  }>;
   /** Embedding jobs created */
-  embeddingJobs: any[];
+  embeddingJobs: Array<{
+    id: string;
+    content: string;
+    metadata?: Record<string, unknown>;
+  }>;
 }
 
 /**
  * Generic structure for agent input, wrapping a specific payload.
  * Contains common fields like user_id and request_id.
  */
-export interface TAgentInput<TPayload = any> {
+export interface TAgentInput<TPayload = Record<string, unknown>> {
   /** Unique identifier for the requesting user */
   user_id: string;
   /** Payload specific to the agent's task */
@@ -210,7 +219,7 @@ export interface TAgentInput<TPayload = any> {
   /** Optional metadata about the request (e.g., client info, timestamp) */
   metadata?: {
     timestamp: string; // ISO 8601
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 
@@ -218,7 +227,7 @@ export interface TAgentInput<TPayload = any> {
  * Generic structure for agent output, wrapping a specific result.
  * Contains common metadata about the execution.
  */
-export interface TAgentOutput<TResult = any> {
+export interface TAgentOutput<TResult = Record<string, unknown>> {
   /** Result data specific to the agent's task */
   result?: TResult; // Optional to allow for errors where result might not be present
   /** Optional unique ID for tracing the request, should match input if provided */
@@ -229,7 +238,7 @@ export interface TAgentOutput<TResult = any> {
   error?: {
     code: string; // e.g., 'VALIDATION_ERROR', 'TOOL_EXECUTION_FAILED', 'INTERNAL_SERVER_ERROR'
     message: string;
-    details?: Record<string, any>;
+    details?: Record<string, unknown>;
   };
   /** Metadata about the processing */
   metadata: {
@@ -251,7 +260,7 @@ export interface TAgentOutput<TResult = any> {
     warnings?: string[];
     /** Region where processing occurred */
     processed_in_region?: 'us' | 'cn';
-    [key: string]: any; // For any other specific metadata an agent might want to return
+    [key: string]: unknown; // For any other specific metadata an agent might want to return
   };
 }
 
@@ -280,7 +289,7 @@ export interface TIngestionContentItem {
   /** Optional user-provided title for this item */
   title?: string | null;
   /** Optional metadata */
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -390,7 +399,7 @@ export interface TDialogueAgentInputPayload {
   /** Timestamp of the user message (ISO 8601 string) */
   client_timestamp: string;
   /** Optional: User preferences that might affect dialogue strategy */
-  user_preferences?: Record<string, any>;
+  user_preferences?: Record<string, unknown>;
 }
 
 /**
@@ -413,7 +422,7 @@ export interface TDialogueAgentResult {
     /** Display label for the action */
     label: string;
     /** Payload for the action */
-    payload: Record<string, any>;
+    payload: Record<string, unknown>;
   }[];
   /** Proactive insight to share */
   proactive_insight?: {

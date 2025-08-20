@@ -1,14 +1,27 @@
 import React, { useRef, useState, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { NodeLabel } from './NodeLabel';
 
-
+// Define the actual node structure being passed from CosmosScene
+interface GraphNode {
+  id: string;
+  title: string;
+  x: number;
+  y: number;
+  z: number;
+  entityType?: string;
+  type?: string;
+  category?: string;
+  importance?: number;
+  metadata?: {
+    importance_score?: number;
+  };
+}
 
 interface NodeMeshProps {
-  node: any;
-  onClick: (node: any) => void;
+  node: GraphNode;
+  onClick: (node: GraphNode) => void;
   modalOpen?: boolean;
   onHover?: (nodeId: string | null) => void;
   isHighlighted?: boolean;
@@ -24,7 +37,7 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
   const meshRef = useRef<THREE.Mesh>(null!);
   const [hovered, setHovered] = useState(false);
 
-  // Use positions directly without scaling
+  // Use positions directly from the node object
   const position = useMemo(() => new THREE.Vector3(
     node.x, 
     node.y, 
@@ -32,7 +45,7 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
   ), [node.x, node.y, node.z]);
 
   // Calculate importance-based size and color
-  const importance = node.importance || 0.5;
+  const importance = node.importance || node.metadata?.importance_score || 0.5;
   const baseSize = 0.3 + importance * 1.2; // Size varies from 0.3 to 1.5
   const hoverSize = baseSize * (hovered ? 1.2 : 1.0);
   
@@ -47,7 +60,6 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
     if (node.id === 'mu-001' || node.id === 'concept-def' || node.id === 'community-def') {
       console.log(`🔍 NodeMesh ${node.id}:`, {
         entityType,
-        nodeType: node.type,
         nodeCategory: node.category,
         nodeEntityType: node.entityType,
         finalEntityType: entityType
@@ -116,7 +128,7 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
         />
       </mesh>
       
-      <NodeLabel text={node.title || node.name} position={position} hovered={hovered} nodeId={node.id} modalOpen={modalOpen} />
+      <NodeLabel text={node.title} position={position} hovered={hovered} nodeId={node.id} modalOpen={modalOpen} />
     </group>
   );
 };

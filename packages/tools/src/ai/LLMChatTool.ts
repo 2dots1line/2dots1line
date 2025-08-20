@@ -110,7 +110,7 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
         temperature: 0.7,
         topK: 40,
         topP: 0.95,
-        maxOutputTokens: 2048, // Override for chat use case
+        maxOutputTokens: 50000, // Override for chat use case
       },
       safetySettings: [
         {
@@ -154,7 +154,7 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
         history,
         generationConfig: {
           temperature: input.payload.temperature || 0.7,
-          maxOutputTokens: input.payload.maxTokens || 2048,
+          maxOutputTokens: input.payload.maxTokens || 50000,
         },
       });
       

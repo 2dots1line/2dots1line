@@ -149,12 +149,12 @@ export async function createService<T extends BaseService>(
  * Decorator to ensure service methods are called only after initialization
  */
 export function requiresInitialization(
-  target: any,
+  target: unknown,
   propertyName: string,
   descriptor: PropertyDescriptor
 ) {
   const method = descriptor.value;
-  descriptor.value = async function(this: BaseService, ...args: any[]) {
+  descriptor.value = async function(this: BaseService, ...args: unknown[]) {
     await this.ensureInitialized();
     return method.apply(this, args);
   };
