@@ -8,6 +8,7 @@ import {
   Network, 
   Settings
 } from 'lucide-react';
+import { useRouter, usePathname } from 'next/navigation';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 
 import { useHUDStore, ViewType } from '../../stores/HUDStore';
@@ -29,6 +30,10 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
   onViewSelect,
   className,
 }) => {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [pendingView, setPendingView] = useState<ViewType | null>(null);
+  
   const {
     isExpanded,
     activeView,
@@ -99,9 +104,41 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
 
   // Handle view button click
   const handleButtonClick = (viewId: ViewType) => {
-    setActiveView(viewId);
-    onViewSelect?.(viewId);
+    if (viewId === 'cosmos') {
+      // Navigate to cosmos page
+      router.push('/cosmos');
+    } else {
+      // For other views, navigate back to main page and set the active view
+      if (pathname === '/cosmos') {
+        // We're on cosmos page, navigate back to main page
+        setPendingView(viewId);
+        router.push('/');
+      } else {
+        // We're on main page, just set the active view
+        setActiveView(viewId);
+        onViewSelect?.(viewId);
+      }
+    }
   };
+
+  // Handle pending view when returning to main page
+  useEffect(() => {
+    if (pathname === '/' && pendingView) {
+      setActiveView(pendingView);
+      onViewSelect?.(pendingView);
+      setPendingView(null);
+    }
+  }, [pathname, pendingView, setActiveView, onViewSelect]);
+
+  // Determine active view based on current route
+  const getCurrentActiveView = (): ViewType => {
+    if (pathname === '/cosmos') {
+      return 'cosmos';
+    }
+    return activeView;
+  };
+
+  const currentActiveView = getCurrentActiveView();
 
   console.log('HUDContainer - Rendering with isExpanded:', isExpanded, 'position:', position);
 
@@ -154,7 +191,7 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
                   onClick={() => handleButtonClick(button.id)}
                   className={`
                     w-full justify-start text-left transition-all duration-200
-                    ${activeView === button.id 
+                    ${currentActiveView === button.id 
                       ? 'bg-white/25 border-white/40 text-white shadow-lg' 
                       : 'text-white/80 hover:text-white'
                     }

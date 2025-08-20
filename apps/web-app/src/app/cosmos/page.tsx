@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
+import { HUDContainer } from '../../components/hud/HUDContainer';
 import CosmosScene from './CosmosScene';
 
 const CosmosPage: React.FC = () => {
@@ -14,6 +15,8 @@ const CosmosPage: React.FC = () => {
   return (
     <div className="w-screen h-screen bg-black">
       <CosmosScene />
+      {/* Navigation HUD - Consistent across 2D and 3D views */}
+      <HUDContainer />
     </div>
   );
 };
