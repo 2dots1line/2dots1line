@@ -203,15 +203,15 @@ emergency_fallback() {
 {
   "models": {
     "chat": {
-      "primary": "gemini-1.5-flash",
-      "fallback": ["gemini-1.5-flash-8b"],
+      "primary": "gemini-2.5-flash",
+      "fallback": ["gemini-2.0-flash-exp"],
       "description": "Emergency fallback for chat",
       "capabilities": ["text", "reasoning", "conversation"],
       "context_window": 1000000
     },
     "vision": {
-      "primary": "gemini-1.5-flash", 
-      "fallback": ["gemini-1.5-flash-8b"],
+      "primary": "gemini-2.5-flash", 
+      "fallback": ["gemini-2.0-flash-exp"],
       "description": "Emergency fallback for vision",
       "capabilities": ["text", "images", "multimodal"],
       "context_window": 1000000
@@ -225,15 +225,15 @@ emergency_fallback() {
     }
   },
   "available_models": {
-    "gemini-1.5-flash": {
+    "gemini-2.5-flash": {
       "status": "available",
       "type": "stable",
       "capabilities": ["text", "images", "multimodal"],
       "context_window": 1000000
     },
-    "gemini-1.5-flash-8b": {
-      "status": "available", 
-      "type": "stable",
+    "gemini-2.0-flash-exp": {
+      "status": "available",
+      "type": "experimental",
       "capabilities": ["text", "images", "multimodal"],
       "context_window": 1000000
     },

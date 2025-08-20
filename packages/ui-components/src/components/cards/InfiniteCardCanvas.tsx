@@ -11,11 +11,15 @@ import './InfiniteCardCanvas.css';
  * Props:
  *   - cards: DisplayCard[] (real user cards, each with background_image_url)
  *   - onCardSelect?: (card: DisplayCard) => void
+ *   - onLoadMore?: () => void (callback to load more cards)
+ *   - hasMore?: boolean (whether more cards are available)
  *   - className?: string
  */
 interface InfiniteCardCanvasProps {
   cards: DisplayCard[];
   onCardSelect?: (card: DisplayCard) => void;
+  onLoadMore?: () => void;
+  hasMore?: boolean;
   className?: string;
 }
 
@@ -36,6 +40,8 @@ function seededRandom(seed: number): number {
 export const InfiniteCardCanvas: React.FC<InfiniteCardCanvasProps> = ({
   cards,
   onCardSelect,
+  onLoadMore,
+  hasMore = false,
   className = '',
 }) => {
   const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -77,6 +83,27 @@ export const InfiniteCardCanvas: React.FC<InfiniteCardCanvasProps> = ({
     }
     return result;
   }, [offset, cards]);
+
+  // Check if we need to load more cards when user scrolls to edges
+  useEffect(() => {
+    if (!onLoadMore || !hasMore || cards.length === 0) return;
+    
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    
+    // Calculate if user is near the edges of the loaded area
+    const gridWidth = Math.ceil(viewportWidth / CELL_WIDTH) + 4; // Buffer
+    const gridHeight = Math.ceil(viewportHeight / CELL_HEIGHT) + 4; // Buffer
+    
+    // Estimate how many cards we have loaded in the grid
+    const estimatedLoadedCards = gridWidth * gridHeight;
+    
+    // If we're using more than 80% of available cards, load more
+    if (visibleCards.length > estimatedLoadedCards * 0.8) {
+      console.log('InfiniteCardCanvas: Loading more cards, using', visibleCards.length, 'of', cards.length, 'available cards');
+      onLoadMore();
+    }
+  }, [visibleCards.length, cards.length, hasMore, onLoadMore]);
 
   // Mouse drag logic
   function onMouseDown(e: React.MouseEvent) {

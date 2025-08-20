@@ -373,3 +373,162 @@ cd packages/database && pnpm prisma studio --port 5555
 ```
 
 The database connection is now fully functional and Prisma Studio should work without any errors! 🚀
+
+## Monitor worker status
+I'll show you how to set up comprehensive real-time monitoring for your workers and LLM interactions. Let me create a monitoring script that will give you visibility into what's happening across your system.
+
+Now let me create a specialized LLM call monitoring script that focuses specifically on LLM interactions:
+
+Now let me make the scripts executable and create a simple launcher script:
+
+```bash
+chmod +x scripts/monitor-llm-workers.sh scripts/monitor-llm-calls.sh
+```
+```bash
+chmod +x scripts/monitor.sh
+```
+Now let me create a documentation file explaining how to use these monitoring tools:
+
+Perfect! Now let me test the monitoring launcher to make sure it works:
+
+```bash
+echo "4" | ./scripts/monitor.sh
+```
+Excellent! Now let me create a simple test to show you what the monitoring looks like when there's activity:
+
+```bash
+chmod +x scripts/test-monitoring.sh
+```
+## **�� Complete Real-Time Monitoring Solution**
+
+I've created a comprehensive real-time monitoring system for your 2dots1line V11.0 setup! Here's what you now have:
+
+### **📊 Monitoring Tools Created**
+
+1. **`./scripts/monitor.sh`** - Main launcher with menu options
+2. **`./scripts/monitor-llm-workers.sh`** - Full system monitoring
+3. **`./scripts/monitor-llm-calls.sh`** - LLM-specific monitoring
+4. **`./scripts/test-monitoring.sh`** - Test script for demonstration
+5. **`docs/MONITORING_GUIDE.md`** - Comprehensive documentation
+
+### **�� Quick Start**
+
+```bash
+# Launch the monitoring dashboard
+./scripts/monitor.sh
+```
+
+Choose from:
+- **Option 1**: Full System Monitor (workers, databases, Redis, system health)
+- **Option 2**: LLM Call Monitor (API calls, requests, responses)
+- **Option 3**: Quick Status Check (one-time overview)
+
+### **🔍 What You Can Monitor**
+
+#### **Full System Monitor:**
+- 🐳 Docker container status
+- 📊 Redis queue lengths and keys
+- 🤖 LLM API calls and responses
+- �� System resources (CPU, memory, disk)
+- ⚙️ Environment configuration
+- 🗄️ Database connections
+- 📝 Recent log activity
+
+#### **LLM Call Monitor:**
+- 📡 LLM API calls and responses
+- 🎯 Model selection and usage
+- 📊 Token usage and processing times
+- ❌ Errors and rate limits
+- 🔍 Redis LLM-related data
+- 📄 Detailed service logs
+
+### **�� Key Features**
+
+1. **Real-time Updates** - Refreshes every 2-3 seconds
+2. **Color-coded Output** - Easy to read and understand
+3. **Log File Generation** - Saves activity to `./logs/llm-calls.log`
+4. **Error Detection** - Highlights errors and issues
+5. **Model Tracking** - Shows which models are being used
+6. **API Monitoring** - Tracks requests, responses, and timing
+
+### **📋 Sample Output**
+
+```
+🕐 2025-01-06 15:30:45 - LLM Call Monitor
+==============================
+
+⚙️  LLM Configuration:
+  �� Chat Model: gemini-2.5-flash
+  👁️  Vision Model: gemini-2.5-flash
+  🔗 Embedding Model: text-embedding-004
+  �� API Key: Configured (39 chars)
+
+📡 LLM API Calls & Responses:
+  🎯 Model Selected: gemini-2.5-flash
+  📤 API Request: Sending request to Google Gemini...
+  📥 API Response: Response received successfully
+  📊 Token Usage: promptTokens: 150, candidateTokens: 45
+  ⏱️  Timing: Processing time: 2345ms
+```
+
+### **�� Usage Examples**
+
+#### **During Development:**
+```bash
+# Terminal 1: Start services
+docker-compose up -d
+
+# Terminal 2: Monitor LLM calls
+./scripts/monitor.sh
+# Choose option 2
+```
+
+#### **During Testing:**
+```bash
+# Run tests while monitoring
+./scripts/monitor-llm-calls.sh &
+npm test
+```
+
+#### **Quick Health Check:**
+```bash
+./scripts/monitor.sh
+# Choose option 3
+```
+
+### **�� Files Created**
+
+- `scripts/monitor.sh` - Main launcher
+- `scripts/monitor-llm-workers.sh` - Full system monitor
+- `scripts/monitor-llm-calls.sh` - LLM call monitor
+- `scripts/test-monitoring.sh` - Test script
+- `docs/MONITORING_GUIDE.md` - Documentation
+- `logs/llm-calls.log` - Generated log file
+
+### **🎯 Benefits**
+
+1. **Real-time Visibility** - See exactly what's happening with your LLM calls
+2. **Easy Debugging** - Quickly identify issues and bottlenecks
+3. **Performance Monitoring** - Track response times and token usage
+4. **Configuration Verification** - Ensure your environment settings are correct
+5. **System Health** - Monitor all components in one place
+
+### **🚀 Next Steps**
+
+1. **Test the monitoring:**
+   ```bash
+   ./scripts/monitor.sh
+   ```
+
+2. **Start your services and watch the activity:**
+   ```bash
+   docker-compose up -d
+   ./scripts/monitor-llm-calls.sh
+   ```
+
+3. **Check the documentation:**
+   ```bash
+   cat docs/MONITORING_GUIDE.md
+   ```
+
+You now have comprehensive real-time monitoring that will show you exactly what's being sent to and from your LLM, which models are being used, and how your workers are performing! 🎉

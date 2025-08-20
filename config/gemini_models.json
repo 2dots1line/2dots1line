@@ -1,10 +1,9 @@
 {
   "models": {
     "chat": {
-      "primary": "gemini-1.5-flash",
+      "primary": "gemini-2.5-flash",
       "fallback": [
-        "gemini-2.0-flash-exp",
-        "gemini-1.5-flash-8b"
+        "gemini-2.0-flash-exp"
       ],
       "description": "For general conversation and text generation",
       "capabilities": [
@@ -15,10 +14,9 @@
       "context_window": 1000000
     },
     "vision": {
-      "primary": "gemini-2.0-flash-exp",
+      "primary": "gemini-2.5-flash",
       "fallback": [
-        "gemini-1.5-flash",
-        "gemini-1.5-flash-8b"
+        "gemini-2.0-flash-exp"
       ],
       "description": "For image analysis and vision tasks",
       "capabilities": [
@@ -56,52 +54,7 @@
         "maxOutputTokens": 8192
       }
     },
-    "gemini-1.5-flash": {
-      "status": "available",
-      "type": "stable",
-      "capabilities": [
-        "text",
-        "images",
-        "multimodal"
-      ],
-      "context_window": 1000000,
-      "generation_config": {
-        "temperature": 0.7,
-        "topK": 40,
-        "topP": 0.95,
-        "maxOutputTokens": 8192
-      }
-    },
-    "gemini-1.5-flash-8b": {
-      "status": "available",
-      "type": "stable",
-      "capabilities": [
-        "text",
-        "images",
-        "multimodal"
-      ],
-      "context_window": 1000000,
-      "generation_config": {
-        "temperature": 0.7,
-        "topK": 40,
-        "topP": 0.95,
-        "maxOutputTokens": 8192
-      }
-    },
-    "gemini-1.5-pro": {
-      "status": "quota_exceeded",
-      "type": "stable",
-      "capabilities": [
-        "text"
-      ],
-      "context_window": 1000000,
-      "generation_config": {
-        "temperature": 0.7,
-        "topK": 40,
-        "topP": 0.95,
-        "maxOutputTokens": 8192
-      }
-    },
+
     "gemini-2.5-flash": {
       "status": "available",
       "type": "stable",
@@ -118,20 +71,7 @@
         "maxOutputTokens": 8192
       }
     },
-    "gemini-2.5-pro": {
-      "status": "unavailable",
-      "type": "unknown",
-      "capabilities": [
-        "text"
-      ],
-      "context_window": 1000000,
-      "generation_config": {
-        "temperature": 0.7,
-        "topK": 40,
-        "topP": 0.95,
-        "maxOutputTokens": 8192
-      }
-    },
+
     "text-embedding-004": {
       "status": "available",
       "type": "stable",
@@ -152,11 +92,7 @@
   "last_updated": "2025-07-03T11:39:03.107Z",
   "testing_results": {
     "gemini-2.0-flash-exp": "✅ available",
-    "gemini-1.5-flash": "✅ available",
-    "gemini-1.5-flash-8b": "✅ available",
-    "gemini-1.5-pro": "🚫 quota_exceeded",
     "gemini-2.5-flash": "✅ available",
-    "gemini-2.5-pro": "❌ unavailable",
     "text-embedding-004": "✅ available"
   }
 }

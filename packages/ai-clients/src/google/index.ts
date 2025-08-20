@@ -26,9 +26,11 @@ export class GoogleAIClient implements ILLMClient {
 
   async chatCompletion(request: TChatCompletionRequest): Promise<TChatCompletionResponse> {
     try {
-      console.log(`GoogleAIClient: Using model ${request.model_id || 'gemini-1.5-flash'}`);
+      // Use environment-based model selection if no model_id provided
+      const modelToUse = request.model_id || this.getDefaultModel();
+      console.log(`GoogleAIClient: Using model ${modelToUse}`);
       const model = this.client.getGenerativeModel({ 
-        model: request.model_id || 'gemini-1.5-flash'
+        model: modelToUse
       });
 
       // Convert our messages format to Google's format
@@ -68,7 +70,7 @@ export class GoogleAIClient implements ILLMClient {
         id: uuidv4(),
         object: 'chat.completion',
         created: Date.now(),
-        model: request.model_id || 'gemini-1.5-flash',
+        model: modelToUse,
         choices: [
           {
             index: 0,
@@ -127,6 +129,20 @@ export class GoogleAIClient implements ILLMClient {
       console.error('Error in GoogleAI embedding generation:', error);
       throw error;
     }
+  }
+
+  // Get default model from environment
+  private getDefaultModel(): string {
+    // Try to get from environment first
+    const envModel = process.env.LLM_CHAT_MODEL;
+    if (envModel) {
+      console.log(`GoogleAIClient: Using environment variable LLM_CHAT_MODEL=${envModel}`);
+      return envModel;
+    }
+    
+    // Fallback to hardcoded default
+    console.log(`GoogleAIClient: No environment variable set, using hardcoded default`);
+    return 'gemini-2.5-flash';
   }
 
   // Helper method to convert our message format to Google's format

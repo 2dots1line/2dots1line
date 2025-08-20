@@ -203,7 +203,7 @@ export class CardRepository {
         ...(filters.cardType && { card_type: filters.cardType }),
         // Note: evolutionState filtering would need proper implementation with business logic
       },
-      take: filters.limit || 20,
+      take: filters.limit || 200, // Increased default limit for better UX
       skip: filters.offset || 0,
       orderBy: this.buildOrderBy(filters.sortBy, filters.sortOrder),
     });

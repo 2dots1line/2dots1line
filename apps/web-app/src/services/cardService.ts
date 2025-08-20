@@ -20,6 +20,7 @@ export interface GetCardsResponse {
   success: boolean;
   cards?: DisplayCard[];
   total_count?: number;
+  has_more?: boolean;
   error?: string;
   details?: string;
 }
@@ -236,6 +237,7 @@ class CardService {
         success: data.success,
         cards: transformedCards,
         total_count: data.data?.total_count || 0,
+        has_more: data.data?.has_more || false,
         error: data.error
       };
     } catch (error) {

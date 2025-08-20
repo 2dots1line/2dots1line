@@ -7,7 +7,7 @@
 import { TToolInput, TToolOutput } from '@2dots1line/shared-types';
 import type { IToolManifest, IExecutableTool } from '@2dots1line/shared-types';
 import { GoogleGenerativeAI, GenerativeModel, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
-import { ModelConfigService } from '@2dots1line/config-service';
+import { EnvironmentModelConfigService } from '@2dots1line/config-service';
 
 export interface LLMChatInputPayload {
   userId: string;
@@ -78,7 +78,7 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
   
   private genAI: GoogleGenerativeAI | null = null;
   private model: GenerativeModel | null = null;
-  private modelConfigService: any = null;
+  private modelConfigService: EnvironmentModelConfigService | null = null;
   private currentModelName: string = '';
   private initialized = false;
 
@@ -96,11 +96,10 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
     }
     
     this.genAI = new GoogleGenerativeAI(apiKey);
-    this.modelConfigService = ModelConfigService.getInstance();
+    this.modelConfigService = EnvironmentModelConfigService.getInstance();
     
-    // Get the appropriate model from configuration
+    // Get the appropriate model from environment-first configuration
     this.currentModelName = this.modelConfigService.getModelForUseCase('chat');
-    const generationConfig = this.modelConfigService.getGenerationConfig(this.currentModelName);
     
     console.log(`🤖 LLMChatTool: Initializing with model ${this.currentModelName}`);
     this.modelConfigService.logCurrentConfiguration();
@@ -108,7 +107,9 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
     this.model = this.genAI.getGenerativeModel({ 
       model: this.currentModelName,
       generationConfig: {
-        ...generationConfig,
+        temperature: 0.7,
+        topK: 40,
+        topP: 0.95,
         maxOutputTokens: 2048, // Override for chat use case
       },
       safetySettings: [

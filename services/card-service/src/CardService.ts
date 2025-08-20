@@ -78,7 +78,7 @@ export class CardService {
       const repoFilters: CardFilters = {
         cardType: filters.cardType,
         evolutionState: filters.evolutionState,
-        limit: filters.limit || 20,
+        limit: filters.limit || 200, // Increased default limit for better UX
         offset: filters.offset || 0,
         sortBy: this.mapSortField(filters.sortBy),
         sortOrder: filters.sortOrder || 'desc'

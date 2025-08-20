@@ -32,7 +32,7 @@ export class CardController {
         cardType: req.query.card_type as 'memory_unit' | 'concept' | 'derived_artifact' | undefined,
         evolutionState: req.query.evolution_state as string | undefined,
         minImportanceScore: req.query.min_importance_score ? parseFloat(req.query.min_importance_score as string) : undefined,
-        limit: req.query.limit ? parseInt(req.query.limit as string) : 20,
+        limit: req.query.limit ? parseInt(req.query.limit as string) : 200, // Increased default limit for better UX
         offset: req.query.offset ? parseInt(req.query.offset as string) : 0,
         sortBy: req.query.sort_by as 'created_at' | 'updated_at' | 'importance_score' | 'growth_activity' | undefined,
         sortOrder: req.query.sort_order as 'asc' | 'desc' | undefined

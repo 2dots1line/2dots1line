@@ -43,11 +43,11 @@ export interface GeminiModelConfiguration {
 }
 
 export class ModelConfigService {
-  private static instance: ModelConfigService;
   private config: GeminiModelConfiguration | null = null;
   private configPath: string;
+  private lastLoadTime: number | null = null;
 
-  private constructor() {
+  constructor() {
     // Path to config file relative to the monorepo root
     this.configPath = path.join(process.cwd(), '../../config/gemini_models.json');
     
@@ -63,17 +63,18 @@ export class ModelConfigService {
     }
   }
 
-  public static getInstance(): ModelConfigService {
-    if (!ModelConfigService.instance) {
-      ModelConfigService.instance = new ModelConfigService();
-    }
-    return ModelConfigService.instance;
-  }
+
 
   public loadConfig(): GeminiModelConfiguration {
     try {
-      if (!this.config) {
+      // Always check file modification time to detect changes
+      const stats = fs.statSync(this.configPath);
+      const currentMtime = stats.mtime.getTime();
+      
+      if (!this.config || !this.lastLoadTime || currentMtime > this.lastLoadTime) {
         console.log(`🔧 ModelConfigService: Loading configuration from ${this.configPath}`);
+        console.log(`🔍 File last modified: ${stats.mtime}`);
+        console.log(`🔍 Current time: ${new Date()}`);
         
         if (!fs.existsSync(this.configPath)) {
           throw new Error(`Configuration file not found at ${this.configPath}`);
@@ -81,8 +82,15 @@ export class ModelConfigService {
 
         const configData = fs.readFileSync(this.configPath, 'utf8');
         this.config = JSON.parse(configData);
-        console.log(`✅ ModelConfigService: Configuration loaded successfully`);
+        this.lastLoadTime = currentMtime;
+        
+        console.log(`✅ ModelConfigService: Configuration loaded successfully at ${new Date()}`);
+        console.log(`🔍 Chat primary model: ${this.config?.models.chat.primary}`);
+        console.log(`🔍 Chat fallback models: ${this.config?.models.chat.fallback.join(', ')}`);
+      } else {
+        console.log(`🔍 ModelConfigService: Using cached configuration (file unchanged)`);
       }
+      
       return this.config!;
     } catch (error) {
       console.error(`❌ ModelConfigService: Failed to load configuration:`, error);
@@ -91,21 +99,36 @@ export class ModelConfigService {
   }
 
   public getModelForUseCase(useCase: 'chat' | 'vision' | 'embedding'): string {
+    console.log(`🔍 === ModelConfigService.getModelForUseCase(${useCase}) called ===`);
+    
     const config = this.loadConfig();
+    console.log(`🔍 Config loaded successfully from: ${this.configPath}`);
+    console.log(`🔍 FULL CONFIG OBJECT:`, JSON.stringify(config, null, 2));
+    
     const modelConfig = config.models[useCase];
+    console.log(`🔍 Model config for ${useCase}:`, JSON.stringify(modelConfig, null, 2));
     
     // Check if primary model is available
     const primaryModel = modelConfig.primary;
     const primaryStatus = config.available_models[primaryModel]?.status;
     
+    console.log(`🔍 Primary model: ${primaryModel}`);
+    console.log(`🔍 Primary model status: ${primaryStatus}`);
+    console.log(`🔍 Available models:`, Object.keys(config.available_models));
+    console.log(`🔍 ALL AVAILABLE MODELS WITH STATUS:`, JSON.stringify(config.available_models, null, 2));
+    
     if (primaryStatus === 'available') {
-      console.log(`📱 ModelConfigService: Using primary ${useCase} model: ${primaryModel}`);
+      console.log(`✅ ModelConfigService: Using primary ${useCase} model: ${primaryModel}`);
       return primaryModel;
     }
 
+    console.log(`⚠️ Primary ${useCase} model ${primaryModel} unavailable (${primaryStatus}), trying fallbacks...`);
+    
     // Try fallback models
     for (const fallbackModel of modelConfig.fallback) {
       const fallbackStatus = config.available_models[fallbackModel]?.status;
+      console.log(`🔍 Checking fallback model: ${fallbackModel} (status: ${fallbackStatus})`);
+      
       if (fallbackStatus === 'available') {
         console.log(`📱 ModelConfigService: Primary ${useCase} model ${primaryModel} unavailable (${primaryStatus}), using fallback: ${fallbackModel}`);
         return fallbackModel;
@@ -113,7 +136,9 @@ export class ModelConfigService {
     }
 
     // If no models are available, throw an error
-    throw new Error(`No available models for ${useCase}. Primary: ${primaryModel} (${primaryStatus}), fallbacks: ${modelConfig.fallback.join(', ')}`);
+    const errorMsg = `No available models for ${useCase}. Primary: ${primaryModel} (${primaryStatus}), fallbacks: ${modelConfig.fallback.join(', ')}`;
+    console.error(`❌ ModelConfigService: ${errorMsg}`);
+    throw new Error(errorMsg);
   }
 
   public getModelDetails(modelName: string): ModelDetails | null {
@@ -149,8 +174,36 @@ export class ModelConfigService {
   }
 
   public refreshConfig(): void {
+    console.log(`🔄 ModelConfigService: Refreshing configuration...`);
     this.config = null;
     this.loadConfig();
+    console.log(`✅ ModelConfigService: Configuration refreshed successfully`);
+  }
+
+  public forceRefresh(): void {
+    console.log(`🔄 ModelConfigService: Force refreshing configuration...`);
+    this.config = null;
+    this.loadConfig();
+    console.log(`✅ ModelConfigService: Configuration force refreshed successfully`);
+  }
+
+  public logConfigIntegrity(): void {
+    try {
+      const stats = fs.statSync(this.configPath);
+      const content = fs.readFileSync(this.configPath, 'utf8');
+      const checksum = require('crypto').createHash('md5').update(content).digest('hex');
+      
+      console.log(`🔍 === Configuration File Integrity Check ===`);
+      console.log(`🔍 File path: ${this.configPath}`);
+      console.log(`🔍 File exists: ${fs.existsSync(this.configPath)}`);
+      console.log(`🔍 File size: ${stats.size} bytes`);
+      console.log(`🔍 Last modified: ${stats.mtime}`);
+      console.log(`🔍 MD5 checksum: ${checksum}`);
+      console.log(`🔍 File content preview:`, content.substring(0, 200) + '...');
+      console.log(`🔍 ==========================================`);
+    } catch (error) {
+      console.error(`❌ Error checking config integrity:`, error);
+    }
   }
 
   // For debugging/logging

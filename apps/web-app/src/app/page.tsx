@@ -18,7 +18,7 @@ const HomePage = () => {
   
   const { user, isAuthenticated, logout, initializeAuth, hasHydrated } = useUserStore();
   const { setActiveView, activeView, setCardDetailModalOpen } = useHUDStore();
-  const { cards, loadCards, isLoading, setSelectedCard } = useCardStore();
+  const { cards, loadCards, loadMoreCards, hasMore, isLoading, setSelectedCard } = useCardStore();
   
   // Automatically load cards when user is authenticated
   const { cardsLoaded, totalCards } = useAutoLoadCards();
@@ -26,7 +26,7 @@ const HomePage = () => {
   // Load cards when cards view becomes active
   useEffect(() => {
     if (isAuthenticated && activeView === 'cards') {
-      loadCards();
+      loadCards(200);
     }
   }, [isAuthenticated, activeView, loadCards]);
 
@@ -209,6 +209,8 @@ const HomePage = () => {
             <InfiniteCardCanvas
               cards={cards}
               onCardSelect={handleCardSelect}
+              onLoadMore={loadMoreCards}
+              hasMore={hasMore}
               className="z-30"
             />
           )}

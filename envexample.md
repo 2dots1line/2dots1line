@@ -25,6 +25,21 @@ GOOGLE_API_KEY=YOUR_ACTUAL_GEMINI_API_KEY_HERE # Using the one from the top part
 # DEEPSEEK_API_KEY=YOUR_ACTUAL_DEEPSEEK_API_KEY_HERE
 
 
+# === LLM MODEL CONFIGURATION ===
+# Environment-first model selection (highest priority)
+# These override the JSON configuration in config/gemini_models.json
+LLM_CHAT_MODEL=gemini-2.5-flash
+LLM_VISION_MODEL=gemini-2.5-flash
+LLM_EMBEDDING_MODEL=text-embedding-004
+LLM_FALLBACK_MODEL=gemini-2.0-flash-exp
+
+# Alternative models you can use:
+# LLM_CHAT_MODEL=gemini-2.0-flash-exp
+# LLM_CHAT_MODEL=gemini-1.5-flash
+# LLM_VISION_MODEL=gemini-2.0-flash-exp
+# LLM_VISION_MODEL=gemini-1.5-flash
+
+
 # === DATABASE CONFIGURATIONS ===
 
 # --- PostgreSQL ---
@@ -68,6 +83,14 @@ REDIS_HOST_PORT=6379
 
 # === GENERAL ===
 NODE_ENV=development
+
+# === CONVERSATION TIMEOUT CONFIGURATION ===
+# Timeout duration in minutes (default: 5 minutes)
+CONVERSATION_TIMEOUT_MINUTES=2
+# Check interval in seconds (default: 30 seconds)
+TIMEOUT_CHECK_INTERVAL_SECONDS=30
+# Enable ingestion queue (default: true)
+ENABLE_INGESTION_QUEUE=true
 
 # === INTERNAL DOCKER NETWORK CONFIG (Used by docker-compose.yml for inter-container communication) ===
 # These define how services *inside Docker* find each other. The hostnames are the service names from docker-compose.yml.

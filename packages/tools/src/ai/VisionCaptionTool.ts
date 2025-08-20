@@ -53,7 +53,7 @@ class VisionCaptionToolImpl implements IExecutableTool<VisionCaptionInputPayload
   constructor() {
     // Initialize Google API client at construction time, like LLMChatTool
     const apiKey = process.env.GOOGLE_API_KEY;
-    this.modelConfigService = ModelConfigService.getInstance();
+    this.modelConfigService = new ModelConfigService();
     
     if (apiKey) {
       // Get the appropriate model from configuration

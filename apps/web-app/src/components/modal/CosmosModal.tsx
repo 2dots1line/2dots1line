@@ -223,7 +223,7 @@ export const CosmosModal: React.FC<CosmosModalProps> = ({
     
     try {
       const response = await cardService.getCards({
-        limit: 100 // Load cards for cosmos visualization
+        limit: 200 // Load cards for cosmos visualization
       });
       
       if (response.success && response.cards) {

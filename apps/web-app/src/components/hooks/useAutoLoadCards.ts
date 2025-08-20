@@ -23,7 +23,7 @@ export const useAutoLoadCards = () => {
     // cards array is empty, and not already loading
     if (isAuthenticated && hasHydrated && cards.length === 0 && !isLoading) {
       console.log('useAutoLoadCards - Loading cards for authenticated user');
-      loadCards().catch(error => {
+      loadCards(200).catch(error => {
         console.error('useAutoLoadCards - Error loading cards:', error);
       });
     } else {

@@ -168,15 +168,20 @@ export class HybridRetrievalTool {
           
           if (result?.data?.Get?.UserKnowledgeItem) {
             for (const item of result.data.Get.UserKnowledgeItem) {
-              const distance = item._additional?.distance || 1.0;
-              const similarity = 1.0 - distance;
-              
-              if (similarity > 0.1) {
-                seedEntities.push({
-                  id: item.externalId,
-                  type: item.sourceEntityType,
-                  weaviateScore: similarity
-                });
+              // Validate that we have valid data before creating seed entity
+              if (item.externalId && item.sourceEntityType) {
+                const distance = item._additional?.distance || 1.0;
+                const similarity = 1.0 - distance;
+                
+                if (similarity > 0.1) {
+                  seedEntities.push({
+                    id: item.externalId,
+                    type: item.sourceEntityType,
+                    weaviateScore: similarity
+                  });
+                }
+              } else {
+                console.warn(`[HRT ${context.requestId}] Skipping item with null externalId or sourceEntityType:`, item);
               }
             }
           }
@@ -225,6 +230,15 @@ export class HybridRetrievalTool {
       
       // USE CypherBuilder to construct safe query
       const seedEntityParams = seedEntities.map(e => ({ id: e.id, type: e.type }));
+      
+      // Validate parameters before query execution
+      if (seedEntityParams.length === 0) {
+        console.log(`[HRT ${context.requestId}] Stage 3: No valid seed entities, skipping graph traversal`);
+        return [];
+      }
+      
+      console.log(`[HRT ${context.requestId}] Stage 3: Executing graph traversal with ${seedEntityParams.length} seed entities`);
+      
       const query = this.cypherBuilder!.buildQuery(scenario, {
         seedEntities: seedEntityParams,
         userId: userId

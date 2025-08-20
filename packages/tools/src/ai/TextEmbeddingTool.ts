@@ -6,7 +6,7 @@
 import { TToolInput, TToolOutput, TTextEmbeddingInputPayload, TTextEmbeddingResult } from '@2dots1line/shared-types';
 import type { IToolManifest, IExecutableTool } from '@2dots1line/shared-types';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { ModelConfigService } from '@2dots1line/config-service';
+import { EnvironmentModelConfigService } from '@2dots1line/config-service';
 
 export type TextEmbeddingToolInput = TToolInput<TTextEmbeddingInputPayload>;
 export type TextEmbeddingToolOutput = TToolOutput<TTextEmbeddingResult>;
@@ -68,9 +68,9 @@ class TextEmbeddingToolImpl implements IExecutableTool<TTextEmbeddingInputPayloa
     }
     
     this.genAI = new GoogleGenerativeAI(apiKey);
-    this.modelConfigService = ModelConfigService.getInstance();
+    this.modelConfigService = EnvironmentModelConfigService.getInstance();
     
-    // Get the appropriate model from configuration
+    // Get the appropriate model from environment-first configuration
     this.currentModelName = this.modelConfigService.getModelForUseCase('embedding');
     
     console.log(`🔤 TextEmbeddingTool: Initializing with model ${this.currentModelName}`);

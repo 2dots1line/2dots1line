@@ -23,6 +23,12 @@ export interface EnvironmentConfig {
   // API Keys
   GOOGLE_API_KEY?: string;
   
+  // LLM Model Configuration
+  LLM_CHAT_MODEL?: string;
+  LLM_VISION_MODEL?: string;
+  LLM_EMBEDDING_MODEL?: string;
+  LLM_FALLBACK_MODEL?: string;
+  
   // Application
   JWT_SECRET?: string;
   NODE_ENV?: string;
@@ -130,6 +136,11 @@ export class EnvironmentLoader {
       REDIS_PORT: '6379',
       NEO4J_URI: 'bolt://localhost:7687',
       WEAVIATE_URL: 'http://localhost:8080',
+      // LLM Model defaults - these can be overridden by .env
+      LLM_CHAT_MODEL: 'gemini-2.5-flash',
+      LLM_VISION_MODEL: 'gemini-2.5-flash',
+      LLM_EMBEDDING_MODEL: 'text-embedding-004',
+      LLM_FALLBACK_MODEL: 'gemini-2.0-flash-exp',
     };
 
     for (const [key, value] of Object.entries(defaults)) {
