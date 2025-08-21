@@ -4,6 +4,15 @@
  */
 export { UserService } from './UserService';
 export { AuthService } from './AuthService';
+export { DashboardService } from './DashboardService';
 
 // Export types for API Gateway usage
-export type { AuthResult, LoginCredentials, RegisterData } from './AuthService'; 
+export type { AuthResult, LoginCredentials, RegisterData } from './AuthService';
+export type { 
+  DashboardData, 
+  GrowthDimension, 
+  Insight, 
+  RecentActivity, 
+  DashboardMetrics, 
+  GrowthRecommendation 
+} from './DashboardService'; 

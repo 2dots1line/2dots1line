@@ -15,13 +15,15 @@ import {
   Paperclip, 
   Mic, 
   MicOff,
-  MoreVertical
+  Plus
 } from 'lucide-react';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './ChatModal.css';
 
 import { chatService, type ChatMessage } from '../../services/chatService';
 import { userService } from '../../services/userService';
+import { useChatStore } from '../../stores/ChatStore';
+
 
 interface ChatModalProps {
   isOpen: boolean;
@@ -38,16 +40,38 @@ interface EnhancedChatMessage extends ChatMessage {
 
 const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
   const [message, setMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [messages, setMessages] = useState<EnhancedChatMessage[]>([]);
-  const [conversationId, setConversationId] = useState<string>();
   const [currentAttachment, setCurrentAttachment] = useState<File | null>(null);
-  const [isInitialized, setIsInitialized] = useState(false);
+
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const messageInputRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Chat store state
+  const {
+    currentConversationId,
+    messages,
+    isLoading,
+    isInitialized,
+    conversationHistory,
+    isHistoryLoading,
+    showHistoryModal,
+    setShowHistoryModal,
+    setCurrentConversation,
+    setMessages,
+    addMessage,
+    clearMessages,
+    setLoading,
+    setInitialized,
+    setConversationHistory,
+    setHistoryLoading,
+    addToHistory,
+    updateHistoryItem,
+    startNewChat,
+    loadConversation,
+    resetChat
+  } = useChatStore();
 
   const onVoiceError = useCallback((error: string) => {
     console.error('❌ ChatModal - Voice recording error:', error);
@@ -102,7 +126,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
           };
           
           setMessages([initialMessage]);
-          setIsInitialized(true);
+          setInitialized(true);
         } catch (error) {
           console.error('Error fetching proactive greeting:', error);
           
@@ -115,13 +139,74 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
           };
           
           setMessages([fallbackMessage]);
-          setIsInitialized(true);
+          setInitialized(true);
         }
       };
       
       initializeChat();
     }
-  }, [isOpen, isInitialized]);
+  }, [isOpen, isInitialized, setMessages, setInitialized]);
+
+  // Load existing conversation if we have a conversation ID
+  useEffect(() => {
+    if (isOpen && currentConversationId && messages.length === 0) {
+      loadExistingConversation();
+    }
+  }, [isOpen, currentConversationId]);
+
+  // Check for proactive messages when returning to chat
+  useEffect(() => {
+    if (isOpen && currentConversationId && messages.length > 0) {
+      checkForProactiveMessages();
+    }
+  }, [isOpen, currentConversationId]);
+
+  const loadExistingConversation = useCallback(async () => {
+    if (!currentConversationId) return;
+    
+    setLoading(true);
+    try {
+      const response = await chatService.getConversation(currentConversationId);
+      const enhancedMessages: EnhancedChatMessage[] = response.messages.map(msg => ({
+        ...msg,
+        timestamp: new Date(msg.timestamp)
+      }));
+      setMessages(enhancedMessages);
+      setInitialized(true);
+    } catch (error) {
+      console.error('Error loading conversation:', error);
+      // Fallback to new chat
+      startNewChat();
+    } finally {
+      setLoading(false);
+    }
+  }, [currentConversationId, setMessages, setInitialized, setLoading, startNewChat]);
+
+  const checkForProactiveMessages = useCallback(async () => {
+    if (!currentConversationId || messages.length === 0) return;
+    
+    try {
+      // Get the timestamp of the last message
+      const lastMessageTimestamp = messages[messages.length - 1].timestamp;
+      
+      // Check for new messages from the backend
+      const newMessages = await chatService.checkForProactiveMessages(currentConversationId, lastMessageTimestamp);
+      
+      if (newMessages.length > 0) {
+        console.log('📨 Found proactive messages:', newMessages.length);
+        
+        // Add new messages to the conversation
+        const enhancedMessages: EnhancedChatMessage[] = newMessages.map(msg => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp)
+        }));
+        
+        enhancedMessages.forEach(msg => addMessage(msg));
+      }
+    } catch (error) {
+      console.error('Error checking for proactive messages:', error);
+    }
+  }, [currentConversationId, messages, addMessage]);
 
   if (!isOpen) return null;
 
@@ -135,16 +220,16 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
       type: 'user',
       content: messageContent,
       timestamp: new Date(),
-      conversation_id: conversationId,
+      conversation_id: currentConversationId || undefined,
       attachment: currentAttachment ? {
         file: currentAttachment,
         type: currentAttachment.type.startsWith('image/') ? 'image' : 'document'
       } : undefined
     };
     
-    setMessages(prev => [...prev, userMessage]);
+    addMessage(userMessage);
     setMessage('');
-    setIsLoading(true);
+    setLoading(true);
     
     try {
       let response;
@@ -154,14 +239,14 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
         response = await chatService.uploadFile(
           currentAttachment,
           message.trim() || undefined,
-          conversationId
+          currentConversationId || undefined
         );
         setCurrentAttachment(null); // Clear attachment after sending
       } else {
         // Handle text message
         response = await chatService.sendMessage({
           message: messageContent,
-          conversation_id: conversationId,
+          conversation_id: currentConversationId || undefined,
           context: {
             session_id: `session-${Date.now()}`,
             trigger_background_processing: true
@@ -178,8 +263,8 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
           conversation_id: response.conversation_id
         };
         
-        setMessages(prev => [...prev, botMessage]);
-        setConversationId(response.conversation_id);
+        addMessage(botMessage);
+        setCurrentConversation(response.conversation_id || null);
       } else {
         throw new Error(response.error || 'Failed to send message');
       }
@@ -191,9 +276,9 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
         content: 'I apologize, but I encountered an error processing your message. Please try again.',
         timestamp: new Date()
       };
-      setMessages(prev => [...prev, errorMessage]);
+      addMessage(errorMessage);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
@@ -288,7 +373,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
         
         <div className="mt-2">
           <span className="text-xs text-white/50">
-            {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            {(msg.timestamp instanceof Date ? msg.timestamp : new Date(msg.timestamp)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </span>
         </div>
       </div>
@@ -323,8 +408,13 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <GlassButton className="p-2 hover:bg-white/20">
-              <MoreVertical size={18} className="stroke-current" />
+            {/* New Chat Button - Always visible Plus button */}
+            <GlassButton
+              onClick={startNewChat}
+              className="p-2 hover:bg-white/20"
+              title="Start new chat"
+            >
+              <Plus size={18} className="stroke-current" />
             </GlassButton>
             <GlassButton
               onClick={onClose}
@@ -503,6 +593,8 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
         accept="image/*"
         onChange={handleFileSelection}
       />
+
+
     </div>
   );
 };

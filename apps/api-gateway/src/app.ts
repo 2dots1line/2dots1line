@@ -7,7 +7,7 @@ import { createV1Routes } from './routes/v1';
 import { DatabaseService } from '@2dots1line/database';
 import { ConfigService } from '@2dots1line/config-service';
 import { DialogueAgent, PromptBuilder } from '@2dots1line/dialogue-service';
-import { UserService, AuthService } from '@2dots1line/user-service';
+import { UserService, AuthService, DashboardService } from '@2dots1line/user-service';
 import { CardService } from '@2dots1line/card-service';
 import { UserRepository, ConversationRepository, CardRepository } from '@2dots1line/database';
 
@@ -53,6 +53,7 @@ async function createApp(): Promise<express.Application> {
   const userService = new UserService(databaseService);
   const authService = new AuthService(databaseService);
   const cardService = new CardService(databaseService);
+  const dashboardService = new DashboardService(databaseService);
 
   // DialogueAgent with all required dependencies
   const promptBuilder = new PromptBuilder(configService, userRepo, conversationRepo, databaseService.redis);
@@ -72,7 +73,7 @@ async function createApp(): Promise<express.Application> {
 
   // Level 4: Controllers (The final layer, receives services) - V11.0 Architecture
   const authController = new AuthController(authService);
-  const userController = new UserController(userService);
+  const userController = new UserController(userService, dashboardService);
   const cardController = new CardController(cardService);
   const conversationController = new ConversationController(dialogueAgent, conversationRepo, databaseService.redis);
   const graphController = new GraphController(databaseService);

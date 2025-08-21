@@ -42,6 +42,8 @@ v1Router.post('/auth/login', authController.login);
 v1Router.post('/conversations/messages', authMiddleware, conversationController.postMessage);
 v1Router.post('/conversations/upload', authMiddleware, uploadSingle, handleUploadError, conversationController.uploadFile);
 v1Router.post('/conversations/:conversationId/end', authMiddleware, conversationController.endConversation);
+v1Router.get('/conversations', authMiddleware, conversationController.getConversationHistory);
+v1Router.get('/conversations/:conversationId', authMiddleware, conversationController.getConversation);
 
 // --- Card Routes (Authenticated) ---
 v1Router.get('/cards', authMiddleware, cardController.getCards);
@@ -56,6 +58,12 @@ v1Router.get('/users/me/profile', authMiddleware, userController.getUserProfile)
 v1Router.get('/users/me/growth-profile', authMiddleware, userController.getGrowthProfile);
 v1Router.get('/users/me/dashboard/growth-summary', authMiddleware, userController.getDashboardGrowthSummary);
 v1Router.get('/users/:userId', authMiddleware, userController.getUserData);
+
+// --- Dashboard Routes (Authenticated) ---
+v1Router.get('/dashboard/summary', authMiddleware, userController.getDashboardGrowthSummary);
+v1Router.get('/dashboard/insights', authMiddleware, userController.getRecentInsights);
+v1Router.get('/dashboard/recent-events', authMiddleware, userController.getRecentActivity);
+v1Router.get('/dashboard/data', authMiddleware, userController.getDashboardData);
 
 // --- Graph Routes (Authenticated) --- V11.0: Real-time metrics from Neo4j source of truth
 v1Router.get('/nodes/:nodeId/metrics', authMiddleware, graphController.getNodeMetrics);

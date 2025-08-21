@@ -6,11 +6,13 @@ import React from 'react';
 
 import { useHUDStore } from '../../stores/HUDStore';
 import { useCardStore } from '../../stores/CardStore';
+import { useChatStore } from '../../stores/ChatStore';
 
 import { EnhancedCardModal } from './EnhancedCardModal';
 import ChatModal from './ChatModal';
 import { CosmosModal } from './CosmosModal';
 import DashboardModal from './DashboardModal';
+import { ConversationHistoryModal } from './ConversationHistoryModal';
 
 interface ModalContainerProps {
   className?: string;
@@ -49,6 +51,7 @@ export const ModalContainer: React.FC<ModalContainerProps> = ({
 }) => {
   const { activeView, setActiveView, cardDetailModalOpen, setCardDetailModalOpen } = useHUDStore();
   const { selectedCard } = useCardStore();
+  const { showHistoryModal, setShowHistoryModal } = useChatStore();
   
   const handleClose = () => {
     setActiveView(null);
@@ -90,6 +93,12 @@ export const ModalContainer: React.FC<ModalContainerProps> = ({
           onClose={handleCardModalClose}
         />
       )}
+
+      {/* Conversation History Modal - Global modal */}
+      <ConversationHistoryModal
+        isOpen={showHistoryModal}
+        onClose={() => setShowHistoryModal(false)}
+      />
     </div>
   );
 }; 

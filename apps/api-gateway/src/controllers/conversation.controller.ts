@@ -342,49 +342,6 @@ export class ConversationController {
   }
 
   /**
-   * GET /api/v1/agent/conversation/:id
-   * V11.0: Direct conversation retrieval through DialogueAgent
-   */
-  async getConversation(req: Request, res: Response, next: NextFunction) {
-    try {
-      const conversationId = req.params.id;
-      const userId = req.user?.id;
-      
-      if (!userId) {
-        return res.status(401).json({ 
-          success: false, 
-          error: { code: 'UNAUTHORIZED', message: 'Authorization required' }
-        } as TApiResponse<any>);
-      }
-      
-      // TODO: Implement proper conversation retrieval through ConversationRepository
-      // For now, return a placeholder response
-      const conversation = {
-        id: conversationId,
-        userId: userId,
-        messages: [],
-        status: 'active',
-        created_at: new Date().toISOString()
-      };
-      
-      if (!conversation) {
-        return res.status(404).json({ 
-          success: false, 
-          error: { code: 'NOT_FOUND', message: 'Conversation not found' }
-        } as TApiResponse<any>);
-      }
-      
-      res.json({
-        success: true,
-        data: conversation,
-        message: 'Conversation retrieved successfully'
-      } as TApiResponse<any>);
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
    * POST /api/v1/conversations/:conversationId/end
    * V11.1: Explicit conversation ending endpoint
    * Allows frontend to explicitly end conversations and trigger ingestion processing
@@ -463,6 +420,132 @@ export class ConversationController {
         error: { 
           code: 'INTERNAL_ERROR', 
           message: 'Failed to end conversation' 
+        }
+      } as TApiResponse<any>);
+    }
+  };
+
+  /**
+   * GET /api/v1/conversations
+   * V11.1: Get conversation history for the authenticated user
+   */
+  public getConversationHistory = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ 
+          success: false, 
+          error: { code: 'UNAUTHORIZED', message: 'Authorization required' }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      const limit = parseInt(req.query.limit as string) || 50;
+      const offset = parseInt(req.query.offset as string) || 0;
+      const status = req.query.status as string;
+
+      // Get conversations from repository
+      const conversations = await this.conversationRepository.findByUserId(userId, limit, offset);
+      
+      // Transform to frontend-friendly format
+      const conversationHistory = conversations.map((conv: any) => ({
+        id: conv.id,
+        title: conv.title || `Conversation ${conv.id.slice(0, 8)}`,
+        lastMessage: conv.conversation_messages?.[0]?.content || 'No messages',
+        timestamp: conv.conversation_messages?.[0]?.timestamp || conv.start_time,
+        messageCount: conv.conversation_messages?.length || 0,
+        status: conv.status as 'active' | 'ended'
+      }));
+
+      res.status(200).json({
+        success: true,
+        data: {
+          conversations: conversationHistory,
+          total: await this.conversationRepository.count(userId),
+          limit,
+          offset
+        }
+      } as TApiResponse<any>);
+
+    } catch (error) {
+      console.error('❌ ConversationController.getConversationHistory error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: { 
+          code: 'INTERNAL_ERROR', 
+          message: 'Failed to fetch conversation history' 
+        }
+      } as TApiResponse<any>);
+    }
+  };
+
+  /**
+   * GET /api/v1/conversations/:conversationId
+   * V11.1: Get specific conversation with messages
+   */
+  public getConversation = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ 
+          success: false, 
+          error: { code: 'UNAUTHORIZED', message: 'Authorization required' }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      const conversationId = req.params.conversationId;
+      
+      // Get conversation with messages
+      const conversation = await this.conversationRepository.findById(conversationId);
+      
+      if (!conversation) {
+        res.status(404).json({ 
+          success: false, 
+          error: { code: 'NOT_FOUND', message: 'Conversation not found' }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      if (conversation.user_id !== userId) {
+        res.status(403).json({ 
+          success: false, 
+          error: { code: 'FORBIDDEN', message: 'Access denied to this conversation' }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      // Transform messages to frontend format
+      const messages = ((conversation as any).conversation_messages || []).map((msg: any) => ({
+        id: msg.id,
+        type: msg.role === 'user' ? 'user' : 'bot',
+        content: msg.content,
+        timestamp: msg.timestamp,
+        conversation_id: msg.conversation_id
+      }));
+
+      res.status(200).json({
+        success: true,
+        data: {
+          conversation: {
+            id: conversation.id,
+            title: conversation.title,
+            status: conversation.status,
+            start_time: conversation.start_time,
+            ended_at: conversation.ended_at,
+            messageCount: messages.length
+          },
+          messages
+        }
+      } as TApiResponse<any>);
+
+    } catch (error) {
+      console.error('❌ ConversationController.getConversation error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: { 
+          code: 'INTERNAL_ERROR', 
+          message: 'Failed to fetch conversation' 
         }
       } as TApiResponse<any>);
     }

@@ -5,6 +5,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 
 import { useAutoLoadCards } from '../components/hooks/useAutoLoadCards';
 import { HUDContainer } from '../components/hud/HUDContainer';
+import { ConversationHistoryPanel } from '../components/hud/ConversationHistoryPanel';
 import LoginModal from '../components/modal/LoginModal';
 import { ModalContainer } from '../components/modal/ModalContainer';
 import SignupModal from '../components/modal/SignupModal';
@@ -197,6 +198,9 @@ const HomePage = () => {
 
       {/* Navigation HUD - Layer 3 */}
       {isAuthenticated && <HUDContainer />}
+
+      {/* Conversation History Panel - Layer 3 - Only show in chat view */}
+      {isAuthenticated && activeView === 'chat' && <ConversationHistoryPanel />}
 
       {/* Main Views - Layer 4 (z-30) - Mutually Exclusive */}
       {isAuthenticated && activeView === 'cards' && (

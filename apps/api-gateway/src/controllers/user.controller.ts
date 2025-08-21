@@ -5,13 +5,15 @@
 
 import { Request, Response } from 'express';
 import type { TApiResponse } from '@2dots1line/shared-types';
-import { UserService } from '@2dots1line/user-service';
+import { UserService, DashboardService, type DashboardData } from '@2dots1line/user-service';
 
 export class UserController {
   private userService: UserService;
+  private dashboardService: DashboardService;
 
-  constructor(userService: UserService) {
+  constructor(userService: UserService, dashboardService: DashboardService) {
     this.userService = userService;
+    this.dashboardService = dashboardService;
   }
 
   /**
@@ -74,7 +76,37 @@ export class UserController {
    * Returns user growth profile information
    */
   getGrowthProfile = async (req: Request, res: Response): Promise<void> => {
-    res.status(511).json({ success: false, message: 'Not Implemented - Please proxy to user-service' });
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ 
+          success: false, 
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Unauthorized'
+          }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      const growthProfile = await this.dashboardService.getGrowthProfile(userId);
+      
+      res.status(200).json({
+        success: true,
+        data: {
+          growthProfile
+        }
+      } as TApiResponse<any>);
+    } catch (error) {
+      console.error('Error in user controller getGrowthProfile:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Internal Server Error'
+        }
+      } as TApiResponse<any>);
+    }
   };
 
   /**
@@ -82,7 +114,37 @@ export class UserController {
    * Returns dashboard growth summary
    */
   getDashboardGrowthSummary = async (req: Request, res: Response): Promise<void> => {
-    res.status(511).json({ success: false, message: 'Not Implemented - Please proxy to user-service' });
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ 
+          success: false, 
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Unauthorized'
+          }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      const metrics = await this.dashboardService.getDashboardMetrics(userId);
+      
+      res.status(200).json({
+        success: true,
+        data: {
+          metrics
+        }
+      } as TApiResponse<any>);
+    } catch (error) {
+      console.error('Error in user controller getDashboardGrowthSummary:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Internal Server Error'
+        }
+      } as TApiResponse<any>);
+    }
   };
 
   /**
@@ -131,6 +193,120 @@ export class UserController {
       } as TApiResponse<any>);
     } catch (error) {
       console.error('Error in user controller getUserData:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Internal Server Error'
+        }
+      } as TApiResponse<any>);
+    }
+  };
+
+  /**
+   * GET /api/dashboard/insights
+   * Returns recent insights for the user
+   */
+  getRecentInsights = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ 
+          success: false, 
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Unauthorized'
+          }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      const limit = parseInt(req.query.limit as string) || 10;
+      const insights = await this.dashboardService.getRecentInsights(userId, limit);
+      
+      res.status(200).json({
+        success: true,
+        data: {
+          insights
+        }
+      } as TApiResponse<any>);
+    } catch (error) {
+      console.error('Error in user controller getRecentInsights:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Internal Server Error'
+        }
+      } as TApiResponse<any>);
+    }
+  };
+
+  /**
+   * GET /api/dashboard/recent-events
+   * Returns recent activity for the user
+   */
+  getRecentActivity = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ 
+          success: false, 
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Unauthorized'
+          }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      const limit = parseInt(req.query.limit as string) || 20;
+      const events = await this.dashboardService.getRecentActivity(userId, limit);
+      
+      res.status(200).json({
+        success: true,
+        data: {
+          events
+        }
+      } as TApiResponse<any>);
+    } catch (error) {
+      console.error('Error in user controller getRecentActivity:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Internal Server Error'
+        }
+      } as TApiResponse<any>);
+    }
+  };
+
+  /**
+   * GET /api/dashboard/data
+   * Returns comprehensive dashboard data
+   */
+  getDashboardData = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ 
+          success: false, 
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Unauthorized'
+          }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      const dashboardData = await this.dashboardService.getDashboardData(userId);
+      
+      res.status(200).json({
+        success: true,
+        data: dashboardData
+      } as TApiResponse<DashboardData>);
+    } catch (error) {
+      console.error('Error in user controller getDashboardData:', error);
       res.status(500).json({ 
         success: false, 
         error: {

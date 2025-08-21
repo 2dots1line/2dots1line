@@ -49,6 +49,34 @@ export interface ChatHistory {
   total_count: number;
 }
 
+export interface ConversationSummary {
+  id: string;
+  title: string;
+  lastMessage: string;
+  timestamp: Date;
+  messageCount: number;
+  status: 'active' | 'ended';
+}
+
+export interface ConversationHistoryResponse {
+  conversations: ConversationSummary[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface ConversationResponse {
+  conversation: {
+    id: string;
+    title: string | null;
+    status: string;
+    start_time: Date;
+    ended_at: Date | null;
+    messageCount: number;
+  };
+  messages: ChatMessage[];
+}
+
 class ChatService {
   private getAuthHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
@@ -178,6 +206,113 @@ class ChatService {
       return data;
     } catch (error) {
       console.error('Error checking chat health:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get conversation history for the authenticated user
+   */
+  async getConversationHistory(
+    limit: number = 50,
+    offset: number = 0
+  ): Promise<ConversationHistoryResponse> {
+    try {
+      const params = new URLSearchParams({
+        limit: limit.toString(),
+        offset: offset.toString(),
+      });
+
+      const response = await fetch(`${API_BASE_URL}/api/v1/conversations?${params}`, {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return data.data;
+    } catch (error) {
+      console.error('Error fetching conversation history:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get a specific conversation with messages
+   */
+  async getConversation(conversationId: string): Promise<ConversationResponse> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/conversations/${conversationId}`, {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return data.data;
+    } catch (error) {
+      console.error('Error fetching conversation:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * End a conversation explicitly
+   */
+  async endConversation(conversationId: string): Promise<{ success: boolean; conversation_id: string }> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/conversations/${conversationId}/end`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return data.data;
+    } catch (error) {
+      console.error('Error ending conversation:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Check for proactive messages from timeout processing
+   * This method checks if there are any new messages in the current conversation
+   * that were added by the backend (e.g., after ingestion processing)
+   */
+  async checkForProactiveMessages(conversationId: string, lastMessageTimestamp: Date): Promise<ChatMessage[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/conversations/${conversationId}`, {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      // Filter messages that are newer than the last message timestamp
+      const newMessages = data.data.messages.filter((msg: ChatMessage) => 
+        new Date(msg.timestamp) > lastMessageTimestamp
+      );
+
+      return newMessages;
+    } catch (error) {
+      console.error('Error checking for proactive messages:', error);
       throw error;
     }
   }
