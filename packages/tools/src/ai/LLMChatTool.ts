@@ -79,7 +79,7 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
   private genAI: GoogleGenerativeAI | null = null;
   private model: GenerativeModel | null = null;
   private modelConfigService: EnvironmentModelConfigService | null = null;
-  private currentModelName: string = '';
+  private currentModelName: string | null = null;
   private initialized = false;
 
   constructor() {
@@ -88,8 +88,6 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
   }
 
   private initialize() {
-    if (this.initialized) return;
-
     const apiKey = process.env.GOOGLE_API_KEY;
     if (!apiKey) {
       throw new Error('GOOGLE_API_KEY environment variable is required');
@@ -99,40 +97,55 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
     this.modelConfigService = EnvironmentModelConfigService.getInstance();
     
     // Get the appropriate model from environment-first configuration
-    this.currentModelName = this.modelConfigService.getModelForUseCase('chat');
+    const newModelName = this.modelConfigService.getModelForUseCase('chat');
     
-    console.log(`🤖 LLMChatTool: Initializing with model ${this.currentModelName}`);
-    this.modelConfigService.logCurrentConfiguration();
-    
-    this.model = this.genAI.getGenerativeModel({ 
-      model: this.currentModelName,
-      generationConfig: {
-        temperature: 0.7,
-        topK: 40,
-        topP: 0.95,
-        maxOutputTokens: 50000, // Override for chat use case
-      },
-      safetySettings: [
-        {
-          category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-          threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+    // Check if model has changed or if this is first initialization
+    if (!this.initialized || this.currentModelName !== newModelName) {
+      console.log(`🤖 LLMChatTool: ${this.initialized ? 'Reinitializing' : 'Initializing'} with model ${newModelName}${this.currentModelName ? ` (was: ${this.currentModelName})` : ''}`);
+      this.modelConfigService.logCurrentConfiguration();
+      
+      this.currentModelName = newModelName;
+      this.model = this.genAI.getGenerativeModel({ 
+        model: this.currentModelName,
+        generationConfig: {
+          temperature: 0.7,
+          topK: 40,
+          topP: 0.95,
+          maxOutputTokens: 50000, // Override for chat use case
         },
-        {
-          category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-          threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-        },
-        {
-          category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-          threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-        },
-        {
-          category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-          threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-        },
-      ],
-    });
+        safetySettings: [
+          {
+            category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+          },
+        ],
+      });
+      
+      this.initialized = true;
+    }
+  }
 
-    this.initialized = true;
+  /**
+   * Force reinitialization (useful when model configuration changes)
+   */
+  public forceReinitialize(): void {
+    console.log(`🔄 LLMChatTool: Forcing reinitialization`);
+    this.initialized = false;
+    this.model = null;
+    this.currentModelName = null;
+    this.initialize();
   }
 
   /**
@@ -202,12 +215,12 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
             output_tokens: response.usageMetadata?.candidatesTokenCount || 0,
             total_tokens: response.usageMetadata?.totalTokenCount || 0
           },
-          model_used: this.currentModelName,
+          model_used: this.currentModelName || 'unknown',
           finish_reason: response.candidates?.[0]?.finishReason || 'stop'
         },
         metadata: {
           processing_time_ms: Math.round(processingTime),
-          model_used: this.currentModelName,
+          model_used: this.currentModelName || 'unknown',
           session_id: input.payload.sessionId
         }
       };

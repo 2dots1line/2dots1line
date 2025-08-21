@@ -87,6 +87,17 @@ export interface TUserPreferences {
     /** Default privacy setting for memory units */
     default_memory_unit_privacy?: 'private' | 'shared';
   };
+  /** Background video preferences for 2D views */
+  background_videos?: {
+    /** Background video for dashboard view */
+    dashboard?: 'Cloud1.mp4' | 'Cloud2.mp4' | 'Cloud3.mp4' | 'Cloud4.mp4' | 'Star1.mp4';
+    /** Background video for chat view */
+    chat?: 'Cloud1.mp4' | 'Cloud2.mp4' | 'Cloud3.mp4' | 'Cloud4.mp4' | 'Star1.mp4';
+    /** Background video for cards view */
+    cards?: 'Cloud1.mp4' | 'Cloud2.mp4' | 'Cloud3.mp4' | 'Cloud4.mp4' | 'Star1.mp4';
+    /** Background video for settings view */
+    settings?: 'Cloud1.mp4' | 'Cloud2.mp4' | 'Cloud3.mp4' | 'Cloud4.mp4' | 'Star1.mp4';
+  };
 }
 
 // --- V10.8 Context Package Types ---

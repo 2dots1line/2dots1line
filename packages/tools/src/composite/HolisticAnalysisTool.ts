@@ -97,6 +97,9 @@ export class HolisticAnalysisTool {
     console.log(`[HolisticAnalysisTool] Starting holistic analysis for user ${input.userId}`);
     
     try {
+      // Force reinitialization of LLMChatTool to ensure it uses the latest model configuration
+      LLMChatTool.forceReinitialize();
+      
       // Build the comprehensive prompt
       const prompt = await this.buildAnalysisPrompt(input);
       

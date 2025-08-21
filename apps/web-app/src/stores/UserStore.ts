@@ -33,6 +33,7 @@ export interface UserState {
   clearError: () => void;
   initializeAuth: () => void;
   setHasHydrated: (hydrated: boolean) => void;
+  updateUserPreferences: (preferences: Record<string, unknown>) => void;
 }
 
 // API base URL - updated to use the correct port where API Gateway is running
@@ -290,6 +291,20 @@ export const useUserStore = create<UserState>()(
 
       setHasHydrated: (hydrated: boolean) => {
         set({ hasHydrated: hydrated });
+      },
+
+      updateUserPreferences: (preferences: Record<string, unknown>) => {
+        const { user } = get();
+        if (user) {
+          const updatedUser = {
+            ...user,
+            preferences: {
+              ...user.preferences,
+              ...preferences,
+            },
+          };
+          set({ user: updatedUser });
+        }
       },
     }),
     {

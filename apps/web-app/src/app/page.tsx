@@ -9,9 +9,11 @@ import { ConversationHistoryPanel } from '../components/hud/ConversationHistoryP
 import LoginModal from '../components/modal/LoginModal';
 import { ModalContainer } from '../components/modal/ModalContainer';
 import SignupModal from '../components/modal/SignupModal';
+import { BackgroundVideo } from '../components/BackgroundVideo';
 import { useCardStore } from '../stores/CardStore';
 import { useHUDStore } from '../stores/HUDStore';
 import { useUserStore } from '../stores/UserStore';
+import { useBackgroundVideoStore } from '../stores/BackgroundVideoStore';
 
 const HomePage = () => {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
@@ -20,6 +22,7 @@ const HomePage = () => {
   const { user, isAuthenticated, logout, initializeAuth, hasHydrated } = useUserStore();
   const { setActiveView, activeView, setCardDetailModalOpen } = useHUDStore();
   const { cards, loadCards, loadMoreCards, hasMore, isLoading, setSelectedCard } = useCardStore();
+  const { loadUserPreferences } = useBackgroundVideoStore();
   
   // Automatically load cards when user is authenticated
   const { cardsLoaded, totalCards } = useAutoLoadCards();
@@ -54,6 +57,13 @@ const HomePage = () => {
     
     return () => clearTimeout(hydrationTimeout);
   }, [memoizedInitializeAuth, user, isAuthenticated, hasHydrated]);
+
+  // Load video preferences when user is authenticated
+  useEffect(() => {
+    if (isAuthenticated && hasHydrated) {
+      loadUserPreferences();
+    }
+  }, [isAuthenticated, hasHydrated, loadUserPreferences]);
 
   // Auto-open dashboard when user is authenticated and no view is active
   useEffect(() => {
@@ -97,12 +107,7 @@ const HomePage = () => {
   if (!hasHydrated) {
     return (
       <div className="relative w-full h-screen overflow-hidden">
-        <div className="absolute inset-0 z-0">
-          <video autoPlay loop muted playsInline className="w-full h-full object-cover" src="/videos/Cloud1.mp4">
-            Your browser does not support the video tag.
-          </video>
-          <div className="absolute inset-0 bg-black/30"></div>
-        </div>
+        <BackgroundVideo view="dashboard" />
         <main className="relative z-10 flex flex-col items-center justify-center min-h-screen p-4">
           <div className="text-white">Loading...</div>
         </main>
@@ -110,23 +115,13 @@ const HomePage = () => {
     );
   }
 
+  // Determine which view is active for background video
+  const currentView = activeView || 'dashboard';
+
   return (
     <div className="relative w-full h-screen overflow-hidden">
       {/* Background Video - Layer 1 (bottom) */}
-      <div className="absolute inset-0 z-0">
-        <video
-          autoPlay
-          loop
-          muted
-          playsInline
-          className="w-full h-full object-cover"
-          src="/videos/Cloud1.mp4"
-        >
-          Your browser does not support the video tag.
-        </video>
-        {/* Video Overlay */}
-        <div className="absolute inset-0 bg-black/30"></div>
-      </div>
+      <BackgroundVideo view={currentView} />
 
       {/* Main Content - Layer 2 (top) */}
       <main className="relative z-10 flex flex-col items-center justify-center min-h-screen p-4">
