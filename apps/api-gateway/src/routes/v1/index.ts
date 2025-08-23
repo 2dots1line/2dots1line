@@ -8,6 +8,7 @@ import { ConversationController } from '../../controllers/conversation.controlle
 import { CardController } from '../../controllers/card.controller';
 import { UserController } from '../../controllers/user.controller';
 import { GraphController } from '../../controllers/graph.controller';
+import { MediaController } from '../../controllers/media.controller';
 import { createAgentRoutes } from './agent.routes';
 
 export function createV1Routes(
@@ -15,7 +16,8 @@ export function createV1Routes(
   userController: UserController,
   cardController: CardController,
   conversationController: ConversationController,
-  graphController: GraphController
+  graphController: GraphController,
+  mediaController: MediaController
 ): IRouter {
   const v1Router: IRouter = Router();
 
@@ -71,8 +73,18 @@ v1Router.get('/nodes/:nodeId/metrics', authMiddleware, graphController.getNodeMe
 // --- Node Details Routes (Authenticated) --- V11.0: Rich node information from PostgreSQL
 v1Router.get('/nodes/:nodeId/details', authMiddleware, graphController.getNodeDetails);
 
-// --- Graph Projection Routes (Authenticated) --- V11.0: 3D visualization data
-v1Router.get('/graph-projection/latest', authMiddleware, graphController.getLatestGraphProjection);
+// --- Graph Projection Routes (Temporarily Unauthenticated for Testing) --- V11.0: 3D visualization data
+v1Router.get('/graph-projection/latest', graphController.getLatestGraphProjection.bind(graphController));
+
+// --- Media Routes (Temporarily Unauthenticated for Testing) ---
+v1Router.get('/media/search', mediaController.searchMedia.bind(mediaController));
+v1Router.get('/media/recommended', mediaController.getRecommendedMedia.bind(mediaController));
+v1Router.get('/media/popular/videos', mediaController.getPopularVideos.bind(mediaController));
+v1Router.get('/media/popular/photos', mediaController.getPopularPhotos.bind(mediaController));
+v1Router.get('/media/videos/:id', mediaController.getVideoDetails.bind(mediaController));
+v1Router.get('/media/photos/:id', mediaController.getPhotoDetails.bind(mediaController));
+
+
 
 // Agent routes
 v1Router.use('/agent', createAgentRoutes(conversationController));

@@ -54,7 +54,11 @@ export class IngestionAnalyst {
         userId,
         fullConversationTranscript,
         userMemoryProfile,
-        knowledgeGraphSchema
+        knowledgeGraphSchema,
+        workerType: 'ingestion-worker',
+        workerJobId: job.id || 'unknown',
+        conversationId,
+        messageId: undefined // Not applicable for conversation-level analysis
       });
 
       console.log(`[IngestionAnalyst] Analysis completed with importance score: ${analysisOutput.persistence_payload.conversation_importance_score}`);

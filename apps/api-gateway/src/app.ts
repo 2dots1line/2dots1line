@@ -26,6 +26,7 @@ import { CardController } from './controllers/card.controller';
 import { ConversationController } from './controllers/conversation.controller';
 import { UserController } from './controllers/user.controller';
 import { GraphController } from './controllers/graph.controller';
+import { MediaController } from './controllers/media.controller';
 
 async function createApp(): Promise<express.Application> {
   const app: express.Application = express();
@@ -38,6 +39,8 @@ async function createApp(): Promise<express.Application> {
   // Level 1: Core Infrastructure
   const databaseService = DatabaseService.getInstance();
   const configService = new ConfigService();
+  
+  // Environment variables are now loaded by DatabaseService
   
   // CRITICAL: Initialize ConfigService before using it
   console.log('🔧 Initializing ConfigService...');
@@ -77,9 +80,12 @@ async function createApp(): Promise<express.Application> {
   const cardController = new CardController(cardService);
   const conversationController = new ConversationController(dialogueAgent, conversationRepo, databaseService.redis);
   const graphController = new GraphController(databaseService);
+  console.log('🔧 Initializing MediaController...');
+  const mediaController = new MediaController();
+  console.log('✅ MediaController initialized successfully');
 
   // Level 5: Mount controllers onto the Express app
-  app.use('/api/v1', createV1Routes(authController, userController, cardController, conversationController, graphController));
+  app.use('/api/v1', createV1Routes(authController, userController, cardController, conversationController, graphController, mediaController));
 
   // Central Error Handler
   app.use(errorHandler);

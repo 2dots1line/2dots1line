@@ -9,7 +9,7 @@ import { ConversationHistoryPanel } from '../components/hud/ConversationHistoryP
 import LoginModal from '../components/modal/LoginModal';
 import { ModalContainer } from '../components/modal/ModalContainer';
 import SignupModal from '../components/modal/SignupModal';
-import { BackgroundVideo } from '../components/BackgroundVideo';
+import { DynamicBackground } from '../components/DynamicBackground';
 import { useCardStore } from '../stores/CardStore';
 import { useHUDStore } from '../stores/HUDStore';
 import { useUserStore } from '../stores/UserStore';
@@ -107,7 +107,7 @@ const HomePage = () => {
   if (!hasHydrated) {
     return (
       <div className="relative w-full h-screen overflow-hidden">
-        <BackgroundVideo view="dashboard" />
+        <DynamicBackground view="dashboard" />
         <main className="relative z-10 flex flex-col items-center justify-center min-h-screen p-4">
           <div className="text-white">Loading...</div>
         </main>
@@ -120,8 +120,8 @@ const HomePage = () => {
 
   return (
     <div className="relative w-full h-screen overflow-hidden">
-      {/* Background Video - Layer 1 (bottom) */}
-      <BackgroundVideo view={currentView} />
+      {/* Background Media - Layer 1 (bottom) */}
+      <DynamicBackground view={currentView} />
 
       {/* Main Content - Layer 2 (top) */}
       <main className="relative z-10 flex flex-col items-center justify-center min-h-screen p-4">

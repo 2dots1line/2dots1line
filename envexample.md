@@ -24,6 +24,10 @@ GOOGLE_API_KEY=YOUR_ACTUAL_GEMINI_API_KEY_HERE # Using the one from the top part
 # For China Region (if testing locally with DeepSeek)
 # DEEPSEEK_API_KEY=YOUR_ACTUAL_DEEPSEEK_API_KEY_HERE
 
+# === MEDIA PROVIDER KEYS ===
+# Pexels API key for background media search
+PEXELS_API_KEY=YOUR_PEXELS_API_KEY_HERE
+
 
 # === LLM MODEL CONFIGURATION ===
 # Environment-first model selection (highest priority)

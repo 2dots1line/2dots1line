@@ -4,6 +4,7 @@ import weaviate, { WeaviateClient } from 'weaviate-ts-client';
 import Redis from 'ioredis';
 import { prisma } from './prisma-client';
 import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
+import { LLMInteractionRepository } from './repositories/LLMInteractionRepository';
 
 /**
  * V9.7 DatabaseService with EnvironmentLoader Integration
@@ -20,6 +21,7 @@ export class DatabaseService {
   public readonly neo4j: Neo4jDriver;
   public readonly weaviate: WeaviateClient;
   public readonly redis: Redis;
+  public readonly llmInteractionRepository: LLMInteractionRepository;
 
   private static instance: DatabaseService;
 
@@ -60,12 +62,15 @@ export class DatabaseService {
       this.redis = new Redis({ host: redisHost, port: redisPort });
     }
 
+    // 5. Initialize Repositories
+    this.llmInteractionRepository = new LLMInteractionRepository(this);
+
     console.log('DatabaseService Redis configured:', 
       redisUrl || `${environmentLoader.get('REDIS_HOST') || 'localhost'}:${environmentLoader.get('REDIS_PORT') || '6379'}`,
       `(NODE_ENV: ${environmentLoader.get('NODE_ENV') || 'development'})`
     );
 
-    console.log('DatabaseService initialized with all clients.');
+    console.log('DatabaseService initialized with all clients and repositories.');
   }
 
   /**

@@ -84,6 +84,14 @@ dialogue_agent_instructions: |
   - Choose `"query_memory"` when the user: asks about past experiences, references previous conversations, mentions specific people/places/projects, or needs context from their history
   - Choose `"respond_directly"` only for general questions, new topics, or when no historical context is needed
   - NEVER apologize for lack of context - instead, use `"query_memory"` to find relevant information
+
+  **MEMORY RETRIEVAL RESPONSE FORMAT:**
+  When you receive `augmented_memory_context` (meaning memory retrieval has already been performed), you MUST:
+  1. Use the retrieved memories to answer the user's question directly
+  2. Set `"decision": "respond_directly"`
+  3. Set `"direct_response_text"` to your actual answer based on the retrieved memories
+  4. Set `"key_phrases_for_retrieval": null` (since retrieval is already done)
+  5. Reference specific details from the retrieved memories in your response
   </output_instructions>
   </instructions>
 

@@ -81,6 +81,8 @@ export type StrategicSynthesisOutput = z.infer<typeof StrategicSynthesisOutputSc
 export interface StrategicSynthesisInput {
   userId: string;
   cycleId: string;
+  cycleStartDate: Date;
+  cycleEndDate: Date;
   currentKnowledgeGraph: {
     memoryUnits: Array<{
       id: string;
@@ -97,6 +99,7 @@ export interface StrategicSynthesisInput {
       category: string;
       salience: number;
       created_at: string;
+      merged_into_concept_id?: string;
     }>;
     relationships: Array<{
       source_id: string;
@@ -118,6 +121,10 @@ export interface StrategicSynthesisInput {
     interests: string[];
     growth_trajectory: any;
   };
+  
+  // New fields for LLM interaction logging
+  workerType?: string;
+  workerJobId?: string;
 }
 
 // Custom error types for better error handling
@@ -151,6 +158,7 @@ export class StrategicSynthesisTool {
     console.log(`[StrategicSynthesisTool] Starting strategic synthesis for cycle ${input.cycleId}`);
     console.log(`[StrategicSynthesisTool] Analyzing ${input.currentKnowledgeGraph.memoryUnits.length} memory units`);
     console.log(`[StrategicSynthesisTool] Analyzing ${input.currentKnowledgeGraph.concepts.length} concepts`);
+    console.log(`[StrategicSynthesisTool] Analyzing ${input.currentKnowledgeGraph.relationships.length} relationships`);
     
     try {
       // Build comprehensive analysis prompt using config templates
@@ -161,6 +169,9 @@ export class StrategicSynthesisTool {
         payload: {
           userId: input.userId,
           sessionId: `strategic-synthesis-${input.cycleId}`,
+          workerType: input.workerType || 'insight-worker',
+          workerJobId: input.workerJobId,
+          sourceEntityId: input.cycleId,
           systemPrompt: "You are the InsightEngine component performing strategic cyclical analysis. Follow the instructions precisely and return valid JSON between the specified markers.",
           history: [], // No previous history for analysis tasks
           userMessage: prompt,
@@ -172,9 +183,16 @@ export class StrategicSynthesisTool {
       // Call LLM using static method like HolisticAnalysisTool
       const llmResult = await LLMChatTool.execute(llmInput);
       
+      console.log(`[StrategicSynthesisTool] DEBUG: Full prompt sent to LLM:`, prompt.substring(0, 1000) + '...');
+      console.log(`[StrategicSynthesisTool] DEBUG: LLM response received:`, llmResult.result?.text?.substring(0, 1000) + '...');
+      
       if (llmResult.status !== 'success' || !llmResult.result?.text) {
+        console.error(`[StrategicSynthesisTool] LLM call failed with status: ${llmResult.status}`);
+        console.error(`[StrategicSynthesisTool] Error details:`, llmResult.error);
         throw new StrategicSynthesisError(`LLM call failed: ${llmResult.error?.message || 'Unknown error'}`);
       }
+      
+      console.log(`[StrategicSynthesisTool] LLM response received, length: ${llmResult.result.text.length}`);
       
       // Parse and validate the response
       const synthesisResult = this.validateAndParseOutput(llmResult.result.text);
@@ -238,13 +256,16 @@ export class StrategicSynthesisTool {
     const strategicInstructions = templates.strategic_synthesis_instructions || '';
     const responseFormat = templates.response_format_block || '';
     
-    // Build the master prompt using config templates
+    console.log(`[StrategicSynthesisTool] Building prompt with ${input.currentKnowledgeGraph.memoryUnits.length} memory units, ${input.currentKnowledgeGraph.concepts.length} concepts, ${input.currentKnowledgeGraph.relationships.length} relationships`);
+    
+    // Build the master prompt using all available data
     const masterPrompt = `${strategicPersona}
 
 ## Analysis Context
 - **User ID**: ${input.userId}
 - **Cycle ID**: ${input.cycleId}
 - **Analysis Timestamp**: ${new Date().toISOString()}
+- **Cycle Period**: ${input.cycleStartDate.toISOString()} to ${input.cycleEndDate.toISOString()}
 
 ## Current Knowledge Graph State
 ### Memory Units (${input.currentKnowledgeGraph.memoryUnits.length} total)
@@ -256,7 +277,7 @@ ${JSON.stringify(input.currentKnowledgeGraph.concepts, null, 2)}
 ### Relationships (${input.currentKnowledgeGraph.relationships.length} total)
 ${JSON.stringify(input.currentKnowledgeGraph.relationships, null, 2)}
 
-## Recent Growth Events
+## Recent Growth Events (${input.recentGrowthEvents.length} total)
 ${JSON.stringify(input.recentGrowthEvents, null, 2)}
 
 ## User Profile
@@ -266,6 +287,7 @@ ${strategicInstructions}
 
 ${responseFormat}`;
 
+    console.log(`[StrategicSynthesisTool] Final prompt length: ${masterPrompt.length} characters`);
     return masterPrompt;
   }
 

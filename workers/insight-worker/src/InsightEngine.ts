@@ -50,21 +50,28 @@ export class InsightEngine {
     this.insightDataCompiler = new InsightDataCompiler(dbService, neo4jClient);
   }
 
-  async processUserCycle(job: Job<InsightJobData>) {
+  async processUserCycle(job: Job<InsightJobData>): Promise<void> {
     const { userId } = job.data;
     
-    console.log(`[InsightEngine] Processing strategic cycle for user ${userId}`);
+    // Calculate cycle dates based on current time
+    const cycleDates = this.calculateCycleDates();
+
+    console.log(`[InsightEngine] Starting strategic cycle for user ${userId}`);
+    console.log(`[InsightEngine] Cycle period: ${cycleDates.cycleStartDate.toISOString()} to ${cycleDates.cycleEndDate.toISOString()}`);
 
     try {
-      // Phase I: Data Compilation via InsightDataCompiler (Deterministic Code)
-      const { strategicInput } = await this.gatherComprehensiveContext(userId);
+      // Phase I: Data Compilation via InsightDataCompiler
+      const { strategicInput } = await this.gatherComprehensiveContext(userId, job.id || 'unknown', cycleDates);
 
-      // Phase II: The "Single Synthesis" LLM Call
+      // Phase II: Strategic Synthesis LLM Call
       const analysisOutput = await this.strategicSynthesisTool.execute(strategicInput);
 
       console.log(`[InsightEngine] Strategic synthesis completed for user ${userId}`);
+      console.log(`[InsightEngine] DEBUG: analysisOutput keys:`, Object.keys(analysisOutput || {}));
+      console.log(`[InsightEngine] DEBUG: ontology_optimizations:`, analysisOutput?.ontology_optimizations ? 'EXISTS' : 'MISSING');
+      console.log(`[InsightEngine] DEBUG: concepts_to_merge length:`, analysisOutput?.ontology_optimizations?.concepts_to_merge?.length || 0);
 
-      // Phase III: Persistence, Graph Update & State Propagation (Deterministic Code)
+      // Phase III: Persistence, Graph Update & State Propagation
       const newEntities = await this.persistStrategicUpdates(userId, analysisOutput);
 
       // Phase IV: Event Publishing for Presentation Layer
@@ -78,32 +85,40 @@ export class InsightEngine {
     }
   }
 
-  private async gatherComprehensiveContext(userId: string) {
-    // Determine cycle dates
+  /**
+   * Calculate cycle dates based on current time
+   * Default: Last 30 days, but can be configured
+   */
+  private calculateCycleDates(): CycleDates {
+    const now = new Date();
+    const cycleEndDate = new Date(now);
+    const cycleStartDate = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000)); // 30 days ago
+    
+    return { cycleStartDate, cycleEndDate };
+  }
+
+  private async gatherComprehensiveContext(userId: string, jobId: string, cycleDates: CycleDates) {
+    // Get user information
     const user = await this.userRepository.findById(userId);
     if (!user) {
       throw new Error(`User ${userId} not found`);
     }
 
-    const cycleDates: CycleDates = {
-      cycleStartDate: user.last_cycle_started_at || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // Default to 1 week ago
-      cycleEndDate: new Date()
-    };
-
     console.log(`[InsightEngine] Compiling data for cycle from ${cycleDates.cycleStartDate} to ${cycleDates.cycleEndDate}`);
 
     // Phase I: Compile the three distinct "Input Packages" in parallel
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [ingestionSummary, graphAnalysis, strategicInsights] = await Promise.all([
       this.insightDataCompiler.compileIngestionActivity(userId, cycleDates),
       this.insightDataCompiler.compileGraphAnalysis(userId),
       this.insightDataCompiler.compileStrategicInsights(userId, cycleDates)
     ]);
 
-    // Build StrategicSynthesisInput to match the expected interface
+    // Build StrategicSynthesisInput with all available data
     const strategicInput: StrategicSynthesisInput = {
       userId,
       cycleId: `cycle-${userId}-${Date.now()}`,
+      cycleStartDate: cycleDates.cycleStartDate,
+      cycleEndDate: cycleDates.cycleEndDate,
       currentKnowledgeGraph: {
         memoryUnits: ingestionSummary.conversationSummaries.map(conv => ({
           id: conv.id,
@@ -113,8 +128,8 @@ export class InsightEngine {
           tags: [],
           created_at: conv.created_at.toISOString()
         })),
-        concepts: [], // Will be populated from database
-        relationships: [] // Will be populated from Neo4j if available
+        concepts: await this.getUserConcepts(userId, cycleDates),
+        relationships: await this.getUserRelationships(userId, cycleDates)
       },
       recentGrowthEvents: strategicInsights.userEvolutionMetrics ? [
         {
@@ -130,25 +145,124 @@ export class InsightEngine {
         goals: [],
         interests: [],
         growth_trajectory: user.knowledge_graph_schema || {}
-      }
+      },
+      workerType: 'insight-worker',
+      workerJobId: jobId
     };
 
     return { strategicInput };
   }
 
+  /**
+   * Fetch user concepts from the database for strategic synthesis
+   */
+  private async getUserConcepts(userId: string, cycleDates: CycleDates): Promise<Array<{
+    id: string;
+    name: string;
+    description: string;
+    category: string;
+    salience: number;
+    created_at: string;
+    merged_into_concept_id?: string;
+  }>> {
+    try {
+      console.log(`[InsightEngine] Fetching concepts for user ${userId}`);
+      
+      // Get all active concepts for the user within the cycle period
+      const concepts = await this.dbService.prisma.concepts.findMany({
+        where: { 
+          user_id: userId, 
+          status: 'active',
+          created_at: {
+            gte: cycleDates.cycleStartDate,
+            lte: cycleDates.cycleEndDate
+          }
+        },
+        select: {
+          concept_id: true,
+          name: true,
+          description: true,
+          type: true,
+          salience: true,
+          created_at: true,
+          merged_into_concept_id: true
+        },
+        orderBy: { salience: 'desc' }
+      });
+
+      // Map to the expected interface
+      const mappedConcepts = concepts.map((concept: any) => ({
+        id: concept.concept_id,
+        name: concept.name,
+        description: concept.description || '',
+        category: concept.type,
+        salience: concept.salience || 0,
+        created_at: concept.created_at.toISOString(),
+        merged_into_concept_id: concept.merged_into_concept_id
+      }));
+
+      console.log(`[InsightEngine] Retrieved ${mappedConcepts.length} concepts`);
+      return mappedConcepts;
+
+    } catch (error) {
+      console.error(`[InsightEngine] Error fetching concepts for user ${userId}:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Fetch user relationships from Neo4j for strategic synthesis
+   */
+  private async getUserRelationships(userId: string, cycleDates: CycleDates): Promise<Array<{
+    source_id: string;
+    target_id: string;
+    relationship_type: string;
+    strength: number;
+  }>> {
+    try {
+      console.log(`[InsightEngine] Fetching relationships for user ${userId}`);
+      
+      // For now, return empty array since Neo4j query method needs to be implemented
+      // TODO: Implement proper Neo4j querying for date-filtered relationships
+      console.log(`[InsightEngine] Neo4j relationships not yet implemented, returning empty array`);
+      return [];
+
+    } catch (error) {
+      console.error(`[InsightEngine] Error fetching relationships for user ${userId}:`, error);
+      return [];
+    }
+  }
+
   private async persistStrategicUpdates(
-    userId: string, 
+    userId: string,
     analysisOutput: StrategicSynthesisOutput
   ): Promise<Array<{ id: string; type: string }>> {
+    console.log(`[InsightEngine] persistStrategicUpdates called for user ${userId}`);
+    console.log(`[InsightEngine] DEBUG: analysisOutput type:`, typeof analysisOutput);
+    console.log(`[InsightEngine] DEBUG: analysisOutput:`, JSON.stringify(analysisOutput, null, 2).substring(0, 500) + '...');
+
     const { ontology_optimizations, derived_artifacts, proactive_prompts } = analysisOutput;
     const newEntities: Array<{ id: string; type: string }> = [];
 
     try {
-      // Execute Ontology Updates (Neo4j) - IMPLEMENTED: Actual concept merging
+      // Execute Ontology Updates (Neo4j) - Actual concept merging
       if (this.neo4jClient && ontology_optimizations.concepts_to_merge.length > 0) {
         const mergedConceptIds = await this.executeConceptMerging(ontology_optimizations, this.neo4jClient);
         newEntities.push(...mergedConceptIds.map(id => ({ id, type: 'MergedConcept' })));
-        console.log(`[InsightEngine] Merged ${ontology_optimizations.concepts_to_merge.length} concepts successfully`);
+        console.log(`[InsightEngine] Merged ${ontology_optimizations.concepts_to_merge.length} concepts successfully in Neo4j`);
+      } else if (ontology_optimizations.concepts_to_merge.length > 0) {
+        console.log(`[InsightEngine] Neo4j client not available, proceeding with PostgreSQL-only concept merging`);
+        // Still create entities for tracking even without Neo4j
+        newEntities.push(...ontology_optimizations.concepts_to_merge.map(merge => ({ 
+          id: merge.primary_concept_id, 
+          type: 'MergedConcept' 
+        })));
+      }
+
+      // CRITICAL FIX: Update PostgreSQL concepts table for merged concepts
+      if (ontology_optimizations.concepts_to_merge.length > 0) {
+        await this.updatePostgreSQLConceptsForMerging(ontology_optimizations.concepts_to_merge);
+        console.log(`[InsightEngine] Updated PostgreSQL concepts for ${ontology_optimizations.concepts_to_merge.length} merges`);
       }
 
       // Create new strategic relationships if specified
@@ -192,13 +306,19 @@ export class InsightEngine {
         console.log(`[InsightEngine] Created proactive prompt: ${createdPrompt.prompt_id} - ${prompt.title}`);
       }
 
+      // CRITICAL FIX: Update user memory profile with strategic insights
+      await this.updateUserMemoryProfile(userId, analysisOutput);
+
+      // CRITICAL FIX: Update user knowledge graph schema
+      await this.updateUserKnowledgeGraphSchema(userId, analysisOutput);
+
       // Publish embedding jobs for new entities
       await this.publishEmbeddingJobs(userId, newEntities);
 
       // Update user strategic state
       await this.userRepository.update(userId, {
         last_cycle_started_at: new Date(),
-        concepts_created_in_cycle: 0
+        concepts_created_in_cycle: ontology_optimizations.concepts_to_merge.length
       });
 
       console.log(`[InsightEngine] Updated user strategic state for ${userId}`);
@@ -461,5 +581,104 @@ export class InsightEngine {
     }
     
     return relationshipIds;
+  }
+
+  /**
+   * CRITICAL FIX: Update PostgreSQL concepts table for merged concepts
+   */
+  private async updatePostgreSQLConceptsForMerging(conceptsToMerge: any[]): Promise<void> {
+    try {
+      for (const merge of conceptsToMerge) {
+        // Update secondary concepts to mark them as merged
+        for (const secondaryId of merge.secondary_concept_ids) {
+          await this.conceptRepository.update(secondaryId, {
+            status: 'merged',
+            merged_into_concept_id: merge.primary_concept_id
+          });
+          console.log(`[InsightEngine] Marked concept ${secondaryId} as merged into ${merge.primary_concept_id}`);
+        }
+
+        // Update primary concept with new name and description
+        await this.conceptRepository.update(merge.primary_concept_id, {
+          name: merge.new_concept_name,
+          description: merge.new_concept_description
+        });
+        console.log(`[InsightEngine] Updated primary concept ${merge.primary_concept_id} with new name: ${merge.new_concept_name}`);
+      }
+    } catch (error) {
+      console.error('[InsightEngine] Error updating PostgreSQL concepts for merging:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * CRITICAL FIX: Update user memory profile with strategic insights
+   */
+  private async updateUserMemoryProfile(userId: string, analysisOutput: StrategicSynthesisOutput): Promise<void> {
+    try {
+      const { ontology_optimizations, derived_artifacts, proactive_prompts } = analysisOutput;
+      
+      const memoryProfileUpdate = {
+        last_updated: new Date().toISOString(),
+        strategic_insights: {
+          ontology_optimizations: {
+            concepts_merged: ontology_optimizations.concepts_to_merge.length,
+            new_relationships: ontology_optimizations.new_strategic_relationships.length,
+            cycle_timestamp: new Date().toISOString()
+          },
+          derived_artifacts: derived_artifacts.length,
+          proactive_prompts: proactive_prompts.length
+        },
+        growth_patterns: {
+          concept_consolidation: ontology_optimizations.concepts_to_merge.map(merge => ({
+            primary_concept: merge.primary_concept_id,
+            merged_concepts: merge.secondary_concept_ids,
+            rationale: merge.merge_rationale
+          }))
+        }
+      };
+
+      await this.userRepository.update(userId, {
+        memory_profile: memoryProfileUpdate
+      });
+      
+      console.log(`[InsightEngine] Updated memory profile for user ${userId} with strategic insights`);
+    } catch (error) {
+      console.error('[InsightEngine] Error updating user memory profile:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * CRITICAL FIX: Update user knowledge graph schema with new insights
+   */
+  private async updateUserKnowledgeGraphSchema(userId: string, analysisOutput: StrategicSynthesisOutput): Promise<void> {
+    try {
+      const { ontology_optimizations } = analysisOutput;
+      
+      const schemaUpdate = {
+        last_updated: new Date().toISOString(),
+        ontology_changes: {
+          concepts_merged: ontology_optimizations.concepts_to_merge.map(merge => ({
+            primary_concept_id: merge.primary_concept_id,
+            secondary_concept_ids: merge.secondary_concept_ids,
+            new_concept_name: merge.new_concept_name,
+            merge_rationale: merge.merge_rationale
+          })),
+          new_strategic_relationships: ontology_optimizations.new_strategic_relationships.length
+        },
+        schema_version: 'v1.1',
+        cycle_timestamp: new Date().toISOString()
+      };
+
+      await this.userRepository.update(userId, {
+        knowledge_graph_schema: schemaUpdate
+      });
+      
+      console.log(`[InsightEngine] Updated knowledge graph schema for user ${userId}`);
+    } catch (error) {
+      console.error('[InsightEngine] Error updating user knowledge graph schema:', error);
+      throw error;
+    }
   }
 }

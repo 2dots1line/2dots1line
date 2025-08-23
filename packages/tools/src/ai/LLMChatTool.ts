@@ -8,6 +8,37 @@ import { TToolInput, TToolOutput } from '@2dots1line/shared-types';
 import type { IToolManifest, IExecutableTool } from '@2dots1line/shared-types';
 import { GoogleGenerativeAI, GenerativeModel, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import { EnvironmentModelConfigService } from '@2dots1line/config-service';
+import { DatabaseService } from '@2dots1line/database';
+
+interface LLMInteractionLog {
+  workerType: string;
+  workerJobId?: string;
+  sessionId: string;
+  userId: string;
+  conversationId?: string;
+  messageId?: string;
+  sourceEntityId?: string;
+  modelName: string;
+  temperature?: number;
+  maxTokens?: number;
+  promptLength: number;
+  promptTokens?: number;
+  systemPrompt?: string;
+  userPrompt: string;
+  fullPrompt: string;
+  responseLength: number;
+  responseTokens?: number;
+  rawResponse: string;
+  parsedResponse?: any;
+  finishReason?: string;
+  requestStartedAt: Date;
+  requestCompletedAt: Date;
+  processingTimeMs: number;
+  status: 'success' | 'error' | 'timeout';
+  errorMessage?: string;
+  errorCode?: string;
+  metadata?: any;
+}
 
 export interface LLMChatInputPayload {
   userId: string;
@@ -23,6 +54,13 @@ export interface LLMChatInputPayload {
   temperature?: number;
   maxTokens?: number;
   topP?: number;
+  
+  // New fields for LLM interaction logging
+  workerType?: string;        // 'insight-worker', 'ingestion-worker', 'dialogue-service'
+  workerJobId?: string;       // BullMQ job ID
+  conversationId?: string;    // If applicable
+  messageId?: string;         // If applicable
+  sourceEntityId?: string;    // ID of entity being processed
 }
 
 export interface LLMChatResult {
@@ -149,9 +187,59 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
   }
 
   /**
+   * Log LLM interaction to database
+   */
+  private async logLLMInteraction(logData: LLMInteractionLog): Promise<void> {
+    try {
+      // Initialize DatabaseService if not already done
+      const dbService = DatabaseService.getInstance();
+      
+      await dbService.prisma.llm_interactions.create({
+        data: {
+          worker_type: logData.workerType,
+          worker_job_id: logData.workerJobId,
+          session_id: logData.sessionId,
+          user_id: logData.userId,
+          conversation_id: logData.conversationId,
+          message_id: logData.messageId,
+          source_entity_id: logData.sourceEntityId,
+          model_name: logData.modelName,
+          temperature: logData.temperature,
+          max_tokens: logData.maxTokens,
+          prompt_length: logData.promptLength,
+          prompt_tokens: logData.promptTokens,
+          system_prompt: logData.systemPrompt,
+          user_prompt: logData.userPrompt,
+          full_prompt: logData.fullPrompt,
+          response_length: logData.responseLength,
+          response_tokens: logData.responseTokens,
+          raw_response: logData.rawResponse,
+          parsed_response: logData.parsedResponse,
+          finish_reason: logData.finishReason,
+          request_started_at: logData.requestStartedAt,
+          request_completed_at: logData.requestCompletedAt,
+          processing_time_ms: logData.processingTimeMs,
+          status: logData.status,
+          error_message: logData.errorMessage,
+          error_code: logData.errorCode,
+          metadata: logData.metadata
+        }
+      });
+      
+      console.log(`📝 LLMChatTool: Logged interaction to database (ID: ${logData.userId}, Worker: ${logData.workerType}, Status: ${logData.status})`);
+    } catch (error) {
+      console.error('❌ LLMChatTool: Failed to log LLM interaction to database:', error);
+      // Don't throw - logging failure shouldn't break the main flow
+    }
+  }
+
+  /**
    * Execute LLM chat conversation
    */
   async execute(input: LLMChatInput): Promise<LLMChatOutput> {
+    const requestStartedAt = new Date();
+    let currentMessage = '';
+    
     try {
       // Initialize on first execution
       this.initialize();
@@ -173,7 +261,7 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
       
       // Build the conversation prompt
       const systemPrompt = input.payload.systemPrompt;
-      let currentMessage = `${systemPrompt}\n\nRELEVANT CONTEXT FROM USER'S PAST:\n${input.payload.memoryContextBlock || 'No memories provided.'}\n\nCURRENT MESSAGE: ${input.payload.userMessage}`;
+      currentMessage = `${systemPrompt}\n\nRELEVANT CONTEXT FROM USER'S PAST:\n${input.payload.memoryContextBlock || 'No memories provided.'}\n\nCURRENT MESSAGE: ${input.payload.userMessage}`;
       
       console.log('\n🤖 LLMChatTool - FINAL ASSEMBLED PROMPT SENT TO LLM:');
       console.log('🔸'.repeat(80));
@@ -205,6 +293,39 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
 
       const endTime = performance.now();
       const processingTime = endTime - startTime;
+      const requestCompletedAt = new Date();
+
+      // Log successful interaction
+      await this.logLLMInteraction({
+        workerType: input.payload.workerType || 'unknown',
+        workerJobId: input.payload.workerJobId,
+        sessionId: input.payload.sessionId,
+        userId: input.payload.userId,
+        conversationId: input.payload.conversationId,
+        messageId: input.payload.messageId,
+        sourceEntityId: input.payload.sourceEntityId,
+        modelName: this.currentModelName || 'unknown',
+        temperature: input.payload.temperature,
+        maxTokens: input.payload.maxTokens,
+        promptLength: currentMessage.length,
+        promptTokens: response.usageMetadata?.promptTokenCount,
+        systemPrompt: input.payload.systemPrompt,
+        userPrompt: input.payload.userMessage,
+        fullPrompt: currentMessage,
+        responseLength: text.length,
+        responseTokens: response.usageMetadata?.candidatesTokenCount,
+        rawResponse: text,
+        parsedResponse: null, // Will be set by calling tool if needed
+        finishReason: response.candidates?.[0]?.finishReason,
+        requestStartedAt,
+        requestCompletedAt,
+        processingTimeMs: Math.round(processingTime),
+        status: 'success',
+        metadata: {
+          memoryContextBlock: input.payload.memoryContextBlock,
+          historyLength: input.payload.history?.length || 0
+        }
+      });
 
       return {
         status: 'success',
@@ -225,6 +346,39 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
         }
       };
     } catch (error) {
+      const requestCompletedAt = new Date();
+      const processingTime = requestCompletedAt.getTime() - requestStartedAt.getTime();
+
+      // Log failed interaction
+      await this.logLLMInteraction({
+        workerType: input.payload.workerType || 'unknown',
+        workerJobId: input.payload.workerJobId,
+        sessionId: input.payload.sessionId,
+        userId: input.payload.userId,
+        conversationId: input.payload.conversationId,
+        messageId: input.payload.messageId,
+        sourceEntityId: input.payload.sourceEntityId,
+        modelName: this.currentModelName || 'unknown',
+        temperature: input.payload.temperature,
+        maxTokens: input.payload.maxTokens,
+        promptLength: currentMessage.length,
+        systemPrompt: input.payload.systemPrompt,
+        userPrompt: input.payload.userMessage,
+        fullPrompt: currentMessage,
+        responseLength: 0,
+        rawResponse: '',
+        requestStartedAt,
+        requestCompletedAt,
+        processingTimeMs: Math.round(processingTime),
+        status: 'error',
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        errorCode: error instanceof Error ? error.name : 'UNKNOWN_ERROR',
+        metadata: {
+          memoryContextBlock: input.payload.memoryContextBlock,
+          historyLength: input.payload.history?.length || 0
+        }
+      });
+
       console.error('❌ LLMChatTool - Error calling Gemini API:', error);
       return {
         status: 'error',

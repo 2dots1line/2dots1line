@@ -14,6 +14,11 @@ find . -name "node_modules" -type d -exec rm -rf {} + 2>/dev/null || true
 echo "   2c. Pruning pnpm store..."
 pnpm store prune
 
+If manual cleansing takes a long time, try the following:
+1. **Stopped all services**: `pm2 stop all` and `pm2 delete all`
+2. **Killed problematic processes**: `pkill -f turbo`
+3. **Fixed the cleanup script**: Removed the background process (`&`)
+4. **Created a comprehensive cleanup script**: `scripts/clean-environment.sh`
 
 # Install dependencies
 pnpm install
@@ -54,6 +59,10 @@ cd packages/database
 pnpm prisma db push
 cd ../..
 ```
+If there is authentication error, likely there is a local process occupying port 5433. sudo lsof -i -P | grep postgres, then sudo kill PID
+
+Also try this version with URL encoding to overcome the @@ issue.
+DATABASE_URL="postgresql://danniwang:MaxJax2023%40@localhost:5433/twodots1line"
 
 pnpm build
 

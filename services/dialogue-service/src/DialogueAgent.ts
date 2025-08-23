@@ -102,7 +102,7 @@ export class DialogueAgent {
     const finalInputText = await this.processInput(input.currentMessageText, input.currentMessageMedia);
 
     // --- PHASE II: SINGLE SYNTHESIS LLM CALL ---
-    const llmResponse = await this.performSingleSynthesisCall({ ...input, finalInputText });
+    const llmResponse = await this.performSingleSynthesisCall({ ...input, finalInputText }, undefined, 'first');
 
     // --- PHASE III: CONDITIONAL ORCHESTRATION & FINAL RESPONSE ---
     const { response_plan, turn_context_package, ui_actions } = llmResponse;
@@ -133,14 +133,41 @@ export class DialogueAgent {
     
     if (response_plan.decision === 'query_memory') {
       console.log(`[${executionId}] Decision: Query Memory. Key phrases:`, response_plan.key_phrases_for_retrieval);
+      
+      // Fix: Handle both string and array formats from LLM response
+      let keyPhrases: string[];
+      if (typeof response_plan.key_phrases_for_retrieval === 'string') {
+        // Split comma-separated string into array
+        const phrasesString = response_plan.key_phrases_for_retrieval as string;
+        keyPhrases = phrasesString
+          .split(',')
+          .map((phrase: string) => phrase.trim())
+          .filter((phrase: string) => phrase.length > 0);
+        console.log(`[${executionId}] Converted string to array:`, keyPhrases);
+      } else if (Array.isArray(response_plan.key_phrases_for_retrieval)) {
+        keyPhrases = response_plan.key_phrases_for_retrieval;
+      } else {
+        console.warn(`[${executionId}] Invalid key_phrases_for_retrieval format:`, response_plan.key_phrases_for_retrieval);
+        keyPhrases = [];
+      }
+      
       // A. Execute retrieval
+      console.log(`[${executionId}] 🔍 Executing memory retrieval with key phrases:`, keyPhrases);
       const augmentedContext = await this.hybridRetrievalTool.execute({
-        keyPhrasesForRetrieval: response_plan.key_phrases_for_retrieval!,
+        keyPhrasesForRetrieval: keyPhrases,
         userId: input.userId
+      });
+      
+      console.log(`[${executionId}] 📊 Memory retrieval results:`, {
+        memoryUnits: augmentedContext.retrievedMemoryUnits?.length || 0,
+        concepts: augmentedContext.retrievedConcepts?.length || 0,
+        artifacts: augmentedContext.retrievedArtifacts?.length || 0,
+        hasContext: !!augmentedContext
       });
 
       // B. Make the second, context-aware LLM call
-      const finalLlmResponse = await this.performSingleSynthesisCall({ ...input, finalInputText }, augmentedContext);
+      console.log(`[${executionId}] 🤖 Making second LLM call with augmented memory context`);
+      const finalLlmResponse = await this.performSingleSynthesisCall({ ...input, finalInputText }, augmentedContext, 'second');
       
       console.log(`[${executionId}] Retrieval complete. Generating final response.`);
       
@@ -151,7 +178,7 @@ export class DialogueAgent {
         metadata: {
           execution_id: executionId,
           decision: response_plan.decision,
-          key_phrases_used: response_plan.key_phrases_for_retrieval,
+          key_phrases_used: keyPhrases,
           memory_retrieval_performed: true,
           processing_time_ms: Date.now() - parseInt(executionId.split('_')[1])
         }
@@ -183,7 +210,8 @@ export class DialogueAgent {
    */
   private async performSingleSynthesisCall(
     input: { userId: string; conversationId: string; finalInputText: string },
-    augmentedMemoryContext?: AugmentedMemoryContext
+    augmentedMemoryContext?: AugmentedMemoryContext,
+    callType: 'first' | 'second' = 'first'
   ): Promise<{
     response_plan: {
       decision: string;
@@ -202,7 +230,7 @@ export class DialogueAgent {
     const conversationHistory = await this.conversationRepo.getMostRecentMessages(input.conversationId, 10);
     const isNewConversation = conversationHistory.length === 0;
     
-    console.log(`[DialogueAgent] V11.0 - Conversation analysis: isNewConversation=${isNewConversation}, historyLength=${conversationHistory.length}`);
+    console.log(`[DialogueAgent] V11.0 - ${callType.toUpperCase()} LLM call - Conversation analysis: isNewConversation=${isNewConversation}, historyLength=${conversationHistory.length}, hasAugmentedMemory=${!!augmentedMemoryContext}`);
 
     const promptBuildInput: PromptBuildInput = {
       userId: input.userId,
@@ -225,22 +253,25 @@ export class DialogueAgent {
     const llmToolInput = {
       userId: input.userId,
       sessionId: input.conversationId,
+      workerType: 'dialogue-service',
+      workerJobId: `dialogue-${Date.now()}`,
+      conversationId: input.conversationId,
+      messageId: `msg-${Date.now()}`,
+      sourceEntityId: input.conversationId,
       systemPrompt: promptOutput.systemPrompt,        // ✅ Background context only
       userMessage: promptOutput.userPrompt,           // ✅ Current turn context  
       history: this.formatHistoryForLLM(promptOutput.conversationHistory), // ✅ Properly formatted history
       memoryContextBlock: augmentedMemoryContext?.relevant_memories?.join('\n') || '',
-      modelConfig: {
-        temperature: 0.7,
-        maxTokens: 50000,
-        topP: 0.9
-      }
+      temperature: 0.7,
+      maxTokens: 50000
     };
 
-    console.log(`[DialogueAgent] V11.0 - LLM input prepared:`, {
+    console.log(`[DialogueAgent] V11.0 - ${callType.toUpperCase()} LLM call - LLM input prepared:`, {
       systemPromptLength: llmToolInput.systemPrompt.length,
       userMessageLength: llmToolInput.userMessage.length,
       historyCount: llmToolInput.history.length,
-      hasMemoryContext: !!llmToolInput.memoryContextBlock
+      hasMemoryContext: !!llmToolInput.memoryContextBlock,
+      memoryContextLength: llmToolInput.memoryContextBlock?.length || 0
     });
 
     const llmResult = await this.llmChatTool.execute({ payload: llmToolInput });

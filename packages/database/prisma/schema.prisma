@@ -213,6 +213,47 @@ model user_sessions {
   @@index([user_id])
 }
 
+model llm_interactions {
+  interaction_id        String   @id @default(uuid())
+  worker_type          String
+  worker_job_id        String?
+  session_id           String?
+  user_id              String
+  conversation_id      String?
+  message_id           String?
+  source_entity_id     String?
+  model_name           String
+  temperature          Decimal?  @db.Decimal(3, 2)
+  max_tokens           Int?
+  prompt_length        Int
+  prompt_tokens        Int?
+  system_prompt        String?
+  user_prompt          String
+  full_prompt          String
+  response_length      Int
+  response_tokens      Int?
+  raw_response         String
+  parsed_response      Json?
+  finish_reason        String?
+  request_started_at   DateTime
+  request_completed_at DateTime
+  processing_time_ms   Int
+  status               String
+  error_message        String?
+  error_code           String?
+  metadata             Json?
+  created_at           DateTime @default(now())
+  
+  // Relationship to users table (following existing pattern)
+  users                users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([worker_type])
+  @@index([created_at])
+  @@index([conversation_id])
+  @@index([status])
+}
+
 model users {
   user_id                           String                   @id
   email                             String                   @unique
@@ -238,6 +279,7 @@ model users {
   derived_artifacts                 derived_artifacts[]
   growth_events                     growth_events[]
   interaction_logs                  interaction_logs[]
+  llm_interactions                  llm_interactions[]
   media_items                       media_items[]
   memory_units                      memory_units[]
   proactive_prompts                 proactive_prompts[]

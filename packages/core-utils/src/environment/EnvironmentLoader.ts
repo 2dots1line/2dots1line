@@ -22,6 +22,7 @@ export interface EnvironmentConfig {
   
   // API Keys
   GOOGLE_API_KEY?: string;
+  PEXELS_API_KEY?: string;
   
   // LLM Model Configuration
   LLM_CHAT_MODEL?: string;

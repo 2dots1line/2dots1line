@@ -2,54 +2,127 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useUserStore } from './UserStore';
 
-export type VideoOption = 'Cloud1.mp4' | 'Cloud2.mp4' | 'Cloud3.mp4' | 'Cloud4.mp4' | 'Star1.mp4';
+export type LocalVideoOption = 'Cloud1.mp4' | 'Cloud2.mp4' | 'Cloud3.mp4' | 'Cloud4.mp4' | 'Star1.mp4' | 'starryNight.mp4';
 export type ViewType = 'dashboard' | 'chat' | 'cards' | 'settings';
 
 // Type for all possible views (including cosmos)
 export type AllViewType = ViewType | 'cosmos';
 
+export interface MediaItem {
+  id: string;
+  source: 'local' | 'pexels';
+  type: 'video' | 'photo';
+  title: string;
+  url: string;
+  thumbnailUrl?: string;
+  pexelsId?: number;
+  localPath?: string;
+  category?: string;
+  duration?: number;
+  width?: number;
+  height?: number;
+  photographer?: string;
+}
+
+export interface UserMediaPreference {
+  source: 'local' | 'pexels';
+  type: 'video' | 'photo';
+  id: string;
+  url?: string;
+  title?: string;
+}
+
 interface BackgroundVideoState {
   // State
-  videoPreferences: Record<ViewType, VideoOption>;
+  mediaPreferences: Record<ViewType, UserMediaPreference | null>;
+  searchResults: MediaItem[];
   isLoading: boolean;
   error: string | null;
 
   // Actions
-  setVideoForView: (view: ViewType, video: VideoOption) => void;
-  getVideoForView: (view: ViewType) => VideoOption;
+  setMediaForView: (view: ViewType, media: UserMediaPreference) => void;
+  getMediaForView: (view: ViewType) => UserMediaPreference | null;
+  searchMedia: (query: string, type: 'video' | 'photo') => Promise<void>;
+  getRecommendedMedia: (view: ViewType) => Promise<MediaItem[]>;
   loadUserPreferences: () => Promise<void>;
   saveUserPreferences: () => Promise<void>;
   resetToDefaults: () => void;
+  clearSearchResults: () => void;
 }
 
-const DEFAULT_VIDEOS: Record<ViewType, VideoOption> = {
-  dashboard: 'Cloud1.mp4',
-  chat: 'Cloud1.mp4',
-  cards: 'Cloud1.mp4',
-  settings: 'Cloud1.mp4',
+const DEFAULT_LOCAL_VIDEOS: Record<ViewType, UserMediaPreference> = {
+  dashboard: { source: 'local', type: 'video', id: 'Cloud1.mp4' },
+  chat: { source: 'local', type: 'video', id: 'Cloud1.mp4' },
+  cards: { source: 'local', type: 'video', id: 'Cloud1.mp4' },
+  settings: { source: 'local', type: 'video', id: 'Cloud1.mp4' },
 };
 
 export const useBackgroundVideoStore = create<BackgroundVideoState>()(
   persist(
     (set, get) => ({
       // Initial state
-      videoPreferences: { ...DEFAULT_VIDEOS },
+      mediaPreferences: { ...DEFAULT_LOCAL_VIDEOS },
+      searchResults: [],
       isLoading: false,
       error: null,
 
       // Actions
-      setVideoForView: (view: ViewType, video: VideoOption) => {
-        const { videoPreferences } = get();
-        const newPreferences = { ...videoPreferences, [view]: video };
-        set({ videoPreferences: newPreferences });
+      setMediaForView: (view: ViewType, media: UserMediaPreference) => {
+        const { mediaPreferences } = get();
+        const newPreferences = { ...mediaPreferences, [view]: media };
+        set({ mediaPreferences: newPreferences });
         
         // Auto-save to user preferences
         get().saveUserPreferences();
       },
 
-      getVideoForView: (view: ViewType) => {
-        const { videoPreferences } = get();
-        return videoPreferences[view] || DEFAULT_VIDEOS[view];
+      getMediaForView: (view: ViewType) => {
+        const { mediaPreferences } = get();
+        return mediaPreferences[view] || DEFAULT_LOCAL_VIDEOS[view];
+      },
+
+                   searchMedia: async (query: string, type: 'video' | 'photo') => {
+               console.log('Store searchMedia called with:', query, type);
+               set({ isLoading: true, error: null });
+
+               try {
+                 const response = await fetch(`/api/v1/media/search?q=${encodeURIComponent(query)}&type=${type}`, {
+                   headers: {
+                     'Authorization': 'Bearer dev-token'
+                   }
+                 });
+          
+          if (!response.ok) {
+            throw new Error('Failed to search media');
+          }
+          
+          const results = await response.json();
+          console.log('Store received search results:', results.data);
+          set({ searchResults: results.data || [], isLoading: false });
+        } catch (error) {
+          console.error('Failed to search media:', error);
+          set({ error: 'Failed to search media', isLoading: false });
+        }
+      },
+
+                   getRecommendedMedia: async (view: ViewType) => {
+               try {
+                 const response = await fetch(`/api/v1/media/recommended?view=${view}`, {
+                   headers: {
+                     'Authorization': 'Bearer dev-token'
+                   }
+                 });
+          
+          if (!response.ok) {
+            throw new Error('Failed to get recommended media');
+          }
+          
+          const results = await response.json();
+          return results.data || [];
+        } catch (error) {
+          console.error('Failed to get recommended media:', error);
+          return [];
+        }
       },
 
       loadUserPreferences: async () => {
@@ -59,22 +132,22 @@ export const useBackgroundVideoStore = create<BackgroundVideoState>()(
           const userStore = useUserStore.getState();
           const user = userStore.user;
           
-          if (user?.preferences?.background_videos) {
-            const userVideos = user.preferences.background_videos as Record<ViewType, VideoOption>;
-            const newPreferences = { ...DEFAULT_VIDEOS };
+          if (user?.preferences?.background_media) {
+            const userMedia = user.preferences.background_media as Record<ViewType, UserMediaPreference>;
+            const newPreferences = { ...DEFAULT_LOCAL_VIDEOS };
             
-            // Only update with valid video options
-            Object.entries(userVideos).forEach(([view, video]) => {
-              if (view in DEFAULT_VIDEOS && Object.values(DEFAULT_VIDEOS).includes(video)) {
-                newPreferences[view as ViewType] = video;
+            // Update with user preferences
+            Object.entries(userMedia).forEach(([view, media]) => {
+              if (view in DEFAULT_LOCAL_VIDEOS) {
+                newPreferences[view as ViewType] = media;
               }
             });
             
-            set({ videoPreferences: newPreferences });
+            set({ mediaPreferences: newPreferences });
           }
         } catch (error) {
-          console.error('Failed to load video preferences:', error);
-          set({ error: 'Failed to load video preferences' });
+          console.error('Failed to load media preferences:', error);
+          set({ error: 'Failed to load media preferences' });
         } finally {
           set({ isLoading: false });
         }
@@ -86,36 +159,40 @@ export const useBackgroundVideoStore = create<BackgroundVideoState>()(
           const user = userStore.user;
           
           if (!user) {
-            console.warn('No user available to save video preferences');
+            console.warn('No user available to save media preferences');
             return;
           }
 
-          // Update user preferences with current video settings
+          // Update user preferences with current media settings
           const currentPreferences = user.preferences || {};
           const updatedPreferences = {
             ...currentPreferences,
-            background_videos: get().videoPreferences,
+            background_media: get().mediaPreferences,
           };
 
           // This would typically call an API to update user preferences
           // For now, we'll just update the local user store
           userStore.updateUserPreferences(updatedPreferences);
         } catch (error) {
-          console.error('Failed to save video preferences:', error);
-          set({ error: 'Failed to save video preferences' });
+          console.error('Failed to save media preferences:', error);
+          set({ error: 'Failed to save media preferences' });
         }
       },
 
       resetToDefaults: () => {
-        set({ videoPreferences: { ...DEFAULT_VIDEOS } });
+        set({ mediaPreferences: { ...DEFAULT_LOCAL_VIDEOS } });
         get().saveUserPreferences();
+      },
+
+      clearSearchResults: () => {
+        set({ searchResults: [] });
       },
     }),
     {
-      name: 'background-video-storage',
-      // Only persist video preferences
+      name: 'background-media-storage',
+      // Only persist media preferences
       partialize: (state) => ({
-        videoPreferences: state.videoPreferences,
+        mediaPreferences: state.mediaPreferences,
       }),
     }
   )

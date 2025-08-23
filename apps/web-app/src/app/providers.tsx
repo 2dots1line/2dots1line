@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { BackgroundVideo } from '../components/BackgroundVideo';
+import { DynamicBackground } from '../components/DynamicBackground';
 
 interface ProvidersProps {
   children: React.ReactNode;
@@ -18,7 +18,7 @@ export function Providers({ children }: ProvidersProps) {
   if (!mounted) {
     return (
       <div className="relative w-full h-screen overflow-hidden">
-        <BackgroundVideo view="dashboard" />
+        <DynamicBackground view="dashboard" />
         <div className="relative z-10 flex items-center justify-center h-full">
           <div className="text-white text-2xl font-light">Loading...</div>
         </div>

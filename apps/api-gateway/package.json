@@ -17,6 +17,7 @@
     "@2dots1line/dialogue-service": "workspace:*",
     "@2dots1line/user-service": "workspace:*",
     "@2dots1line/card-service": "workspace:*",
+    "@2dots1line/pexels-service": "workspace:*",
     "@2dots1line/shared-types": "workspace:*",
     "@2dots1line/tools": "workspace:*",
     "@types/jsonwebtoken": "^9.0.5",

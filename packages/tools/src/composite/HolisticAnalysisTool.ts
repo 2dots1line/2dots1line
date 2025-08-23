@@ -86,6 +86,12 @@ export interface HolisticAnalysisInput {
   fullConversationTranscript: string;
   userMemoryProfile: any; // Can be null for new users
   knowledgeGraphSchema: any; // Can be null, will use default
+  
+  // New fields for LLM interaction logging
+  workerType?: string;
+  workerJobId?: string;
+  conversationId?: string;
+  messageId?: string;
 }
 
 export class HolisticAnalysisTool {
@@ -108,6 +114,10 @@ export class HolisticAnalysisTool {
         payload: {
           userId: input.userId,
           sessionId: `holistic-analysis-${Date.now()}`,
+          workerType: input.workerType || 'ingestion-worker',
+          workerJobId: input.workerJobId,
+          conversationId: input.conversationId,
+          messageId: input.messageId,
           systemPrompt: 'You are an advanced AI analyst. Follow the instructions exactly and return only valid JSON.',
           history: [], // No previous history for analysis tasks
           userMessage: prompt,

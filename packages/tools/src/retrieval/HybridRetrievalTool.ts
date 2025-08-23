@@ -8,6 +8,8 @@ import { DatabaseService } from '@2dots1line/database';
 import { WeaviateClient } from 'weaviate-ts-client';
 // import { Driver as Neo4jDriver } from 'neo4j-driver'; // Commented out due to missing dependency
 import { CypherBuilder, EntityScorer, HydrationAdapter } from './internal';
+import { TextEmbeddingTool } from '../ai/TextEmbeddingTool';
+import type { IExecutableTool, TTextEmbeddingInputPayload, TTextEmbeddingResult } from '@2dots1line/shared-types';
 import { 
   HRTInput, 
   HRTExecutionContext, 
@@ -29,6 +31,7 @@ export class HybridRetrievalTool {
   private cypherBuilder: CypherBuilder | null = null;
   private entityScorer: EntityScorer | null = null;
   private hydrationAdapter: HydrationAdapter | null = null;
+  private embeddingTool!: IExecutableTool<TTextEmbeddingInputPayload, TTextEmbeddingResult>;
 
   constructor(databaseService: DatabaseService, configService: any) {
     this.db = databaseService;
@@ -60,6 +63,9 @@ export class HybridRetrievalTool {
       
       this.hydrationAdapter = new HydrationAdapter(this.db);
       
+      // Initialize embedding tool for semantic search
+      this.embeddingTool = TextEmbeddingTool;
+      
       console.log('HybridRetrievalTool: Internal modules initialized successfully');
     } catch (error) {
       console.error('HybridRetrievalTool: Failed to initialize internal modules:', error);
@@ -73,7 +79,7 @@ export class HybridRetrievalTool {
    */
   async execute(input: HRTInput): Promise<ExtendedAugmentedMemoryContext> {
     // Ensure modules are initialized
-    if (!this.cypherBuilder || !this.entityScorer || !this.hydrationAdapter) {
+    if (!this.cypherBuilder || !this.entityScorer || !this.hydrationAdapter || !this.embeddingTool) {
       throw new Error('HybridRetrievalTool: Internal modules not initialized');
     }
 
@@ -146,12 +152,35 @@ export class HybridRetrievalTool {
     const stageStart = Date.now();
     
     try {
-      console.log(`[HRT ${context.requestId}] Stage 2: Semantic grounding with Weaviate`);
+      console.log(`[HRT ${context.requestId}] Stage 2: Semantic grounding with Weaviate using nearVector`);
+      
+      if (!this.embeddingTool) {
+        throw new Error('Embedding tool not initialized');
+      }
       
       const seedEntities: SeedEntity[] = [];
       
       for (const phrase of phrases) {
         try {
+          console.log(`[HRT ${context.requestId}] Generating embedding for phrase: "${phrase}"`);
+          
+          // Generate embedding for the search phrase
+          const embeddingResult = await this.embeddingTool.execute({
+            payload: {
+              text_to_embed: phrase,
+              model_id: 'gemini-embedding-004' // Use Gemini embedding model
+            }
+          });
+          
+          if (!embeddingResult.result?.vector) {
+            console.warn(`[HRT ${context.requestId}] Failed to generate embedding for phrase "${phrase}"`);
+            continue;
+          }
+          
+          const searchVector = embeddingResult.result.vector;
+          console.log(`[HRT ${context.requestId}] Generated ${searchVector.length}-dimensional vector for phrase "${phrase}"`);
+          
+          // Use nearVector search instead of withNearText
           const result = await this.weaviate
             .graphql
             .get()
@@ -162,7 +191,7 @@ export class HybridRetrievalTool {
               path: ['userId'],
               valueString: userId
             })
-            .withNearText({ concepts: [phrase] })
+            .withNearVector({ vector: searchVector })
             .withLimit(3)
             .do();
           

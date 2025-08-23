@@ -2,12 +2,13 @@
 
 import { GlassmorphicPanel, GlassButton } from '@2dots1line/ui-components';
 import { X } from 'lucide-react';
-import React from 'react';
+import React, { useState } from 'react';
 
 import { useHUDStore } from '../../stores/HUDStore';
 import { useCardStore } from '../../stores/CardStore';
 import { useChatStore } from '../../stores/ChatStore';
-import { useBackgroundVideoStore } from '../../stores/BackgroundVideoStore';
+import { useBackgroundVideoStore, type ViewType } from '../../stores/BackgroundVideoStore';
+import { PexelsSearchModal } from './PexelsSearchModal';
 
 import { EnhancedCardModal } from './EnhancedCardModal';
 import ChatModal from './ChatModal';
@@ -22,11 +23,13 @@ interface ModalContainerProps {
 
 
 const SettingsModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
-  const { videoPreferences, setVideoForView, resetToDefaults } = useBackgroundVideoStore();
+  const { mediaPreferences, setMediaForView, resetToDefaults } = useBackgroundVideoStore();
+  const [pexelsModalOpen, setPexelsModalOpen] = useState(false);
+  const [targetView, setTargetView] = useState<ViewType>('dashboard');
   
   if (!isOpen) return null;
   
-  const videoOptions = [
+  const localVideoOptions = [
     { value: 'Cloud1.mp4', label: 'Cloud 1' },
     { value: 'Cloud2.mp4', label: 'Cloud 2' },
     { value: 'Cloud3.mp4', label: 'Cloud 3' },
@@ -59,32 +62,72 @@ const SettingsModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
           </GlassButton>
         </div>
         
-        {/* Background Video Settings */}
+        {/* Background Media Settings */}
         <div className="mb-8">
-          <h3 className="text-xl font-semibold text-white mb-4">Background Videos</h3>
+          <h3 className="text-xl font-semibold text-white mb-4">Background Media</h3>
           <p className="text-white/80 mb-6">
-            Choose different background videos for each 2D view. Cosmos view uses 3D rendering and is not affected by these settings.
+            Choose different background media for each 2D view. You can use local videos or search for new ones from Pexels.
           </p>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {views.map(({ key, label }) => (
-              <div key={key} className="space-y-3">
-                <label className="block text-sm font-medium text-white/90">
-                  {label} View
-                </label>
-                <select
-                  value={videoPreferences[key]}
-                  onChange={(e) => setVideoForView(key, e.target.value as any)}
-                  className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-transparent"
-                >
-                  {videoOptions.map(({ value, label }) => (
-                    <option key={value} value={value} className="bg-gray-800 text-white">
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ))}
+            {views.map(({ key, label }) => {
+              const currentMedia = mediaPreferences[key];
+              const isLocal = currentMedia?.source === 'local';
+              const isPexels = currentMedia?.source === 'pexels';
+              
+              return (
+                <div key={key} className="space-y-3">
+                  <label className="block text-sm font-medium text-white/90">
+                    {label} View
+                  </label>
+                  
+                  {/* Current Media Display */}
+                  <div className="text-sm text-white/70 mb-2">
+                    {isLocal && `Local: ${currentMedia?.id}`}
+                    {isPexels && `Pexels: ${currentMedia?.title || 'Custom Media'}`}
+                  </div>
+                  
+                  {/* Local Video Selection */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-medium text-white/60">Local Videos</label>
+                    <select
+                      value={isLocal ? currentMedia?.id : ''}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          setMediaForView(key, {
+                            source: 'local',
+                            type: 'video',
+                            id: e.target.value
+                          });
+                        }
+                      }}
+                      className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-transparent text-sm"
+                    >
+                      <option value="">Select local video...</option>
+                      {localVideoOptions.map(({ value, label }) => (
+                        <option key={value} value={value} className="bg-gray-800 text-white">
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  {/* Pexels Search Button */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-medium text-white/60">Pexels Library</label>
+                    <GlassButton
+                      onClick={() => {
+                        setTargetView(key);
+                        setPexelsModalOpen(true);
+                      }}
+                      className="w-full px-3 py-2 text-sm hover:bg-white/20"
+                    >
+                      Search Pexels
+                    </GlassButton>
+                  </div>
+                </div>
+              );
+            })}
           </div>
           
           <div className="mt-6">
@@ -102,6 +145,13 @@ const SettingsModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
           <h3 className="text-xl font-semibold text-white mb-4">Other Settings</h3>
           <p className="text-white/80">Additional application settings will appear here.</p>
         </div>
+        
+        {/* Pexels Search Modal */}
+        <PexelsSearchModal
+          isOpen={pexelsModalOpen}
+          onClose={() => setPexelsModalOpen(false)}
+          targetView={targetView}
+        />
       </GlassmorphicPanel>
     </div>
   );
