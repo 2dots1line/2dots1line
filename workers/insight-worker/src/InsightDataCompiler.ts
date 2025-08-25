@@ -9,6 +9,7 @@ export interface IngestionActivitySummary {
   totalGrowthEvents: number;
   conversationSummaries: Array<{
     id: string;
+    title: string;
     importance_score: number;
     context_summary: string;
     created_at: Date;
@@ -109,6 +110,7 @@ export class InsightDataCompiler {
         },
         select: {
           id: true,
+          title: true,
           importance_score: true,
           context_summary: true,
           start_time: true
@@ -188,6 +190,7 @@ export class InsightDataCompiler {
         totalGrowthEvents: growthEvents.length,
         conversationSummaries: conversations.map(conv => ({
           id: conv.id,
+          title: conv.title || 'Untitled Conversation',
           importance_score: conv.importance_score || 0,
           context_summary: conv.context_summary || 'No summary available',
           created_at: conv.start_time

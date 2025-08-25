@@ -32,6 +32,9 @@ export class MaintenanceWorker {
   };
 
   constructor() {
+    // Set process title for proper PM2 identification
+    process.title = 'maintenance-worker';
+    
     // CRITICAL: Load environment variables first
     console.log('[MaintenanceWorker] Loading environment variables...');
     environmentLoader.load();
@@ -61,24 +64,52 @@ export class MaintenanceWorker {
       archiving: this.config.ENABLE_ARCHIVING,
     });
 
+    // Debug: Check the type of INTEGRITY_CHECK_BATCH_SIZE
+    console.log('[MaintenanceWorker] Debug - INTEGRITY_CHECK_BATCH_SIZE:', {
+      value: this.config.INTEGRITY_CHECK_BATCH_SIZE,
+      type: typeof this.config.INTEGRITY_CHECK_BATCH_SIZE,
+      isInteger: Number.isInteger(this.config.INTEGRITY_CHECK_BATCH_SIZE)
+    });
+
     this.dbService = DatabaseService.getInstance();
   }
 
   public async initialize(): Promise<void> {
     console.log('[MaintenanceWorker] Initializing V11.0 maintenance worker...');
     
+    // Debug: Validate cron expressions
+    console.log('[MaintenanceWorker] Debug - Cron expressions:');
+    console.log(`  Redis cleanup: "${this.config.REDIS_CLEANUP_CRON}" (valid: ${cron.validate(this.config.REDIS_CLEANUP_CRON)})`);
+    console.log(`  Integrity check: "${this.config.INTEGRITY_CHECK_CRON}" (valid: ${cron.validate(this.config.INTEGRITY_CHECK_CRON)})`);
+    console.log(`  DB optimization: "${this.config.DB_OPTIMIZATION_CRON}" (valid: ${cron.validate(this.config.DB_OPTIMIZATION_CRON)})`);
+    console.log(`  Archiving: "${this.config.ARCHIVING_CRON}" (valid: ${cron.validate(this.config.ARCHIVING_CRON)})`);
+    
     // Schedule the main maintenance cycle (daily at 2 AM)
-    cron.schedule(this.config.INTEGRITY_CHECK_CRON, async () => {
+    const integrityCheckTask = cron.schedule(this.config.INTEGRITY_CHECK_CRON, async () => {
       if (!this.isRunning && !this.isShuttingDown) {
+        console.log('[MaintenanceWorker] 🔄 Daily maintenance cycle triggered');
         await this.runMaintenanceCycle();
       }
     });
+    this.tasks.push(integrityCheckTask);
+    console.log(`[MaintenanceWorker] Maintenance cycle scheduled: ${this.config.INTEGRITY_CHECK_CRON}`);
+
+    // Schedule Redis cleanup task (hourly)
+    if (this.config.ENABLE_REDIS_CLEANUP) {
+      const redisCleanupTask = cron.schedule(this.config.REDIS_CLEANUP_CRON, async () => {
+        if (!this.isShuttingDown) {
+          console.log('[MaintenanceWorker] 🔄 Hourly Redis cleanup triggered');
+          await this.cleanupStaleRedisKeys();
+        }
+      });
+      this.tasks.push(redisCleanupTask);
+      console.log(`[MaintenanceWorker] Redis cleanup scheduled: ${this.config.REDIS_CLEANUP_CRON}`);
+    }
 
     // Handle graceful shutdown
     process.on('SIGTERM', () => this.gracefulShutdown());
     process.on('SIGINT', () => this.gracefulShutdown());
 
-    console.log(`[MaintenanceWorker] Maintenance cycle scheduled: ${this.config.INTEGRITY_CHECK_CRON}`);
     console.log('[MaintenanceWorker] V11.0 initialization complete');
   }
 
@@ -196,102 +227,206 @@ export class MaintenanceWorker {
    * Detects inconsistencies between PostgreSQL, Neo4j, and Weaviate
    */
   private async runDataIntegrityCheck(): Promise<void> {
-    console.log('[MaintenanceWorker] Starting data integrity check...');
-
-    // Check 1: Orphaned Concepts in PostgreSQL vs Neo4j
-    await this.checkConceptIntegrity();
+    console.log('[MaintenanceWorker] 🔍 Starting data integrity check...');
     
-    // Check 2: Orphaned Memory Units in PostgreSQL vs Neo4j
-    await this.checkMemoryUnitIntegrity();
-    
-    // Check 3: Vector Store Sync Check (sample)
-    await this.checkVectorStoreSync();
-
-    console.log('[MaintenanceWorker] Data integrity check completed.');
+    try {
+      // Check concept integrity (PostgreSQL vs Neo4j)
+      await this.checkConceptIntegrity();
+      
+      // Check memory unit integrity (PostgreSQL vs Neo4j)
+      await this.checkMemoryUnitIntegrity();
+      
+      // Check vector sync integrity (PostgreSQL vs Weaviate)
+      await this.checkVectorSyncIntegrity();
+      
+      console.log('[MaintenanceWorker] ✅ Data integrity check completed');
+    } catch (error) {
+      console.error('[MaintenanceWorker] ❌ Data integrity check failed:', error);
+    }
   }
 
   private async checkConceptIntegrity(): Promise<void> {
-    const conceptsInPg = await this.dbService.prisma.concepts.findMany({ 
-      select: { concept_id: true },
-      take: this.config.INTEGRITY_CHECK_BATCH_SIZE
-    });
-    const conceptIdsInPg = new Set(conceptsInPg.map(c => c.concept_id));
+    console.log('[MaintenanceWorker] 🔍 Checking concept integrity...');
     
     const neo4jSession = this.dbService.neo4j.session();
+    let totalCheckedCount = 0;
+    let totalOrphanedCount = 0;
+    
     try {
-      const result = await neo4jSession.run(
-        'MATCH (c:Concept) RETURN c.conceptId AS conceptId LIMIT $limit',
-        { limit: this.config.INTEGRITY_CHECK_BATCH_SIZE }
-      );
-      const conceptIdsInNeo4j = new Set(result.records.map(r => r.get('conceptId')));
-
-      let orphanedCount = 0;
-      for (const pgId of conceptIdsInPg) {
-        if (!conceptIdsInNeo4j.has(pgId)) {
-          console.error(`[Data Integrity Error] Concept ID ${pgId} exists in PostgreSQL but NOT in Neo4j.`);
-          orphanedCount++;
+      // Get distinct user IDs from PostgreSQL
+      const usersWithConcepts = await this.dbService.prisma.concepts.findMany({
+        select: { user_id: true },
+        distinct: ['user_id']
+      });
+      
+      console.log(`[MaintenanceWorker] Found ${usersWithConcepts.length} users with concepts to check`);
+      
+      for (const userRecord of usersWithConcepts) {
+        const userId = userRecord.user_id;
+        console.log(`[MaintenanceWorker] Checking concepts for user: ${userId}`);
+        
+        // Get concepts for this user from PostgreSQL
+        const conceptsInPg = await this.dbService.prisma.concepts.findMany({
+          select: { concept_id: true },
+          where: { user_id: userId },
+          take: this.config.INTEGRITY_CHECK_BATCH_SIZE
+        });
+        
+        if (conceptsInPg.length === 0) {
+          console.log(`[MaintenanceWorker] No concepts found in PostgreSQL for user: ${userId}`);
+          continue;
         }
+        
+        console.log(`[MaintenanceWorker] Checking ${conceptsInPg.length} concepts for user: ${userId}`);
+        
+        // Check each concept individually in Neo4j
+        for (const concept of conceptsInPg) {
+          totalCheckedCount++;
+          
+          const result = await neo4jSession.run(
+            'MATCH (c:Concept {concept_id: $conceptId, userId: $userId}) RETURN c.concept_id AS conceptId LIMIT 1',
+            { conceptId: concept.concept_id, userId: userId }
+          );
+          
+          if (result.records.length === 0) {
+            totalOrphanedCount++;
+            console.log(`[MaintenanceWorker] ❌ Orphaned concept: ${concept.concept_id} (user: ${userId}) - exists in PostgreSQL but not in Neo4j`);
+          }
+        }
+        
+        // Log progress for this user
+        console.log(`[MaintenanceWorker] User ${userId}: ${conceptsInPg.length} concepts checked`);
       }
       
-      console.log(`[MaintenanceWorker] Checked ${conceptIdsInPg.size} concepts. Found ${orphanedCount} integrity issues.`);
+      console.log(`[MaintenanceWorker] Concept integrity check complete. Total checked: ${totalCheckedCount}. Total orphaned: ${totalOrphanedCount}`);
+      
     } finally {
       await neo4jSession.close();
     }
   }
 
   private async checkMemoryUnitIntegrity(): Promise<void> {
-    const memoryUnitsInPg = await this.dbService.prisma.memory_units.findMany({ 
-      select: { muid: true },
-      take: this.config.INTEGRITY_CHECK_BATCH_SIZE
-    });
-    const memoryUnitIdsInPg = new Set(memoryUnitsInPg.map(m => m.muid));
+    console.log('[MaintenanceWorker] 🔍 Checking memory unit integrity...');
     
     const neo4jSession = this.dbService.neo4j.session();
+    let totalCheckedCount = 0;
+    let totalOrphanedCount = 0;
+    
     try {
-      const result = await neo4jSession.run(
-        'MATCH (m:MemoryUnit) RETURN m.memoryUnitId AS memoryUnitId LIMIT $limit',
-        { limit: this.config.INTEGRITY_CHECK_BATCH_SIZE }
-      );
-      const memoryUnitIdsInNeo4j = new Set(result.records.map(r => r.get('memoryUnitId')));
-
-      let orphanedCount = 0;
-      for (const pgId of memoryUnitIdsInPg) {
-        if (!memoryUnitIdsInNeo4j.has(pgId)) {
-          console.error(`[Data Integrity Error] MemoryUnit ID ${pgId} exists in PostgreSQL but NOT in Neo4j.`);
-          orphanedCount++;
+      // Get distinct user IDs from PostgreSQL
+      const usersWithMemoryUnits = await this.dbService.prisma.memory_units.findMany({
+        select: { user_id: true },
+        distinct: ['user_id']
+      });
+      
+      console.log(`[MaintenanceWorker] Found ${usersWithMemoryUnits.length} users with memory units to check`);
+      
+      for (const userRecord of usersWithMemoryUnits) {
+        const userId = userRecord.user_id;
+        console.log(`[MaintenanceWorker] Checking memory units for user: ${userId}`);
+        
+        // Get memory units for this user from PostgreSQL
+        const memoryUnitsInPg = await this.dbService.prisma.memory_units.findMany({
+          select: { muid: true },
+          where: { user_id: userId },
+          take: this.config.INTEGRITY_CHECK_BATCH_SIZE
+        });
+        
+        if (memoryUnitsInPg.length === 0) {
+          console.log(`[MaintenanceWorker] No memory units found in PostgreSQL for user: ${userId}`);
+          continue;
         }
+        
+        console.log(`[MaintenanceWorker] Checking ${memoryUnitsInPg.length} memory units for user: ${userId}`);
+        
+        // Check each memory unit individually in Neo4j
+        for (const memoryUnit of memoryUnitsInPg) {
+          totalCheckedCount++;
+          
+          const result = await neo4jSession.run(
+            'MATCH (m:MemoryUnit {muid: $muid, userId: $userId}) RETURN m.muid AS muid LIMIT 1',
+            { muid: memoryUnit.muid, userId: userId }
+          );
+          
+          if (result.records.length === 0) {
+            totalOrphanedCount++;
+            console.log(`[MaintenanceWorker] ❌ Orphaned memory unit: ${memoryUnit.muid} (user: ${userId}) - exists in PostgreSQL but not in Neo4j`);
+          }
+        }
+        
+        // Log progress for this user
+        console.log(`[MaintenanceWorker] User ${userId}: ${memoryUnitsInPg.length} memory units checked`);
       }
       
-      console.log(`[MaintenanceWorker] Checked ${memoryUnitIdsInPg.size} memory units. Found ${orphanedCount} integrity issues.`);
+      console.log(`[MaintenanceWorker] Memory unit integrity check complete. Total checked: ${totalCheckedCount}. Total orphaned: ${totalOrphanedCount}`);
+      
     } finally {
       await neo4jSession.close();
     }
   }
 
-  private async checkVectorStoreSync(): Promise<void> {
-    // Sample check: verify that recent memory units have vectors in Weaviate
-    const recentMemoryUnits = await this.dbService.prisma.memory_units.findMany({
-      select: { muid: true },
-      orderBy: { ingestion_ts: 'desc' },
-      take: 10 // Sample size
-    });
-
-    let vectorMissingCount = 0;
-    for (const unit of recentMemoryUnits) {
-      try {
-        const response = await fetch(`${process.env.WEAVIATE_URL}/v1/objects?class=UserKnowledgeItem&where={"path":["memoryUnitId"],"operator":"Equal","valueText":"${unit.muid}"}`);
-        const data = await response.json();
+  private async checkVectorSyncIntegrity(): Promise<void> {
+    console.log('[MaintenanceWorker] 🔍 Checking vector sync integrity...');
+    
+    try {
+      // Get distinct user IDs from PostgreSQL
+      const usersWithConcepts = await this.dbService.prisma.concepts.findMany({
+        select: { user_id: true },
+        distinct: ['user_id']
+      });
+      
+      console.log(`[MaintenanceWorker] Found ${usersWithConcepts.length} users with concepts to check in Weaviate`);
+      
+      let totalCheckedCount = 0;
+      let totalMissingVectorsCount = 0;
+      
+      for (const userRecord of usersWithConcepts) {
+        const userId = userRecord.user_id;
         
-        if (!data.objects || data.objects.length === 0) {
-          console.warn(`[Data Integrity Warning] MemoryUnit ${unit.muid} missing from Weaviate`);
-          vectorMissingCount++;
+        // Get concepts for this user from PostgreSQL
+        const conceptsInPg = await this.dbService.prisma.concepts.findMany({
+          select: { concept_id: true },
+          where: { user_id: userId },
+          take: this.config.INTEGRITY_CHECK_BATCH_SIZE
+        });
+        
+        if (conceptsInPg.length === 0) continue;
+        
+        // Check each concept in Weaviate
+        for (const concept of conceptsInPg) {
+          totalCheckedCount++;
+          
+          try {
+            // Query Weaviate for this specific concept
+                         const weaviateResult = await this.dbService.weaviate.graphql
+              .get()
+              .withClassName('Concept')
+              .withFields('concept_id userId')
+              .withWhere({
+                operator: 'And',
+                operands: [
+                  { path: ['concept_id'], operator: 'Equal', valueString: concept.concept_id },
+                  { path: ['userId'], operator: 'Equal', valueString: userId }
+                ]
+              })
+              .do();
+            
+            if (!weaviateResult.data.Get.Concept || weaviateResult.data.Get.Concept.length === 0) {
+              totalMissingVectorsCount++;
+              console.log(`[MaintenanceWorker] ❌ Missing vector: ${concept.concept_id} (user: ${userId}) - exists in PostgreSQL but not in Weaviate`);
+            }
+          } catch (error) {
+            console.error(`[MaintenanceWorker] Error checking concept ${concept.concept_id} in Weaviate:`, error);
+            totalMissingVectorsCount++;
+          }
         }
-      } catch (error) {
-        console.error(`[MaintenanceWorker] Error checking Weaviate for ${unit.muid}:`, error);
       }
+      
+      console.log(`[MaintenanceWorker] Vector sync integrity check complete. Total checked: ${totalCheckedCount}. Total missing vectors: ${totalMissingVectorsCount}`);
+      
+    } catch (error) {
+      console.error('[MaintenanceWorker] Vector sync integrity check failed:', error);
     }
-
-    console.log(`[MaintenanceWorker] Checked ${recentMemoryUnits.length} memory units in Weaviate. Found ${vectorMissingCount} missing vectors.`);
   }
 
   /**
@@ -392,4 +527,46 @@ export class MaintenanceWorker {
   public async stop(): Promise<void> {
     await this.gracefulShutdown();
   }
-} 
+
+  // --- MANUAL TRIGGER METHODS FOR TESTING ---
+
+  /**
+   * Manually trigger Redis cleanup task
+   */
+  public async triggerRedisCleanup(): Promise<void> {
+    console.log('[MaintenanceWorker] 🔧 MANUAL TRIGGER: Redis cleanup task');
+    await this.cleanupStaleRedisKeys();
+  }
+
+  /**
+   * Manually trigger data integrity check task
+   */
+  public async triggerDataIntegrityCheck(): Promise<void> {
+    console.log('[MaintenanceWorker] 🔧 MANUAL TRIGGER: Data integrity check task');
+    await this.runDataIntegrityCheck();
+  }
+
+  /**
+   * Manually trigger database optimization task
+   */
+  public async triggerDatabaseOptimization(): Promise<void> {
+    console.log('[MaintenanceWorker] 🔧 MANUAL TRIGGER: Database optimization task');
+    await this.runDatabaseOptimization();
+  }
+
+  /**
+   * Manually trigger data archiving task
+   */
+  public async triggerDataArchiving(): Promise<void> {
+    console.log('[MaintenanceWorker] 🔧 MANUAL TRIGGER: Data archiving task');
+    await this.archiveOldConversations();
+  }
+
+  /**
+   * Manually trigger expired session cleanup
+   */
+  public async triggerExpiredSessionCleanup(): Promise<void> {
+    console.log('[MaintenanceWorker] 🔧 MANUAL TRIGGER: Expired session cleanup task');
+    await this.cleanupExpiredSessions();
+  }
+}

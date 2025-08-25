@@ -190,7 +190,8 @@ export class IngestionAnalyst {
             user_id: userId,
             title: memoryUnit.title,
             content: memoryUnit.content,
-            creation_ts: new Date(memoryUnit.creation_ts),
+            importance_score: memoryUnit.importance_score || persistence_payload.conversation_importance_score || 5, // Use memory-specific score or fallback to conversation score
+            sentiment_score: memoryUnit.sentiment_score || 0, // Use memory-specific sentiment or neutral
             source_conversation_id: conversationId
           };
 
@@ -208,7 +209,7 @@ export class IngestionAnalyst {
             content: createdMemory.content,
             importance_score: createdMemory.importance_score,
             sentiment_score: createdMemory.sentiment_score,
-            creation_ts: createdMemory.creation_ts.toISOString(),
+            creation_ts: new Date().toISOString(), // Always use current time
             source_conversation_id: createdMemory.source_conversation_id,
             source: 'IngestionAnalyst'
           });
@@ -230,7 +231,8 @@ export class IngestionAnalyst {
             user_id: userId,
             name: concept.name,
             type: concept.type,
-            description: concept.description
+            description: concept.description,
+            salience: this.calculateConceptSalience(concept, persistence_payload)
           };
 
           const createdConcept = await this.conceptRepository.create(conceptData);
@@ -246,7 +248,7 @@ export class IngestionAnalyst {
             name: createdConcept.name,
             description: createdConcept.description,
             type: createdConcept.type,
-            salience: createdConcept.salience,
+            salience: conceptData.salience, // Use the calculated salience
             status: createdConcept.status,
             created_at: createdConcept.created_at.toISOString(),
             community_id: createdConcept.community_id,
@@ -264,19 +266,23 @@ export class IngestionAnalyst {
         console.log(`🔍 [IngestionAnalyst] DEBUG: Creating ${persistence_payload.detected_growth_events.length} growth events`);
         
         for (const growthEvent of persistence_payload.detected_growth_events) {
+          // Collect related entity IDs that were created in this conversation
+          const relatedMemoryUnitIds = persistence_payload.extracted_memory_units?.map(mu => mu.temp_id) || [];
+          const relatedConceptIds = persistence_payload.extracted_concepts?.map(concept => concept.name) || [];
+          
           const growthData: CreateGrowthEventData = {
             user_id: userId,
-            related_memory_units: [], // Provide actual IDs if available
-            related_concepts: [],     // Provide actual IDs if available
-            growth_dimensions: [],    // Provide actual dimensions if available
+            related_memory_units: relatedMemoryUnitIds,
+            related_concepts: relatedConceptIds,
+            growth_dimensions: [], // Keep empty for now, will remove later
             source: 'IngestionAnalyst',
             details: {
-              rationale: growthEvent.rationale,
               entity_id: conversationId,
-              entity_type: 'conversation',
-              dim_key: growthEvent.dim_key,
-              delta: growthEvent.delta
-            }
+              entity_type: 'conversation'
+            },
+            dimension_key: growthEvent.dim_key,
+            delta_value: growthEvent.delta,
+            rationale: growthEvent.rationale
           };
 
           const createdGrowthEvent = await this.growthEventRepository.create(growthData);
@@ -515,5 +521,34 @@ export class IngestionAnalyst {
       
       console.log(`[IngestionAnalyst] Published new_entities_created event for ${newEntities.length} entities`);
     }
+  }
+
+  /**
+   * Calculate concept salience based on context and importance
+   * Salience ranges from 0.0 to 1.0, where higher values indicate more important concepts
+   */
+  private calculateConceptSalience(concept: any, persistencePayload: any): number {
+    let salience = 0.5; // Base salience
+    
+    // Boost salience based on concept type
+    if (concept.type === 'person' || concept.type === 'location') {
+      salience += 0.2; // People and places are generally more salient
+    } else if (concept.type === 'skill' || concept.type === 'knowledge') {
+      salience += 0.15; // Skills and knowledge are moderately salient
+    } else if (concept.type === 'emotion' || concept.type === 'experience') {
+      salience += 0.1; // Emotions and experiences have some salience
+    }
+    
+    // Boost salience if concept appears in multiple contexts
+    if (persistencePayload.extracted_memory_units && persistencePayload.extracted_memory_units.length > 0) {
+      salience += 0.1; // Concept mentioned in memory units
+    }
+    
+    if (persistencePayload.new_relationships && persistencePayload.new_relationships.length > 0) {
+      salience += 0.1; // Concept has relationships
+    }
+    
+    // Ensure salience stays within bounds
+    return Math.min(Math.max(salience, 0.1), 1.0);
   }
 }

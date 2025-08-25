@@ -110,6 +110,14 @@ cd ../..
 or
 npx prisma studio --schema=./packages/database/prisma/schema.prisma
 
+# Access neo4j and weaviate
+
+http://127.0.0.1:7475 (Neo4j) username: neo4j, password: password123
+http://127.0.0.1:8080 (Weaviate)
+
+
+
+
 pnpm lint
 
 # Test with curl cosmos graph projection

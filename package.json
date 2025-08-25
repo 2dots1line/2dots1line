@@ -35,10 +35,12 @@
     "audit:system": "./scripts/AUTOMATION/systematic-audit.sh"
   },
   "dependencies": {
+    "axios": "^1.11.0",
     "bullmq": "^5.56.4",
     "has-tostringtag": "^1.0.2",
     "immer": "^10.1.1",
     "js-yaml": "^4.1.0",
+    "pg": "^8.16.3",
     "three": "^0.164.1"
   },
   "devDependencies": {

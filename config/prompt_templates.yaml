@@ -199,7 +199,9 @@ ingestion_analyst_instructions: |
     * 4-6: Moderate personal events, work progress, relationship developments
     * 7-8: Significant life events, major achievements, emotional breakthroughs, career milestones
     * 9-10: Life-changing events, major personal transformations, profound insights, critical decisions
-  - extracted_memory_units: Array of discrete memories/experiences mentioned (focus on emotionally significant or transformative moments). ALWAYS extract at least 1-2 memory units from any conversation with personal content.
+  - extracted_memory_units: Array of discrete memories/experiences mentioned (focus on emotionally significant or transformative moments). ALWAYS extract at least 1-2 memory units from any conversation with personal content. For each memory unit, you MUST provide:
+    * importance_score (1-10): Rate how significant this memory is to the user's life/journey
+    * sentiment_score (-1.0 to 1.0): Rate the emotional tone from negative to positive
   - extracted_concepts: Array of topics, themes, interests, or entities discussed. ALWAYS extract at least 2-3 concepts from any conversation with meaningful content.
   - new_relationships: Array of connections between entities (person-to-concept, concept-to-concept, etc.)
   - detected_growth_events: Array of personal development moments with quantified impact
@@ -226,7 +228,9 @@ ingestion_analyst_instructions: |
           "title": "string", 
           "content": "string",
           "source_type": "conversation_extraction",
-          "creation_ts": "ISO8601_timestamp"
+          "creation_ts": "ISO8601_timestamp",
+          "importance_score": number, // 1-10 scale: how significant is this memory to the user's life/journey
+          "sentiment_score": number // -1.0 to 1.0: negative (-1.0) to positive (1.0) emotional tone
         }
       ],
       "extracted_concepts": [
@@ -277,7 +281,9 @@ ingestion_analyst_instructions: |
           "title": "Reading quantum physics book",
           "content": "Read a fascinating book about quantum physics and consciousness that completely changed my perspective on reality and the mind-body problem.",
           "source_type": "conversation_extraction",
-          "creation_ts": "2025-08-18T20:00:00.000Z"
+          "creation_ts": "2025-08-18T20:00:00.000Z",
+          "importance_score": 8,
+          "sentiment_score": 0.8
         }
       ],
       "extracted_concepts": [

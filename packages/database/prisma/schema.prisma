@@ -110,7 +110,14 @@ model growth_events {
   growth_dimensions    Json
   related_concepts     String[]
   related_memory_units String[]
+  dimension_key        String
+  delta_value          Decimal  @db.Decimal(3,1)
+  rationale            String
   users                users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  
+  @@index([user_id, dimension_key])
+  @@index([dimension_key])
+  @@index([delta_value])
 }
 
 model interaction_logs {

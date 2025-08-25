@@ -29,6 +29,11 @@
 - **[COSMOS_DATA_FLOW_ANALYSIS.md](COSMOS_DATA_FLOW_ANALYSIS.md)** - Complete data pipeline from databases to frontend
 - **[COSMOS_NODE_MODAL_ARCHITECTURE.md](COSMOS_NODE_MODAL_ARCHITECTURE.md)** - Architecture for enhanced node modals
 
+### **Database & Vector Operations**
+- **[WEAVIATE_QUERY_GUIDE.md](WEAVIATE_QUERY_GUIDE.md)** - Complete guide to querying and managing Weaviate database
+- **[NEO4J_BROWSER_GUIDE.md](NEO4J_BROWSER_GUIDE.md)** - Complete guide to using Neo4j Browser and Cypher queries
+- **[view-weaviate-content.js](view-weaviate-content.js)** - Configurable script for exploring Weaviate content
+
 ---
 
 ## 🛡️ **SYSTEM & SECURITY**
@@ -56,6 +61,16 @@
 1. Start with **[COSMOS_CONFIGURATION_GUIDE.md](COSMOS_CONFIGURATION_GUIDE.md)**
 2. Deep dive with **[COSMOS_DATA_FLOW_ANALYSIS.md](COSMOS_DATA_FLOW_ANALYSIS.md)**
 3. Plan enhancements with **[COSMOS_NODE_MODAL_ARCHITECTURE.md](COSMOS_NODE_MODAL_ARCHITECTURE.md)**
+
+### **I'm Working with Weaviate Database**
+1. Use **[WEAVIATE_QUERY_GUIDE.md](WEAVIATE_QUERY_GUIDE.md)** for all database operations
+2. Reference **[INSTALLATION_GUIDE.md](INSTALLATION_GUIDE.md)** for setup issues
+3. Check **[TROUBLESHOOTING_GUIDE.md](TROUBLESHOOTING_GUIDE.md)** for database problems
+
+### **I'm Working with Neo4j Graph Database**
+1. Use **[NEO4J_BROWSER_GUIDE.md](NEO4J_BROWSER_GUIDE.md)** for all graph operations and Cypher queries
+2. Reference **[INSTALLATION_GUIDE.md](INSTALLATION_GUIDE.md)** for setup issues
+3. Check **[TROUBLESHOOTING_GUIDE.md](TROUBLESHOOTING_GUIDE.md)** for database problems
 
 ### **I'm Setting Up the System**
 1. Follow **[INSTALLATION_GUIDE.md](INSTALLATION_GUIDE.md)** for V11.0

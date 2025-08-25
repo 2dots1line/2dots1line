@@ -18,6 +18,9 @@ export interface CreateGrowthEventData {
   growth_dimensions: any;
   source: string;
   details: any;
+  dimension_key: string;
+  delta_value: number;
+  rationale: string;
 }
 
 export interface GrowthDimensionData {

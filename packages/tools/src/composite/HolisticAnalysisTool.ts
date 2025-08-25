@@ -22,7 +22,9 @@ export const HolisticAnalysisOutputSchema = z.object({
       title: z.string().min(1).max(150), // Reduced min length
       content: z.string().min(1).max(2000), // Reduced min length
       source_type: z.enum(['conversation_extraction', 'journal_entry', 'user_input', 'system_generated']),
-      creation_ts: z.string().datetime().or(z.string().transform(() => new Date().toISOString())) // Allow fallback to current time
+      importance_score: z.number().min(1).max(10), // Memory importance on 1-10 scale
+      sentiment_score: z.number().min(-1.0).max(1.0), // Sentiment from -1.0 (negative) to 1.0 (positive)
+      // creation_ts removed - will be set to current time by the system
     })).max(10), // Reasonable limit for extracted memories per conversation
     
     extracted_concepts: z.array(z.object({

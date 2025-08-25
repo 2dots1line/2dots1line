@@ -5,6 +5,9 @@
 
 import { MaintenanceWorker } from './MaintenanceWorker';
 
+// Set process title for proper PM2 identification
+process.title = 'maintenance-worker';
+
 // Export the main worker class
 export { MaintenanceWorker };
 

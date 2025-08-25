@@ -120,26 +120,58 @@ export class InsightEngine {
       cycleStartDate: cycleDates.cycleStartDate,
       cycleEndDate: cycleDates.cycleEndDate,
       currentKnowledgeGraph: {
-        memoryUnits: ingestionSummary.conversationSummaries.map(conv => ({
-          id: conv.id,
-          title: conv.context_summary || 'No title',
-          content: conv.context_summary || '',
-          importance_score: conv.importance_score,
-          tags: [],
-          created_at: conv.created_at.toISOString()
-        })),
+        // Combine conversation summaries and actual memory units, but label them clearly
+        memoryUnits: await (async () => {
+          const actualMemoryUnits = await this.getUserMemoryUnits(userId, cycleDates);
+          const conversationSummaries = ingestionSummary.conversationSummaries.map(conv => {
+            return {
+              id: `conv_${conv.id}`, // Prefix to distinguish from memory units
+              title: `[CONVERSATION] ${conv.title || 'Untitled Conversation'}`, // Use actual conversation title
+              content: conv.context_summary || 'No summary available', // Clean content
+              importance_score: conv.importance_score,
+              tags: [], // No tags in conversations table - keep empty array for consistency
+              created_at: conv.created_at.toISOString()
+            };
+          });
+          
+          console.log(`[InsightEngine] Assembling knowledge graph: ${actualMemoryUnits.length} actual memory units + ${conversationSummaries.length} conversation summaries = ${actualMemoryUnits.length + conversationSummaries.length} total items`);
+          
+          return [
+            ...actualMemoryUnits,
+            ...conversationSummaries
+          ];
+        })(),
         concepts: await this.getUserConcepts(userId, cycleDates),
         relationships: await this.getUserRelationships(userId, cycleDates)
       },
-      recentGrowthEvents: strategicInsights.userEvolutionMetrics ? [
-        {
-          dim_key: 'knowledge_breadth',
-          event_type: 'metric_change',
-          description: `Knowledge breadth changed by ${strategicInsights.userEvolutionMetrics.knowledge_breadth_change}`,
-          impact_level: Math.abs(strategicInsights.userEvolutionMetrics.knowledge_breadth_change),
-          created_at: new Date().toISOString()
-        }
-      ] : [],
+      recentGrowthEvents: await (async () => {
+        // Get actual growth events from the database within the cycle period
+        const growthEvents = await this.dbService.prisma.growth_events.findMany({
+          where: {
+            user_id: userId,
+            created_at: {
+              gte: cycleDates.cycleStartDate,
+              lte: cycleDates.cycleEndDate
+            }
+          },
+          orderBy: { created_at: 'desc' },
+          take: 20 // Limit to most recent 20 events to avoid overwhelming the LLM
+        });
+
+        console.log(`[InsightEngine] Found ${growthEvents.length} growth events within cycle period`);
+        
+        // Map to the expected format
+        return growthEvents.map(event => {
+          const details = event.details as any;
+          return {
+            dim_key: details?.dim_key || 'unknown',
+            event_type: 'growth_event',
+            description: details?.rationale || 'Growth event recorded',
+            impact_level: Math.abs(details?.delta || 0),
+            created_at: event.created_at.toISOString()
+          };
+        });
+      })(),
       userProfile: {
         preferences: user.memory_profile || {},
         goals: [],
@@ -206,6 +238,58 @@ export class InsightEngine {
 
     } catch (error) {
       console.error(`[InsightEngine] Error fetching concepts for user ${userId}:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Fetch user memory units from PostgreSQL for strategic synthesis
+   */
+  private async getUserMemoryUnits(userId: string, cycleDates: CycleDates): Promise<Array<{
+    id: string;
+    title: string;
+    content: string;
+    importance_score: number;
+    tags: string[];
+    created_at: string;
+  }>> {
+    try {
+      console.log(`[InsightEngine] Fetching memory units for user ${userId}`);
+      
+      // Get all memory units for the user within the cycle period
+      const memoryUnits = await this.dbService.prisma.memory_units.findMany({
+        where: { 
+          user_id: userId,
+          creation_ts: {
+            gte: cycleDates.cycleStartDate,
+            lte: cycleDates.cycleEndDate
+          }
+        },
+        select: {
+          muid: true,
+          title: true,
+          content: true,
+          importance_score: true,
+          creation_ts: true
+        },
+        orderBy: { importance_score: 'desc' }
+      });
+
+      // Map to the expected interface
+      const mappedMemoryUnits = memoryUnits.map((mu: any) => ({
+        id: mu.muid,
+        title: mu.title,
+        content: mu.content,
+        importance_score: mu.importance_score || 0,
+        tags: ['memory_unit'], // Tag to distinguish from conversation summaries
+        created_at: mu.creation_ts.toISOString()
+      }));
+
+      console.log(`[InsightEngine] Retrieved ${mappedMemoryUnits.length} memory units`);
+      return mappedMemoryUnits;
+
+    } catch (error) {
+      console.error(`[InsightEngine] Error fetching memory units for user ${userId}:`, error);
       return [];
     }
   }
@@ -278,7 +362,10 @@ export class InsightEngine {
           user_id: userId,
           artifact_type: artifact.artifact_type,
           title: artifact.title,
-          content_narrative: artifact.content
+          content_narrative: artifact.content,
+          content_data: artifact.content_data || null, // ✅ Include structured data
+          source_concept_ids: artifact.source_concept_ids || [], // ✅ Include source concepts
+          source_memory_unit_ids: artifact.source_memory_unit_ids || [] // ✅ Include source memory units
         };
 
         const createdArtifact = await this.derivedArtifactRepository.create(artifactData);
@@ -681,4 +768,5 @@ export class InsightEngine {
       throw error;
     }
   }
+
 }

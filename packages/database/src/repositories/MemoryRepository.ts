@@ -11,7 +11,7 @@ export interface CreateMemoryUnitData {
   user_id: string;
   title: string;
   content: string;
-  creation_ts: Date;
+  // creation_ts removed - will be set automatically to current time
   importance_score?: number;
   sentiment_score?: number;
   source_conversation_id?: string;
@@ -31,6 +31,7 @@ export class MemoryRepository {
     const memoryUnit = await this.db.prisma.memory_units.create({
       data: {
         muid: randomUUID(),
+        creation_ts: new Date(), // Always set to current time
         last_modified_ts: new Date(),
         ...data,
       },

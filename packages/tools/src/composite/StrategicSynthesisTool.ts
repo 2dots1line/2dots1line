@@ -50,7 +50,10 @@ export const StrategicSynthesisOutputSchema = z.object({
     content: z.string(),
     confidence_score: z.number().min(0).max(1),
     supporting_evidence: z.array(z.string()),
-    actionability: z.enum(['immediate', 'short_term', 'long_term', 'aspirational'])
+    actionability: z.enum(['immediate', 'short_term', 'long_term', 'aspirational']),
+    content_data: z.record(z.any()).optional(), // Structured data for the artifact
+    source_concept_ids: z.array(z.string()).optional(), // IDs of concepts that informed this artifact
+    source_memory_unit_ids: z.array(z.string()).optional() // IDs of memory units that informed this artifact
   })),
   proactive_prompts: z.array(z.object({
     prompt_type: z.enum(['reflection', 'exploration', 'goal_setting', 'skill_development', 'creative_expression']),
@@ -207,6 +210,20 @@ export class StrategicSynthesisTool {
     } catch (error) {
       console.error(`[StrategicSynthesisTool] Strategic synthesis failed for cycle ${input.cycleId}:`, error);
       
+      // Check if this is a parsing error vs LLM call error
+      if (error instanceof StrategicSynthesisJSONParseError || error instanceof StrategicSynthesisValidationError) {
+        console.error(`[StrategicSynthesisTool] CRITICAL: Parsing/validation failed. This indicates the LLM response format is incorrect.`);
+        console.error(`[StrategicSynthesisTool] Raw LLM response: ${error instanceof StrategicSynthesisJSONParseError ? error.rawResponse.substring(0, 1000) : 'N/A'}...`);
+        console.error(`[StrategicSynthesisTool] This error should be investigated as it prevents downstream processing.`);
+        
+        // For parsing errors, we should throw rather than return fallback data
+        // as this indicates a system issue that needs fixing
+        throw error;
+      }
+      
+      // For other errors (LLM service issues, etc.), return fallback
+      console.log(`[StrategicSynthesisTool] Returning fallback output for non-parsing error`);
+      
       // Return a minimal valid response to prevent system failure
       const fallbackOutput: StrategicSynthesisOutput = {
         ontology_optimizations: {
@@ -268,7 +285,10 @@ export class StrategicSynthesisTool {
 - **Cycle Period**: ${input.cycleStartDate.toISOString()} to ${input.cycleEndDate.toISOString()}
 
 ## Current Knowledge Graph State
-### Memory Units (${input.currentKnowledgeGraph.memoryUnits.length} total)
+### Memory Units and Conversation Summaries (${input.currentKnowledgeGraph.memoryUnits.length} total)
+**Note**: This section contains:
+- **Memory Units** (tagged with 'memory_unit'): Actual extracted memories from conversations
+- **Conversation Summaries** (tagged with 'conversation_summary'): Context summaries with proper titles from the conversations table
 ${JSON.stringify(input.currentKnowledgeGraph.memoryUnits, null, 2)}
 
 ### Concepts (${input.currentKnowledgeGraph.concepts.length} total)
@@ -299,28 +319,69 @@ ${responseFormat}`;
     const beginMarker = '###==BEGIN_JSON==###';
     const endMarker = '###==END_JSON==###';
     
-    const beginIndex = llmJsonResponse.indexOf(beginMarker);
-    const endIndex = llmJsonResponse.indexOf(endMarker);
+    let beginIndex = llmJsonResponse.indexOf(beginMarker);
+    let endIndex = llmJsonResponse.indexOf(endMarker);
+    
+    // If exact markers not found, try more flexible matching
+    if (beginIndex === -1) {
+      // Try variations of the begin marker
+      const beginVariations = ['###==BEGIN_JSON==###', '###==BEGIN_JSON==##', '###==BEGIN_JSON==#', '###==BEGIN_JSON=='];
+      for (const variation of beginVariations) {
+        beginIndex = llmJsonResponse.indexOf(variation);
+        if (beginIndex !== -1) {
+          console.log(`[StrategicSynthesisTool] Found begin marker variation: "${variation}"`);
+          break;
+        }
+      }
+    }
+    
+    if (endIndex === -1) {
+      // Try variations of the end marker
+      const endVariations = ['###==END_JSON==###', '###==END_JSON==##', '###==END_JSON==#', '###==END_JSON=='];
+      for (const variation of endVariations) {
+        endIndex = llmJsonResponse.indexOf(variation);
+        if (endIndex !== -1) {
+          console.log(`[StrategicSynthesisTool] Found end marker variation: "${variation}"`);
+          break;
+        }
+      }
+    }
     
     if (beginIndex === -1 || endIndex === -1) {
+      console.error(`[StrategicSynthesisTool] JSON markers not found. Begin index: ${beginIndex}, End index: ${endIndex}`);
+      console.error(`[StrategicSynthesisTool] Response preview: ${llmJsonResponse.substring(0, 500)}...`);
+      console.error(`[StrategicSynthesisTool] Response end: ${llmJsonResponse.substring(Math.max(0, llmJsonResponse.length - 200))}`);
       throw new StrategicSynthesisJSONParseError(`LLM response missing required JSON markers. Response: ${llmJsonResponse.substring(0, 500)}...`, llmJsonResponse);
     }
     
     const jsonString = llmJsonResponse.substring(beginIndex + beginMarker.length, endIndex).trim();
+    
+    console.log(`[StrategicSynthesisTool] Extracted JSON string length: ${jsonString.length}`);
+    console.log(`[StrategicSynthesisTool] JSON preview: ${jsonString.substring(0, 200)}...`);
     
     let parsed: unknown;
     
     try {
       parsed = JSON.parse(jsonString);
     } catch (error) {
+      console.error(`[StrategicSynthesisTool] JSON parsing failed:`, error);
+      console.error(`[StrategicSynthesisTool] Failed JSON string: ${jsonString.substring(0, 500)}...`);
       throw new StrategicSynthesisJSONParseError(`Invalid JSON in LLM response: ${jsonString.substring(0, 200)}...`, jsonString);
     }
     
     try {
-      return StrategicSynthesisOutputSchema.parse(parsed);
+      const validatedResult = StrategicSynthesisOutputSchema.parse(parsed);
+      console.log(`[StrategicSynthesisTool] Validation successful. Parsed data:`, {
+        concepts_to_merge: validatedResult.ontology_optimizations.concepts_to_merge.length,
+        new_strategic_relationships: validatedResult.ontology_optimizations.new_strategic_relationships.length,
+        derived_artifacts: validatedResult.derived_artifacts.length,
+        proactive_prompts: validatedResult.proactive_prompts.length
+      });
+      return validatedResult;
     } catch (error) {
       if (error instanceof z.ZodError) {
         console.error('[StrategicSynthesisTool] Validation errors:', error.errors);
+        console.error('[StrategicSynthesisTool] Raw parsed data:', JSON.stringify(parsed, null, 2).substring(0, 1000));
         throw new StrategicSynthesisValidationError('Validation failed', error.errors);
       }
       throw new StrategicSynthesisError('Unknown validation error', error as Error);
