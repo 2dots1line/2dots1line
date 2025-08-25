@@ -57,7 +57,7 @@ export class ConfigService {
     
     try {
       const yamlFiles = ['CoreIdentity.yaml', 'prompt_templates.yaml'];
-      const jsonFiles = ['card_templates.json', 'card_eligibility_rules.json'];
+      const jsonFiles = ['card_templates.json', 'card_eligibility_rules.json', 'cypher_templates.json'];
 
              // Load YAML files
        for (const fileName of yamlFiles) {
@@ -160,6 +160,14 @@ export class ConfigService {
     const config = this.configCache.get('card_eligibility_rules');
     if (!config) {
       throw new Error('Card eligibility rules configuration not loaded');
+    }
+    return config;
+  }
+
+  public getCypherTemplates(): any {
+    const config = this.configCache.get('cypher_templates');
+    if (!config) {
+      throw new Error('Cypher templates configuration not loaded');
     }
     return config;
   }

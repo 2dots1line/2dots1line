@@ -28,6 +28,14 @@ export class CypherBuilder {
     // Merge default parameters with runtime parameters
     const finalParams = { ...templateConfig.defaultParams, ...runtimeParams };
     
+    // Ensure LIMIT parameters are always integers
+    if (finalParams.limit !== undefined) {
+      finalParams.limit = Math.floor(Number(finalParams.limit));
+      if (isNaN(finalParams.limit) || finalParams.limit < 0) {
+        throw new Error(`CypherBuilder: Invalid limit value: ${finalParams.limit}`);
+      }
+    }
+    
     // Validate parameters using ParamGuard
     this.paramGuard.validateCypherParams(queryKey, finalParams, templateConfig.allowedParams);
 
@@ -43,14 +51,12 @@ export class CypherBuilder {
   public buildNeighborhoodQuery(
     seedEntities: Array<{id: string, type: string}>, 
     userId: string, 
-    hops: number = 2, 
     limit: number = 20
   ): CypherQuery {
     return this.buildQuery('neighborhood', {
       seedEntities,
       userId,
-      hops,
-      limit
+      limit: Math.floor(limit) // Ensure limit is an integer
     });
   }
 
@@ -65,7 +71,7 @@ export class CypherBuilder {
     return this.buildQuery('timeline', {
       seedEntities,
       userId,
-      limit
+      limit: Math.floor(limit) // Ensure limit is an integer
     });
   }
 
@@ -80,7 +86,7 @@ export class CypherBuilder {
     return this.buildQuery('conceptual', {
       seedEntities,
       userId,
-      limit
+      limit: Math.floor(limit) // Ensure limit is an integer
     });
   }
 
@@ -107,5 +113,25 @@ export class CypherBuilder {
               template.cypher && 
               template.allowedParams && 
               template.defaultParams);
+  }
+
+  /**
+   * Get detailed template information for debugging
+   */
+  public getTemplateDebugInfo(queryKey: string): {
+    exists: boolean;
+    hasCypher: boolean;
+    hasAllowedParams: boolean;
+    hasDefaultParams: boolean;
+    templateKeys: string[];
+  } {
+    const template = this.templates[queryKey];
+    return {
+      exists: !!template,
+      hasCypher: !!(template && template.cypher),
+      hasAllowedParams: !!(template && template.allowedParams),
+      hasDefaultParams: !!(template && template.defaultParams),
+      templateKeys: Object.keys(this.templates)
+    };
   }
 } 

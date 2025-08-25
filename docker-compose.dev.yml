@@ -75,7 +75,7 @@ services:
       dockerfile: Dockerfile
     container_name: dimension-reducer
     ports:
-      - "8000:8000"
+      - "${DIMENSION_REDUCER_HOST_PORT:-8000}:8000"
     networks:
       - 2d1l_network
     restart: unless-stopped

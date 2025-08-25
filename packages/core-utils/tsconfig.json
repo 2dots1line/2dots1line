@@ -7,6 +7,7 @@
     "noEmit": false,
     "declaration": true,
     "declarationMap": true,
+    "sourceMap": true,
     "isolatedModules": false,
     "paths": {},
     "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
@@ -17,7 +18,12 @@
   "exclude": [
     "node_modules",
     "dist",
-    "**/*.test.ts"
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "**/*.js",
+    "**/*.d.ts",
+    "**/*.js.map",
+    "**/*.d.ts.map"
   ],
   "references": []
 }

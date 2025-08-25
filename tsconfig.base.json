@@ -31,5 +31,22 @@
       "@2dots1line/ui-components": ["packages/ui-components/src"]
     }
   },
-  "exclude": ["node_modules", "**/*.test.ts", "**/*.spec.ts", "**/dist", "**/build", "**/.turbo", "postgres_data", "redis_data", "weaviate_data", "neo4j_data", "archive", "docs"]
+  "exclude": [
+    "node_modules", 
+    "**/*.test.ts", 
+    "**/*.spec.ts", 
+    "**/dist", 
+    "**/build", 
+    "**/.turbo", 
+    "postgres_data", 
+    "redis_data", 
+    "weaviate_data", 
+    "neo4j_data", 
+    "archive", 
+    "docs",
+    "**/*.js",
+    "**/*.d.ts", 
+    "**/*.js.map",
+    "**/*.d.ts.map"
+  ]
 } 

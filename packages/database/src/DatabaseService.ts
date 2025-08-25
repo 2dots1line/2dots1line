@@ -3,7 +3,7 @@ import { Driver as Neo4jDriver, driver as neo4jDriver, auth as neo4jAuth } from 
 import weaviate, { WeaviateClient } from 'weaviate-ts-client';
 import Redis from 'ioredis';
 import { prisma } from './prisma-client';
-import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
+import { environmentLoader } from '@2dots1line/core-utils';
 import { LLMInteractionRepository } from './repositories/LLMInteractionRepository';
 
 /**

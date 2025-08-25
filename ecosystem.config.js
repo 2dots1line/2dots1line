@@ -24,11 +24,13 @@ const baseConfig = {
   // env_file: '.env',  // ❌ This is unreliable
   max_memory_restart: '1G',
   restart_delay: 4000,
-  error_file: path.join(__dirname, 'logs', 'pm2-error.log'),
-  out_file: path.join(__dirname, 'logs', 'pm2-out.log'),
-  log_file: path.join(__dirname, 'logs', 'pm2-combined.log'),
+  // Remove shared logging configuration to fix log header confusion
+  // Each process will use its own log files by default
+  // error_file: path.join(__dirname, 'logs', 'pm2-error.log'),
+  // out_file: path.join(__dirname, 'logs', 'pm2-out.log'),
+  // log_file: path.join(__dirname, 'logs', 'pm2-combined.log'),
   time: true,
-  merge_logs: true,
+  merge_logs: false, // Disable log merging to prevent confusion
 };
 
 module.exports = {
@@ -40,6 +42,10 @@ module.exports = {
       exec_mode: 'cluster',
       watch: false,
       ...baseConfig,
+      // Force individual logging to prevent shared context
+      error_file: path.join(__dirname, 'logs', 'api-gateway-error.log'),
+      out_file: path.join(__dirname, 'logs', 'api-gateway-out.log'),
+      log_file: path.join(__dirname, 'logs', 'api-gateway-combined.log'),
     },
     {
       name: 'ingestion-worker',
@@ -48,6 +54,10 @@ module.exports = {
       exec_mode: 'fork',
       watch: false,
       ...baseConfig,
+      // Force individual logging to prevent shared context
+      error_file: path.join(__dirname, 'logs', 'ingestion-worker-error.log'),
+      out_file: path.join(__dirname, 'logs', 'ingestion-worker-out.log'),
+      log_file: path.join(__dirname, 'logs', 'ingestion-worker-combined.log'),
     },
     {
       name: 'insight-worker',
@@ -56,6 +66,10 @@ module.exports = {
       exec_mode: 'fork',
       watch: false,
       ...baseConfig,
+      // Force individual logging to prevent shared context
+      error_file: path.join(__dirname, 'logs', 'insight-worker-error.log'),
+      out_file: path.join(__dirname, 'logs', 'insight-worker-out.log'),
+      log_file: path.join(__dirname, 'logs', 'insight-worker-combined.log'),
     },
     {
       name: 'card-worker',
@@ -64,6 +78,10 @@ module.exports = {
       exec_mode: 'fork',
       watch: false,
       ...baseConfig,
+      // Force individual logging to prevent shared context
+      error_file: path.join(__dirname, 'logs', 'card-worker-error.log'),
+      out_file: path.join(__dirname, 'logs', 'card-worker-out.log'),
+      log_file: path.join(__dirname, 'logs', 'card-worker-combined.log'),
     },
     {
       name: 'embedding-worker',
@@ -72,6 +90,10 @@ module.exports = {
       exec_mode: 'fork',
       watch: false,
       ...baseConfig,
+      // Force individual logging to prevent shared context
+      error_file: path.join(__dirname, 'logs', 'embedding-worker-error.log'),
+      out_file: path.join(__dirname, 'logs', 'embedding-worker-out.log'),
+      log_file: path.join(__dirname, 'logs', 'embedding-worker-combined.log'),
     },
     {
       name: 'graph-projection-worker',
@@ -80,6 +102,10 @@ module.exports = {
       exec_mode: 'fork',
       watch: false,
       ...baseConfig,
+      // Force individual logging to prevent shared context
+      error_file: path.join(__dirname, 'logs', 'graph-projection-worker-error.log'),
+      out_file: path.join(__dirname, 'logs', 'graph-projection-worker-out.log'),
+      log_file: path.join(__dirname, 'logs', 'graph-projection-worker-combined.log'),
     },
     {
       name: 'conversation-timeout-worker',
@@ -88,6 +114,10 @@ module.exports = {
       exec_mode: 'fork',
       watch: false,
       ...baseConfig,
+      // Force individual logging to prevent shared context
+      error_file: path.join(__dirname, 'logs', 'conversation-timeout-worker-error.log'),
+      out_file: path.join(__dirname, 'logs', 'conversation-timeout-worker-out.log'),
+      log_file: path.join(__dirname, 'logs', 'conversation-timeout-worker-combined.log'),
     },
     {
       name: 'maintenance-worker',
@@ -96,6 +126,10 @@ module.exports = {
       exec_mode: 'fork',
       watch: false,
       ...baseConfig,
+      // Force individual logging to prevent shared context
+      error_file: path.join(__dirname, 'logs', 'maintenance-worker-error.log'),
+      out_file: path.join(__dirname, 'logs', 'maintenance-worker-out.log'),
+      log_file: path.join(__dirname, 'logs', 'maintenance-worker-combined.log'),
     },
     {
       name: 'notification-worker',
@@ -104,6 +138,10 @@ module.exports = {
       exec_mode: 'fork',
       watch: false,
       ...baseConfig,
+      // Force individual logging to prevent shared context
+      error_file: path.join(__dirname, 'logs', 'notification-worker-error.log'),
+      out_file: path.join(__dirname, 'logs', 'notification-worker-out.log'),
+      log_file: path.join(__dirname, 'logs', 'notification-worker-combined.log'),
     },
   ],
 }; 

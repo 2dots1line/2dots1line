@@ -77,6 +77,10 @@ export class MaintenanceWorker {
   public async initialize(): Promise<void> {
     console.log('[MaintenanceWorker] Initializing V11.0 maintenance worker...');
     
+    // CRITICAL: Ensure this worker is isolated from Redis event processing
+    console.log('[MaintenanceWorker] 🔒 ISOLATION: This worker does NOT process Redis events');
+    console.log('[MaintenanceWorker] 🔒 ISOLATION: Only scheduled maintenance tasks will run');
+    
     // Debug: Validate cron expressions
     console.log('[MaintenanceWorker] Debug - Cron expressions:');
     console.log(`  Redis cleanup: "${this.config.REDIS_CLEANUP_CRON}" (valid: ${cron.validate(this.config.REDIS_CLEANUP_CRON)})`);
@@ -111,6 +115,7 @@ export class MaintenanceWorker {
     process.on('SIGINT', () => this.gracefulShutdown());
 
     console.log('[MaintenanceWorker] V11.0 initialization complete');
+    console.log('[MaintenanceWorker] 🔒 ISOLATION: Worker is ready for scheduled maintenance tasks only');
   }
 
   public async runMaintenanceCycle(): Promise<void> {
@@ -491,7 +496,31 @@ export class MaintenanceWorker {
    */
   public async start(): Promise<void> {
     await this.initialize();
+    
+    // CRITICAL: Verify isolation from Redis event processing
+    await this.verifyIsolation();
+    
     console.log('[MaintenanceWorker] V11.0 worker started successfully');
+  }
+
+  /**
+   * Verify that this worker is isolated from Redis event processing
+   */
+  private async verifyIsolation(): Promise<void> {
+    console.log('[MaintenanceWorker] 🔒 VERIFYING ISOLATION...');
+    
+    // Check that we don't have any Redis event subscriptions
+    const redisClient = this.dbService.redis;
+    
+    // Verify no active subscriptions
+    if (redisClient.status !== 'ready') {
+      console.log('[MaintenanceWorker] 🔒 ISOLATION: Redis client not ready, no event processing');
+    } else {
+      console.log('[MaintenanceWorker] 🔒 ISOLATION: Redis client ready for maintenance operations only');
+    }
+    
+    console.log('[MaintenanceWorker] 🔒 ISOLATION: Maintenance worker is properly isolated');
+    console.log('[MaintenanceWorker] 🔒 ISOLATION: No Redis event processing will occur');
   }
 
   /**

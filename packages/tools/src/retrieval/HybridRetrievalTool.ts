@@ -54,6 +54,32 @@ export class HybridRetrievalTool {
       // Initialize modules
       this.cypherBuilder = new CypherBuilder(cypherTemplates);
       
+      // Validate CypherBuilder initialization
+      const availableTemplates = this.cypherBuilder.getAvailableTemplates();
+      console.log('HybridRetrievalTool: Available Cypher templates:', availableTemplates);
+      
+      if (availableTemplates.length === 0) {
+        throw new Error('HybridRetrievalTool: No Cypher templates loaded. Check cypher_templates.json configuration.');
+      }
+      
+      // Validate critical templates exist
+      const criticalTemplates = ['neighborhood', 'timeline', 'conceptual'];
+      const missingTemplates = criticalTemplates.filter(t => !availableTemplates.includes(t));
+      if (missingTemplates.length > 0) {
+        console.warn(`HybridRetrievalTool: Missing critical templates: ${missingTemplates.join(', ')}`);
+      }
+      
+      // Validate template default parameters
+      for (const templateName of criticalTemplates) {
+        const template = this.cypherBuilder!.getTemplate(templateName);
+        if (template && template.defaultParams && template.defaultParams.limit !== undefined) {
+          const limit = template.defaultParams.limit;
+          if (typeof limit !== 'number' || !Number.isInteger(limit)) {
+            console.warn(`HybridRetrievalTool: Template ${templateName} has non-integer limit: ${limit} (type: ${typeof limit})`);
+          }
+        }
+      }
+      
       const defaultWeights: RetrievalWeights = retrievalWeights?.scoring_weights?.profiles?.balanced || {
         alpha_semantic_similarity: 0.5,
         beta_recency: 0.3,
@@ -78,10 +104,22 @@ export class HybridRetrievalTool {
    * Main orchestration method - delegates to internal modules
    */
   async execute(input: HRTInput): Promise<ExtendedAugmentedMemoryContext> {
-    // Ensure modules are initialized
-    if (!this.cypherBuilder || !this.entityScorer || !this.hydrationAdapter || !this.embeddingTool) {
-      throw new Error('HybridRetrievalTool: Internal modules not initialized');
-    }
+          // Ensure modules are initialized
+      if (!this.cypherBuilder || !this.entityScorer || !this.hydrationAdapter || !this.embeddingTool) {
+        throw new Error('HybridRetrievalTool: Internal modules not initialized');
+      }
+      
+      // Additional validation for CypherBuilder
+      if (!this.cypherBuilder.getAvailableTemplates || this.cypherBuilder.getAvailableTemplates().length === 0) {
+        throw new Error('HybridRetrievalTool: CypherBuilder not properly initialized with templates');
+      }
+      
+      // Validate that all required methods exist
+      const requiredMethods = ['buildNeighborhoodQuery', 'buildTimelineQuery', 'buildConceptualQuery'];
+      const missingMethods = requiredMethods.filter(method => !(this.cypherBuilder as any)[method]);
+      if (missingMethods.length > 0) {
+        throw new Error(`HybridRetrievalTool: CypherBuilder missing required methods: ${missingMethods.join(', ')}`);
+      }
 
     const context: HRTExecutionContext = this.createExecutionContext(input);
     
@@ -267,14 +305,38 @@ export class HybridRetrievalTool {
       }
       
       console.log(`[HRT ${context.requestId}] Stage 3: Executing graph traversal with ${seedEntityParams.length} seed entities`);
+      console.log(`[HRT ${context.requestId}] Stage 3: Available templates: ${this.cypherBuilder!.getAvailableTemplates().join(', ')}`);
+      console.log(`[HRT ${context.requestId}] Stage 3: Using scenario: ${scenario}`);
       
-      const query = this.cypherBuilder!.buildQuery(scenario, {
-        seedEntities: seedEntityParams,
-        userId: userId
-      });
+      // Debug template validation for the scenario
+      const debugInfo = this.cypherBuilder!.getTemplateDebugInfo(scenario);
+      console.log(`[HRT ${context.requestId}] Stage 3: Template debug info for '${scenario}':`, debugInfo);
+      
+      // Use the appropriate CypherBuilder method based on scenario
+      let query;
+      switch (scenario) {
+        case 'neighborhood':
+          query = this.cypherBuilder!.buildNeighborhoodQuery(seedEntityParams, userId, 20);
+          break;
+        case 'timeline':
+          query = this.cypherBuilder!.buildTimelineQuery(seedEntityParams, userId, 20);
+          break;
+        case 'conceptual':
+          query = this.cypherBuilder!.buildConceptualQuery(seedEntityParams, userId, 20);
+          break;
+        default:
+          // Fallback to neighborhood if unknown scenario
+          console.log(`[HRT ${context.requestId}] Stage 3: Unknown scenario '${scenario}', using neighborhood traversal`);
+          query = this.cypherBuilder!.buildNeighborhoodQuery(seedEntityParams, userId, 20);
+      }
       
       // Execute the query
       const session = this.neo4j.session();
+      
+      // Enhanced logging for debugging LIMIT parameter issues
+      console.log(`[HRT ${context.requestId}] Stage 3: Executing Neo4j query with params:`, JSON.stringify(query.params, null, 2));
+      console.log(`[HRT ${context.requestId}] Stage 3: Limit parameter type: ${typeof query.params.limit}, value: ${query.params.limit}`);
+      
       const result = await session.run(query.cypher, query.params);
       await session.close();
       
@@ -308,6 +370,14 @@ export class HybridRetrievalTool {
       
     } catch (error) {
       context.timings.neo4jLatency = Date.now() - stageStart;
+      
+      // Enhanced error logging for debugging
+      console.error(`[HRT ${context.requestId}] Stage 3: Graph traversal failed:`, error);
+      if (error instanceof Error) {
+        console.error(`[HRT ${context.requestId}] Stage 3: Error details:`, error.message);
+        console.error(`[HRT ${context.requestId}] Stage 3: Error stack:`, error.stack);
+      }
+      
       context.errors.push({
         stage: 'graph_traversal',
         error: error instanceof Error ? error : new Error(String(error)),
@@ -315,6 +385,7 @@ export class HybridRetrievalTool {
       });
       
       // Fallback: return seed entities as candidates
+      console.log(`[HRT ${context.requestId}] Stage 3: Falling back to seed entities due to graph traversal failure`);
       return seedEntities.map(e => ({
         id: e.id,
         type: e.type as 'MemoryUnit' | 'Concept' | 'DerivedArtifact',

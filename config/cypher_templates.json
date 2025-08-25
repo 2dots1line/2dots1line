@@ -4,19 +4,19 @@
   "templates": {
     "neighborhood": {
       "description": "Finds nodes within N hops of seed entities",
-      "cypher": "UNWIND $seedEntities AS seed MATCH (startNode) WHERE startNode.id = seed.id CALL { WITH startNode MATCH p=(startNode)-[*1..$hops]-(relatedNode) WHERE relatedNode.userId = $userId RETURN DISTINCT relatedNode.id AS nodeId, labels(relatedNode)[0] AS nodeType LIMIT $limit } RETURN COLLECT(DISTINCT {id: nodeId, type: nodeType}) + $seedEntities AS allRelevantEntities",
-      "allowedParams": ["seedEntities", "hops", "limit", "userId"],
-      "defaultParams": { "hops": 2, "limit": 20 }
+      "cypher": "UNWIND $seedEntities AS seed MATCH (startNode) WHERE startNode.id = seed.id CALL { WITH startNode MATCH p=(startNode)-[*1..2]-(relatedNode) WHERE relatedNode.userId = $userId RETURN DISTINCT relatedNode.id AS nodeId, labels(relatedNode)[0] AS nodeType LIMIT toInteger($limit) } RETURN COLLECT(DISTINCT {id: nodeId, type: nodeType}) + $seedEntities AS allRelevantEntities",
+      "allowedParams": ["seedEntities", "userId", "limit"],
+      "defaultParams": { "limit": 20 }
     },
     "timeline": {
       "description": "Retrieves entities with temporal relationships",
-      "cypher": "UNWIND $seedEntities AS seed MATCH (startNode) WHERE startNode.id = seed.id CALL { WITH startNode MATCH (startNode)-[:OCCURRED_BEFORE|:OCCURRED_AFTER|:SAME_TIME]-(relatedNode) WHERE relatedNode.userId = $userId RETURN DISTINCT relatedNode.id AS nodeId, labels(relatedNode)[0] AS nodeType LIMIT $limit } RETURN COLLECT(DISTINCT {id: nodeId, type: nodeType}) + $seedEntities AS allRelevantEntities",
+      "cypher": "UNWIND $seedEntities AS seed MATCH (startNode) WHERE startNode.id = seed.id CALL { WITH startNode MATCH (startNode)-[:OCCURRED_BEFORE|:OCCURRED_AFTER|:SAME_TIME]-(relatedNode) WHERE relatedNode.userId = $userId RETURN DISTINCT relatedNode.id AS nodeId, labels(relatedNode)[0] AS nodeType LIMIT toInteger($limit) } RETURN COLLECT(DISTINCT {id: nodeId, type: nodeType}) + $seedEntities AS allRelevantEntities",
       "allowedParams": ["seedEntities", "limit", "userId"],
       "defaultParams": { "limit": 15 }
     },
     "conceptual": {
       "description": "Finds conceptually related entities",
-      "cypher": "UNWIND $seedEntities AS seed MATCH (startNode) WHERE startNode.id = seed.id CALL { WITH startNode MATCH (startNode)-[:RELATED_TO|:CONTAINS|:PART_OF]-(relatedNode) WHERE relatedNode.userId = $userId RETURN DISTINCT relatedNode.id AS nodeId, labels(relatedNode)[0] AS nodeType LIMIT $limit } RETURN COLLECT(DISTINCT {id: nodeId, type: nodeType}) + $seedEntities AS allRelevantEntities",
+      "cypher": "UNWIND $seedEntities AS seed MATCH (startNode) WHERE startNode.id = seed.id CALL { WITH startNode MATCH (startNode)-[:RELATED_TO|:CONTAINS|:PART_OF]-(relatedNode) WHERE relatedNode.userId = $userId RETURN DISTINCT relatedNode.id AS nodeId, labels(relatedNode)[0] AS nodeType LIMIT toInteger($limit) } RETURN COLLECT(DISTINCT {id: nodeId, type: nodeType}) + $seedEntities AS allRelevantEntities",
       "allowedParams": ["seedEntities", "limit", "userId"],
       "defaultParams": { "limit": 15 }
     },
