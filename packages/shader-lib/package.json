@@ -12,11 +12,12 @@
     "test": "echo \"No tests for shader-lib yet\" && exit 0"
   },
   "dependencies": {
-    "glob": "^10.3.10",
-    "fs-extra": "^11.2.0"
+    "fs-extra": "^11.2.0",
+    "glob": "^10.3.10"
   },
   "devDependencies": {
     "eslint": "^8.57.1",
+    "rimraf": "^6.0.1",
     "typescript": "^5.8.3"
   }
 }

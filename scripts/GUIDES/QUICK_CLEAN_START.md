@@ -20,6 +20,8 @@ If manual cleansing takes a long time, try the following:
 3. **Fixed the cleanup script**: Removed the background process (`&`)
 4. **Created a comprehensive cleanup script**: `scripts/clean-environment.sh`
 
+bash scripts/clean-environment.sh
+
 Find background processes
 ps aux | grep -E "(node|pnpm|turbo|next)" | grep -v grep
 # Install dependencies

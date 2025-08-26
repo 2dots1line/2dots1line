@@ -1,13 +1,13 @@
 /**
- * Jest Setup for V9.5 Integration Tests
+ * Jest Setup for V11.0 Tests
  * 
- * This file configures the test environment for all integration tests,
+ * This file configures the test environment for all tests,
  * including global mocks, timeouts, and test utilities.
  */
 
 import { jest } from '@jest/globals';
 
-// Extend Jest timeout for integration tests
+// Extend Jest timeout for tests
 jest.setTimeout(60000);
 
 // Global test configuration

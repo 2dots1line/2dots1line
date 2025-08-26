@@ -15,15 +15,15 @@ async function generateShaders() {
     const content = await fs.readFile(file, 'utf-8');
     const fileName = path.basename(file, '.glsl');
     const variableName = fileName.replace(/-./g, (x) => x[1].toUpperCase());
-    const outPath = path.join(outDir, `${variableName}.glsl.js`);
+    const outPath = path.join(outDir, `${variableName}.glsl.ts`);
     
-    const jsContent = `export default \`\n${content}\`;\n`;
+    const tsContent = `export default \`\n${content}\`;\n`;
     
-    await fs.writeFile(outPath, jsContent);
+    await fs.writeFile(outPath, tsContent);
     console.log(`Generated ${outPath}`);
     exports.push({
       name: variableName,
-      path: `./generated/${variableName}.glsl.js`
+      path: `./generated/${variableName}.glsl`
     });
   }
 

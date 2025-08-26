@@ -8,7 +8,6 @@ module.exports = {
     'workers/**/*.ts',
     'packages/**/*.ts',
     '!**/*.d.ts',
-    '!**/__tests__/**',
     '!**/node_modules/**',
     '!**/dist/**'
   ],

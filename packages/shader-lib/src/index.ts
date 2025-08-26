@@ -1,1 +1,1 @@
-export { default as myFirstShader } from './generated/myFirstShader.glsl.js';
+export { default as myFirstShader } from './generated/myFirstShader.glsl';
