@@ -71,19 +71,29 @@ export const useChatStore = create<ChatState>()(
       },
       
       setMessages: (messages) => {
-        // Ensure all timestamps are Date objects
+        // Ensure all timestamps are Date objects and handle attachments
         const messagesWithDateTimestamps = messages.map(msg => ({
           ...msg,
-          timestamp: msg.timestamp instanceof Date ? msg.timestamp : new Date(msg.timestamp)
+          timestamp: msg.timestamp instanceof Date ? msg.timestamp : new Date(msg.timestamp),
+          // Ensure attachment has valid file data
+          attachment: msg.attachment && msg.attachment.file ? {
+            ...msg.attachment,
+            file: msg.attachment.file
+          } : undefined
         }));
         set({ messages: messagesWithDateTimestamps });
       },
       
       addMessage: (message) => {
-        // Ensure timestamp is a Date object
+        // Ensure timestamp is a Date object and handle attachments
         const messageWithDateTimestamp = {
           ...message,
-          timestamp: message.timestamp instanceof Date ? message.timestamp : new Date(message.timestamp)
+          timestamp: message.timestamp instanceof Date ? message.timestamp : new Date(message.timestamp),
+          // Ensure attachment has valid file data
+          attachment: message.attachment && message.attachment.file ? {
+            ...message.attachment,
+            file: message.attachment.file
+          } : undefined
         };
         set((state) => ({
           messages: [...state.messages, messageWithDateTimestamp]

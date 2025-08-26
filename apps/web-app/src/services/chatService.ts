@@ -11,6 +11,10 @@ export interface ChatMessage {
   content: string;
   timestamp: Date;
   conversation_id?: string;
+  attachment?: {
+    file: File;
+    type: 'image' | 'document';
+  };
 }
 
 export interface SendMessageRequest {

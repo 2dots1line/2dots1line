@@ -213,7 +213,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
   const handleSendMessage = async () => {
     if ((!message.trim() && !currentAttachment) || isLoading) return;
     
-    const messageContent = message.trim() || (currentAttachment ? `Sharing ${currentAttachment.type.includes('image') ? 'an image' : 'a file'}: ${currentAttachment.name}` : '');
+    const messageContent = message.trim() || (currentAttachment && currentAttachment.type ? `Sharing ${currentAttachment.type.includes('image') ? 'an image' : 'a file'}: ${currentAttachment.name}` : '');
     
     const userMessage: EnhancedChatMessage = {
       id: `user-${Date.now()}`,
@@ -221,7 +221,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
       content: messageContent,
       timestamp: new Date(),
       conversation_id: currentConversationId || undefined,
-      attachment: currentAttachment ? {
+      attachment: currentAttachment && currentAttachment.type ? {
         file: currentAttachment,
         type: currentAttachment.type.startsWith('image/') ? 'image' : 'document'
       } : undefined
@@ -352,7 +352,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
     return (
       <div>
         {/* Render attachment if present */}
-        {msg.attachment && (
+        {msg.attachment && msg.attachment.file && (
           <div className="mb-2">
             <FileAttachment
               file={msg.attachment.file}
@@ -469,16 +469,16 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
 
         {/* Input Area */}
         <div className="p-6 border-t border-white/20">
-          {/* File attachment preview */}
-          {currentAttachment && (
-            <div className="mb-4">
-              <FileAttachment
-                file={currentAttachment}
-                variant="preview"
-                onRemove={clearAttachment}
-              />
-            </div>
-          )}
+                  {/* File attachment preview */}
+        {currentAttachment && currentAttachment.type && currentAttachment.name && (
+          <div className="mb-4">
+            <FileAttachment
+              file={currentAttachment}
+              variant="preview"
+              onRemove={clearAttachment}
+            />
+          </div>
+        )}
 
           <GlassmorphicPanel
             variant="glass-panel"

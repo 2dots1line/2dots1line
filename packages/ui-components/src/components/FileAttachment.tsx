@@ -25,6 +25,18 @@ export const FileAttachment: React.FC<FileAttachmentProps> = ({
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
 
+  // Safety check: ensure file exists and has required properties
+  if (!file || !file.type || !file.name || typeof file.size !== 'number') {
+    console.warn('FileAttachment: Invalid file prop provided:', file);
+    return null;
+  }
+
+  // Additional check: ensure file.type is a string and has the startsWith method
+  if (typeof file.type !== 'string') {
+    console.warn('FileAttachment: File type is not a valid string:', file.type);
+    return null;
+  }
+
   const isImage = file.type.startsWith('image/');
 
   // Create image URL for preview
