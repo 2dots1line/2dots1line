@@ -13,14 +13,14 @@ import { LLMChatTool, type LLMChatInput } from '../ai/LLMChatTool';
 // V11.1 FIX: Made schema more flexible to handle LLM response variations
 export const HolisticAnalysisOutputSchema = z.object({
   persistence_payload: z.object({
-    conversation_summary: z.string().min(1).max(500), // Reduced min length
+    conversation_summary: z.string().min(1), // Removed max limit to allow comprehensive summaries
     conversation_importance_score: z.number().int().min(1).max(10),
     extracted_memory_units: z.array(z.object({
       temp_id: z.string().regex(/^mem_[a-zA-Z0-9_]+$/, {
         message: "temp_id must start with 'mem_' and contain only alphanumeric characters and underscores"
       }),
-      title: z.string().min(1).max(150), // Reduced min length
-      content: z.string().min(1).max(2000), // Reduced min length
+      title: z.string().min(1), // Removed max limit
+      content: z.string().min(1), // Removed max limit to allow detailed content
       source_type: z.enum(['conversation_extraction', 'journal_entry', 'user_input', 'system_generated']),
       importance_score: z.number().min(1).max(10), // Memory importance on 1-10 scale
       sentiment_score: z.number().min(-1.0).max(1.0), // Sentiment from -1.0 (negative) to 1.0 (positive)
@@ -28,32 +28,32 @@ export const HolisticAnalysisOutputSchema = z.object({
     })).max(10), // Reasonable limit for extracted memories per conversation
     
     extracted_concepts: z.array(z.object({
-      name: z.string().min(1).max(100),
-      type: z.string().min(1).max(50),
-      description: z.string().min(1).max(300) // Reduced min length
+      name: z.string().min(1),
+      type: z.string().min(1),
+      description: z.string().min(1) // Removed max limit to allow detailed descriptions
     })).max(20), // Reasonable limit for extracted concepts per conversation
     
     new_relationships: z.array(z.object({
       source_entity_id_or_name: z.string().min(1),
       target_entity_id_or_name: z.string().min(1),
-      relationship_description: z.string().min(1).max(50)
+      relationship_description: z.string().min(1) // Removed max limit to allow detailed descriptions
     })).max(30), // Reasonable limit for relationships per conversation
     
     detected_growth_events: z.array(z.object({
       dim_key: z.enum(['know_self', 'know_world', 'act_self', 'act_world', 'show_self', 'show_world']),
       delta: z.number().min(-5.0).max(5.0), // V11.1 FIX: Increased range to prevent validation failures
-      rationale: z.string().min(1).max(200) // Reduced min length
+      rationale: z.string().min(1) // Removed max limit to allow high-quality LLM responses
     })).max(6) // Maximum one event per dimension
   }),
   
   forward_looking_context: z.object({
-    proactive_greeting: z.string().min(1).max(300), // Reduced min length
+    proactive_greeting: z.string().min(1), // Removed max limit
     unresolved_topics_for_next_convo: z.array(z.object({
-      topic: z.string().min(1).max(100), // Reduced min length
-      summary_of_unresolution: z.string().min(1).max(1500), // Increased max length for more detailed summaries
-      suggested_question: z.string().min(1).max(300) // Increased max length for more thoughtful questions
+      topic: z.string().min(1), // Removed max limit
+      summary_of_unresolution: z.string().min(1), // Removed max limit to allow detailed summaries
+      suggested_question: z.string().min(1) // Removed max limit to allow thoughtful questions
     })).max(5), // Maximum 5 unresolved topics to avoid overwhelming
-    suggested_initial_focus: z.string().min(1).max(200) // Reduced min length
+    suggested_initial_focus: z.string().min(1) // Removed max limit
   })
 });
 
@@ -85,6 +85,7 @@ export class ValidationError extends HolisticAnalysisError {
 // Input interface
 export interface HolisticAnalysisInput {
   userId: string;
+  userName?: string; // User's display name for LLM reference
   fullConversationTranscript: string;
   userMemoryProfile: any; // Can be null for new users
   knowledgeGraphSchema: any; // Can be null, will use default
@@ -193,7 +194,10 @@ export class HolisticAnalysisTool {
     };
 
     // Build the master prompt following V9.6 specification structure
-    const masterPrompt = `${templates.ingestion_analyst_persona}
+    const user_name = input.userName || 'User';
+    const personaWithUserName = templates.ingestion_analyst_persona.replace(/\{\{user_name\}\}/g, user_name);
+    
+    const masterPrompt = `${personaWithUserName}
 
 ${templates.ingestion_analyst_rules}
 

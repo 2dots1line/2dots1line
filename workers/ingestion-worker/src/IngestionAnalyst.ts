@@ -46,12 +46,13 @@ export class IngestionAnalyst {
 
     try {
       // Phase I: Data Gathering & Preparation
-      const { fullConversationTranscript, userMemoryProfile, knowledgeGraphSchema } = 
+      const { fullConversationTranscript, userMemoryProfile, knowledgeGraphSchema, userName } = 
         await this.gatherContextData(conversationId, userId);
 
       // Phase II: The "Single Synthesis" LLM Call
       const analysisOutput = await this.holisticAnalysisTool.execute({
         userId,
+        userName,
         fullConversationTranscript,
         userMemoryProfile,
         knowledgeGraphSchema,
@@ -124,11 +125,13 @@ export class IngestionAnalyst {
     const user = await this.userRepository.findById(userId);
     const userMemoryProfile = user?.memory_profile || null;
     const knowledgeGraphSchema = user?.knowledge_graph_schema || null;
+    const userName = user?.name || 'User';
 
     return {
       fullConversationTranscript,
       userMemoryProfile,
-      knowledgeGraphSchema
+      knowledgeGraphSchema,
+      userName
     };
   }
 
@@ -430,11 +433,28 @@ export class IngestionAnalyst {
       for (const relationship of relationships) {
         console.log(`🔍 [IngestionAnalyst] DEBUG: Processing relationship: ${JSON.stringify(relationship, null, 2)}`);
         
+        // Transform relationship data structure from HolisticAnalysisTool format
+        const sourceId = relationship.source_entity_id_or_name || relationship.source_id;
+        const targetId = relationship.target_entity_id_or_name || relationship.target_id;
+        const relationshipType = relationship.relationship_description || relationship.type || 'general';
+        const context = relationship.relationship_description || relationship.context || 'Inferred from conversation analysis';
+        
+        console.log(`🔍 [IngestionAnalyst] DEBUG: Transformed relationship - sourceId: ${sourceId}, targetId: ${targetId}, type: ${relationshipType}`);
+        
+        // FIXED: Map relationship IDs to actual node IDs by querying the database
+        const actualSourceId = await this.mapRelationshipIdToNodeId(sourceId, userId);
+        const actualTargetId = await this.mapRelationshipIdToNodeId(targetId, userId);
+        
+        if (!actualSourceId || !actualTargetId) {
+          console.warn(`[IngestionAnalyst] ⚠️ Skipping relationship: ${sourceId} -> ${targetId} (could not map IDs)`);
+          continue;
+        }
+        
+        console.log(`🔍 [IngestionAnalyst] DEBUG: Mapped IDs - sourceId: ${sourceId} -> ${actualSourceId}, targetId: ${targetId} -> ${actualTargetId}`);
+        
+        // Use actual node IDs for relationship creation
         const cypher = `
-          MATCH (source), (target)
-          WHERE (source.muid = $sourceId OR source.concept_id = $sourceId) 
-            AND (target.muid = $targetId OR target.concept_id = $targetId)
-            AND source.user_id = $userId AND target.user_id = $userId
+          MATCH (source {id: $sourceId, userId: $userId}), (target {id: $targetId, userId: $userId})
           CREATE (source)-[r:RELATED_TO {
             type: $relationshipType,
             strength: $strength,
@@ -447,29 +467,29 @@ export class IngestionAnalyst {
         
         console.log(`🔍 [IngestionAnalyst] DEBUG: Relationship Cypher query: ${cypher}`);
         console.log(`🔍 [IngestionAnalyst] DEBUG: Relationship parameters: ${JSON.stringify({
-          sourceId: relationship.source_id,
-          targetId: relationship.target_id,
+          sourceId: actualSourceId,
+          targetId: actualTargetId,
           userId: userId,
-          relationshipType: relationship.type || 'general',
+          relationshipType: relationshipType,
           strength: relationship.strength || 0.5,
-          context: relationship.context || 'Inferred from conversation analysis'
+          context: context
         }, null, 2)}`);
         
         const result = await session.run(cypher, {
-          sourceId: relationship.source_id,
-          targetId: relationship.target_id,
+          sourceId: actualSourceId,
+          targetId: actualTargetId,
           userId: userId,
-          relationshipType: relationship.type || 'general',
+          relationshipType: relationshipType,
           strength: relationship.strength || 0.5,
-          context: relationship.context || 'Inferred from conversation analysis'
+          context: context
         });
         
         console.log(`🔍 [IngestionAnalyst] DEBUG: Relationship query executed, records: ${result.records.length}`);
         
         if (result.records.length > 0) {
-          console.log(`[IngestionAnalyst] ✅ Created relationship: ${relationship.source_id} -> ${relationship.target_id} (${relationship.type || 'general'})`);
+          console.log(`[IngestionAnalyst] ✅ Created relationship: ${sourceId} -> ${targetId} (${relationshipType})`);
         } else {
-          console.warn(`[IngestionAnalyst] ⚠️ Failed to create relationship: ${relationship.source_id} -> ${relationship.target_id} (nodes not found)`);
+          console.warn(`[IngestionAnalyst] ⚠️ Failed to create relationship: ${sourceId} -> ${targetId} (nodes not found)`);
         }
       }
       
@@ -482,6 +502,48 @@ export class IngestionAnalyst {
     } finally {
       await session.close();
       console.log(`🔍 [IngestionAnalyst] DEBUG: Neo4j session closed for relationships`);
+    }
+  }
+
+  /**
+   * Map relationship ID to actual node ID by querying the database
+   */
+  private async mapRelationshipIdToNodeId(relationshipId: string, userId: string): Promise<string | null> {
+    try {
+      // First try to find by memory unit temp_id
+      if (relationshipId.startsWith('mem_')) {
+        // This is a memory unit temp_id, find the actual memory unit
+        const memoryUnits = await this.memoryRepository.findByUserId(userId);
+        const memoryUnit = memoryUnits.find(mu => mu.muid === relationshipId);
+        if (memoryUnit) {
+          return memoryUnit.muid;
+        }
+      }
+      
+      // Try to find by concept name
+      const concepts = await this.conceptRepository.findByUserId(userId);
+      const concept = concepts.find(c => c.name === relationshipId);
+      if (concept) {
+        return concept.concept_id;
+      }
+      
+      // Try to find by exact ID match (in case it's already a UUID)
+      const memoryUnit = await this.memoryRepository.findById(relationshipId);
+      if (memoryUnit && memoryUnit.user_id === userId) {
+        return memoryUnit.muid;
+      }
+      
+      const conceptById = await this.conceptRepository.findById(relationshipId);
+      if (conceptById && conceptById.user_id === userId) {
+        return conceptById.concept_id;
+      }
+      
+      console.warn(`[IngestionAnalyst] ⚠️ Could not map relationship ID: ${relationshipId}`);
+      return null;
+      
+    } catch (error) {
+      console.error(`[IngestionAnalyst] ❌ Error mapping relationship ID ${relationshipId}:`, error);
+      return null;
     }
   }
 

@@ -253,9 +253,17 @@ export class ConversationController {
 
       res.status(200).json({
         success: true,
-        data: result,
-        message: 'File processed successfully'
-      } as TApiResponse<any>);
+        conversation_id: conversationId,
+        response_text: result.response_text,
+        message_id: `msg_${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        metadata: result.metadata,
+        file_info: {
+          filename: file.originalname,
+          size: file.size,
+          mimetype: file.mimetype
+        }
+      });
 
     } catch (error) {
       console.error('Error in uploadFile:', error);

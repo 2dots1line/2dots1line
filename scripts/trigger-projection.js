@@ -12,11 +12,11 @@ async function triggerProjection() {
   const job = await queue.add('new_entities_created', {
     type: 'new_entities_created',
     userId: 'dev-user-123',
-    source: 'IngestionAnalyst',
+    source: 'manual_trigger',
     timestamp: new Date().toISOString(),
     entities: [
       {
-        id: 'trigger-entity',
+        id: 'f06abd49-ce97-4ae1-9758-a12ececb92c7',
         type: 'MemoryUnit'
       }
     ]

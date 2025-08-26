@@ -85,7 +85,7 @@ export class PromptBuilder {
     // --- STEP 3: BUILD SYSTEM PROMPT (Background Context) ---
     const systemComponents: (string | null)[] = [
       preambleTpl,
-      Mustache.render(identityTpl, coreIdentity),
+      Mustache.render(identityTpl, { ...coreIdentity, user_name: user.name || 'User' }),
       this.formatComponent('user_memory_profile', user.memory_profile),
       this.formatComponent('knowledge_graph_schema', user.knowledge_graph_schema),
       this.formatComponent('summaries_of_recent_important_conversations_this_cycle', recentSummaries),

@@ -83,6 +83,7 @@ export type StrategicSynthesisOutput = z.infer<typeof StrategicSynthesisOutputSc
 
 export interface StrategicSynthesisInput {
   userId: string;
+  userName?: string; // User's display name for LLM reference
   cycleId: string;
   cycleStartDate: Date;
   cycleEndDate: Date;
@@ -275,8 +276,13 @@ export class StrategicSynthesisTool {
     
     console.log(`[StrategicSynthesisTool] Building prompt with ${input.currentKnowledgeGraph.memoryUnits.length} memory units, ${input.currentKnowledgeGraph.concepts.length} concepts, ${input.currentKnowledgeGraph.relationships.length} relationships`);
     
+    // Replace user name placeholders in templates
+    const user_name = input.userName || 'User';
+    const strategicPersonaWithUserName = strategicPersona.replace(/\{\{user_name\}\}/g, user_name);
+    const strategicInstructionsWithUserName = strategicInstructions.replace(/\{\{user_name\}\}/g, user_name);
+    
     // Build the master prompt using all available data
-    const masterPrompt = `${strategicPersona}
+    const masterPrompt = `${strategicPersonaWithUserName}
 
 ## Analysis Context
 - **User ID**: ${input.userId}
@@ -303,7 +309,7 @@ ${JSON.stringify(input.recentGrowthEvents, null, 2)}
 ## User Profile
 ${JSON.stringify(input.userProfile, null, 2)}
 
-${strategicInstructions}
+${strategicInstructionsWithUserName}
 
 ${responseFormat}`;
 

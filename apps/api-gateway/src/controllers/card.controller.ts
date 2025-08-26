@@ -68,6 +68,75 @@ export class CardController {
   };
 
   /**
+   * GET /api/v1/cards/:cardId/related
+   * Get related cards for a given card based on Neo4j relationships
+   */
+  public getRelatedCards = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+      const cardId = req.params.cardId;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
+
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authorization required'
+          }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      if (!cardId) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'BAD_REQUEST',
+            message: 'Card ID is required'
+          }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      // Get the card first to find its source entity
+      const card = await this.cardService.getCardById(cardId);
+      if (!card) {
+        res.status(404).json({
+          success: false,
+          error: {
+            code: 'NOT_FOUND',
+            message: 'Card not found'
+          }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      // Get related cards based on Neo4j relationships
+      const relatedCards = await this.cardService.getRelatedCards(cardId, limit);
+
+      res.status(200).json({
+        success: true,
+        data: {
+          cards: relatedCards,
+          total_count: relatedCards.length,
+          has_more: false // TODO: Implement pagination
+        }
+      } as TApiResponse<any>);
+
+    } catch (error: any) {
+      console.error('Card controller error:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to fetch related cards'
+        }
+      } as TApiResponse<any>);
+    }
+  };
+
+  /**
    * GET /api/v1/cards/by-source/:entityId
    * TODO: Implement with CardService
    */

@@ -177,7 +177,7 @@ export class CardService {
    * Transform repository card data to API card format
    * Uses CardData from CardRepository which includes growthDimensions
    */
-  private transformCardData(cardData: CardData): Card {
+  private async transformCardData(cardData: CardData): Promise<Card> {
     // Transform growth dimensions from repository format
     const growthDimensions = cardData.growthDimensions?.map((dimension) => {
       // Calculate trend based on recent event activity
@@ -208,7 +208,7 @@ export class CardService {
       importanceScore: cardData.importanceScore || 0.5,
       createdAt: cardData.createdAt,
       updatedAt: cardData.updatedAt,
-      connections: 0, // Default values since CardData doesn't have these
+      connections: await this.getConnectionCount(cardData.source_entity_id || null, cardData.source_entity_type || null), // Calculate actual connections
       insights: 0,
       tags: [],
       display_data: (cardData as any).display_data || {},
@@ -297,6 +297,170 @@ export class CardService {
         return sortBy;
       default:
         return 'updated_at';
+    }
+  }
+
+  /**
+   * Get a single card by ID
+   */
+  async getCardById(cardId: string): Promise<Card | null> {
+    try {
+      const cardData = await this.cardRepository.findById(cardId);
+      if (!cardData) {
+        return null;
+      }
+
+      // Convert Prisma card to CardData format
+      const convertedCardData: CardData = {
+        id: cardData.card_id,
+        type: cardData.card_type as 'memory_unit' | 'concept' | 'derived_artifact',
+        title: (cardData.display_data as any)?.title || 'Untitled',
+        preview: (cardData.display_data as any)?.preview || 'No preview available',
+        evolutionState: 'seed', // Default value
+        importanceScore: 0.5, // Default value
+        createdAt: cardData.created_at,
+        updatedAt: cardData.updated_at,
+        source_entity_id: cardData.source_entity_id,
+        source_entity_type: cardData.source_entity_type,
+        growthDimensions: [] // Will be populated by repository if available
+      };
+
+      return this.transformCardData(convertedCardData);
+    } catch (error) {
+      console.error('Error getting card by ID:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get related cards based on Neo4j relationships
+   */
+  async getRelatedCards(cardId: string, limit: number = 10): Promise<Card[]> {
+    try {
+      // Get the card to find its source entity
+      const card = await this.getCardById(cardId);
+      if (!card || !card.source_entity_id) {
+        return [];
+      }
+
+      // Query Neo4j for related entities
+      const relatedEntities = await this.getRelatedEntitiesFromNeo4j(card.source_entity_id, limit);
+      
+      // Convert related entities to cards
+      const relatedCards: Card[] = [];
+      for (const entity of relatedEntities) {
+        const entityCard = await this.findCardBySourceEntity(entity.id, entity.type);
+        if (entityCard) {
+          relatedCards.push(entityCard);
+        }
+      }
+
+      return relatedCards;
+    } catch (error) {
+      console.error('Error getting related cards:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Find card by source entity ID and type
+   */
+  private async findCardBySourceEntity(sourceEntityId: string, sourceEntityType: string): Promise<Card | null> {
+    try {
+      const cardDataArray = await this.cardRepository.findBySourceEntity(sourceEntityId, sourceEntityType);
+      if (!cardDataArray || cardDataArray.length === 0) {
+        return null;
+      }
+
+      // Convert Prisma card to CardData format
+      const cardData = cardDataArray[0];
+      const convertedCardData: CardData = {
+        id: cardData.card_id,
+        type: cardData.card_type as 'memory_unit' | 'concept' | 'derived_artifact',
+        title: (cardData.display_data as any)?.title || 'Untitled',
+        preview: (cardData.display_data as any)?.preview || 'No preview available',
+        evolutionState: 'seed', // Default value
+        importanceScore: 0.5, // Default value
+        createdAt: cardData.created_at,
+        updatedAt: cardData.updated_at,
+        source_entity_id: cardData.source_entity_id,
+        source_entity_type: cardData.source_entity_type,
+        growthDimensions: [] // Will be populated by repository if available
+      };
+
+      // Return the first card found
+      return this.transformCardData(convertedCardData);
+    } catch (error) {
+      console.error('Error finding card by source entity:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get connection count for a source entity
+   */
+  private async getConnectionCount(sourceEntityId: string | null, sourceEntityType: string | null): Promise<number> {
+    try {
+      if (!sourceEntityId || !sourceEntityType || !this.databaseService.neo4j) {
+        return 0;
+      }
+
+      const session = this.databaseService.neo4j.session();
+      
+      try {
+        // Count relationships for this entity
+        const result = await session.run(`
+          MATCH (source)-[r]-(target)
+          WHERE source.id = $sourceEntityId OR source.concept_id = $sourceEntityId OR source.muid = $sourceEntityId
+          RETURN count(r) as connectionCount
+        `, { sourceEntityId });
+
+        const connectionCount = result.records[0]?.get('connectionCount')?.toNumber() || 0;
+        return connectionCount;
+      } finally {
+        session.close();
+      }
+    } catch (error) {
+      console.error('Error getting connection count:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Query Neo4j for related entities
+   */
+  private async getRelatedEntitiesFromNeo4j(sourceEntityId: string, limit: number): Promise<Array<{id: string, type: string}>> {
+    try {
+      if (!this.databaseService.neo4j) {
+        console.warn('Neo4j not available, returning empty related entities');
+        return [];
+      }
+
+      const session = this.databaseService.neo4j.session();
+      
+      try {
+        // Query for related entities through relationships
+        const result = await session.run(`
+          MATCH (source)-[r]-(target)
+          WHERE source.id = $sourceEntityId OR source.concept_id = $sourceEntityId OR source.muid = $sourceEntityId
+          RETURN DISTINCT target.id as id, labels(target)[0] as type, type(r) as relationshipType
+          ORDER BY target.importance_score DESC
+          LIMIT $limit
+        `, { sourceEntityId, limit });
+
+        const entities = result.records.map((record: any) => ({
+          id: record.get('id'),
+          type: record.get('type')
+        }));
+
+        console.log(`Found ${entities.length} related entities for ${sourceEntityId}`);
+        return entities;
+      } finally {
+        session.close();
+      }
+    } catch (error) {
+      console.error('Error querying Neo4j for related entities:', error);
+      return [];
     }
   }
 } 

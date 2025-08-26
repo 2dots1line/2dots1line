@@ -116,6 +116,7 @@ export class InsightEngine {
     // Build StrategicSynthesisInput with all available data
     const strategicInput: StrategicSynthesisInput = {
       userId,
+      userName: user.name || 'User',
       cycleId: `cycle-${userId}-${Date.now()}`,
       cycleStartDate: cycleDates.cycleStartDate,
       cycleEndDate: cycleDates.cycleEndDate,

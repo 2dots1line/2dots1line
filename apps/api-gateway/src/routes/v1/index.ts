@@ -54,6 +54,7 @@ v1Router.get('/cards/dashboard/evolution', authMiddleware, cardController.getCar
 v1Router.get('/cards/top-growth', authMiddleware, cardController.getTopGrowthCards);
 v1Router.get('/cards/evolution/:state', authMiddleware, cardController.getCardsByEvolutionState);
 v1Router.get('/cards/:cardId', authMiddleware, cardController.getCardDetails);
+v1Router.get('/cards/:cardId/related', authMiddleware, cardController.getRelatedCards);
 
 // --- User Routes (Authenticated) ---
 v1Router.get('/users/me/profile', authMiddleware, userController.getUserProfile);
