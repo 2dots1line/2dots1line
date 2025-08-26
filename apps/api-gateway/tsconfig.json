@@ -42,6 +42,9 @@
       "path": "../../services/dialogue-service/tsconfig.build.json"
     },
     {
+       "path": "../../services/pexels-service/tsconfig.build.json"
+    },
+    {
       "path": "../../services/user-service/tsconfig.build.json"
     },
     {
