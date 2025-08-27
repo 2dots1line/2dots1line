@@ -22,6 +22,9 @@
       "path": "../../services/dialogue-service"
     },
     {
+      "path": "../../services/pexels-service"
+    },
+    {
       "path": "../../services/user-service"
     },
     {
