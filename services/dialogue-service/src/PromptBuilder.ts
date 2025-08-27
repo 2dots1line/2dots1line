@@ -4,7 +4,7 @@ import {
   AugmentedMemoryContext
 } from '@2dots1line/shared-types';
 import { Redis } from 'ioredis';
-import Mustache from 'mustache';
+import * as Mustache from 'mustache';
 
 
 export interface PromptBuildInput {
@@ -84,7 +84,7 @@ export class PromptBuilder {
 
     // --- STEP 3: BUILD SYSTEM PROMPT (Background Context) ---
     const systemComponents: (string | null)[] = [
-      preambleTpl,
+      Mustache.render(preambleTpl, { user_name: user.name || 'User' }),
       Mustache.render(identityTpl, { ...coreIdentity, user_name: user.name || 'User' }),
       this.formatComponent('user_memory_profile', user.memory_profile),
       this.formatComponent('knowledge_graph_schema', user.knowledge_graph_schema),
@@ -92,8 +92,8 @@ export class PromptBuilder {
       
       // V11.0 SIMPLIFIED LOGIC: Use flag from controller
       isNewConversation ? 
-        this.formatContextFromLastConversation(user.next_conversation_context_package) : 
-        this.formatContextFromLastTurn(turnContext)
+        this.formatContextFromLastConversation(user.next_conversation_context_package, user.name || 'User') : 
+        this.formatContextFromLastTurn(turnContext, user.name || 'User')
     ];
 
     const systemPrompt = systemComponents.filter(c => c !== null).join('\n\n');
@@ -103,7 +103,7 @@ export class PromptBuilder {
       this.formatComponent('augmented_memory_context', augmentedMemoryContext),
       responseFormatTpl,
       this.formatComponent('final_input_text', finalInputText),
-      instructionsTpl
+      Mustache.render(instructionsTpl, { user_name: user.name || 'User' })
     ];
 
     const userPrompt = userComponents.filter(c => c !== null).join('\n\n');
@@ -161,7 +161,7 @@ export class PromptBuilder {
   /**
    * Formats context from the last conversation using Mustache templating.
    */
-  private formatContextFromLastConversation(contextPackage: any): string {
+  private formatContextFromLastConversation(contextPackage: any, userName: string): string {
     if (!contextPackage) {
       return '<context_from_last_conversation>\n</context_from_last_conversation>';
     }
@@ -175,7 +175,7 @@ export class PromptBuilder {
     }
 
     try {
-      const formatted = Mustache.render(template, contextPackage);
+      const formatted = Mustache.render(template, { ...contextPackage, user_name: userName });
       return formatted;
     } catch (error) {
       console.error('Error rendering context_from_last_conversation template:', error);
@@ -186,7 +186,7 @@ export class PromptBuilder {
   /**
    * Formats context from the last turn using Mustache templating.
    */
-  private formatContextFromLastTurn(turnContext: any): string {
+  private formatContextFromLastTurn(turnContext: any, userName: string): string {
     if (!turnContext) {
       return '<context_from_last_turn>\n</context_from_last_turn>';
     }
@@ -200,7 +200,7 @@ export class PromptBuilder {
     }
 
     try {
-      const formatted = Mustache.render(template, turnContext);
+      const formatted = Mustache.render(template, { ...turnContext, user_name: userName });
       return formatted;
     } catch (error) {
       console.error('Error rendering context_from_last_turn template:', error);

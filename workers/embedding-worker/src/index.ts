@@ -28,14 +28,6 @@ async function main() {
     const embeddingWorker = new EmbeddingWorker(databaseService);
     console.log('[EmbeddingWorker] EmbeddingWorker instance created and listening for jobs');
 
-    // Test embedding functionality on startup
-    const embeddingTest = await embeddingWorker.testEmbedding();
-    if (embeddingTest) {
-      console.log('[EmbeddingWorker] ✅ Embedding functionality test passed');
-    } else {
-      console.warn('[EmbeddingWorker] ⚠️  Embedding functionality test failed - worker will still start but may have issues');
-    }
-
     // Graceful shutdown handling
     const gracefulShutdown = async (signal: string) => {
       console.log(`[EmbeddingWorker] Received ${signal}, initiating graceful shutdown...`);
@@ -54,12 +46,6 @@ async function main() {
 
     // Keep the process alive
     console.log('[EmbeddingWorker] Worker is running. Press Ctrl+C to stop.');
-
-    // Log stats periodically
-    setInterval(() => {
-      const stats = embeddingWorker.getStats();
-      console.log(`[EmbeddingWorker] Stats - Running: ${stats.isRunning}, Processed: ${stats.processed}, Failed: ${stats.failed}`);
-    }, 60000); // Every minute
 
   } catch (error) {
     console.error('[EmbeddingWorker] Failed to start worker:', error);

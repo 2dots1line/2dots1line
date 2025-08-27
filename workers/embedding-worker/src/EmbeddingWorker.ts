@@ -193,75 +193,12 @@ export class EmbeddingWorker {
   }
 
   /**
-   * Test embedding functionality including Weaviate storage
-   */
-  async testEmbedding(): Promise<boolean> {
-    try {
-      const testResult = await this.textEmbeddingTool.execute({
-        payload: {
-          text_to_embed: "Test embedding generation",
-          model_id: this.config.embeddingModelVersion!
-        }
-      });
-
-      if (testResult.status === 'success' && testResult.result) {
-        const isValid = Array.isArray(testResult.result.vector) && 
-                       testResult.result.vector.length > 0 && 
-                       testResult.result.vector.every((v: number) => typeof v === 'number');
-
-        if (isValid) {
-          console.log(`[EmbeddingWorker] Test embedding successful: ${testResult.result.vector.length} dimensions`);
-          
-          // Test Weaviate storage
-          const testWeaviateId = await this.storeEmbeddingInWeaviate({
-            entityId: 'test-entity-id',
-            entityType: 'MemoryUnit',
-            textContent: 'Test embedding generation',
-            userId: 'test-user-id',
-            vector: testResult.result.vector
-          });
-          
-          if (testWeaviateId !== 'weaviate-storage-failed') {
-            console.log(`[EmbeddingWorker] Test Weaviate storage successful: ${testWeaviateId}`);
-          }
-          
-          return true;
-        } else {
-          console.error('[EmbeddingWorker] Test embedding failed: Invalid vector format');
-          return false;
-        }
-      } else {
-        console.error('[EmbeddingWorker] Test embedding failed:', testResult.error?.message);
-        return false;
-      }
-    } catch (error) {
-      console.error('[EmbeddingWorker] Test embedding failed:', error);
-      return false;
-    }
-  }
-
-  /**
    * Graceful shutdown
    */
   async shutdown(): Promise<void> {
     console.log('[EmbeddingWorker] Shutting down...');
     await this.worker.close();
     console.log('[EmbeddingWorker] Shutdown complete');
-  }
-
-  /**
-   * Get worker statistics
-   */
-  getStats(): { 
-    isRunning: boolean;
-    processed: number;
-    failed: number;
-  } {
-    return {
-      isRunning: !this.worker.closing,
-      processed: 0, // TODO: Implement metrics tracking
-      failed: 0
-    };
   }
 }
 
