@@ -8,7 +8,6 @@ PYTHON3 ?= python3
 
 PIP3 ?= pip3
 
-PYTHON3_VENV ?= ./py-services/.venv
 
 PRISMA_DB_SCHEMA ?= ./packages/database/prisma/schema.prisma
 
@@ -30,9 +29,7 @@ stop-backend:
 
 
 start-dimension-reducer:
-	$(PYTHON3) -m venv $(PYTHON3_VENV)
-	source $(PYTHON3_VENV)/bin/activate
-	cd py-services/dimension-reducer && $(PYTHON3) -m pip install -r requirements.txt
+	cd py-services/dimension-reducer && $(PYTHON3) -m pip install -r requirements.txt && $(PYTHON3) app.py
 
 
 build-webapp:
