@@ -3,6 +3,14 @@ const nextConfig = {
   transpilePackages: [],
   productionBrowserSourceMaps: false,
   
+  webpack: (config, { dev }) => {
+    if (dev) {
+      // Disable source maps in development
+      config.devtool = false;
+    }
+    return config;
+  },
+  
   async rewrites() {
     return [
       {
