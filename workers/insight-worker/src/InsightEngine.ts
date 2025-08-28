@@ -37,7 +37,8 @@ export class InsightEngine {
   constructor(
     private strategicSynthesisTool: StrategicSynthesisTool,
     private dbService: DatabaseService,
-    private cardAndGraphQueue: Queue,
+    private cardQueue: Queue,
+    private graphQueue: Queue,
     private embeddingQueue: Queue,
     private neo4jClient?: any // Neo4j client for ontology updates
   ) {
@@ -501,14 +502,20 @@ export class InsightEngine {
     }
 
     try {
-      await this.cardAndGraphQueue.add('cycle_artifacts_created', {
+      const eventPayload = {
         type: 'cycle_artifacts_created',
         userId,
         entities: newEntities,
         source: 'InsightEngine'
-      });
+      };
 
-      console.log(`[InsightEngine] Published cycle artifacts event for user ${userId} with ${newEntities.length} entities`);
+      // Publish to card queue
+      await this.cardQueue.add('cycle_artifacts_created', eventPayload);
+      console.log(`[InsightEngine] Published cycle artifacts event to card-queue for user ${userId} with ${newEntities.length} entities`);
+
+      // Publish to graph queue
+      await this.graphQueue.add('cycle_artifacts_created', eventPayload);
+      console.log(`[InsightEngine] Published cycle artifacts event to graph-queue for user ${userId} with ${newEntities.length} entities`);
     } catch (error) {
       console.error(`[InsightEngine] Error publishing cycle artifacts for user ${userId}:`, error);
       throw error;

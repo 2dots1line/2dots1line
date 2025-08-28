@@ -2,7 +2,7 @@
  * CardWorker.ts
  * V11.0 Production-Grade Worker for creating UI cards from knowledge entities
  * 
- * This worker subscribes to the card-and-graph-queue and processes events published
+ * This worker subscribes to the card-queue and processes events published
  * by IngestionAnalyst and InsightEngine. For each entity in an event, it directly
  * creates Card records for eligible entities.
  * 
@@ -71,7 +71,7 @@ export class CardWorker {
     console.log('[CardWorker] Environment variables loaded successfully');
 
     this.config = {
-      queueName: 'card-and-graph-queue',
+      queueName: 'card-queue',
       concurrency: 5,
       retryAttempts: 3,
       retryDelay: 2000,

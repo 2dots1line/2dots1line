@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: [],
+  productionBrowserSourceMaps: false,
   
   async rewrites() {
     return [

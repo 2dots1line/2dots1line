@@ -30,7 +30,8 @@ export class IngestionAnalyst {
     private holisticAnalysisTool: HolisticAnalysisTool,
     private dbService: DatabaseService,
     private embeddingQueue: Queue,
-    private cardAndGraphQueue: Queue
+    private cardQueue: Queue,
+    private graphQueue: Queue
   ) {
     this.conversationRepository = new ConversationRepository(dbService);
     this.userRepository = new UserRepository(dbService);
@@ -572,16 +573,22 @@ export class IngestionAnalyst {
       }
     }
 
-    // Publish presentation event for CardWorker
+    // Publish presentation events to both card and graph queues
     if (newEntities.length > 0) {
-      await this.cardAndGraphQueue.add('new_entities_created', {
+      const eventPayload = {
         type: 'new_entities_created',
         userId,
         entities: newEntities,
         source: 'IngestionAnalyst'
-      });
-      
-      console.log(`[IngestionAnalyst] Published new_entities_created event for ${newEntities.length} entities`);
+      };
+
+      // Publish to card queue
+      await this.cardQueue.add('new_entities_created', eventPayload);
+      console.log(`[IngestionAnalyst] Published new_entities_created event to card-queue for ${newEntities.length} entities`);
+
+      // Publish to graph queue
+      await this.graphQueue.add('new_entities_created', eventPayload);
+      console.log(`[IngestionAnalyst] Published new_entities_created event to graph-queue for ${newEntities.length} entities`);
     }
   }
 

@@ -40,7 +40,8 @@ async function main() {
     console.log(`[IngestionWorker] Redis connection configured: ${redisConnection.host}:${redisConnection.port}`);
 
     const embeddingQueue = new Queue('embedding-queue', { connection: redisConnection });
-    const cardAndGraphQueue = new Queue('card-and-graph-queue', { connection: redisConnection });
+    const cardQueue = new Queue('card-queue', { connection: redisConnection });
+    const graphQueue = new Queue('graph-queue', { connection: redisConnection });
 
     console.log('[IngestionWorker] BullMQ queues initialized');
 
@@ -49,7 +50,8 @@ async function main() {
       holisticAnalysisTool,
       dbService,
       embeddingQueue,
-      cardAndGraphQueue
+      cardQueue,
+      graphQueue
     );
 
     console.log('[IngestionWorker] IngestionAnalyst instantiated');
@@ -88,7 +90,8 @@ async function main() {
       console.log('[IngestionWorker] Received SIGINT, shutting down gracefully...');
       await worker.close();
       await embeddingQueue.close();
-      await cardAndGraphQueue.close();
+      await cardQueue.close();
+      await graphQueue.close();
       console.log('[IngestionWorker] Shutdown complete');
       process.exit(0);
     });
@@ -97,7 +100,8 @@ async function main() {
       console.log('[IngestionWorker] Received SIGTERM, shutting down gracefully...');
       await worker.close();
       await embeddingQueue.close();
-      await cardAndGraphQueue.close();
+      await cardQueue.close();
+      await graphQueue.close();
       console.log('[IngestionWorker] Shutdown complete');
       process.exit(0);
     });

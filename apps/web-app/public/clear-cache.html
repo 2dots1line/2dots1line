@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clear Authentication Cache</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .danger {
+            background: #dc3545;
+        }
+        .danger:hover {
+            background: #c82333;
+        }
+        .success {
+            background: #28a745;
+        }
+        .success:hover {
+            background: #218838;
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 20px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Clear Authentication Cache</h1>
+        <p>This utility will clear all cached authentication data and localStorage to help resolve authentication issues.</p>
+        
+        <div>
+            <button onclick="checkCurrentState()">🔍 Check Current State</button>
+            <button onclick="clearAuthCache()" class="danger">🗑️ Clear Auth Cache</button>
+            <button onclick="clearAllCache()" class="danger">💥 Clear All Cache</button>
+            <button onclick="redirectToApp()" class="success">🚀 Go to App</button>
+        </div>
+        
+        <div class="log" id="log">Click "Check Current State" to see what's currently stored...</div>
+    </div>
+
+    <script>
+        const log = document.getElementById('log');
+        
+        function logMessage(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            log.textContent += `[${timestamp}] ${message}\n`;
+            log.scrollTop = log.scrollHeight;
+        }
+        
+        function checkCurrentState() {
+            log.textContent = '';
+            logMessage('🔍 Checking current authentication state...\n');
+            
+            // Check localStorage
+            const authToken = localStorage.getItem('auth_token');
+            const userStorage = localStorage.getItem('user-storage');
+            const allKeys = Object.keys(localStorage);
+            
+            logMessage(`📦 localStorage keys: ${allKeys.length}`);
+            allKeys.forEach(key => {
+                logMessage(`   - ${key}: ${localStorage.getItem(key).substring(0, 100)}${localStorage.getItem(key).length > 100 ? '...' : ''}`);
+            });
+            
+            logMessage(`\n🔑 Auth Token: ${authToken || 'NOT FOUND'}`);
+            logMessage(`👤 User Storage: ${userStorage || 'NOT FOUND'}`);
+            
+            // Check sessionStorage
+            const sessionKeys = Object.keys(sessionStorage);
+            logMessage(`\n📋 sessionStorage keys: ${sessionKeys.length}`);
+            if (sessionKeys.length > 0) {
+                sessionKeys.forEach(key => {
+                    logMessage(`   - ${key}: ${sessionStorage.getItem(key).substring(0, 100)}${sessionStorage.getItem(key).length > 100 ? '...' : ''}`);
+                });
+            }
+            
+            logMessage('\n✅ State check complete!');
+        }
+        
+        function clearAuthCache() {
+            logMessage('\n🗑️ Clearing authentication cache...');
+            
+            // Remove specific auth items
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('user-storage');
+            
+            // Remove any other auth-related items
+            const authKeys = Object.keys(localStorage).filter(key => 
+                key.toLowerCase().includes('auth') || 
+                key.toLowerCase().includes('user') || 
+                key.toLowerCase().includes('token')
+            );
+            
+            authKeys.forEach(key => {
+                localStorage.removeItem(key);
+                logMessage(`   - Removed: ${key}`);
+            });
+            
+            logMessage('✅ Authentication cache cleared!');
+            checkCurrentState();
+        }
+        
+        function clearAllCache() {
+            logMessage('\n💥 Clearing ALL cache and storage...');
+            
+            // Clear localStorage
+            localStorage.clear();
+            logMessage('   - localStorage cleared');
+            
+            // Clear sessionStorage
+            sessionStorage.clear();
+            logMessage('   - sessionStorage cleared');
+            
+            // Clear cookies (if any)
+            document.cookie.split(";").forEach(function(c) { 
+                document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+            });
+            logMessage('   - cookies cleared');
+            
+            logMessage('✅ ALL cache cleared!');
+            checkCurrentState();
+        }
+        
+        function redirectToApp() {
+            logMessage('\n🚀 Redirecting to the main app...');
+            setTimeout(() => {
+                window.location.href = 'http://localhost:3000';
+            }, 1000);
+        }
+        
+        // Auto-check state on page load
+        window.onload = function() {
+            logMessage('🔄 Cache clearing utility loaded');
+            logMessage('📍 Current URL: ' + window.location.href);
+            logMessage('🌐 Hostname: ' + window.location.hostname);
+            logMessage('🔢 Port: ' + window.location.port);
+        };
+    </script>
+</body>
+</html>
+
