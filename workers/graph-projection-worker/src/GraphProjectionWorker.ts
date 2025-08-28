@@ -106,6 +106,7 @@ export class GraphProjectionWorker {
   private config: GraphProjectionWorkerConfig;
   private graphProjectionRepo: GraphProjectionRepository;
   private neo4jService: Neo4jService;
+  private retryCounts: Map<string, number> = new Map(); // Track retry attempts per job
 
   constructor(
     private databaseService: DatabaseService,
@@ -192,6 +193,34 @@ export class GraphProjectionWorker {
     try {
       console.log(`[GraphProjectionWorker] Processing ${data.type} event for user ${data.userId}`);
       
+      // For new_entities_created events, check if embeddings are ready
+      if (data.type === 'new_entities_created') {
+        const missingEmbeddings = await this.checkMissingEmbeddings(data.entities);
+        if (missingEmbeddings.length > 0) {
+          // Check retry limit (max 15 retries = 30 seconds total wait)
+          const jobKey = `${data.userId}_${data.entities.map(e => e.id).join('_')}`;
+          const retryCount = this.retryCounts.get(jobKey) || 0;
+          const maxRetries = 15; // 30 seconds total (15 * 2 seconds)
+          
+          if (retryCount >= maxRetries) {
+            console.warn(`[GraphProjectionWorker] ⚠️ Max retries (${maxRetries}) reached for embeddings: ${missingEmbeddings.join(', ')}`);
+            console.warn(`[GraphProjectionWorker] ⚠️ Proceeding with projection using available embeddings only`);
+            this.retryCounts.delete(jobKey); // Clean up
+          } else {
+            console.log(`[GraphProjectionWorker] Waiting for embeddings: ${missingEmbeddings.join(', ')} (retry ${retryCount + 1}/${maxRetries})`);
+            this.retryCounts.set(jobKey, retryCount + 1);
+            // Wait 2 seconds and retry
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            return this.processJob(job); // Retry
+          }
+        } else {
+          // All embeddings ready, clean up retry tracking
+          const jobKey = `${data.userId}_${data.entities.map(e => e.id).join('_')}`;
+          this.retryCounts.delete(jobKey);
+          console.log(`[GraphProjectionWorker] All embeddings ready, proceeding with projection`);
+        }
+      }
+      
       // Generate new projection
       const projection = await this.generateProjection(data.userId);
       
@@ -207,6 +236,41 @@ export class GraphProjectionWorker {
       console.error(`[GraphProjectionWorker] Failed to generate projection for user ${data.userId} after ${duration}ms:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Check if embeddings exist for the given entities
+   */
+  private async checkMissingEmbeddings(entities: Array<{id: string, type: string}>): Promise<string[]> {
+    const missing: string[] = [];
+    
+    for (const entity of entities) {
+      try {
+        const exists = await this.databaseService.weaviate
+          .graphql
+          .get()
+          .withClassName('UserKnowledgeItem')
+          .withFields('externalId')
+          .withWhere({
+            operator: 'And',
+            operands: [
+              { path: ['sourceEntityType'], operator: 'Equal', valueString: entity.type },
+              { path: ['sourceEntityId'], operator: 'Equal', valueString: entity.id }
+            ]
+          })
+          .withLimit(1)
+          .do();
+          
+        if (!exists.data?.Get?.UserKnowledgeItem?.[0]) {
+          missing.push(entity.id);
+        }
+      } catch (error) {
+        console.warn(`[GraphProjectionWorker] Error checking embedding for ${entity.type} ${entity.id}:`, error);
+        missing.push(entity.id);
+      }
+    }
+    
+    return missing;
   }
 
   /**
@@ -335,7 +399,7 @@ export class GraphProjectionWorker {
             .graphql
             .get()
             .withClassName('UserKnowledgeItem')
-            .withFields('externalId embedding sourceEntityType sourceEntityId')
+            .withFields('externalId sourceEntityType sourceEntityId _additional { vector }')
             .withWhere({
               operator: 'And',
               operands: [
@@ -354,35 +418,40 @@ export class GraphProjectionWorker {
             .withLimit(1)
             .do();
 
-          if (result.data?.Get?.UserKnowledgeItem?.[0]?.embedding) {
-            const embedding = result.data.Get.UserKnowledgeItem[0].embedding;
+          if (result.data?.Get?.UserKnowledgeItem?.[0]?._additional?.vector) {
+            const embedding = result.data.Get.UserKnowledgeItem[0]._additional.vector;
             vectors.push(embedding);
             console.log(`[GraphProjectionWorker] ✅ Retrieved embedding for ${node.type} ${node.id}`);
           } else {
             // Try alternative query with content similarity if direct ID lookup fails
+            // Generate a temporary embedding for the fallback search
+            const fallbackVector = this.generateSemanticFallbackVector(node);
+            
             const fallbackResult = await this.databaseService.weaviate
               .graphql
               .get()
               .withClassName('UserKnowledgeItem')
-              .withFields('externalId embedding sourceEntityType sourceEntityId')
+              .withFields('externalId sourceEntityType sourceEntityId _additional { vector }')
               .withWhere({
                 path: ['sourceEntityType'],
                 operator: 'Equal',
                 valueString: node.type
               })
-              .withNearText({ 
-                concepts: [node.content || node.title],
+              .withNearVector({ 
+                vector: fallbackVector,
                 distance: 0.7 
               })
               .withLimit(1)
               .do();
 
-            if (fallbackResult.data?.Get?.UserKnowledgeItem?.[0]?.embedding) {
-              const embedding = fallbackResult.data.Get.UserKnowledgeItem[0].embedding;
+            if (fallbackResult.data?.Get?.UserKnowledgeItem?.[0]?._additional?.vector) {
+              const embedding = fallbackResult.data.Get.UserKnowledgeItem[0]._additional.vector;
               vectors.push(embedding);
               console.log(`[GraphProjectionWorker] ✅ Retrieved fallback embedding for ${node.type} ${node.id}`);
             } else {
-              throw new Error(`No embedding found in Weaviate for ${node.type} ${node.id}`);
+              // If even the fallback search fails, use the generated fallback vector
+              vectors.push(fallbackVector);
+              console.log(`[GraphProjectionWorker] ⚠️ Using generated fallback vector for ${node.type} ${node.id} (no similar embeddings found)`);
             }
           }
                  } catch (nodeError: any) {
@@ -769,10 +838,25 @@ export class GraphProjectionWorker {
   }
 
   /**
+   * Clean up old retry tracking data (prevent memory leaks)
+   */
+  private cleanupRetryTracking(): void {
+    const now = Date.now();
+    const maxAge = 5 * 60 * 1000; // 5 minutes
+    
+    // This is a simple cleanup - in production you might want more sophisticated tracking
+    if (this.retryCounts.size > 100) {
+      console.log(`[GraphProjectionWorker] Cleaning up retry tracking (${this.retryCounts.size} entries)`);
+      this.retryCounts.clear();
+    }
+  }
+
+  /**
    * Graceful shutdown
    */
   async shutdown(): Promise<void> {
     console.log('[GraphProjectionWorker] Shutting down...');
+    this.retryCounts.clear(); // Clean up retry tracking
     await this.worker.close();
     console.log('[GraphProjectionWorker] Shutdown complete');
   }

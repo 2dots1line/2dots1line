@@ -64,6 +64,8 @@ pm2 monit                              # Live monitoring dashboard
 | `FIRST_TIME_SETUP.md` | Initial project onboarding | New team members |
 | `TROUBLESHOOTING_GUIDE.md` | Emergency procedures and fixes | When things break |
 | `SECURITY_BASELINE.md` | Security standards and practices | Security reviews, audits |
+| `INGESTION_WORKER_TRIGGER_GUIDE.md` | Manual ingestion worker management | When conversations fail processing |
+| `INSIGHT_WORKER_TRIGGER_GUIDE.md` | Manual insight worker management | When insight jobs need reprocessing |
 
 ---
 
@@ -77,6 +79,13 @@ pm2 monit                              # Live monitoring dashboard
 - `systematic-audit.sh` - Comprehensive health check and validation
 - `clean-rebuild.sh` - Full clean rebuild with conflict resolution
 - `service-manager.sh` - V11.0 PM2-based service management
+
+### **Worker Management Scripts**
+- `trigger-ingestion.js` - Manually trigger ingestion worker for specific conversations
+- `find-failed-conversations.js` - Identify conversations that failed ingestion processing
+- `test-ingestion-worker.js` - Test ingestion worker with new conversation
+- `test-ingestion-with-entities.js` - Test ingestion with existing conversation
+- `add-bullmq-job.js` - Generic script to add jobs to any BullMQ queue
 
 ### **Subdirectories**
 ```
