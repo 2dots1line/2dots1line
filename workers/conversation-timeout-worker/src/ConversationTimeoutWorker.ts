@@ -93,21 +93,18 @@ export class ConversationTimeoutWorker {
 
       // Set up event handler BEFORE subscribing to avoid race conditions
       this.subscriberRedis.on('pmessage', (pattern, channel, message) => {
-        // DEBUG: Log all received events to diagnose subscription issues
-        console.log(`🐛 DEBUG: Received Redis event - pattern: ${pattern}, channel: ${channel}, message: ${message}`);
-        
-        // Check if this is a conversation timeout key specifically
+        // Only log and process conversation timeout events
         if (message.startsWith(REDIS_CONVERSATION_TIMEOUT_PREFIX)) {
           console.log(`🎯 CONVERSATION TIMEOUT EVENT: ${message}`);
-        } else {
-          console.log(`⚪ Other Redis event (not conversation timeout): ${message}`);
+          // The message IS the expired key
+          this.handleKeyExpiration(message);
         }
-        
-        // The message IS the expired key
-        this.handleKeyExpiration(message);
+        // Silently ignore other Redis expiration events
       });
 
       // Subscribe to key expiration events using pattern subscription
+      // Note: We subscribe to ALL expiration events but filter for conversation timeouts in the handler
+      // This is more efficient than trying to use a more specific pattern
       await this.subscriberRedis.psubscribe('__keyevent@0__:expired');
 
       // Test Redis connectivity and keyspace notifications
@@ -150,13 +147,9 @@ export class ConversationTimeoutWorker {
 
   /**
    * Handle Redis key expiration events
+   * Note: This method is only called for conversation timeout keys (already filtered)
    */
   private async handleKeyExpiration(expiredKey: string): Promise<void> {
-    // Check if this is a conversation timeout key
-    if (!expiredKey.startsWith(REDIS_CONVERSATION_TIMEOUT_PREFIX)) {
-      return; // Not a conversation timeout key
-    }
-
     const conversationId = expiredKey.replace(REDIS_CONVERSATION_TIMEOUT_PREFIX, '');
     console.log(`⏰ Conversation timeout detected for: ${conversationId}`);
 
