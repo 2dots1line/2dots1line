@@ -41,7 +41,8 @@ async function main() {
 
     console.log(`[InsightWorker] Redis connection configured: ${redisConnection.host}:${redisConnection.port}`);
 
-    const cardAndGraphQueue = new Queue('card-and-graph-queue', { connection: redisConnection });
+    const cardQueue = new Queue('card-queue', { connection: redisConnection });
+    const graphQueue = new Queue('graph-queue', { connection: redisConnection });
     const embeddingQueue = new Queue('embedding-queue', { connection: redisConnection });
     console.log('[InsightWorker] BullMQ queues initialized');
 
@@ -49,7 +50,8 @@ async function main() {
     const insightEngine = new InsightEngine(
       strategicSynthesisTool,
       dbService,
-      cardAndGraphQueue,
+      cardQueue,
+      graphQueue,
       embeddingQueue
     );
 
@@ -112,7 +114,8 @@ async function main() {
     process.on('SIGINT', async () => {
       console.log('[InsightWorker] Received SIGINT, shutting down gracefully...');
       await worker.close();
-      await cardAndGraphQueue.close();
+      await cardQueue.close();
+      await graphQueue.close();
       await embeddingQueue.close();
       console.log('[InsightWorker] Shutdown complete');
       process.exit(0);
@@ -121,7 +124,8 @@ async function main() {
     process.on('SIGTERM', async () => {
       console.log('[InsightWorker] Received SIGTERM, shutting down gracefully...');
       await worker.close();
-      await cardAndGraphQueue.close();
+      await cardQueue.close();
+      await graphQueue.close();
       await embeddingQueue.close();
       console.log('[InsightWorker] Shutdown complete');
       process.exit(0);

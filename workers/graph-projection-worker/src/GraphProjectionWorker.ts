@@ -118,7 +118,7 @@ export class GraphProjectionWorker {
     console.log('[GraphProjectionWorker] Environment variables loaded successfully');
 
     this.config = {
-      queueName: 'card-and-graph-queue',
+      queueName: 'graph-queue',
       concurrency: 2,
       retryAttempts: 3,
       retryDelay: 5000,
