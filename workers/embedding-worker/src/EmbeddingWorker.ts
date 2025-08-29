@@ -165,18 +165,25 @@ export class EmbeddingWorker {
         return 'weaviate-client-unavailable';
       }
 
+      // CRITICAL FIX: Validate that entityId is a proper UUID
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(data.entityId)) {
+        console.error(`[EmbeddingWorker] ❌ Invalid entityId format: ${data.entityId}. Expected UUID format.`);
+        return 'invalid-entity-id-format';
+      }
+
       // Use unified UserKnowledgeItem class for all entity types
       const result = await this.databaseService.weaviate
         .data
         .creator()
         .withClassName('UserKnowledgeItem')
         .withProperties({
-          externalId: data.entityId,
+          externalId: data.entityId, // This should now be a valid UUID
           userId: data.userId,
           title: data.textContent.substring(0, 200), // Use first 200 chars as title
           textContent: data.textContent,
           sourceEntityType: data.entityType,
-          sourceEntityId: data.entityId,
+          sourceEntityId: data.entityId, // This should now be a valid UUID
           createdAt: new Date().toISOString(),
           modelVersion: this.config.embeddingModelVersion!
         })
