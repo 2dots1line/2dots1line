@@ -162,6 +162,9 @@ export class CardWorker {
         entityData = await this.derivedArtifactRepository.findById(entity.id);
       } else if (entityType === 'ProactivePrompt') {
         entityData = await this.proactivePromptRepository.findById(entity.id);
+      } else if (entityType === 'MergedConcept') {
+        // MergedConcepts are stored in the concepts table, so use concept repository
+        entityData = await this.conceptRepository.findById(entity.id);
       }
       if (!entityData) {
         console.log(`[CardWorker] Entity not found in DB: ${entityType} ${entity.id}`);
@@ -207,6 +210,19 @@ export class CardWorker {
           eligible = false;
           skipReason = `ProactivePrompt not always eligible`;
         }
+      } else if (entityType === 'MergedConcept') {
+        // MergedConcepts should be eligible for card creation as they represent important merged knowledge
+        const rules = eligibilityRules.Concept; // Use Concept rules since MergedConcepts are concepts
+        if (rules) {
+          if (typeof entityData.salience === 'number' && entityData.salience < rules.min_salience) {
+            eligible = false;
+            skipReason = `MergedConcept salience ${entityData.salience} < min_salience ${rules.min_salience}`;
+          }
+          if (rules.eligible_types && !rules.eligible_types.includes(entityData.type)) {
+            eligible = false;
+            skipReason = `MergedConcept type ${entityData.type} not in eligible_types`;
+          }
+        }
       }
       if (!eligible) {
         console.log(`[CardWorker] Entity not eligible: ${entityType} ${entity.id} - ${skipReason}`);
@@ -249,7 +265,7 @@ export class CardWorker {
   /**
    * Map event entity types to card entity types
    */
-  private mapEntityType(eventType: string): 'MemoryUnit' | 'Concept' | 'DerivedArtifact' | 'ProactivePrompt' | null {
+  private mapEntityType(eventType: string): 'MemoryUnit' | 'Concept' | 'DerivedArtifact' | 'ProactivePrompt' | 'MergedConcept' | null {
     switch (eventType) {
       case 'MemoryUnit':
         return 'MemoryUnit';
@@ -259,6 +275,8 @@ export class CardWorker {
         return 'DerivedArtifact';
       case 'ProactivePrompt':
         return 'ProactivePrompt';
+      case 'MergedConcept':
+        return 'MergedConcept';
       default:
         return null;
     }

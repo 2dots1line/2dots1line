@@ -436,5 +436,39 @@ strategic_synthesis_instructions: |
   5. **Balanced**: Consider both immediate needs and long-term development
   6. **Coherent**: Maintain consistency across all optimization recommendations
 
+  **CRITICAL FORMATTING NOTES:**
+  - Use ONLY the exact enum values shown above for timing_suggestion and actionability fields
+  - For replacement_concept_id in concepts_to_archive, use null if no replacement exists
+  - For optional fields like content_data, source_concept_ids, use null if not applicable
+  - Ensure all string fields are non-empty and meaningful
+
+  Remember: Output ONLY the JSON wrapped in ###==BEGIN_JSON==### and ###==END_JSON==### markers. No additional text.
+      }
+    ],
+    "growth_trajectory_updates": {
+      "identified_patterns": ["<pattern_1>", "<pattern_2>"],
+      "emerging_themes": ["<theme_1>", "<theme_2>"],
+      "recommended_focus_areas": ["<area_1>", "<area_2>"],
+      "potential_blind_spots": ["<blindspot_1>", "<blindspot_2>"],
+      "celebration_moments": ["<achievement_1>", "<achievement_2>"]
+    },
+    "cycle_metrics": {
+      "knowledge_graph_health": <number 0-1>,
+      "ontology_coherence": <number 0-1>,
+      "growth_momentum": <number 0-1>,
+      "strategic_alignment": <number 0-1>,
+      "insight_generation_rate": <number 0-1>
+    }
+  }
+  ```
+
+  **STRATEGIC GUIDELINES:**
+  1. **Quality Focus**: Prioritize high-impact optimizations over numerous small changes
+  2. **User-Centric**: All recommendations should align with {{user_name}}'s goals and growth trajectory
+  3. **Evidence-Based**: Ground all insights in actual knowledge graph data
+  4. **Actionable**: Ensure derived artifacts provide clear next steps
+  5. **Balanced**: Consider both immediate needs and long-term development
+  6. **Coherent**: Maintain consistency across all optimization recommendations
+
   Remember: Output ONLY the JSON wrapped in ###==BEGIN_JSON==### and ###==END_JSON==### markers. No additional text.
   </instructions> 

@@ -39,8 +39,7 @@ export class InsightEngine {
     private dbService: DatabaseService,
     private cardQueue: Queue,
     private graphQueue: Queue,
-    private embeddingQueue: Queue,
-    private neo4jClient?: any // Neo4j client for ontology updates
+    private embeddingQueue: Queue
   ) {
     this.conversationRepository = new ConversationRepository(dbService);
     this.userRepository = new UserRepository(dbService);
@@ -48,7 +47,7 @@ export class InsightEngine {
     this.conceptRepository = new ConceptRepository(dbService);
     this.derivedArtifactRepository = new DerivedArtifactRepository(dbService);
     this.proactivePromptRepository = new ProactivePromptRepository(dbService);
-    this.insightDataCompiler = new InsightDataCompiler(dbService, neo4jClient);
+    this.insightDataCompiler = new InsightDataCompiler(dbService, dbService.neo4j);
   }
 
   async processUserCycle(job: Job<InsightJobData>): Promise<void> {
@@ -66,7 +65,6 @@ export class InsightEngine {
 
       // Phase II: Strategic Synthesis LLM Call
       const analysisOutput = await this.strategicSynthesisTool.execute(strategicInput);
-
       console.log(`[InsightEngine] Strategic synthesis completed for user ${userId}`);
       console.log(`[InsightEngine] DEBUG: analysisOutput keys:`, Object.keys(analysisOutput || {}));
       console.log(`[InsightEngine] DEBUG: ontology_optimizations:`, analysisOutput?.ontology_optimizations ? 'EXISTS' : 'MISSING');
@@ -80,8 +78,36 @@ export class InsightEngine {
 
       console.log(`[InsightEngine] Successfully completed strategic cycle for user ${userId}, created ${newEntities.length} new entities`);
       
-    } catch (error) {
-      console.error(`[InsightEngine] Error processing cycle for user ${userId}:`, error);
+    } catch (error: unknown) {
+      console.error(`[InsightEngine] 🔴 CYCLE PROCESSING FAILED - DETAILED ERROR ANALYSIS:`);
+      console.error(`[InsightEngine] ================================================`);
+      console.error(`[InsightEngine] User ID: ${userId}`);
+      console.error(`[InsightEngine] Job ID: ${job.id}`);
+      console.error(`[InsightEngine] Cycle period: ${cycleDates.cycleStartDate.toISOString()} to ${cycleDates.cycleEndDate.toISOString()}`);
+      
+      // Type-safe error logging
+      if (error instanceof Error) {
+        console.error(`[InsightEngine] Error type: ${error.constructor.name}`);
+        console.error(`[InsightEngine] Error message: ${error.message}`);
+        console.error(`[InsightEngine] Error stack: ${error.stack}`);
+        
+        // Log additional context if available (ES2022+ feature)
+        if ('cause' in error && error.cause) {
+          console.error(`[InsightEngine] Caused by: ${error.cause}`);
+        }
+      } else {
+        console.error(`[InsightEngine] Unknown error type: ${typeof error}`);
+        console.error(`[InsightEngine] Error value: ${String(error)}`);
+      }
+      
+      // Check for validation errors (common in our error types)
+      if (error && typeof error === 'object' && 'validationErrors' in error) {
+        const validationError = error as { validationErrors: any };
+        console.error(`[InsightEngine] Validation errors:`, JSON.stringify(validationError.validationErrors, null, 2));
+      }
+      
+      console.error(`[InsightEngine] ================================================`);
+      
       throw error;
     }
   }
@@ -238,7 +264,7 @@ export class InsightEngine {
       console.log(`[InsightEngine] Retrieved ${mappedConcepts.length} concepts`);
       return mappedConcepts;
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(`[InsightEngine] Error fetching concepts for user ${userId}:`, error);
       return [];
     }
@@ -290,7 +316,7 @@ export class InsightEngine {
       console.log(`[InsightEngine] Retrieved ${mappedMemoryUnits.length} memory units`);
       return mappedMemoryUnits;
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(`[InsightEngine] Error fetching memory units for user ${userId}:`, error);
       return [];
     }
@@ -308,12 +334,59 @@ export class InsightEngine {
     try {
       console.log(`[InsightEngine] Fetching relationships for user ${userId}`);
       
-      // For now, return empty array since Neo4j query method needs to be implemented
-      // TODO: Implement proper Neo4j querying for date-filtered relationships
-      console.log(`[InsightEngine] Neo4j relationships not yet implemented, returning empty array`);
-      return [];
+      if (!this.dbService.neo4j) {
+        console.log(`[InsightEngine] Neo4j client not available, returning empty relationships array`);
+        return [];
+      }
 
-    } catch (error) {
+      const session = this.dbService.neo4j.session();
+      
+      try {
+        // Query for relationships between concepts, memory units, and other entities
+        const cypher = `
+          MATCH (source)-[r:RELATED_TO]->(target)
+          WHERE (source.user_id = $userId OR source.userId = $userId)
+            AND (target.user_id = $userId OR target.userId = $userId)
+            AND r.created_ts >= datetime($startDate)
+            AND r.created_ts <= datetime($endDate)
+          RETURN 
+            CASE 
+              WHEN source.concept_id IS NOT NULL THEN source.concept_id
+              WHEN source.muid IS NOT NULL THEN source.muid
+              ELSE source.id
+            END as source_id,
+            CASE 
+              WHEN target.concept_id IS NOT NULL THEN target.concept_id
+              WHEN target.muid IS NOT NULL THEN target.muid
+              ELSE target.id
+            END as target_id,
+            COALESCE(r.relationship_label, r.type, 'RELATED_TO') as relationship_type,
+            COALESCE(r.weight, r.strength, 0.5) as strength
+          ORDER BY r.created_ts DESC
+          LIMIT 100
+        `;
+        
+        const result = await session.run(cypher, {
+          userId,
+          startDate: cycleDates.cycleStartDate.toISOString(),
+          endDate: cycleDates.cycleEndDate.toISOString()
+        });
+        
+        const relationships = result.records.map(record => ({
+          source_id: record.get('source_id'),
+          target_id: record.get('target_id'),
+          relationship_type: record.get('relationship_type'),
+          strength: record.get('strength').toNumber()
+        }));
+        
+        console.log(`[InsightEngine] Found ${relationships.length} relationships for user ${userId}`);
+        return relationships;
+        
+      } finally {
+        await session.close();
+      }
+
+    } catch (error: unknown) {
       console.error(`[InsightEngine] Error fetching relationships for user ${userId}:`, error);
       return [];
     }
@@ -332,8 +405,8 @@ export class InsightEngine {
 
     try {
       // Execute Ontology Updates (Neo4j) - Actual concept merging
-      if (this.neo4jClient && ontology_optimizations.concepts_to_merge.length > 0) {
-        const mergedConceptIds = await this.executeConceptMerging(ontology_optimizations, this.neo4jClient);
+      if (this.dbService.neo4j && ontology_optimizations.concepts_to_merge.length > 0) {
+        const mergedConceptIds = await this.executeConceptMerging(ontology_optimizations, this.dbService.neo4j);
         newEntities.push(...mergedConceptIds.map(id => ({ id, type: 'MergedConcept' })));
         console.log(`[InsightEngine] Merged ${ontology_optimizations.concepts_to_merge.length} concepts successfully in Neo4j`);
       } else if (ontology_optimizations.concepts_to_merge.length > 0) {
@@ -351,9 +424,22 @@ export class InsightEngine {
         console.log(`[InsightEngine] Updated PostgreSQL concepts for ${ontology_optimizations.concepts_to_merge.length} merges`);
       }
 
+      // CRITICAL FIX: Archive concepts as specified by LLM
+      if (ontology_optimizations.concepts_to_archive.length > 0) {
+        await this.archiveConcepts(ontology_optimizations.concepts_to_archive);
+        console.log(`[InsightEngine] Archived ${ontology_optimizations.concepts_to_archive.length} concepts`);
+      }
+
+      // CRITICAL FIX: Create communities as specified by LLM
+      if (ontology_optimizations.community_structures.length > 0) {
+        const communityIds = await this.createCommunities(userId, ontology_optimizations.community_structures);
+        newEntities.push(...communityIds.map(id => ({ id, type: 'Community' })));
+        console.log(`[InsightEngine] Created ${ontology_optimizations.community_structures.length} communities`);
+      }
+
       // Create new strategic relationships if specified
-      if (this.neo4jClient && ontology_optimizations.new_strategic_relationships.length > 0) {
-        const relationshipIds = await this.createStrategicRelationships(ontology_optimizations.new_strategic_relationships, this.neo4jClient);
+      if (this.dbService.neo4j && ontology_optimizations.new_strategic_relationships.length > 0) {
+        const relationshipIds = await this.createStrategicRelationships(ontology_optimizations.new_strategic_relationships, this.dbService.neo4j);
         newEntities.push(...relationshipIds.map(id => ({ id, type: 'StrategicRelationship' })));
         console.log(`[InsightEngine] Created ${ontology_optimizations.new_strategic_relationships.length} strategic relationships`);
       }
@@ -412,7 +498,7 @@ export class InsightEngine {
 
       console.log(`[InsightEngine] Updated user strategic state for ${userId}`);
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(`[InsightEngine] Error persisting strategic updates for user ${userId}:`, error);
       throw error;
     }
@@ -434,14 +520,14 @@ export class InsightEngine {
         if (textContent) {
           embeddingJobs.push({
             entityId: entity.id,
-            entityType: entity.type as 'DerivedArtifact' | 'ProactivePrompt' | 'Community',
+            entityType: entity.type as 'DerivedArtifact' | 'ProactivePrompt' | 'Community' | 'MergedConcept',
             textContent,
             userId
           });
           
           console.log(`[InsightEngine] Prepared embedding job for ${entity.type} ${entity.id}`);
         }
-      } catch (error) {
+      } catch (error: unknown) {
         console.error(`[InsightEngine] Error preparing embedding job for ${entity.type} ${entity.id}:`, error);
       }
     }
@@ -460,7 +546,7 @@ export class InsightEngine {
         }
         
         console.log(`[InsightEngine] Published ${embeddingJobs.length} embedding jobs for user ${userId}`);
-      } catch (error) {
+      } catch (error: unknown) {
         console.error(`[InsightEngine] Error publishing embedding jobs for user ${userId}:`, error);
       }
     }
@@ -480,16 +566,27 @@ export class InsightEngine {
           const prompt = await this.proactivePromptRepository.findById(entityId);
           return prompt ? prompt.prompt_text : null;
           
+        case 'MergedConcept':
+          // MergedConcepts are stored in the concepts table, so use concept repository
+          const concept = await this.conceptRepository.findById(entityId);
+          return concept ? `${concept.name}: ${concept.description || ''}` : null;
+          
         case 'Community':
-          // For communities, we might need to aggregate content from multiple sources
-          // For now, return a placeholder - this would need to be implemented based on community structure
-          return `Community entity ${entityId}`;
+          // For communities, aggregate content from member concepts
+          try {
+            // This would need a proper community repository implementation
+            // For now, return a meaningful placeholder
+            return `Community entity ${entityId} - Theme and member concepts`;
+          } catch (error: unknown) {
+            console.error(`[InsightEngine] Error extracting community content for ${entityId}:`, error);
+            return `Community entity ${entityId}`;
+          }
           
         default:
           console.warn(`[InsightEngine] Unknown entity type for embedding: ${entityType}`);
           return null;
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(`[InsightEngine] Error extracting text content for ${entityType} ${entityId}:`, error);
       return null;
     }
@@ -516,7 +613,7 @@ export class InsightEngine {
       // Publish to graph queue
       await this.graphQueue.add('cycle_artifacts_created', eventPayload);
       console.log(`[InsightEngine] Published cycle artifacts event to graph-queue for user ${userId} with ${newEntities.length} entities`);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(`[InsightEngine] Error publishing cycle artifacts for user ${userId}:`, error);
       throw error;
     }
@@ -544,7 +641,7 @@ export class InsightEngine {
         created_at: quest.created_at,
         metadata: quest.metadata
       }));
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(`[InsightEngine] Error fetching recent quest history for user ${userId}:`, error);
       return [];
     }
@@ -573,7 +670,7 @@ export class InsightEngine {
         .slice(0, 5);
 
       return patterns.length > 0 ? patterns : ['General inquiry patterns'];
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(`[InsightEngine] Error generating query patterns for user ${userId}:`, error);
       return ['General inquiry patterns'];
     }
@@ -621,7 +718,7 @@ export class InsightEngine {
           console.log(`[InsightEngine] Merged concept ${merge.secondary_concept_ids[0]} into ${merge.primary_concept_id}`);
         }
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('[InsightEngine] Error executing concept merging:', error);
       throw error;
     } finally {
@@ -668,7 +765,7 @@ export class InsightEngine {
           console.log(`[InsightEngine] Created strategic relationship: ${rel.source_id} -> ${rel.target_id} (${rel.relationship_type})`);
         }
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('[InsightEngine] Error creating strategic relationships:', error);
       throw error;
     } finally {
@@ -700,7 +797,7 @@ export class InsightEngine {
         });
         console.log(`[InsightEngine] Updated primary concept ${merge.primary_concept_id} with new name: ${merge.new_concept_name}`);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('[InsightEngine] Error updating PostgreSQL concepts for merging:', error);
       throw error;
     }
@@ -738,10 +835,70 @@ export class InsightEngine {
       });
       
       console.log(`[InsightEngine] Updated memory profile for user ${userId} with strategic insights`);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('[InsightEngine] Error updating user memory profile:', error);
       throw error;
     }
+  }
+
+  /**
+   * CRITICAL FIX: Archive concepts as specified by LLM
+   */
+  private async archiveConcepts(conceptsToArchive: Array<{ concept_id: string; archive_rationale: string; replacement_concept_id?: string | null }>): Promise<void> {
+    try {
+      for (const archive of conceptsToArchive) {
+        // Update concept status to archived
+        await this.conceptRepository.update(archive.concept_id, {
+          status: 'archived',
+          // Store archive rationale in description or metadata if available
+          description: `ARCHIVED: ${archive.archive_rationale}${archive.replacement_concept_id ? ` (Replaced by: ${archive.replacement_concept_id})` : ''}`
+        });
+        console.log(`[InsightEngine] Archived concept ${archive.concept_id} with rationale: ${archive.archive_rationale}`);
+      }
+    } catch (error: unknown) {
+      console.error('[InsightEngine] Error archiving concepts:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * CRITICAL FIX: Create communities as specified by LLM
+   */
+  private async createCommunities(userId: string, communityStructures: Array<{ community_id: string; member_concept_ids: string[]; theme: string; strategic_importance: number }>): Promise<string[]> {
+    const communityIds: string[] = [];
+    
+    try {
+      for (const community of communityStructures) {
+        // Create community in PostgreSQL using the repository
+        const communityData = {
+          community_id: community.community_id,
+          user_id: userId,
+          name: community.theme, // Use theme as the community name
+          description: `Strategic importance: ${community.strategic_importance}/10. Members: ${community.member_concept_ids.length} concepts.`,
+          created_at: new Date(),
+          last_analyzed_ts: new Date()
+        };
+
+        // Actually create the community in the database
+        const createdCommunity = await this.dbService.communityRepository.create(communityData);
+        
+        // Assign concepts to this community
+        if (community.member_concept_ids.length > 0) {
+          await this.dbService.communityRepository.assignConceptsToCommunity(
+            createdCommunity.community_id, 
+            community.member_concept_ids
+          );
+        }
+
+        console.log(`[InsightEngine] Created community: ${community.theme} with ${community.member_concept_ids.length} members`);
+        communityIds.push(createdCommunity.community_id);
+      }
+    } catch (error: unknown) {
+      console.error('[InsightEngine] Error creating communities:', error);
+      throw error;
+    }
+    
+    return communityIds;
   }
 
   /**
@@ -771,7 +928,7 @@ export class InsightEngine {
       });
       
       console.log(`[InsightEngine] Updated knowledge graph schema for user ${userId}`);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('[InsightEngine] Error updating user knowledge graph schema:', error);
       throw error;
     }

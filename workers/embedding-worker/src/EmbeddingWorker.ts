@@ -18,7 +18,7 @@ import { Worker, Job } from 'bullmq';
 
 export interface EmbeddingJob {
   entityId: string;           // UUID of the entity
-  entityType: 'MemoryUnit' | 'Concept' | 'DerivedArtifact' | 'Community' | 'ProactivePrompt';
+  entityType: 'MemoryUnit' | 'Concept' | 'DerivedArtifact' | 'Community' | 'ProactivePrompt' | 'MergedConcept';
   textContent: string;        // The text to be embedded
   userId: string;             // For multi-tenant indexing
 }
