@@ -2,10 +2,12 @@
  * GraphProjectionWorker.ts
  * V9.5 Production-Grade Worker for 3D Knowledge Cosmos Projection
  * 
- * This worker processes graph ontology updates and new entity events to generate
- * 3D spatial representations of the user's knowledge graph. It coordinates between
- * Neo4j graph structure, Weaviate vector embeddings, and Python dimension reduction
- * to create immersive 3D knowledge visualizations.
+ * This worker regenerates the 3D graph projection whenever the InsightEngine
+ * finishes its job. It coordinates between Neo4j graph structure, Weaviate 
+ * vector embeddings, and Python dimension reduction to create immersive 3D 
+ * knowledge visualizations.
+ * 
+ * SIMPLE TRIGGER: Only processes 'cycle_artifacts_created' events from InsightEngine
  * 
  * ARCHITECTURE: Presentation layer worker that transforms knowledge structures
  * into spatial coordinates for 3D rendering in the web interface.
@@ -16,32 +18,18 @@ import { environmentLoader } from '@2dots1line/core-utils/dist/environment/Envir
 import { Worker, Job } from 'bullmq';
 
 // Event types that trigger projection updates
-export interface GraphOntologyUpdatedEvent {
-  type: "graph_ontology_updated";
+export interface CycleArtifactsCreatedEvent {
+  type: "cycle_artifacts_created";
   userId: string;
   source: "InsightEngine";
   timestamp: string;
-  summary: {
-    concepts_merged: number;
-    concepts_archived: number;
-    new_communities: number;
-    strategic_relationships_added: number;
-  };
-  affectedNodeIds: string[];
-}
-
-export interface NewEntitiesCreatedEvent {
-  type: "new_entities_created";
-  userId: string;
-  source: "IngestionAnalyst";
-  timestamp: string;
   entities: Array<{
     id: string;
-    type: "MemoryUnit" | "Concept" | "DerivedArtifact" | "Community";
+    type: "MemoryUnit" | "Concept" | "DerivedArtifact" | "Community" | "MergedConcept";
   }>;
 }
 
-export type GraphProjectionEvent = GraphOntologyUpdatedEvent | NewEntitiesCreatedEvent;
+export type GraphProjectionEvent = CycleArtifactsCreatedEvent;
 
 export interface GraphProjectionWorkerConfig {
   queueName?: string;
@@ -174,62 +162,59 @@ export class GraphProjectionWorker {
   }
 
   /**
-   * Main job processing function - only processes relevant events
+   * Main job processing function - processes InsightEngine completion events
    */
   private async processJob(job: Job<GraphProjectionEvent>): Promise<void> {
     const { data } = job;
 
-    // Only process events that require projection updates
-    const shouldProcess = data.type === 'graph_ontology_updated' || 
-                         (data.type === 'new_entities_created' && data.entities.length > 0);
-
-    if (!shouldProcess) {
-      console.log(`[GraphProjectionWorker] Skipping ${data.type} event - no projection update needed`);
+    // Only process cycle_artifacts_created events (InsightEngine finished its job)
+    if (data.type !== 'cycle_artifacts_created') {
+      console.log(`[GraphProjectionWorker] Skipping ${data.type} event - only processing cycle_artifacts_created`);
       return;
     }
+
+    console.log(`[GraphProjectionWorker] ✅ InsightEngine finished job for user ${data.userId}`);
+    console.log(`[GraphProjectionWorker] Event contains ${data.entities.length} entities: ${data.entities.map(e => `${e.type}:${e.id}`).join(', ')}`);
 
     const startTime = Date.now();
 
     try {
-      console.log(`[GraphProjectionWorker] Processing ${data.type} event for user ${data.userId}`);
-      
-      // For new_entities_created events, check if embeddings are ready
-      if (data.type === 'new_entities_created') {
-        const missingEmbeddings = await this.checkMissingEmbeddings(data.entities);
-        if (missingEmbeddings.length > 0) {
-          // Check retry limit (max 15 retries = 30 seconds total wait)
-          const jobKey = `${data.userId}_${data.entities.map(e => e.id).join('_')}`;
-          const retryCount = this.retryCounts.get(jobKey) || 0;
-          const maxRetries = 15; // 30 seconds total (15 * 2 seconds)
-          
-          if (retryCount >= maxRetries) {
-            console.warn(`[GraphProjectionWorker] ⚠️ Max retries (${maxRetries}) reached for embeddings: ${missingEmbeddings.join(', ')}`);
-            console.warn(`[GraphProjectionWorker] ⚠️ Proceeding with projection using available embeddings only`);
-            this.retryCounts.delete(jobKey); // Clean up
-          } else {
-            console.log(`[GraphProjectionWorker] Waiting for embeddings: ${missingEmbeddings.join(', ')} (retry ${retryCount + 1}/${maxRetries})`);
-            this.retryCounts.set(jobKey, retryCount + 1);
-            // Wait 2 seconds and retry
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            return this.processJob(job); // Retry
-          }
+      // Check if embeddings are ready for the new entities
+      const missingEmbeddings = await this.checkMissingEmbeddings(data.entities);
+      if (missingEmbeddings.length > 0) {
+        // Check retry limit (max 15 retries = 30 seconds total wait)
+        const jobKey = `${data.userId}_${data.entities.map(e => e.id).join('_')}`;
+        const retryCount = this.retryCounts.get(jobKey) || 0;
+        const maxRetries = 15; // 30 seconds total (15 * 2 seconds)
+        
+        if (retryCount >= maxRetries) {
+          console.warn(`[GraphProjectionWorker] ⚠️ Max retries (${maxRetries}) reached for embeddings: ${missingEmbeddings.join(', ')}`);
+          console.warn(`[GraphProjectionWorker] ⚠️ Proceeding with projection using available embeddings only`);
+          this.retryCounts.delete(jobKey); // Clean up
         } else {
-          // All embeddings ready, clean up retry tracking
-          const jobKey = `${data.userId}_${data.entities.map(e => e.id).join('_')}`;
-          this.retryCounts.delete(jobKey);
-          console.log(`[GraphProjectionWorker] All embeddings ready, proceeding with projection`);
+          console.log(`[GraphProjectionWorker] Waiting for embeddings: ${missingEmbeddings.join(', ')} (retry ${retryCount + 1}/${maxRetries})`);
+          this.retryCounts.set(jobKey, retryCount + 1);
+          // Wait 2 seconds and retry
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          return this.processJob(job); // Retry
         }
+      } else {
+        // All embeddings ready, clean up retry tracking
+        const jobKey = `${data.userId}_${data.entities.map(e => e.id).join('_')}`;
+        this.retryCounts.delete(jobKey);
+        console.log(`[GraphProjectionWorker] All embeddings ready, proceeding with projection`);
       }
       
-      // Generate new projection
+      // Regenerate projection to reflect all InsightEngine changes
+      console.log(`[GraphProjectionWorker] 🔄 Regenerating graph projection for user ${data.userId} after InsightEngine completion`);
       const projection = await this.generateProjection(data.userId);
       
       // Store projection in database
       await this.storeProjection(projection);
 
       const duration = Date.now() - startTime;
-      console.log(`[GraphProjectionWorker] Successfully generated projection for user ${data.userId} in ${duration}ms`);
-      console.log(`[GraphProjectionWorker] Projection contains ${projection.nodes.length} nodes`);
+      console.log(`[GraphProjectionWorker] ✅ Successfully regenerated projection for user ${data.userId} in ${duration}ms`);
+      console.log(`[GraphProjectionWorker] Projection contains ${projection.nodes.length} nodes and ${projection.edges.length} edges`);
 
     } catch (error) {
       const duration = Date.now() - startTime;
@@ -246,6 +231,13 @@ export class GraphProjectionWorker {
     
     for (const entity of entities) {
       try {
+        // Validate if entity.id is a valid UUID before querying Weaviate
+        if (!this.isValidUuid(entity.id)) {
+          console.warn(`[GraphProjectionWorker] ⚠️ Entity ID "${entity.id}" is not a valid UUID, skipping Weaviate check`);
+          missing.push(entity.id);
+          continue;
+        }
+
         const exists = await this.databaseService.weaviate
           .graphql
           .get()
@@ -394,6 +386,14 @@ export class GraphProjectionWorker {
       
       for (const node of nodes) {
         try {
+          // Validate if node.id is a valid UUID before querying Weaviate
+          if (!this.isValidUuid(node.id)) {
+            console.warn(`[GraphProjectionWorker] ⚠️ Node ID "${node.id}" is not a valid UUID, using fallback vector`);
+            const fallbackVector = this.generateSemanticFallbackVector(node);
+            vectors.push(fallbackVector);
+            continue;
+          }
+
           // Use unified UserKnowledgeItem class with sourceEntityType filter
           const result = await this.databaseService.weaviate
             .graphql
@@ -875,4 +875,13 @@ export class GraphProjectionWorker {
       failed: 0
     };
   }
+
+  /**
+   * Helper to check if a string is a valid UUID
+   */
+  private isValidUuid(uuid: string): boolean {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(uuid);
+  }
+
 }

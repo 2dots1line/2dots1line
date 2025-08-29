@@ -163,8 +163,8 @@ export class CardWorker {
       } else if (entityType === 'ProactivePrompt') {
         entityData = await this.proactivePromptRepository.findById(entity.id);
       } else if (entityType === 'MergedConcept') {
-        // MergedConcepts are stored in the concepts table, so use concept repository
-        entityData = await this.conceptRepository.findById(entity.id);
+        // MergedConcepts are stored in the concepts table, use unfiltered method to allow merged status
+        entityData = await this.conceptRepository.findByIdUnfiltered(entity.id);
       }
       if (!entityData) {
         console.log(`[CardWorker] Entity not found in DB: ${entityType} ${entity.id}`);
@@ -212,15 +212,21 @@ export class CardWorker {
         }
       } else if (entityType === 'MergedConcept') {
         // MergedConcepts should be eligible for card creation as they represent important merged knowledge
-        const rules = eligibilityRules.Concept; // Use Concept rules since MergedConcepts are concepts
-        if (rules) {
-          if (typeof entityData.salience === 'number' && entityData.salience < rules.min_salience) {
-            eligible = false;
-            skipReason = `MergedConcept salience ${entityData.salience} < min_salience ${rules.min_salience}`;
-          }
-          if (rules.eligible_types && !rules.eligible_types.includes(entityData.type)) {
-            eligible = false;
-            skipReason = `MergedConcept type ${entityData.type} not in eligible_types`;
+        // But only if they have status 'merged' (not 'archived')
+        if (entityData.status === 'archived') {
+          eligible = false;
+          skipReason = `MergedConcept is archived and should not be displayed`;
+        } else {
+          const rules = eligibilityRules.Concept; // Use Concept rules since MergedConcepts are concepts
+          if (rules) {
+            if (typeof entityData.salience === 'number' && entityData.salience < rules.min_salience) {
+              eligible = false;
+              skipReason = `MergedConcept salience ${entityData.salience} < min_salience ${rules.min_salience}`;
+            }
+            if (rules.eligible_types && !rules.eligible_types.includes(entityData.type)) {
+              eligible = false;
+              skipReason = `MergedConcept type ${entityData.type} not in eligible_types`;
+            }
           }
         }
       }

@@ -1,5 +1,6 @@
 import { DatabaseService } from '../DatabaseService';
 import { Driver, Session, Record as Neo4jRecord, Integer } from 'neo4j-driver';
+import { v5 as uuidv5 } from 'uuid';
 
 export interface GraphNode {
   id: string;
@@ -64,11 +65,13 @@ export class Neo4jService {
   /**
    * Fetches the complete graph structure for a user, needed by GraphProjectionWorker.
    * This implementation handles the complex mapping from Neo4j internal IDs to external UUIDs.
+   * 
+   * IMPORTANT: Only fetches nodes with status 'active' or NULL to exclude merged/archived concepts.
    */
   public async fetchFullGraphStructure(userId: string): Promise<GraphStructure> {
     const cypher = `
-      MATCH (n) WHERE n.userId = $userId
-      OPTIONAL MATCH (n)-[r]->(m) WHERE m.userId = $userId
+      MATCH (n) WHERE n.userId = $userId AND (n.status = 'active' OR n.status IS NULL)
+      OPTIONAL MATCH (n)-[r]->(m) WHERE m.userId = $userId AND (m.status = 'active' OR m.status IS NULL)
       RETURN n, r, m, 
              id(n) as nId, 
              id(m) as mId,

@@ -459,6 +459,9 @@ importers:
       undici-types:
         specifier: ^7.10.0
         version: 7.15.0
+      uuid:
+        specifier: ^9.0.1
+        version: 9.0.1
       weaviate-ts-client:
         specifier: ^2.2.0
         version: 2.2.0(graphql@16.11.0)
@@ -469,6 +472,9 @@ importers:
       '@types/node':
         specifier: ^20.17.0
         version: 20.19.11
+      '@types/uuid':
+        specifier: ^9.0.4
+        version: 9.0.8
       dotenv:
         specifier: ^16.4.5
         version: 16.6.1
