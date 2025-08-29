@@ -146,7 +146,7 @@ show_status() {
     if check_container "$NEO4J_CONTAINER"; then
         print_status "success" "Neo4j container is running"
         # Count nodes
-        local node_count=$(docker exec "$NEO4J_CONTAINER" cypher-shell -u "$NEO4J_USER" -p "$NEO4J_PASSWORD" "MATCH (n) RETURN count(n) as count;" 2>/dev/null | grep -v "ready to start" | grep -v "results consumed" | tr -d ' \n' || echo "0")
+        local node_count=$(docker exec "$NEO4J_CONTAINER" cypher-shell -u "$NEO4J_USER" -p "$NEO4J_PASSWORD" "MATCH (n) RETURN count(n) as count;" 2>/dev/null | grep -v "ready to start" | grep -v "results consumed" | tail -n 1 | tr -d ' \n' || echo "0")
         echo "  Total Nodes: $node_count"
     else
         print_status "error" "Neo4j container is not running"
@@ -174,7 +174,7 @@ reset_postgresql() {
     
     # List of tables to truncate (excluding system tables)
     local tables=(
-        "cards" "conversations" "conversation_messages" "memory_units" 
+        "users" "cards" "conversations" "conversation_messages" "memory_units" 
         "concepts" "communities" "derived_artifacts" "growth_events" 
         "interaction_logs" "media_items" "proactive_prompts" 
         "user_challenges" "user_graph_projections" "user_sessions" 
@@ -182,7 +182,7 @@ reset_postgresql() {
     )
     
     # Build TRUNCATE command
-    local truncate_cmd="TRUNCATE TABLE ${tables[*]} CASCADE;"
+    local truncate_cmd="TRUNCATE TABLE $(IFS=,; echo "${tables[*]}") CASCADE;"
     
     print_status "info" "Executing: $truncate_cmd"
     
@@ -215,11 +215,12 @@ reset_neo4j() {
     
     local result=$(docker exec "$NEO4J_CONTAINER" cypher-shell -u "$NEO4J_USER" -p "$NEO4J_PASSWORD" "MATCH (n) DETACH DELETE n;" 2>/dev/null)
     
-    if echo "$result" | grep -q "Deleted.*nodes"; then
+    # Check if the command executed successfully (either deleted nodes or no nodes to delete)
+    if echo "$result" | grep -q "Deleted.*nodes" || [ -z "$result" ]; then
         print_status "success" "Neo4j database reset completed"
         
         # Verify reset
-        local node_count=$(docker exec "$NEO4J_CONTAINER" cypher-shell -u "$NEO4J_USER" -p "$NEO4J_PASSWORD" "MATCH (n) RETURN count(n) as count;" 2>/dev/null | grep -v "ready to start" | grep -v "results consumed" | tr -d ' \n' || echo "0")
+        local node_count=$(docker exec "$NEO4J_CONTAINER" cypher-shell -u "$NEO4J_USER" -p "$NEO4J_PASSWORD" "MATCH (n) RETURN count(n) as count;" 2>/dev/null | grep -v "ready to start" | grep -v "results consumed" | tail -n 1 | tr -d ' \n' || echo "0")
         if [ "$node_count" = "0" ]; then
             print_status "success" "Neo4j reset verified - all nodes deleted"
         else
@@ -303,7 +304,7 @@ verify_reset() {
     
     echo -e "\n${CYAN}Neo4j Verification:${NC}"
     if check_container "$NEO4J_CONTAINER"; then
-        local node_count=$(docker exec "$NEO4J_CONTAINER" cypher-shell -u "$NEO4J_USER" -p "$NEO4J_PASSWORD" "MATCH (n) RETURN count(n) as count;" 2>/dev/null | grep -v "ready to start" | grep -v "results consumed" | tr -d ' \n' || echo "0")
+        local node_count=$(docker exec "$NEO4J_CONTAINER" cypher-shell -u "$NEO4J_USER" -p "$NEO4J_PASSWORD" "MATCH (n) RETURN count(n) as count;" 2>/dev/null | grep -v "ready to start" | grep -v "results consumed" | tail -n 1 | tr -d ' \n' || echo "0")
         
         if [ "$node_count" = "0" ]; then
             print_status "success" "Neo4j: All nodes deleted"

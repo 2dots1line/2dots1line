@@ -40,7 +40,27 @@ export class ConceptRepository {
     return concept;
   }
 
+  /**
+   * Find concept by ID - only returns active concepts
+   */
   async findById(conceptId: string): Promise<concepts | null> {
+    return this.db.prisma.concepts.findUnique({
+      where: { 
+        concept_id: conceptId,
+        status: 'active'
+      },
+      include: {
+        communities: true,
+        concepts: true,
+        other_concepts: true,
+      },
+    });
+  }
+
+  /**
+   * Find concept by ID without status filtering - used for special cases like MergedConcepts
+   */
+  async findByIdUnfiltered(conceptId: string): Promise<concepts | null> {
     return this.db.prisma.concepts.findUnique({
       where: { concept_id: conceptId },
       include: {
