@@ -24,6 +24,14 @@ export type { CreateMemoryUnitData, UpdateMemoryUnitData } from './MemoryReposit
 export * from './ConceptRepository';
 export type { CreateConceptData, UpdateConceptData } from './ConceptRepository';
 
+// Communities
+export * from './CommunityRepository';
+export type { 
+  CreateCommunityData, 
+  UpdateCommunityData, 
+  CommunityWithConcepts 
+} from './CommunityRepository';
+
 // Presentation Layer
 export * from './CardRepository';
 export type { CreateCardData, UpdateCardData } from './CardRepository';
@@ -70,6 +78,7 @@ import { UserRepository } from './UserRepository';
 import { ConversationRepository } from './ConversationRepository';
 import { MemoryRepository } from './MemoryRepository';
 import { ConceptRepository } from './ConceptRepository';
+import { CommunityRepository } from './CommunityRepository';
 import { CardRepository } from './CardRepository';
 import { MediaRepository } from './MediaRepository';
 import { DerivedArtifactRepository } from './DerivedArtifactRepository';
@@ -84,6 +93,7 @@ export function createRepositories(db: DatabaseService) {
     conversation: new ConversationRepository(db),
     memory: new MemoryRepository(db),
     concept: new ConceptRepository(db),
+    community: new CommunityRepository(db),
     card: new CardRepository(db),
     media: new MediaRepository(db),
     derivedArtifact: new DerivedArtifactRepository(db),

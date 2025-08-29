@@ -5,6 +5,7 @@ import Redis from 'ioredis';
 import { prisma } from './prisma-client';
 import { environmentLoader } from '@2dots1line/core-utils';
 import { LLMInteractionRepository } from './repositories/LLMInteractionRepository';
+import { CommunityRepository } from './repositories/CommunityRepository';
 
 /**
  * V9.7 DatabaseService with EnvironmentLoader Integration
@@ -22,6 +23,7 @@ export class DatabaseService {
   public readonly weaviate: WeaviateClient;
   public readonly redis: Redis;
   public readonly llmInteractionRepository: LLMInteractionRepository;
+  public readonly communityRepository: CommunityRepository;
 
   private static instance: DatabaseService;
 
@@ -64,6 +66,7 @@ export class DatabaseService {
 
     // 5. Initialize Repositories
     this.llmInteractionRepository = new LLMInteractionRepository(this);
+    this.communityRepository = new CommunityRepository(this);
 
     console.log('DatabaseService Redis configured:', 
       redisUrl || `${environmentLoader.get('REDIS_HOST') || 'localhost'}:${environmentLoader.get('REDIS_PORT') || '6379'}`,

@@ -28,7 +28,7 @@ export const StrategicSynthesisOutputSchema = z.object({
     concepts_to_archive: z.array(z.object({
       concept_id: z.string(),
       archive_rationale: z.string(),
-      replacement_concept_id: z.string().optional()
+      replacement_concept_id: z.string().nullable().optional() // Allow null values
     })),
     new_strategic_relationships: z.array(z.object({
       source_id: z.string(),
@@ -51,16 +51,16 @@ export const StrategicSynthesisOutputSchema = z.object({
     confidence_score: z.number().min(0).max(1),
     supporting_evidence: z.array(z.string()),
     actionability: z.enum(['immediate', 'short_term', 'long_term', 'aspirational']),
-    content_data: z.record(z.any()).optional(), // Structured data for the artifact
-    source_concept_ids: z.array(z.string()).optional(), // IDs of concepts that informed this artifact
-    source_memory_unit_ids: z.array(z.string()).optional() // IDs of memory units that informed this artifact
+    content_data: z.record(z.any()).nullable().optional(), // Allow null values
+    source_concept_ids: z.array(z.string()).nullable().optional(), // Allow null values
+    source_memory_unit_ids: z.array(z.string()).nullable().optional() // Allow null values
   })),
   proactive_prompts: z.array(z.object({
     prompt_type: z.enum(['reflection', 'exploration', 'goal_setting', 'skill_development', 'creative_expression']),
     title: z.string(),
     prompt_text: z.string(),
     context_explanation: z.string(),
-    timing_suggestion: z.enum(['next_conversation', 'weekly_check_in', 'monthly_review', 'quarterly_planning']),
+    timing_suggestion: z.enum(['next_conversation', 'weekly_check_in', 'monthly_review', 'quarterly_planning', 'short_term']),
     priority_level: z.number().min(1).max(10)
   })),
   growth_trajectory_updates: z.object({
@@ -375,8 +375,11 @@ ${responseFormat}`;
       throw new StrategicSynthesisJSONParseError(`Invalid JSON in LLM response: ${jsonString.substring(0, 200)}...`, jsonString);
     }
     
+    // Pre-process the parsed data to handle common LLM response issues
+    const preprocessedData = this.preprocessLLMResponse(parsed);
+    
     try {
-      const validatedResult = StrategicSynthesisOutputSchema.parse(parsed);
+      const validatedResult = StrategicSynthesisOutputSchema.parse(preprocessedData);
       console.log(`[StrategicSynthesisTool] Validation successful. Parsed data:`, {
         concepts_to_merge: validatedResult.ontology_optimizations.concepts_to_merge.length,
         new_strategic_relationships: validatedResult.ontology_optimizations.new_strategic_relationships.length,
@@ -386,13 +389,92 @@ ${responseFormat}`;
       return validatedResult;
     } catch (error) {
       if (error instanceof z.ZodError) {
-        console.error('[StrategicSynthesisTool] Validation errors:', error.errors);
-        console.error('[StrategicSynthesisTool] Raw parsed data:', JSON.stringify(parsed, null, 2).substring(0, 1000));
-        throw new StrategicSynthesisValidationError('Validation failed', error.errors);
+        console.error('[StrategicSynthesisTool] 🔴 VALIDATION FAILED - DETAILED ERROR ANALYSIS:');
+        console.error('[StrategicSynthesisTool] ================================================');
+        console.error('[StrategicSynthesisTool] Validation errors:', JSON.stringify(error.errors, null, 2));
+        console.error('[StrategicSynthesisTool] ================================================');
+        console.error('[StrategicSynthesisTool] Raw LLM response (first 2000 chars):', llmJsonResponse.substring(0, 2000));
+        console.error('[StrategicSynthesisTool] ================================================');
+        console.error('[StrategicSynthesisTool] Parsed data (first 2000 chars):', JSON.stringify(parsed, null, 2).substring(0, 2000));
+        console.error('[StrategicSynthesisTool] ================================================');
+        console.error('[StrategicSynthesisTool] Preprocessed data (first 2000 chars):', JSON.stringify(preprocessedData, null, 2).substring(0, 2000));
+        console.error('[StrategicSynthesisTool] ================================================');
+        
+        // Log specific field issues for debugging
+        error.errors.forEach((err, index) => {
+          console.error(`[StrategicSynthesisTool] Error ${index + 1}:`);
+          console.error(`  - Path: ${err.path.join('.')}`);
+          console.error(`  - Code: ${err.code}`);
+          console.error(`  - Message: ${err.message}`);
+          if ('received' in err) {
+            console.error(`  - Received: ${err.received}`);
+          }
+          if ('expected' in err) {
+            console.error(`  - Expected: ${err.expected}`);
+          }
+        });
+        
+        throw new StrategicSynthesisValidationError('Validation failed - check logs for detailed error analysis', error.errors);
       }
       throw new StrategicSynthesisError('Unknown validation error', error as Error);
     }
   }
+
+  /**
+   * Pre-process LLM response to handle common issues
+   */
+  private preprocessLLMResponse(parsed: unknown): unknown {
+    if (typeof parsed !== 'object' || parsed === null) {
+      return parsed;
+    }
+
+    const data = parsed as Record<string, any>;
+    
+    // Handle null values in arrays and objects
+    if (data.ontology_optimizations?.concepts_to_archive) {
+      data.ontology_optimizations.concepts_to_archive = data.ontology_optimizations.concepts_to_archive.map((item: any) => ({
+        ...item,
+        replacement_concept_id: item.replacement_concept_id || null
+      }));
+    }
+
+    if (data.derived_artifacts) {
+      data.derived_artifacts = data.derived_artifacts.map((item: any) => ({
+        ...item,
+        content_data: item.content_data || null,
+        source_concept_ids: item.source_concept_ids || null,
+        source_memory_unit_ids: item.source_memory_unit_ids || null
+      }));
+    }
+
+    // Handle timing_suggestion enum mapping
+    if (data.proactive_prompts) {
+      data.proactive_prompts = data.proactive_prompts.map((item: any) => ({
+        ...item,
+        timing_suggestion: this.mapTimingSuggestion(item.timing_suggestion)
+      }));
+    }
+
+    return data;
+  }
+
+  /**
+   * Map timing suggestions to valid enum values
+   */
+  private mapTimingSuggestion(timing: any): string {
+    if (typeof timing !== 'string') return 'next_conversation';
+    
+    const mapping: Record<string, string> = {
+      'short_term': 'weekly_check_in',
+      'long_term': 'monthly_review',
+      'immediate': 'next_conversation',
+      'aspirational': 'quarterly_planning'
+    };
+    
+    return mapping[timing] || 'next_conversation';
+  }
+
+
 
   /**
    * Get tool metadata for ToolRegistry
