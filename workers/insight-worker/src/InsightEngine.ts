@@ -459,9 +459,9 @@ export class InsightEngine {
 
       // Create new strategic relationships if specified
       if (this.dbService.neo4j && ontology_optimizations.new_strategic_relationships.length > 0) {
-        const relationshipIds = await this.createStrategicRelationships(ontology_optimizations.new_strategic_relationships);
-        newEntities.push(...relationshipIds.map(id => ({ id, type: 'StrategicRelationship' })));
+        await this.createStrategicRelationships(ontology_optimizations.new_strategic_relationships);
         console.log(`[InsightEngine] Created ${ontology_optimizations.new_strategic_relationships.length} strategic relationships`);
+        // NOTE: Relationships are not entities and don't need embeddings or projection updates
       }
 
       // Create Derived Artifacts
@@ -802,14 +802,13 @@ export class InsightEngine {
   /**
    * Create strategic relationships in Neo4j
    */
-  private async createStrategicRelationships(relationships: any[]): Promise<string[]> {
+  private async createStrategicRelationships(relationships: any[]): Promise<void> {
     if (!this.dbService.neo4j) {
       console.warn('[InsightEngine] Neo4j client not available, skipping strategic relationship creation');
-      return [];
+      return;
     }
     
     const session = this.dbService.neo4j.session();
-    const relationshipIds: string[] = [];
     
     try {
       for (const rel of relationships) {
@@ -837,7 +836,6 @@ export class InsightEngine {
         });
         
         if (result.records.length > 0) {
-          relationshipIds.push(relationshipId);
           console.log(`[InsightEngine] Created strategic relationship: ${rel.source_id} -> ${rel.target_id} (${rel.relationship_type})`);
         }
       }
@@ -847,8 +845,6 @@ export class InsightEngine {
     } finally {
       await session.close();
     }
-    
-    return relationshipIds;
   }
 
   /**
