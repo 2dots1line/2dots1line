@@ -517,6 +517,9 @@ export class InsightEngine {
       // CRITICAL FIX: Update user knowledge graph schema
       await this.updateUserKnowledgeGraphSchema(userId, analysisOutput);
 
+      // CRITICAL FIX: Update next conversation context package
+      await this.updateNextConversationContext(userId, analysisOutput);
+
       // CRITICAL FIX: Final Neo4j synchronization check
       if (this.dbService.neo4j) {
         await this.synchronizeNeo4jEntities(userId, newEntities);
@@ -900,11 +903,11 @@ export class InsightEngine {
   }
 
   /**
-   * CRITICAL FIX: Update user memory profile with strategic insights
+   * CRITICAL FIX: Update user memory profile with comprehensive strategic insights
    */
   private async updateUserMemoryProfile(userId: string, analysisOutput: StrategicSynthesisOutput): Promise<void> {
     try {
-      const { ontology_optimizations, derived_artifacts, proactive_prompts } = analysisOutput;
+      const { ontology_optimizations, derived_artifacts, proactive_prompts, growth_trajectory_updates, cycle_metrics } = analysisOutput;
       
       const memoryProfileUpdate = {
         last_updated: new Date().toISOString(),
@@ -923,14 +926,46 @@ export class InsightEngine {
             merged_concepts: merge.secondary_concept_ids,
             rationale: merge.merge_rationale
           }))
-        }
+        },
+        // CRITICAL FIX: Add comprehensive growth trajectory data
+        growth_trajectory: {
+          identified_patterns: growth_trajectory_updates?.identified_patterns || [],
+          emerging_themes: growth_trajectory_updates?.emerging_themes || [],
+          recommended_focus_areas: growth_trajectory_updates?.recommended_focus_areas || [],
+          potential_blind_spots: growth_trajectory_updates?.potential_blind_spots || [],
+          celebration_moments: growth_trajectory_updates?.celebration_moments || []
+        },
+        // CRITICAL FIX: Add cycle metrics for tracking progress
+        cycle_metrics: {
+          knowledge_graph_health: cycle_metrics?.knowledge_graph_health || 0,
+          ontology_coherence: cycle_metrics?.ontology_coherence || 0,
+          growth_momentum: cycle_metrics?.growth_momentum || 0,
+          strategic_alignment: cycle_metrics?.strategic_alignment || 0,
+          insight_generation_rate: cycle_metrics?.insight_generation_rate || 0
+        },
+        // CRITICAL FIX: Add key insights from derived artifacts
+        key_insights: derived_artifacts?.map(artifact => ({
+          title: artifact.title,
+          content: artifact.content,
+          type: artifact.artifact_type,
+          confidence: artifact.confidence_score,
+          actionability: artifact.actionability
+        })) || [],
+        // CRITICAL FIX: Add proactive guidance
+        proactive_guidance: proactive_prompts?.map(prompt => ({
+          title: prompt.title,
+          prompt_text: prompt.prompt_text,
+          type: prompt.prompt_type,
+          timing: prompt.timing_suggestion,
+          priority: prompt.priority_level
+        })) || []
       };
 
       await this.userRepository.update(userId, {
         memory_profile: memoryProfileUpdate
       });
       
-      console.log(`[InsightEngine] Updated memory profile for user ${userId} with strategic insights`);
+      console.log(`[InsightEngine] Updated comprehensive memory profile for user ${userId} with strategic insights`);
     } catch (error: unknown) {
       console.error('[InsightEngine] Error updating user memory profile:', error);
       throw error;
@@ -1018,34 +1053,133 @@ export class InsightEngine {
   }
 
   /**
-   * CRITICAL FIX: Update user knowledge graph schema with new insights
+   * CRITICAL FIX: Update user knowledge graph schema with comprehensive insights
    */
   private async updateUserKnowledgeGraphSchema(userId: string, analysisOutput: StrategicSynthesisOutput): Promise<void> {
     try {
-      const { ontology_optimizations } = analysisOutput;
+      const { ontology_optimizations, cycle_metrics } = analysisOutput;
       
       const schemaUpdate = {
         last_updated: new Date().toISOString(),
+        schema_version: 'v1.1',
+        cycle_timestamp: new Date().toISOString(),
         ontology_changes: {
           concepts_merged: ontology_optimizations.concepts_to_merge.map(merge => ({
             primary_concept_id: merge.primary_concept_id,
             secondary_concept_ids: merge.secondary_concept_ids,
             new_concept_name: merge.new_concept_name,
+            new_concept_description: merge.new_concept_description,
             merge_rationale: merge.merge_rationale
           })),
-          new_strategic_relationships: ontology_optimizations.new_strategic_relationships.length
+          concepts_archived: ontology_optimizations.concepts_to_archive?.map(archive => ({
+            concept_id: archive.concept_id,
+            archive_rationale: archive.archive_rationale,
+            replacement_concept_id: archive.replacement_concept_id
+          })) || [],
+          new_strategic_relationships: ontology_optimizations.new_strategic_relationships?.map(rel => ({
+            source_id: rel.source_id,
+            target_id: rel.target_id,
+            relationship_type: rel.relationship_type,
+            strength: rel.strength,
+            strategic_value: rel.strategic_value
+          })) || [],
+          community_structures: ontology_optimizations.community_structures?.map(community => ({
+            community_id: community.community_id,
+            theme: community.theme,
+            strategic_importance: community.strategic_importance,
+            member_concept_count: community.member_concept_ids.length
+          })) || []
         },
-        schema_version: 'v1.1',
-        cycle_timestamp: new Date().toISOString()
+        // CRITICAL FIX: Add comprehensive schema health metrics
+        schema_health: {
+          knowledge_graph_health: cycle_metrics?.knowledge_graph_health || 0,
+          ontology_coherence: cycle_metrics?.ontology_coherence || 0,
+          growth_momentum: cycle_metrics?.growth_momentum || 0,
+          strategic_alignment: cycle_metrics?.strategic_alignment || 0,
+          insight_generation_rate: cycle_metrics?.insight_generation_rate || 0
+        },
+        // CRITICAL FIX: Add strategic insights summary
+        strategic_summary: {
+          total_concepts_merged: ontology_optimizations.concepts_to_merge.length,
+          total_concepts_archived: ontology_optimizations.concepts_to_archive?.length || 0,
+          total_new_relationships: ontology_optimizations.new_strategic_relationships?.length || 0,
+          total_communities: ontology_optimizations.community_structures?.length || 0,
+          cycle_insights: `Processed ${ontology_optimizations.concepts_to_merge.length} concept merges, ${ontology_optimizations.concepts_to_archive?.length || 0} concept archives, and created ${ontology_optimizations.new_strategic_relationships?.length || 0} new strategic relationships`
+        }
       };
 
       await this.userRepository.update(userId, {
         knowledge_graph_schema: schemaUpdate
       });
       
-      console.log(`[InsightEngine] Updated knowledge graph schema for user ${userId}`);
+      console.log(`[InsightEngine] Updated comprehensive knowledge graph schema for user ${userId}`);
     } catch (error: unknown) {
       console.error('[InsightEngine] Error updating user knowledge graph schema:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * CRITICAL FIX: Update next conversation context package with forward-looking insights
+   */
+  private async updateNextConversationContext(userId: string, analysisOutput: StrategicSynthesisOutput): Promise<void> {
+    try {
+      const { derived_artifacts, proactive_prompts, growth_trajectory_updates, cycle_metrics } = analysisOutput;
+      
+      const nextContextPackage = {
+        last_updated: new Date().toISOString(),
+        cycle_timestamp: new Date().toISOString(),
+        // CRITICAL FIX: Include key insights for next conversation
+        key_insights: derived_artifacts?.map(artifact => ({
+          title: artifact.title,
+          content: artifact.content,
+          type: artifact.artifact_type,
+          confidence: artifact.confidence_score,
+          actionability: artifact.actionability
+        })) || [],
+        // CRITICAL FIX: Include proactive guidance
+        proactive_guidance: proactive_prompts?.map(prompt => ({
+          title: prompt.title,
+          prompt_text: prompt.prompt_text,
+          type: prompt.prompt_type,
+          timing: prompt.timing_suggestion,
+          priority: prompt.priority_level,
+          context_explanation: prompt.context_explanation
+        })) || [],
+        // CRITICAL FIX: Include growth trajectory insights
+        growth_insights: {
+          patterns: growth_trajectory_updates?.identified_patterns || [],
+          themes: growth_trajectory_updates?.emerging_themes || [],
+          focus_areas: growth_trajectory_updates?.recommended_focus_areas || [],
+          blind_spots: growth_trajectory_updates?.potential_blind_spots || [],
+          celebrations: growth_trajectory_updates?.celebration_moments || []
+        },
+        // CRITICAL FIX: Include cycle health metrics
+        cycle_health: {
+          knowledge_graph_health: cycle_metrics?.knowledge_graph_health || 0,
+          ontology_coherence: cycle_metrics?.ontology_coherence || 0,
+          growth_momentum: cycle_metrics?.growth_momentum || 0,
+          strategic_alignment: cycle_metrics?.strategic_alignment || 0,
+          insight_generation_rate: cycle_metrics?.insight_generation_rate || 0
+        },
+        // CRITICAL FIX: Include conversation starter suggestions
+        conversation_starters: proactive_prompts
+          ?.filter(prompt => prompt.timing_suggestion === 'next_conversation')
+          ?.map(prompt => ({
+            title: prompt.title,
+            prompt_text: prompt.prompt_text,
+            priority: prompt.priority_level,
+            context: prompt.context_explanation
+          })) || []
+      };
+
+      await this.userRepository.update(userId, {
+        next_conversation_context_package: nextContextPackage
+      });
+      
+      console.log(`[InsightEngine] Updated next conversation context package for user ${userId}`);
+    } catch (error: unknown) {
+      console.error('[InsightEngine] Error updating next conversation context package:', error);
       throw error;
     }
   }
