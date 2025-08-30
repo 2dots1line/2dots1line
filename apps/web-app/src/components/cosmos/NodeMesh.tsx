@@ -46,7 +46,15 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
 
   // Calculate importance-based size and color
   const importance = node.importance || node.metadata?.importance_score || 0.5;
-  const baseSize = 0.3 + importance * 1.2; // Size varies from 0.3 to 1.5
+  // Normalize importance from 1-10 scale to 0-1 scale for better visual balance
+  // This prevents MemoryUnits from being massively oversized compared to other node types
+  const normalizedImportance = Math.min(importance / 10, 1.0);
+  
+  // Increased sizing formula: base size 1.2 + normalized importance * 1.6
+  // This creates sizes from 1.2 to 2.8, making all nodes much more visible and clickable
+  // MemoryUnits (importance 7-10) will now be 2.32-2.8 instead of 0.96-1.2
+  // Concepts (importance 1-5) will now be 1.36-2.0 instead of 0.48-0.8
+  const baseSize = Math.max(1.2 + normalizedImportance * 1.6, 1.0); // Minimum size of 1.0
   const hoverSize = baseSize * (hovered ? 1.2 : 1.0);
   
   // Color scheme based on entity type
@@ -55,16 +63,6 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
     
     // Get entity type from node properties
     const entityType = node.entityType || node.type || node.category || 'unknown';
-    
-    // Debug logging for first few nodes
-    if (node.id === 'mu-001' || node.id === 'concept-def' || node.id === 'community-def') {
-      console.log(`🔍 NodeMesh ${node.id}:`, {
-        entityType,
-        nodeCategory: node.category,
-        nodeEntityType: node.entityType,
-        finalEntityType: entityType
-      });
-    }
     
     // Color coding by entity type
     switch (entityType) {
