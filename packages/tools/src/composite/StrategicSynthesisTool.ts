@@ -28,7 +28,7 @@ export const StrategicSynthesisOutputSchema = z.object({
     concepts_to_archive: z.array(z.object({
       concept_id: z.string(),
       archive_rationale: z.string(),
-      replacement_concept_id: z.string().optional()
+      replacement_concept_id: z.string().nullable()
     })),
     new_strategic_relationships: z.array(z.object({
       source_id: z.string(),
