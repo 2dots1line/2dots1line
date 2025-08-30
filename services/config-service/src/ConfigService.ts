@@ -224,4 +224,32 @@ export class ConfigService {
     console.warn('ConfigService.validateConfig() - Implementation pending');
     return true;
   }
+
+  /**
+   * Load and return tool composition configuration
+   */
+  async getToolCompositionConfig(): Promise<any> {
+    const configPath = path.join(this.configDir, 'tool_composition.json');
+    try {
+      const content = await fs.readFile(configPath, 'utf8');
+      return JSON.parse(content);
+    } catch (error) {
+      console.error('Failed to load tool composition config:', error);
+      throw new Error(`Tool composition configuration not found: ${configPath}`);
+    }
+  }
+
+  /**
+   * Load and return model configuration (gemini_models.json)
+   */
+  async getModelConfig(): Promise<any> {
+    const configPath = path.join(this.configDir, 'gemini_models.json');
+    try {
+      const content = await fs.readFile(configPath, 'utf8');
+      return JSON.parse(content);
+    } catch (error) {
+      console.error('Failed to load model config:', error);
+      throw new Error(`Model configuration not found: ${configPath}`);
+    }
+  }
 } 

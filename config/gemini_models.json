@@ -11,7 +11,8 @@
         "reasoning",
         "conversation"
       ],
-      "context_window": 1000000
+      "context_window": 1000000,
+      "max_output_tokens": 50000
     },
     "vision": {
       "primary": "gemini-2.5-flash",
@@ -25,6 +26,7 @@
         "multimodal"
       ],
       "context_window": 1000000,
+      "max_output_tokens": 50000,
       "note": "Using Flash models for vision since Pro models are over quota"
     },
     "embedding": {
@@ -82,17 +84,22 @@
     }
   },
   "quota_info": {
-    "free_tier_limits": {
-      "requests_per_minute": 15,
+    "gemini-2.5-flash": {
+      "requests_per_minute": 1500,
+      "requests_per_day": 15000,
       "tokens_per_minute": 1000000,
-      "requests_per_day": 1500
+      "tokens_per_day": 10000000
     },
-    "note": "Quotas are tracked separately per model. Some models may be unavailable due to quota limits."
+    "gemini-2.0-flash-exp": {
+      "requests_per_minute": 1000,
+      "requests_per_day": 10000,
+      "tokens_per_minute": 500000,
+      "tokens_per_day": 5000000
+    }
   },
-  "last_updated": "2025-07-03T11:39:03.107Z",
-  "testing_results": {
-    "gemini-2.0-flash-exp": "✅ available",
-    "gemini-2.5-flash": "✅ available",
-    "text-embedding-004": "✅ available"
+  "validation": {
+    "enforce_consistent_token_limits": true,
+    "max_output_tokens": 50000,
+    "warn_on_mismatch": true
   }
 }

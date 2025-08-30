@@ -71,6 +71,13 @@ export class InsightEngine {
       console.log(`[InsightEngine] DEBUG: ontology_optimizations:`, analysisOutput?.ontology_optimizations ? 'EXISTS' : 'MISSING');
       console.log(`[InsightEngine] DEBUG: concepts_to_merge length:`, analysisOutput?.ontology_optimizations?.concepts_to_merge?.length || 0);
 
+      // ENHANCED: Validate LLM response quality
+      if (analysisOutput) {
+        // Convert analysisOutput to string for validation (simplified approach)
+        const outputString = JSON.stringify(analysisOutput);
+        this.validateLLMResponse(outputString, 'StrategicSynthesisTool');
+      }
+
       // Phase III: Persistence, Graph Update & State Propagation
       const newEntities = await this.persistStrategicUpdates(userId, analysisOutput);
 
@@ -601,22 +608,34 @@ export class InsightEngine {
 
   /**
    * Extract text content for embedding based on entity type
+   * ENHANCED: Added content length validation and truncation warnings
    */
   private async extractTextContentForEntity(entityId: string, entityType: string): Promise<string | null> {
     try {
+      let textContent: string | null = null;
+      
       switch (entityType) {
         case 'DerivedArtifact':
           const artifact = await this.derivedArtifactRepository.findById(entityId);
-          return artifact ? `${artifact.title}\n\n${artifact.content_narrative}` : null;
+          if (artifact) {
+            textContent = `${artifact.title}\n\n${artifact.content_narrative}`;
+          }
+          break;
           
         case 'ProactivePrompt':
           const prompt = await this.proactivePromptRepository.findById(entityId);
-          return prompt ? prompt.prompt_text : null;
+          if (prompt) {
+            textContent = prompt.prompt_text;
+          }
+          break;
           
         case 'MergedConcept':
           // MergedConcepts are stored in the concepts table, so use concept repository
           const concept = await this.conceptRepository.findById(entityId);
-          return concept ? `${concept.name}: ${concept.description || ''}` : null;
+          if (concept) {
+            textContent = `${concept.name}: ${concept.description || ''}`;
+          }
+          break;
           
         case 'Community':
           // For communities, aggregate content from member concepts
@@ -625,19 +644,28 @@ export class InsightEngine {
             const community = await this.dbService.communityRepository.getByIdWithConcepts(entityId);
             if (community) {
               const memberCount = community.concepts?.length || 0;
-              const content = `${community.name}: ${community.description || 'Strategic community'}. Members: ${memberCount} concepts.`;
-              return content;
+              textContent = `${community.name}: ${community.description || 'Strategic community'}. Members: ${memberCount} concepts.`;
+            } else {
+              textContent = `Community ${entityId} - Strategic community with member concepts`;
             }
-            return `Community ${entityId} - Strategic community with member concepts`;
           } catch (error: unknown) {
             console.error(`[InsightEngine] Error extracting community content for ${entityId}:`, error);
-            return `Community ${entityId} - Strategic community`;
+            textContent = `Community ${entityId} - Strategic community`;
           }
+          break;
           
         default:
           console.warn(`[InsightEngine] Unknown entity type for embedding: ${entityType}`);
           return null;
       }
+
+      // ENHANCED: Validate content length and provide warnings
+      if (textContent) {
+        this.validateContentLength(textContent, entityType, entityId);
+        return textContent;
+      }
+      
+      return null;
     } catch (error: unknown) {
       console.error(`[InsightEngine] Error extracting text content for ${entityType} ${entityId}:`, error);
       return null;
@@ -1683,6 +1711,70 @@ export class InsightEngine {
       console.error(`[InsightEngine] Error during Neo4j synchronization for user ${userId}:`, error);
       throw error;
     }
+  }
+
+  /**
+   * ENHANCED: Validate content length and provide warnings for potential truncation
+   */
+  private validateContentLength(content: string, fieldName: string, entityId: string): void {
+    const contentLength = content.length;
+    const maxRecommendedLength = 8000; // Conservative limit for embeddings
+    const criticalLength = 15000; // Critical limit where truncation is likely
+    
+    if (contentLength > criticalLength) {
+      console.warn(`[InsightEngine] ⚠️ CRITICAL: Very long content detected in ${fieldName} ${entityId}: ${contentLength} chars (may cause embedding truncation)`);
+      
+      // Log content preview for debugging
+      const preview = content.substring(0, 200) + '...';
+      console.warn(`[InsightEngine] Content preview: ${preview}`);
+      
+      // Suggest content optimization
+      console.warn(`[InsightEngine] Consider: 1) Truncating to ${maxRecommendedLength} chars, 2) Chunking into smaller pieces, 3) Summarizing content`);
+    } else if (contentLength > maxRecommendedLength) {
+      console.warn(`[InsightEngine] ⚠️ WARNING: Long content detected in ${fieldName} ${entityId}: ${contentLength} chars (approaching recommended limit)`);
+    } else if (contentLength < 50) {
+      console.warn(`[InsightEngine] ⚠️ WARNING: Very short content detected in ${fieldName} ${entityId}: ${contentLength} chars (may not provide sufficient context for embeddings)`);
+    } else {
+      console.log(`[InsightEngine] ✅ Content length validation passed for ${fieldName} ${entityId}: ${contentLength} chars`);
+    }
+  }
+
+  /**
+   * ENHANCED: Validate LLM response quality and length
+   */
+  private validateLLMResponse(response: string, toolName: string): void {
+    const responseLength = response.length;
+    const minRecommendedLength = 100;
+    const maxRecommendedLength = 50000;
+    
+    if (responseLength < minRecommendedLength) {
+      console.warn(`[InsightEngine] ⚠️ WARNING: LLM response from ${toolName} is very short: ${responseLength} chars (likely truncated)`);
+      
+      // Log response preview for debugging
+      const preview = response.substring(0, Math.min(200, responseLength));
+      console.warn(`[InsightEngine] Response preview: ${preview}`);
+      
+      throw new Error(`LLM response from ${toolName} too short (${responseLength} chars), likely truncated. Check token limits and model configuration.`);
+    }
+    
+    if (responseLength > maxRecommendedLength) {
+      console.warn(`[InsightEngine] ⚠️ WARNING: LLM response from ${toolName} is very long: ${responseLength} chars (may indicate verbose output)`);
+    }
+    
+    // Check for common truncation indicators
+    const truncationIndicators = [
+      '...', '…', 'truncated', 'cut off', 'incomplete', 'partial'
+    ];
+    
+    const hasTruncationIndicator = truncationIndicators.some(indicator => 
+      response.toLowerCase().includes(indicator.toLowerCase())
+    );
+    
+    if (hasTruncationIndicator) {
+      console.warn(`[InsightEngine] ⚠️ WARNING: LLM response from ${toolName} contains truncation indicators`);
+    }
+    
+    console.log(`[InsightEngine] ✅ LLM response validation passed for ${toolName}: ${responseLength} chars`);
   }
 
 }

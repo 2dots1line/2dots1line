@@ -5,11 +5,36 @@
     "HolisticAnalysisTool": {
       "description": "Composite tool for holistic conversation analysis",
       "atomic_tools": [],
-      "configuration": {}
+      "configuration": {
+        "max_tokens": 50000,
+        "temperature": 0.1
+      }
+    },
+    "StrategicSynthesisTool": {
+      "description": "Composite tool for strategic knowledge graph analysis",
+      "atomic_tools": [],
+      "configuration": {
+        "max_tokens": 50000,
+        "temperature": 0.4
+      }
+    },
+    "DialogueAgent": {
+      "description": "Real-time conversational agent",
+      "atomic_tools": ["LLMChatTool", "HybridRetrievalTool"],
+      "configuration": {
+        "max_tokens": 50000,
+        "temperature": 0.7,
+        "top_p": 0.9
+      }
     }
   },
   "tool_registry_config": {
     "auto_discovery": true,
-    "validation_mode": "strict"
+    "validation_mode": "strict",
+    "global_llm_config": {
+      "max_tokens": 50000,
+      "temperature": 0.7,
+      "top_p": 0.95
+    }
   }
 } 
