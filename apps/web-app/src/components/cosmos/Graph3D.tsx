@@ -157,11 +157,13 @@ export const Graph3D: React.FC<Graph3DProps> = ({
 
   // Helper function to check if an edge should be visible
   const shouldShowEdge = (edge: any): boolean => {
-    // Only show edges when a node is hovered
-    if (!hoveredNodeId) return false;
+    // If edges are globally disabled, only show edges connected to hovered node
+    if (!showEdges) {
+      return !!hoveredNodeId && (edge.source === hoveredNodeId || edge.target === hoveredNodeId);
+    }
     
-    // Show edge if it connects to the hovered node
-    return edge.source === hoveredNodeId || edge.target === hoveredNodeId;
+    // If edges are globally enabled, show all edges
+    return true;
   };
 
   // Camera auto-positioning disabled - keeping manual camera control
@@ -227,9 +229,9 @@ export const Graph3D: React.FC<Graph3DProps> = ({
         />
       ))}
 
-      {/* Render edges - only show edges connected to hovered node */}
-      {showEdges && edges.map((edge, index) => {
-        // Only show edge if it's connected to the hovered node
+      {/* Render edges - controlled by showEdges prop and hover state */}
+      {edges.map((edge, index) => {
+        // Only show edge if it meets visibility criteria
         if (!shouldShowEdge(edge)) return null;
         
         const sourceNode = graphData.nodes.find((n) => n.id === edge.source);
