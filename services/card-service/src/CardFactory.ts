@@ -13,19 +13,29 @@ import {
   DerivedArtifactRepository,
   MemoryRepository,
   ProactivePromptRepository,
+  CommunityRepository,
+  GrowthEventRepository,
+  UserRepository,
+  DatabaseService,
   CreateCardData,
   cards as Card,
   proactive_prompts,
+  communities,
+  growth_events,
+  users
 } from '@2dots1line/database';
 import {
   TConcept,
   TDerivedArtifact,
   TMemoryUnit,
+  TCommunity,
+  TGrowthEvent,
+  TUser
 } from '@2dots1line/shared-types';
 import { ConfigService } from '@2dots1line/config-service';
 
-type CreatableEntity = TMemoryUnit | TConcept | TDerivedArtifact | proactive_prompts;
-type EntityType = 'MemoryUnit' | 'Concept' | 'DerivedArtifact' | 'ProactivePrompt';
+type CreatableEntity = TMemoryUnit | TConcept | TDerivedArtifact | proactive_prompts | communities | growth_events | users;
+type EntityType = 'MemoryUnit' | 'Concept' | 'DerivedArtifact' | 'ProactivePrompt' | 'Community' | 'GrowthEvent' | 'User';
 
 interface CreateCardResult {
   created: boolean;
@@ -40,11 +50,15 @@ export class CardFactory {
 
   constructor(
     private readonly configService: ConfigService,
+    private readonly databaseService: DatabaseService,
     private readonly cardRepository: CardRepository,
     private readonly memoryRepository: MemoryRepository,
     private readonly conceptRepository: ConceptRepository,
     private readonly derivedArtifactRepository: DerivedArtifactRepository,
-    private readonly proactivePromptRepository: ProactivePromptRepository
+    private readonly proactivePromptRepository: ProactivePromptRepository,
+    private readonly communityRepository: CommunityRepository,
+    private readonly growthEventRepository: GrowthEventRepository,
+    private readonly userRepository: UserRepository
   ) {
     // Don't load configs in constructor - they're async!
     // Must call initialize() after construction
@@ -119,7 +133,22 @@ export class CardFactory {
         return this.derivedArtifactRepository.findById(id) as unknown as Promise<CreatableEntity | null>;
       case 'ProactivePrompt':
         return this.proactivePromptRepository.findById(id);
+      case 'Community':
+        // Note: CommunityRepository doesn't have findById, so we'll use a direct Prisma query
+        try {
+          return await this.databaseService.prisma.communities.findUnique({
+            where: { community_id: id }
+          });
+        } catch (error) {
+          console.warn(`[CardFactory] Error fetching community ${id}:`, error);
+          return null;
+        }
+      case 'GrowthEvent':
+        return this.growthEventRepository.findById(id);
+      case 'User':
+        return this.userRepository.findById(id);
       default:
+        console.warn(`[CardFactory] Unknown entity type: ${type}`);
         return null;
     }
   }
@@ -159,7 +188,28 @@ export class CardFactory {
         const daEligible = rules.eligible_types.includes(da.artifact_type);
         console.log(`[CardFactory] DerivedArtifact eligibility: type=${da.artifact_type}, eligibleTypes=${rules.eligible_types}, eligible=${daEligible}`);
         return daEligible;
+      case 'Community':
+        const community = entity as any;
+        const communityEligible = rules.always_eligible || true; // Communities are generally eligible
+        console.log(`[CardFactory] Community eligibility: eligible=${communityEligible}`);
+        return communityEligible;
+      case 'GrowthEvent':
+        const growthEvent = entity as any;
+        const growthEventEligible = rules.always_eligible || true; // Growth events are generally eligible
+        console.log(`[CardFactory] GrowthEvent eligibility: eligible=${growthEventEligible}`);
+        return growthEventEligible;
+      case 'ProactivePrompt':
+        const prompt = entity as any;
+        const promptEligible = rules.always_eligible || true; // Proactive prompts are generally eligible
+        console.log(`[CardFactory] ProactivePrompt eligibility: eligible=${promptEligible}`);
+        return promptEligible;
+      case 'User':
+        const user = entity as any;
+        const userEligible = rules.always_eligible || false; // Users are generally not eligible for cards
+        console.log(`[CardFactory] User eligibility: eligible=${userEligible}`);
+        return userEligible;
       default:
+        console.warn(`[CardFactory] Unknown entity type for eligibility check: ${type}`);
         return false;
     }
   }
@@ -200,7 +250,17 @@ export class CardFactory {
       case 'ProactivePrompt':
         sourceEntityId = (entity as any).prompt_id;
         break;
+      case 'Community':
+        sourceEntityId = (entity as any).community_id;
+        break;
+      case 'GrowthEvent':
+        sourceEntityId = (entity as any).event_id;
+        break;
+      case 'User':
+        sourceEntityId = (entity as any).user_id;
+        break;
       default:
+        console.warn(`[CardFactory] Unknown entity type for card construction: ${type}`);
         return null;
     }
 

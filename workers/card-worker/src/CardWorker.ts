@@ -11,7 +11,7 @@
  */
 
 import { ConfigService } from '@2dots1line/config-service';
-import { DatabaseService, CardRepository, MemoryRepository, ConceptRepository, DerivedArtifactRepository, ProactivePromptRepository } from '@2dots1line/database';
+import { DatabaseService, CardRepository, MemoryRepository, ConceptRepository, DerivedArtifactRepository, ProactivePromptRepository, CommunityRepository, GrowthEventRepository, UserRepository } from '@2dots1line/database';
 import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
 import { Worker, Job } from 'bullmq';
 import { 
@@ -59,6 +59,9 @@ export class CardWorker {
   private conceptRepository: ConceptRepository;
   private derivedArtifactRepository: DerivedArtifactRepository;
   private proactivePromptRepository: ProactivePromptRepository;
+  private communityRepository: CommunityRepository;
+  private growthEventRepository: GrowthEventRepository;
+  private userRepository: UserRepository;
 
   constructor(
     private databaseService: DatabaseService,
@@ -84,6 +87,9 @@ export class CardWorker {
     this.conceptRepository = new ConceptRepository(databaseService);
     this.derivedArtifactRepository = new DerivedArtifactRepository(databaseService);
     this.proactivePromptRepository = new ProactivePromptRepository(databaseService);
+    this.communityRepository = new CommunityRepository(databaseService);
+    this.growthEventRepository = new GrowthEventRepository(databaseService);
+    this.userRepository = new UserRepository(databaseService);
 
     // Initialize BullMQ worker with EnvironmentLoader
     const redisConnection = {
@@ -162,6 +168,19 @@ export class CardWorker {
         entityData = await this.derivedArtifactRepository.findById(entity.id);
       } else if (entityType === 'ProactivePrompt') {
         entityData = await this.proactivePromptRepository.findById(entity.id);
+      } else if (entityType === 'Community') {
+        // Note: CommunityRepository doesn't have findById, so we'll use a direct Prisma query
+        try {
+          entityData = await this.databaseService.prisma.communities.findUnique({
+            where: { community_id: entity.id }
+          });
+        } catch (error) {
+          console.warn(`[CardWorker] Error fetching community ${entity.id}:`, error);
+        }
+      } else if (entityType === 'GrowthEvent') {
+        entityData = await this.growthEventRepository.findById(entity.id);
+      } else if (entityType === 'User') {
+        entityData = await this.userRepository.findById(entity.id);
       } else if (entityType === 'MergedConcept') {
         // MergedConcepts are stored in the concepts table, use unfiltered method to allow merged status
         entityData = await this.conceptRepository.findByIdUnfiltered(entity.id);
@@ -209,6 +228,24 @@ export class CardWorker {
         if (rules && rules.always_eligible !== true) {
           eligible = false;
           skipReason = `ProactivePrompt not always eligible`;
+        }
+      } else if (entityType === 'Community') {
+        const rules = eligibilityRules.Community;
+        if (rules && rules.always_eligible !== true) {
+          eligible = false;
+          skipReason = `Community not always eligible`;
+        }
+      } else if (entityType === 'GrowthEvent') {
+        const rules = eligibilityRules.GrowthEvent;
+        if (rules && rules.always_eligible !== true) {
+          eligible = false;
+          skipReason = `GrowthEvent not always eligible`;
+        }
+      } else if (entityType === 'User') {
+        const rules = eligibilityRules.User;
+        if (rules && rules.always_eligible !== true) {
+          eligible = false;
+          skipReason = `User not always eligible`;
         }
       } else if (entityType === 'MergedConcept') {
         // MergedConcepts should be eligible for card creation as they represent important merged knowledge
@@ -271,7 +308,7 @@ export class CardWorker {
   /**
    * Map event entity types to card entity types
    */
-  private mapEntityType(eventType: string): 'MemoryUnit' | 'Concept' | 'DerivedArtifact' | 'ProactivePrompt' | 'MergedConcept' | null {
+  private mapEntityType(eventType: string): 'MemoryUnit' | 'Concept' | 'DerivedArtifact' | 'ProactivePrompt' | 'Community' | 'GrowthEvent' | 'User' | 'MergedConcept' | null {
     switch (eventType) {
       case 'MemoryUnit':
         return 'MemoryUnit';
@@ -281,6 +318,12 @@ export class CardWorker {
         return 'DerivedArtifact';
       case 'ProactivePrompt':
         return 'ProactivePrompt';
+      case 'Community':
+        return 'Community';
+      case 'GrowthEvent':
+        return 'GrowthEvent';
+      case 'User':
+        return 'User';
       case 'MergedConcept':
         return 'MergedConcept';
       default:

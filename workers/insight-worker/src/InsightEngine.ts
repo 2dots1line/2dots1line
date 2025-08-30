@@ -190,7 +190,7 @@ export class InsightEngine {
         console.log(`[InsightEngine] Found ${growthEvents.length} growth events within cycle period`);
         
         // Map to the expected format
-        return growthEvents.map(event => {
+        return growthEvents.map((event: any) => {
           const details = event.details as any;
           return {
             dim_key: details?.dim_key || 'unknown',
@@ -700,7 +700,7 @@ export class InsightEngine {
         take: 10
       });
 
-      return recentQuests.map(quest => ({
+      return recentQuests.map((quest: any) => ({
         prompt_text: quest.prompt_text,
         source_agent: quest.source_agent,
         status: quest.status,
@@ -731,8 +731,8 @@ export class InsightEngine {
 
       // Simple pattern extraction (filter out null values)
       const patterns = recentConversations
-        .map(conv => conv.context_summary)
-        .filter((summary): summary is string => summary !== null && summary.length > 10)
+        .map((conv: any) => conv.context_summary)
+        .filter((summary: any): summary is string => summary !== null && summary.length > 10)
         .slice(0, 5);
 
       return patterns.length > 0 ? patterns : ['General inquiry patterns'];
@@ -1445,6 +1445,52 @@ export class InsightEngine {
       throw error;
     } finally {
       await session.close();
+    }
+  }
+
+  /**
+   * Update primary concept metadata to reflect merging operations
+   */
+  private async updatePrimaryConceptMetadata(merge: any): Promise<void> {
+    // Update primary concept status and merged_into_concept_id in PostgreSQL
+    // Note: We'll store merge information in the description field since metadata is not supported
+    const mergeInfo = `Merged with: ${merge.secondary_concept_ids.join(', ')}. Rationale: ${merge.merge_rationale || 'Strategic consolidation'}`;
+    
+    await this.conceptRepository.update(merge.primary_concept_id, {
+      description: mergeInfo,
+      status: 'active' // Keep primary concept active
+    });
+    
+    // Update primary concept metadata in Neo4j
+    await this.updateNeo4jPrimaryConceptMetadata(merge.primary_concept_id, {
+      merged_concepts: merge.secondary_concept_ids,
+      merge_rationale: merge.merge_rationale,
+      merged_at: new Date().toISOString(),
+      total_merged_concepts: merge.secondary_concept_ids.length + 1
+    });
+  }
+
+  /**
+   * Update primary concept metadata in Neo4j
+   */
+  private async updateNeo4jPrimaryConceptMetadata(conceptId: string, metadata: any): Promise<void> {
+    if (!this.dbService.neo4j) return;
+    
+    const session = this.dbService.neo4j.session();
+    try {
+      // Update primary concept metadata
+      const result = await session.run(`
+        MATCH (c:Concept {id: $conceptId})
+        SET c.metadata = $metadata
+        RETURN c
+      `, {
+        conceptId,
+        metadata: JSON.stringify(metadata)
+      });
+      
+      console.log(`[InsightEngine] Updated Neo4j Concept ${conceptId} metadata`);
+    } finally {
+      session.close();
     }
   }
 
