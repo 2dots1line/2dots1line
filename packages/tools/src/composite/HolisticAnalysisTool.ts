@@ -25,25 +25,25 @@ export const HolisticAnalysisOutputSchema = z.object({
       importance_score: z.number().min(1).max(10), // Memory importance on 1-10 scale
       sentiment_score: z.number().min(-1.0).max(1.0), // Sentiment from -1.0 (negative) to 1.0 (positive)
       // creation_ts removed - will be set to current time by the system
-    })).max(10), // Reasonable limit for extracted memories per conversation
+    })), // Remove array size limit to allow flexible LLM responses
     
     extracted_concepts: z.array(z.object({
       name: z.string().min(1),
       type: z.string().min(1),
       description: z.string().min(1) // Removed max limit to allow detailed descriptions
-    })).max(20), // Reasonable limit for extracted concepts per conversation
+    })), // Remove array size limit to allow flexible LLM responses
     
     new_relationships: z.array(z.object({
       source_entity_id_or_name: z.string().min(1),
       target_entity_id_or_name: z.string().min(1),
       relationship_description: z.string().min(1) // Removed max limit to allow detailed descriptions
-    })).max(30), // Reasonable limit for relationships per conversation
+    })), // Remove array size limit to allow flexible LLM responses
     
     detected_growth_events: z.array(z.object({
       dim_key: z.enum(['know_self', 'know_world', 'act_self', 'act_world', 'show_self', 'show_world']),
       delta: z.number().min(-5.0).max(5.0), // V11.1 FIX: Increased range to prevent validation failures
       rationale: z.string().min(1) // Removed max limit to allow high-quality LLM responses
-    })).max(6) // Maximum one event per dimension
+    })), // Remove array size limit to allow flexible LLM responses
   }),
   
   forward_looking_context: z.object({
@@ -52,7 +52,7 @@ export const HolisticAnalysisOutputSchema = z.object({
       topic: z.string().min(1), // Removed max limit
       summary_of_unresolution: z.string().min(1), // Removed max limit to allow detailed summaries
       suggested_question: z.string().min(1) // Removed max limit to allow thoughtful questions
-    })).max(5), // Maximum 5 unresolved topics to avoid overwhelming
+    })), // Remove array size limit to allow flexible LLM responses
     suggested_initial_focus: z.string().min(1) // Removed max limit
   })
 });
