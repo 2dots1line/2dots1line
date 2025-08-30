@@ -4,7 +4,10 @@ import {
   UserRepository,
   MemoryRepository,
   ConceptRepository,
-  GrowthEventRepository
+  GrowthEventRepository,
+  DerivedArtifactRepository,
+  CommunityRepository,
+  ProactivePromptRepository
 } from '@2dots1line/database';
 import type { 
   CreateMemoryUnitData, 
@@ -25,6 +28,9 @@ export class IngestionAnalyst {
   private memoryRepository: MemoryRepository;
   private conceptRepository: ConceptRepository;
   private growthEventRepository: GrowthEventRepository;
+  private derivedArtifactRepository: DerivedArtifactRepository;
+  private communityRepository: CommunityRepository;
+  private proactivePromptRepository: ProactivePromptRepository;
 
   constructor(
     private holisticAnalysisTool: HolisticAnalysisTool,
@@ -38,6 +44,9 @@ export class IngestionAnalyst {
     this.memoryRepository = new MemoryRepository(dbService);
     this.conceptRepository = new ConceptRepository(dbService);
     this.growthEventRepository = new GrowthEventRepository(dbService);
+    this.derivedArtifactRepository = new DerivedArtifactRepository(dbService);
+    this.communityRepository = new CommunityRepository(dbService);
+    this.proactivePromptRepository = new ProactivePromptRepository(dbService);
   }
 
   async processConversation(job: Job<IngestionJobData>) {
@@ -290,7 +299,26 @@ export class IngestionAnalyst {
           };
 
           const createdGrowthEvent = await this.growthEventRepository.create(growthData);
+          
+          // CRITICAL FIX: Add growth event to newEntities so it gets published to graph queue
+          newEntities.push({ id: createdGrowthEvent.event_id, type: 'GrowthEvent' });
+          
           console.log(`[IngestionAnalyst] Created growth event: ${createdGrowthEvent.event_id} - ${growthEvent.dim_key} (${growthEvent.delta})`);
+          
+          // CRITICAL FIX: Create Neo4j node for growth event
+          await this.createNeo4jNode('GrowthEvent', {
+            id: createdGrowthEvent.event_id,
+            userId: userId,
+            dimension_key: growthEvent.dim_key,
+            delta_value: growthEvent.delta,
+            rationale: growthEvent.rationale,
+            source: 'IngestionAnalyst',
+            created_at: createdGrowthEvent.created_at.toISOString(),
+            related_memory_units: relatedMemoryUnitIds,
+            related_concepts: relatedConceptIds
+          });
+          
+          console.log(`[IngestionAnalyst] Created Neo4j GrowthEvent node: ${createdGrowthEvent.event_id}`);
         }
       } else {
         console.log(`🔍 [IngestionAnalyst] DEBUG: No growth events to create`);
@@ -437,73 +465,105 @@ export class IngestionAnalyst {
         // Transform relationship data structure from HolisticAnalysisTool format
         const sourceId = relationship.source_entity_id_or_name || relationship.source_id;
         const targetId = relationship.target_entity_id_or_name || relationship.target_id;
-        const relationshipType = relationship.relationship_description || relationship.type || 'general';
+        const relationshipDescription = relationship.relationship_description || relationship.type || 'general';
         const context = relationship.relationship_description || relationship.context || 'Inferred from conversation analysis';
         
-        console.log(`🔍 [IngestionAnalyst] DEBUG: Transformed relationship - sourceId: ${sourceId}, targetId: ${targetId}, type: ${relationshipType}`);
+        console.log(`🔍 [IngestionAnalyst] DEBUG: Transformed relationship - sourceId: ${sourceId}, targetId: ${targetId}, description: ${relationshipDescription}`);
         
         // FIXED: Map relationship IDs to actual node IDs by querying the database
         const actualSourceId = await this.mapRelationshipIdToNodeId(sourceId, userId);
         const actualTargetId = await this.mapRelationshipIdToNodeId(targetId, userId);
         
         if (!actualSourceId || !actualTargetId) {
-          console.warn(`[IngestionAnalyst] ⚠️ Skipping relationship: ${sourceId} -> ${targetId} (could not map IDs)`);
+          console.warn(`[IngestionAnalyst] ⚠️ Could not map relationship IDs: source=${sourceId} -> ${actualSourceId}, target=${targetId} -> ${actualTargetId}`);
           continue;
         }
+
+        console.log(`🔍 [IngestionAnalyst] DEBUG: Mapped IDs - actualSourceId: ${actualSourceId}, actualTargetId: ${actualTargetId}`);
+
+        // CRITICAL FIX: Use emergent relationship labels based on LLM description instead of generic 'RELATED_TO'
+        // Transform the LLM description into a valid Neo4j relationship label
+        const relationshipLabel = this.transformToValidRelationshipLabel(relationshipDescription);
         
-        console.log(`🔍 [IngestionAnalyst] DEBUG: Mapped IDs - sourceId: ${sourceId} -> ${actualSourceId}, targetId: ${targetId} -> ${actualTargetId}`);
-        
-        // Use actual node IDs for relationship creation
         const cypher = `
-          MATCH (source {id: $sourceId, userId: $userId}), (target {id: $targetId, userId: $userId})
-          CREATE (source)-[r:RELATED_TO {
-            type: $relationshipType,
-            strength: $strength,
-            context: $context,
-            created_at: datetime(),
-            source: 'IngestionAnalyst'
-          }]->(target)
+          MATCH (source), (target)
+          WHERE (source.muid = $sourceId OR source.concept_id = $sourceId OR source.id = $sourceId)
+          AND (target.muid = $targetId OR target.concept_id = $targetId OR target.id = $targetId)
+          AND source.userId = $userId AND target.userId = $userId
+          MERGE (source)-[r:${relationshipLabel}]->(target)
+          SET r.relationship_description = $relationshipDescription,
+              r.context = $context,
+              r.source_agent = 'IngestionAnalyst',
+              r.created_at = datetime(),
+              r.updated_at = datetime(),
+              r.original_description = $relationshipDescription
           RETURN r
         `;
-        
-        console.log(`🔍 [IngestionAnalyst] DEBUG: Relationship Cypher query: ${cypher}`);
+
+        console.log(`🔍 [IngestionAnalyst] DEBUG: Creating relationship with cypher: ${cypher}`);
         console.log(`🔍 [IngestionAnalyst] DEBUG: Relationship parameters: ${JSON.stringify({
           sourceId: actualSourceId,
           targetId: actualTargetId,
-          userId: userId,
-          relationshipType: relationshipType,
-          strength: relationship.strength || 0.5,
-          context: context
+          userId,
+          relationshipDescription,
+          context
         }, null, 2)}`);
-        
+
         const result = await session.run(cypher, {
           sourceId: actualSourceId,
           targetId: actualTargetId,
-          userId: userId,
-          relationshipType: relationshipType,
-          strength: relationship.strength || 0.5,
-          context: context
+          userId,
+          relationshipDescription,
+          context
         });
-        
-        console.log(`🔍 [IngestionAnalyst] DEBUG: Relationship query executed, records: ${result.records.length}`);
-        
+
         if (result.records.length > 0) {
-          console.log(`[IngestionAnalyst] ✅ Created relationship: ${sourceId} -> ${targetId} (${relationshipType})`);
+          console.log(`[IngestionAnalyst] ✅ Created relationship: ${sourceId} --[${relationshipDescription}]--> ${targetId}`);
         } else {
-          console.warn(`[IngestionAnalyst] ⚠️ Failed to create relationship: ${sourceId} -> ${targetId} (nodes not found)`);
+          console.warn(`[IngestionAnalyst] ⚠️ Failed to create relationship: ${sourceId} -> ${targetId}`);
         }
       }
       
-      console.log(`[IngestionAnalyst] ✅ Created ${relationships.length} Neo4j relationships successfully`);
+      console.log(`[IngestionAnalyst] ✅ Created ${relationships.length} Neo4j relationships`);
       
     } catch (error) {
       console.error(`[IngestionAnalyst] ❌ Error creating Neo4j relationships:`, error);
-      console.log(`🔍 [IngestionAnalyst] DEBUG: Relationship error details: ${JSON.stringify(error, null, 2)}`);
       // Don't throw - allow ingestion to continue even if relationship creation fails
     } finally {
       await session.close();
       console.log(`🔍 [IngestionAnalyst] DEBUG: Neo4j session closed for relationships`);
     }
+  }
+
+  /**
+   * Transform LLM relationship description into valid Neo4j relationship label
+   * Neo4j relationship labels must be valid identifiers (alphanumeric + underscore)
+   */
+  private transformToValidRelationshipLabel(description: string): string {
+    // Convert to lowercase and replace spaces/special chars with underscores
+    let label = description.toLowerCase()
+      .replace(/[^a-z0-9\s]/g, '') // Remove special characters
+      .replace(/\s+/g, '_') // Replace spaces with underscores
+      .replace(/_+/g, '_') // Replace multiple underscores with single
+      .trim();
+    
+    // Ensure it starts with a letter
+    if (!/^[a-z]/.test(label)) {
+      label = 'rel_' + label;
+    }
+    
+    // Ensure it's not empty
+    if (!label) {
+      label = 'related_to';
+    }
+    
+    // Limit length for Neo4j compatibility
+    if (label.length > 50) {
+      label = label.substring(0, 50);
+    }
+    
+    console.log(`🔍 [IngestionAnalyst] DEBUG: Transformed relationship label: "${description}" -> "${label}"`);
+    return label;
   }
 
   /**
@@ -559,6 +619,43 @@ export class IngestionAnalyst {
       } else if (entity.type === 'Concept') {
         const concept = await this.conceptRepository.findById(entity.id);
         textContent = concept ? `${concept.name}: ${concept.description || ''}` : '';
+      } else if (entity.type === 'GrowthEvent') {
+        const growthEvent = await this.growthEventRepository.findById(entity.id);
+        if (growthEvent) {
+          const details = growthEvent.details as any;
+          textContent = `${growthEvent.dimension_key} Growth Event: ${details?.rationale || growthEvent.rationale || 'Growth event recorded'}`;
+        }
+      } else if (entity.type === 'DerivedArtifact') {
+        // CRITICAL FIX: Add support for DerivedArtifact entities
+        const artifact = await this.derivedArtifactRepository.findById(entity.id);
+        if (artifact) {
+          textContent = `${artifact.title}\n\n${artifact.content_narrative || 'Derived artifact content'}`;
+        }
+      } else if (entity.type === 'Community') {
+        // CRITICAL FIX: Add support for Community entities
+        // Note: CommunityRepository doesn't have findById, so we'll use a direct Prisma query
+        try {
+          const community = await this.dbService.prisma.communities.findUnique({
+            where: { community_id: entity.id }
+          });
+          if (community) {
+            textContent = `${community.name}: ${community.description || 'Community description'}`;
+          }
+        } catch (error) {
+          console.warn(`[IngestionAnalyst] ⚠️ Error fetching community ${entity.id}:`, error);
+        }
+      } else if (entity.type === 'ProactivePrompt') {
+        // CRITICAL FIX: Add support for ProactivePrompt entities
+        const prompt = await this.proactivePromptRepository.findById(entity.id);
+        if (prompt) {
+          textContent = `Proactive Prompt: ${prompt.prompt_text || 'Prompt content'}`;
+        }
+      } else if (entity.type === 'User') {
+        // CRITICAL FIX: Add support for User entities
+        const user = await this.userRepository.findById(entity.id);
+        if (user) {
+          textContent = `${user.name || user.email}: User profile`;
+        }
       }
 
       if (textContent) {
@@ -570,6 +667,8 @@ export class IngestionAnalyst {
         });
         
         console.log(`[IngestionAnalyst] Queued embedding job for ${entity.type} ${entity.id}`);
+      } else {
+        console.warn(`[IngestionAnalyst] ⚠️ No text content found for ${entity.type} ${entity.id}, skipping embedding`);
       }
     }
 

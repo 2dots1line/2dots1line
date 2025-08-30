@@ -81,6 +81,9 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
       case 'Artifact':
         baseColor = '#ff4488'; // Pink for derived artifacts
         break;
+      case 'ProactivePrompt':
+        baseColor = '#ffaa00'; // Orange-Yellow for proactive prompts
+        break;
       default:
         baseColor = '#888888'; // Gray for unknown types
         break;

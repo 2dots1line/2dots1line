@@ -18,6 +18,16 @@ import { environmentLoader } from '@2dots1line/core-utils/dist/environment/Envir
 import { Worker, Job } from 'bullmq';
 
 // Event types that trigger projection updates
+export interface NewEntitiesCreatedEvent {
+  type: "new_entities_created";
+  userId: string;
+  source: "IngestionAnalyst";
+  entities: Array<{
+    id: string;
+    type: "MemoryUnit" | "Concept" | "DerivedArtifact" | "Community" | "ProactivePrompt" | "GrowthEvent" | "User";
+  }>;
+}
+
 export interface CycleArtifactsCreatedEvent {
   type: "cycle_artifacts_created";
   userId: string;
@@ -25,11 +35,11 @@ export interface CycleArtifactsCreatedEvent {
   timestamp: string;
   entities: Array<{
     id: string;
-    type: "MemoryUnit" | "Concept" | "DerivedArtifact" | "Community" | "MergedConcept";
+    type: "MemoryUnit" | "Concept" | "DerivedArtifact" | "Community" | "ProactivePrompt" | "GrowthEvent" | "User";
   }>;
 }
 
-export type GraphProjectionEvent = CycleArtifactsCreatedEvent;
+export type GraphProjectionEvent = NewEntitiesCreatedEvent | CycleArtifactsCreatedEvent;
 
 export interface GraphProjectionWorkerConfig {
   queueName?: string;
@@ -42,7 +52,7 @@ export interface GraphProjectionWorkerConfig {
 
 export interface Node3D {
   id: string;
-  type: 'MemoryUnit' | 'Concept' | 'DerivedArtifact' | 'Community';
+  type: 'MemoryUnit' | 'Concept' | 'DerivedArtifact' | 'Community' | 'ProactivePrompt' | 'GrowthEvent' | 'User';
   title: string;
   content: string;
   position: [number, number, number]; // 3D coordinates
@@ -52,6 +62,9 @@ export interface Node3D {
     createdAt: string;
     lastUpdated: string;
     userId: string;
+    isMerged?: boolean;
+    mergedIntoConceptId?: string | null;
+    status?: string;
   };
 }
 
@@ -73,6 +86,9 @@ export interface GraphProjection {
     concepts: number;
     derivedArtifacts: number;
     communities: number;
+    proactivePrompts: number;
+    growthEvents: number;
+    users: number;
     connections: number;
   };
   projectionMethod: string;
@@ -162,18 +178,20 @@ export class GraphProjectionWorker {
   }
 
   /**
-   * Main job processing function - processes InsightEngine completion events
+   * Main job processing function - processes both IngestionAnalyst and InsightEngine completion events
    */
   private async processJob(job: Job<GraphProjectionEvent>): Promise<void> {
     const { data } = job;
 
-    // Only process cycle_artifacts_created events (InsightEngine finished its job)
-    if (data.type !== 'cycle_artifacts_created') {
-      console.log(`[GraphProjectionWorker] Skipping ${data.type} event - only processing cycle_artifacts_created`);
+    // Process both new_entities_created and cycle_artifacts_created events
+    if (data.type !== 'new_entities_created' && data.type !== 'cycle_artifacts_created') {
+      console.log(`[GraphProjectionWorker] Skipping event - only processing new_entities_created and cycle_artifacts_created`);
       return;
     }
 
-    console.log(`[GraphProjectionWorker] ✅ InsightEngine finished job for user ${data.userId}`);
+    // Now we know data is properly typed, so we can safely access its properties
+    const sourceWorker = data.type === 'new_entities_created' ? 'IngestionAnalyst' : 'InsightEngine';
+    console.log(`[GraphProjectionWorker] ✅ ${sourceWorker} finished job for user ${data.userId}`);
     console.log(`[GraphProjectionWorker] Event contains ${data.entities.length} entities: ${data.entities.map(e => `${e.type}:${e.id}`).join(', ')}`);
 
     const startTime = Date.now();
@@ -205,8 +223,8 @@ export class GraphProjectionWorker {
         console.log(`[GraphProjectionWorker] All embeddings ready, proceeding with projection`);
       }
       
-      // Regenerate projection to reflect all InsightEngine changes
-      console.log(`[GraphProjectionWorker] 🔄 Regenerating graph projection for user ${data.userId} after InsightEngine completion`);
+      // Regenerate projection to reflect all changes from either worker
+      console.log(`[GraphProjectionWorker] 🔄 Regenerating graph projection for user ${data.userId} after ${sourceWorker} completion`);
       const projection = await this.generateProjection(data.userId);
       
       // Store projection in database
@@ -321,10 +339,26 @@ export class GraphProjectionWorker {
       const graphStructure = await this.neo4jService.fetchFullGraphStructure(userId);
       
       const processedNodes = graphStructure.nodes.map(node => {
-        // Determine node type from labels - support all 4 types
-        let nodeType: 'Concept' | 'MemoryUnit' | 'DerivedArtifact' | 'Community';
-        if (node.labels.includes('Concept')) {
-          nodeType = 'Concept';
+        // Determine node type from labels - support all 8 entity types
+        let nodeType: 'MemoryUnit' | 'Concept' | 'DerivedArtifact' | 'Community' | 'ProactivePrompt' | 'GrowthEvent' | 'User';
+        
+        if (node.labels.includes('ProactivePrompt')) {
+          nodeType = 'ProactivePrompt';
+        } else if (node.labels.includes('GrowthEvent')) {
+          nodeType = 'GrowthEvent';
+        } else if (node.labels.includes('User')) {
+          nodeType = 'User';
+        } else if (node.labels.includes('Concept')) {
+          // Handle merged concepts - they should still appear but with merged status
+          if (node.properties.status === 'merged') {
+            // This is a merged concept, mark it as such but don't skip it
+            nodeType = 'Concept';
+            // Add merged status to metadata for visual distinction
+            node.properties.isMerged = true;
+            node.properties.mergedIntoConceptId = node.properties.merged_into_concept_id;
+          } else {
+            nodeType = 'Concept';
+          }
         } else if (node.labels.includes('MemoryUnit')) {
           nodeType = 'MemoryUnit';
         } else if (node.labels.includes('DerivedArtifact')) {
@@ -332,9 +366,18 @@ export class GraphProjectionWorker {
         } else if (node.labels.includes('Community')) {
           nodeType = 'Community';
         } else {
-          // Fallback to MemoryUnit for unknown types
-          nodeType = 'MemoryUnit';
-          console.warn(`[GraphProjectionWorker] Unknown node type for node ${node.id}, labels: ${node.labels.join(', ')}`);
+          console.error(`[GraphProjectionWorker] ❌ Unsupported node type: ${node.labels.join(', ')} for node ${node.id}`);
+          throw new Error(`Unsupported node type: ${node.labels.join(', ')}`);
+        }
+        
+        // Extract actual UUID from properties instead of Neo4j internal ID
+        const entityId = node.properties.prompt_id || node.properties.muid || node.properties.id || 
+                        node.properties.community_id || node.properties.artifact_id ||
+                        node.properties.event_id || node.properties.userId;
+        
+        if (!entityId || !this.isValidUuid(entityId)) {
+          console.error(`[GraphProjectionWorker] ❌ Invalid or missing UUID for node ${node.id}: ${entityId}`);
+          throw new Error(`Invalid UUID for node ${node.id}: ${entityId}`);
         }
         
         // Extract connections from edges
@@ -343,15 +386,21 @@ export class GraphProjectionWorker {
           .map(edge => edge.target);
         
         return {
-          id: node.id,
+          id: entityId, // Use actual UUID, not Neo4j internal ID
           type: nodeType,
           title: node.properties.title || node.properties.name || 'Untitled',
           content: node.properties.content || node.properties.description || '',
           importance: node.properties.importance_score || node.properties.salience || 0.5,
           createdAt: node.properties.created_at || node.properties.creation_ts || new Date().toISOString(),
-          connections
+          connections,
+          metadata: {
+            // Add merged concept information
+            isMerged: node.properties.isMerged || false,
+            mergedIntoConceptId: node.properties.mergedIntoConceptId || null,
+            status: node.properties.status || 'active'
+          }
         };
-      });
+      }).filter(Boolean); // Remove any null nodes (should be none now)
       
       // Process edges to match the expected format
       const processedEdges = graphStructure.edges.map(edge => ({
@@ -757,6 +806,9 @@ export class GraphProjectionWorker {
     const concepts = nodes.filter(n => n.type === 'Concept').length;
     const derivedArtifacts = nodes.filter(n => n.type === 'DerivedArtifact').length;
     const communities = nodes.filter(n => n.type === 'Community').length;
+    const proactivePrompts = nodes.filter(n => n.type === 'ProactivePrompt').length;
+    const growthEvents = nodes.filter(n => n.type === 'GrowthEvent').length;
+    const users = nodes.filter(n => n.type === 'User').length;
     const totalConnections = nodes.reduce((sum, node) => sum + node.connections.length, 0);
 
     // Calculate bounding box
@@ -774,6 +826,9 @@ export class GraphProjectionWorker {
         concepts,
         derivedArtifacts,
         communities,
+        proactivePrompts,
+        growthEvents,
+        users,
         connections: totalConnections
       },
       projectionMethod: this.config.projectionMethod!,
@@ -827,6 +882,9 @@ export class GraphProjectionWorker {
         concepts: 0,
         derivedArtifacts: 0,
         communities: 0,
+        proactivePrompts: 0,
+        growthEvents: 0,
+        users: 0,
         connections: 0
       },
       projectionMethod: this.config.projectionMethod!,

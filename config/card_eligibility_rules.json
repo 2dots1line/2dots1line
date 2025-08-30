@@ -33,5 +33,14 @@
   },
   "ProactivePrompt": {
     "always_eligible": true
+  },
+  "GrowthEvent": {
+    "always_eligible": true
+  },
+  "Community": {
+    "always_eligible": true
+  },
+  "User": {
+    "always_eligible": false
   }
 } 

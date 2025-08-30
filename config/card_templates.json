@@ -65,5 +65,29 @@
       "title_source_field": "prompt_text",
       "preview_source_field": "rationale"
     }
+  },
+  "GrowthEvent": {
+    "card_type": "growth_event_card",
+    "display_data": {
+      "title_source_field": "dimension_key",
+      "preview_source_field": "rationale",
+      "preview_truncate_length": 200
+    }
+  },
+  "Community": {
+    "card_type": "community_card",
+    "display_data": {
+      "title_source_field": "name",
+      "preview_source_field": "description",
+      "preview_truncate_length": 150
+    }
+  },
+  "User": {
+    "card_type": "user_profile_card",
+    "display_data": {
+      "title_source_field": "name",
+      "preview_source_field": "email",
+      "preview_truncate_length": 100
+    }
   }
 } 
