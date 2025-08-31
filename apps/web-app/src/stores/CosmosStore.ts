@@ -1,6 +1,5 @@
 import { UserGraphProjection } from '@2dots1line/shared-types';
-import create from 'zustand';
-import { immer } from 'zustand/middleware/immer';
+import { create } from 'zustand';
 
 export interface GraphNode {
     id: string;
@@ -23,33 +22,42 @@ interface CosmosStoreState {
   isLoading: boolean;
   error: string | null;
   selectedNode: GraphNode | null;
+  showNodeLabels: boolean; // New state for controlling node label visibility
   setGraphData: (data: UserGraphProjection) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   setSelectedNode: (node: GraphNode | null) => void;
+  setShowNodeLabels: (show: boolean) => void; // New action for toggling node labels
 }
 
-export const useCosmosStore: import('zustand').UseBoundStore<import('zustand').StoreApi<CosmosStoreState>> = create<CosmosStoreState>()(
-  immer((set) => ({
-    graphData: { version: '', createdAt: '', nodeCount: 0, edgeCount: 0, nodes: [], edges: [], communities: [], metadata: { dimension_reduction_algorithm: '', vector_dimensionality: '', semantic_similarity_threshold: 0, communities: [] } },
-    isLoading: true,
-    error: null,
-    selectedNode: null,
-    setGraphData: (data) =>
-      set((state) => {
-        state.graphData = data;
-      }),
-    setLoading: (loading) =>
-      set((state) => {
-        state.isLoading = loading;
-      }),
-    setError: (error) =>
-      set((state) => {
-        state.error = error;
-      }),
-    setSelectedNode: (node) =>
-      set((state) => {
-        state.selectedNode = node;
-      }),
-  }))
-);
+export const useCosmosStore = create<CosmosStoreState>()((set) => ({
+  graphData: { 
+    version: '', 
+    createdAt: '', 
+    nodeCount: 0, 
+    edgeCount: 0, 
+    nodes: [], 
+    edges: [], 
+    communities: [], 
+    metadata: { 
+      dimension_reduction_algorithm: '', 
+      vector_dimensionality: '', 
+      semantic_similarity_threshold: 0, 
+      communities: [] 
+    } 
+  },
+  isLoading: true,
+  error: null,
+  selectedNode: null,
+  showNodeLabels: true, // Default to showing all labels
+  setGraphData: (data) =>
+    set({ graphData: data }),
+  setLoading: (loading) =>
+    set({ isLoading: loading }),
+  setError: (error) =>
+    set({ error }),
+  setSelectedNode: (node) =>
+    set({ selectedNode: node }),
+  setShowNodeLabels: (show) =>
+    set({ showNodeLabels: show }),
+}));

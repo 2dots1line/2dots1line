@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
+import { useCosmosStore } from '../../stores/CosmosStore';
 
 interface NodeLabelProps {
   text: string;
@@ -8,12 +9,30 @@ interface NodeLabelProps {
   hovered: boolean;
   nodeId: string;
   modalOpen?: boolean;
+  isHighlighted?: boolean; // New prop to indicate if this node should show label when labels are off
 }
 
-export const NodeLabel: React.FC<NodeLabelProps> = ({ text, position, hovered, nodeId, modalOpen = false }) => {
+export const NodeLabel: React.FC<NodeLabelProps> = ({ 
+  text, 
+  position, 
+  hovered, 
+  nodeId, 
+  modalOpen = false,
+  isHighlighted = false 
+}) => {
   const { camera, gl } = useThree();
+  const { showNodeLabels } = useCosmosStore();
   const [screenPosition, setScreenPosition] = useState({ x: 0, y: 0, visible: false });
   const displayName = text && text.length > 25 ? text.substring(0, 25) + '...' : text || 'Unknown';
+
+  // Determine if this label should be visible
+  const shouldShowLabel = () => {
+    if (modalOpen) return false;
+    if (showNodeLabels) return true; // Show all labels when toggle is on
+    if (hovered) return true; // Always show label for hovered node
+    if (isHighlighted) return true; // Show label for connected nodes when hovered
+    return false; // Hide label when toggle is off and not hovered/connected
+  };
 
   // Convert 3D position to 2D screen coordinates
   useFrame(() => {
@@ -61,7 +80,7 @@ export const NodeLabel: React.FC<NodeLabelProps> = ({ text, position, hovered, n
       transform: translate(-50%, -100%);
       z-index: 1000;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      opacity: 0.6;
+      opacity: ${hovered ? 1.0 : 0.8};
     `;
     
     document.body.appendChild(labelElement);
@@ -74,11 +93,11 @@ export const NodeLabel: React.FC<NodeLabelProps> = ({ text, position, hovered, n
     };
   }, [nodeId, displayName, hovered]);
 
-  // Update position of HTML element
+  // Update position and visibility of HTML element
   useEffect(() => {
     const labelElement = document.getElementById(`node-label-${nodeId}`);
     if (labelElement) {
-      if (screenPosition.visible && !modalOpen) {
+      if (screenPosition.visible && shouldShowLabel()) {
         labelElement.style.left = `${screenPosition.x}px`;
         labelElement.style.top = `${screenPosition.y}px`;
         labelElement.style.display = 'block';
@@ -87,7 +106,7 @@ export const NodeLabel: React.FC<NodeLabelProps> = ({ text, position, hovered, n
         labelElement.style.display = 'none';
       }
     }
-  }, [screenPosition, nodeId, modalOpen]);
+  }, [screenPosition, nodeId, modalOpen, showNodeLabels, hovered, isHighlighted]);
 
   // Return null since we're using HTML overlays
   return null;
