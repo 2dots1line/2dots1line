@@ -9,6 +9,7 @@ import CosmosError from '../../components/modal/CosmosError';
 import CosmosLoading from '../../components/modal/CosmosLoading';
 import CosmosNodeModal from '../../components/modal/CosmosNodeModal';
 import { EdgeControls } from '../../components/cosmos/EdgeControls';
+import { NodeLabelControls } from '../../components/cosmos/NodeLabelControls';
 
 const CosmosScene: React.FC = () => {
   const {
@@ -229,6 +230,9 @@ const CosmosScene: React.FC = () => {
           onAnimatedChange={setAnimatedEdges}
         />
       </div>
+      
+      {/* Node Label Controls */}
+      <NodeLabelControls />
       
       <CosmosInfoPanel />
       {selectedNode && <CosmosNodeModal node={selectedNode} onClose={() => setSelectedNode(null)} />}

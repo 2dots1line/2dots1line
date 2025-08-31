@@ -129,7 +129,14 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
         />
       </mesh>
       
-      <NodeLabel text={node.title} position={position} hovered={hovered} nodeId={node.id} modalOpen={modalOpen} />
+      <NodeLabel 
+        text={node.title} 
+        position={position} 
+        hovered={hovered} 
+        nodeId={node.id} 
+        modalOpen={modalOpen}
+        isHighlighted={isHighlighted}
+      />
     </group>
   );
 };
