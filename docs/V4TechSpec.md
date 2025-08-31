@@ -273,7 +273,7 @@ Each cognitive agent has clear responsibilities, input/output contracts, tool in
 **LLM Configuration:**
 - **US:**
   - Model: Gemini 1.5 flash or Gemini 2.0 flash or Gemini 2.5 flash
-  - Parameters: temperature=0.7, top_p=0.95, max_tokens=based on context
+  - Parameters: temperature=0.3, top_p=0.95, max_tokens=based on context
   
 - **China:**
   - Model: DeepSeek v3 or equivalent
