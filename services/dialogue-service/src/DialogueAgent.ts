@@ -262,7 +262,7 @@ export class DialogueAgent {
       userMessage: promptOutput.userPrompt,           // ✅ Current turn context  
       history: this.formatHistoryForLLM(promptOutput.conversationHistory), // ✅ Properly formatted history
       memoryContextBlock: augmentedMemoryContext?.relevant_memories?.join('\n') || '',
-      temperature: 0.7,
+      temperature: 0.3, // ✅ Lower for consistent formatting
       maxTokens: 50000
     };
 

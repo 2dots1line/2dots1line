@@ -256,6 +256,7 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
         generationConfig: {
           temperature: input.payload.temperature || 0.7,
           maxOutputTokens: input.payload.maxTokens || 50000,
+          responseMimeType: 'application/json', // ✅ Enable Gemini's JSON mode
         },
       });
       
