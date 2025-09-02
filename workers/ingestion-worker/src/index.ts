@@ -67,6 +67,8 @@ async function main() {
       {
         connection: redisConnection,
         concurrency: 2, // Process up to 2 jobs concurrently
+        // Note: BullMQ v4+ handles retries differently - retry logic is configured at the queue level
+        // or through job options when adding jobs to the queue
       }
     );
 
@@ -77,6 +79,10 @@ async function main() {
 
     worker.on('failed', (job, err) => {
       console.error(`[IngestionWorker] Job ${job?.id} failed:`, err);
+      if (job) {
+        console.error(`[IngestionWorker] Job data:`, job.data);
+        console.error(`[IngestionWorker] Attempt ${job.attemptsMade} of ${job.opts.attempts || 'unknown'}`);
+      }
     });
 
     worker.on('error', (err) => {

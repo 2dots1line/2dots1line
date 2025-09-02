@@ -239,187 +239,233 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
   async execute(input: LLMChatInput): Promise<LLMChatOutput> {
     const requestStartedAt = new Date();
     let currentMessage = '';
+    let attempts = 0;
+    const maxAttempts = 3; // Try primary model + 2 fallback models
     
-    try {
-      // Initialize on first execution
-      this.initialize();
+    while (attempts < maxAttempts) {
+      attempts++;
+      try {
+        // Initialize on first execution
+        this.initialize();
 
-      const startTime = performance.now();
+        const startTime = performance.now();
 
-      const history = [
-        ...this.formatHistoryForGemini(input.payload.history),
-      ];
+        const history = [
+          ...this.formatHistoryForGemini(input.payload.history),
+        ];
 
-      // Log the formatted history for debugging
-      console.log('🔍 LLMChatTool - Formatted history for Gemini:', {
-        originalHistoryLength: input.payload.history?.length || 0,
-        formattedHistoryLength: history.length,
-        firstMessageRole: history[0]?.role || 'none',
-        historyRoles: history.map(h => h.role)
-      });
-
-      // Validate that the first message is from user
-      if (history.length > 0 && history[0].role !== 'user') {
-        console.error('❌ LLMChatTool - Invalid history format: First message must be from user, got:', history[0].role);
-        throw new Error('Invalid conversation history: First message must be from user');
-      }
-      console.log('🔍 LLMChatTool - Formatted history for Gemini:', {
-        originalHistoryLength: input.payload.history?.length || 0,
-        formattedHistoryLength: history.length,
-        firstMessageRole: history[0]?.role || 'none',
-        historyRoles: history.map(h => h.role)
-      });
-
-      // Validate that the first message is from user
-      if (history.length > 0 && history[0].role !== 'user') {
-        console.error('❌ LLMChatTool - Invalid history format: First message must be from user, got:', history[0].role);
-        throw new Error('Invalid conversation history: First message must be from user');
-      }
-
-      // Start chat session with history
-      const chat = this.model!.startChat({
-        history,
-        generationConfig: {
-          temperature: input.payload.temperature || 0.7,
-          maxOutputTokens: input.payload.maxTokens || 50000,
-          responseMimeType: 'application/json', // ✅ Enable Gemini's JSON mode
-        },
-      });
-      
-      // Build the conversation prompt
-      const systemPrompt = input.payload.systemPrompt;
-      currentMessage = `${systemPrompt}\n\nRELEVANT CONTEXT FROM USER'S PAST:\n${input.payload.memoryContextBlock || 'No memories provided.'}\n\nCURRENT MESSAGE: ${input.payload.userMessage}`;
-      
-      console.log('\n🤖 LLMChatTool - FINAL ASSEMBLED PROMPT SENT TO LLM:');
-      console.log('🔸'.repeat(80));
-      console.log(currentMessage);
-      console.log('🔸'.repeat(80));
-      console.log(`📏 LLMChatTool - Final prompt length: ${currentMessage.length} characters\n`);
-
-      console.log('🚀 LLMChatTool - Sending request to Google Gemini...');
-      const result = await chat.sendMessage(currentMessage);
-      const response = await result.response;
-      const text = response.text();
-      
-      console.log('\n🎯 LLMChatTool - RAW LLM RESPONSE RECEIVED:');
-      console.log('🔹'.repeat(80));
-      console.log('Response text length:', text.length);
-      console.log('Raw response:');
-      console.log(text);
-      console.log('🔹'.repeat(80));
-      
-      // Log usage information if available
-      if (response.usageMetadata) {
-        console.log('📊 LLMChatTool - Usage stats:', {
-          promptTokens: response.usageMetadata.promptTokenCount,
-          candidateTokens: response.usageMetadata.candidatesTokenCount,
-          totalTokens: response.usageMetadata.totalTokenCount
+        // Log the formatted history for debugging
+        console.log('🔍 LLMChatTool - Formatted history for Gemini:', {
+          originalHistoryLength: input.payload.history?.length || 0,
+          formattedHistoryLength: history.length,
+          firstMessageRole: history[0]?.role || 'none',
+          historyRoles: history.map(h => h.role)
         });
-      }
-      console.log('');
 
-      const endTime = performance.now();
-      const processingTime = endTime - startTime;
-      const requestCompletedAt = new Date();
-
-      // Log successful interaction
-      await this.logLLMInteraction({
-        workerType: input.payload.workerType || 'unknown',
-        workerJobId: input.payload.workerJobId,
-        sessionId: input.payload.sessionId,
-        userId: input.payload.userId,
-        conversationId: input.payload.conversationId,
-        messageId: input.payload.messageId,
-        sourceEntityId: input.payload.sourceEntityId,
-        modelName: this.currentModelName || 'unknown',
-        temperature: input.payload.temperature,
-        maxTokens: input.payload.maxTokens,
-        promptLength: currentMessage.length,
-        promptTokens: response.usageMetadata?.promptTokenCount,
-        systemPrompt: input.payload.systemPrompt,
-        userPrompt: input.payload.userMessage,
-        fullPrompt: currentMessage,
-        responseLength: text.length,
-        responseTokens: response.usageMetadata?.candidatesTokenCount,
-        rawResponse: text,
-        parsedResponse: null, // Will be set by calling tool if needed
-        finishReason: response.candidates?.[0]?.finishReason,
-        requestStartedAt,
-        requestCompletedAt,
-        processingTimeMs: Math.round(processingTime),
-        status: 'success',
-        metadata: {
-          memoryContextBlock: input.payload.memoryContextBlock,
-          historyLength: input.payload.history?.length || 0
+        // Validate that the first message is from user
+        if (history.length > 0 && history[0].role !== 'user') {
+          console.error('❌ LLMChatTool - Invalid history format: First message must be from user, got:', history[0].role);
+          throw new Error('Invalid conversation history: First message must be from user');
         }
-      });
 
-      return {
-        status: 'success',
-        result: {
-          text: text,
-          usage: {
-            input_tokens: response.usageMetadata?.promptTokenCount || 0,
-            output_tokens: response.usageMetadata?.candidatesTokenCount || 0,
-            total_tokens: response.usageMetadata?.totalTokenCount || 0
+        // Start chat session with history
+        const chat = this.model!.startChat({
+          history,
+          generationConfig: {
+            temperature: input.payload.temperature || 0.7,
+            maxOutputTokens: input.payload.maxTokens || 50000,
+            responseMimeType: 'application/json', // ✅ Enable Gemini's JSON mode
           },
-          model_used: this.currentModelName || 'unknown',
-          finish_reason: response.candidates?.[0]?.finishReason || 'stop'
-        },
-        metadata: {
-          processing_time_ms: Math.round(processingTime),
-          model_used: this.currentModelName || 'unknown',
-          session_id: input.payload.sessionId
-        }
-      };
-    } catch (error) {
-      const requestCompletedAt = new Date();
-      const processingTime = requestCompletedAt.getTime() - requestStartedAt.getTime();
+        });
+        
+        // Build the conversation prompt
+        const systemPrompt = input.payload.systemPrompt;
+        currentMessage = `${systemPrompt}\n\nRELEVANT CONTEXT FROM USER'S PAST:\n${input.payload.memoryContextBlock || 'No memories provided.'}\n\nCURRENT MESSAGE: ${input.payload.userMessage}`;
+        
+        console.log('\n🤖 LLMChatTool - FINAL ASSEMBLED PROMPT SENT TO LLM:');
+        console.log('🔸'.repeat(80));
+        console.log(currentMessage);
+        console.log('🔸'.repeat(80));
+        console.log(`📏 LLMChatTool - Final prompt length: ${currentMessage.length} characters`);
+        console.log(`🔄 LLMChatTool - Attempt ${attempts}/${maxAttempts} with model: ${this.currentModelName}\n`);
 
-      // Log failed interaction
-      await this.logLLMInteraction({
-        workerType: input.payload.workerType || 'unknown',
-        workerJobId: input.payload.workerJobId,
-        sessionId: input.payload.sessionId,
-        userId: input.payload.userId,
-        conversationId: input.payload.conversationId,
-        messageId: input.payload.messageId,
-        sourceEntityId: input.payload.sourceEntityId,
-        modelName: this.currentModelName || 'unknown',
-        temperature: input.payload.temperature,
-        maxTokens: input.payload.maxTokens,
-        promptLength: currentMessage.length,
-        systemPrompt: input.payload.systemPrompt,
-        userPrompt: input.payload.userMessage,
-        fullPrompt: currentMessage,
-        responseLength: 0,
-        rawResponse: '',
-        requestStartedAt,
-        requestCompletedAt,
-        processingTimeMs: Math.round(processingTime),
-        status: 'error',
-        errorMessage: error instanceof Error ? error.message : 'Unknown error',
-        errorCode: error instanceof Error ? error.name : 'UNKNOWN_ERROR',
-        metadata: {
-          memoryContextBlock: input.payload.memoryContextBlock,
-          historyLength: input.payload.history?.length || 0
+        console.log('🚀 LLMChatTool - Sending request to Google Gemini...');
+        const result = await chat.sendMessage(currentMessage);
+        const response = await result.response;
+        const text = response.text();
+        
+        console.log('\n🎯 LLMChatTool - RAW LLM RESPONSE RECEIVED:');
+        console.log('🔹'.repeat(80));
+        console.log('Response text length:', text.length);
+        console.log('Raw response:');
+        console.log(text);
+        console.log('🔹'.repeat(80));
+        
+        // Log usage information if available
+        if (response.usageMetadata) {
+          console.log('📊 LLMChatTool - Usage stats:', {
+            promptTokens: response.usageMetadata.promptTokenCount,
+            candidateTokens: response.usageMetadata.candidatesTokenCount,
+            totalTokens: response.usageMetadata.totalTokenCount
+          });
         }
-      });
+        console.log('');
 
-      console.error('❌ LLMChatTool - Error calling Gemini API:', error);
-      return {
-        status: 'error',
-        error: {
-          code: 'LLM_API_ERROR',
-          message: error instanceof Error ? error.message : 'Unknown LLM error',
-          details: { provider: 'google-gemini' }
-        },
-        metadata: {
-          processing_time_ms: 0,
-          session_id: input.payload.sessionId
+        const endTime = performance.now();
+        const processingTime = endTime - startTime;
+        const requestCompletedAt = new Date();
+
+        // Log successful interaction
+        await this.logLLMInteraction({
+          workerType: input.payload.workerType || 'unknown',
+          workerJobId: input.payload.workerJobId,
+          sessionId: input.payload.sessionId,
+          userId: input.payload.userId,
+          conversationId: input.payload.conversationId,
+          messageId: input.payload.messageId,
+          sourceEntityId: input.payload.sourceEntityId,
+          modelName: this.currentModelName || 'unknown',
+          temperature: input.payload.temperature,
+          maxTokens: input.payload.maxTokens,
+          promptLength: currentMessage.length,
+          promptTokens: response.usageMetadata?.promptTokenCount,
+          systemPrompt: input.payload.systemPrompt,
+          userPrompt: input.payload.userMessage,
+          fullPrompt: currentMessage,
+          responseLength: text.length,
+          responseTokens: response.usageMetadata?.candidatesTokenCount,
+          rawResponse: text,
+          parsedResponse: null, // Will be set by calling tool if needed
+          finishReason: response.candidates?.[0]?.finishReason,
+          requestStartedAt,
+          requestCompletedAt,
+          processingTimeMs: Math.round(processingTime),
+          status: 'success',
+          metadata: {
+            memoryContextBlock: input.payload.memoryContextBlock,
+            historyLength: input.payload.history?.length || 0
+          }
+        });
+
+        return {
+          status: 'success',
+          result: {
+            text: text,
+            usage: {
+              input_tokens: response.usageMetadata?.promptTokenCount || 0,
+              output_tokens: response.usageMetadata?.candidatesTokenCount || 0,
+              total_tokens: response.usageMetadata?.totalTokenCount || 0
+            },
+            model_used: this.currentModelName || 'unknown',
+            finish_reason: response.candidates?.[0]?.finishReason || 'stop'
+          },
+          metadata: {
+            processing_time_ms: Math.round(processingTime),
+            model_used: this.currentModelName || 'unknown',
+            session_id: input.payload.sessionId
+          }
+        };
+      } catch (error) {
+        const requestCompletedAt = new Date();
+        const processingTime = requestCompletedAt.getTime() - requestStartedAt.getTime();
+
+        // Log failed interaction
+        await this.logLLMInteraction({
+          workerType: input.payload.workerType || 'unknown',
+          workerJobId: input.payload.workerJobId,
+          sessionId: input.payload.sessionId,
+          userId: input.payload.userId,
+          conversationId: input.payload.conversationId,
+          messageId: input.payload.messageId,
+          sourceEntityId: input.payload.sourceEntityId,
+          modelName: this.currentModelName || 'unknown',
+          temperature: input.payload.temperature,
+          maxTokens: input.payload.maxTokens,
+          promptLength: currentMessage.length,
+          systemPrompt: input.payload.systemPrompt,
+          userPrompt: input.payload.userMessage,
+          fullPrompt: currentMessage,
+          responseLength: 0,
+          rawResponse: '',
+          requestStartedAt,
+          requestCompletedAt,
+          processingTimeMs: Math.round(processingTime),
+          status: 'error',
+          errorMessage: error instanceof Error ? error.message : 'Unknown error',
+          errorCode: error instanceof Error ? error.name : 'UNKNOWN_ERROR',
+          metadata: {
+            memoryContextBlock: input.payload.memoryContextBlock,
+            historyLength: input.payload.history?.length || 0
+          }
+        });
+
+        console.error(`❌ LLMChatTool - Error calling Gemini API on attempt ${attempts}/${maxAttempts}:`, error);
+        
+        // Check if this is a retryable error and we have more attempts
+        if (attempts < maxAttempts && this.isRetryableError(error)) {
+          console.log(`🔄 LLMChatTool - Retryable error detected, attempting to switch to fallback model...`);
+          
+          try {
+            // Force reinitialization to try a different model
+            this.forceReinitialize();
+            console.log(`🔄 LLMChatTool - Switched to fallback model: ${this.currentModelName}`);
+            
+            // Add exponential backoff delay before retrying
+            const delay = Math.min(1000 * Math.pow(2, attempts - 1), 10000); // Max 10 seconds
+            console.log(`🔄 LLMChatTool - Waiting ${delay}ms before retry...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            
+            continue; // Try again with the new model
+          } catch (modelSwitchError) {
+            console.error(`❌ LLMChatTool - Failed to switch to fallback model:`, modelSwitchError);
+            // Continue with the next attempt
+          }
         }
-      };
+        
+        // If not retryable or all attempts exhausted, break out of retry loop
+        break;
+      }
     }
+
+    // If all attempts fail, return an error
+    console.error(`❌ LLMChatTool - All ${maxAttempts} attempts failed`);
+    return {
+      status: 'error',
+      error: {
+        code: 'LLM_API_ERROR',
+        message: `Failed to get a response after ${maxAttempts} attempts.`,
+        details: { provider: 'google-gemini', attempts: maxAttempts }
+      },
+      metadata: {
+        processing_time_ms: 0,
+        session_id: input.payload.sessionId
+      }
+    };
+  }
+
+  /**
+   * Check if an error is retryable (e.g., model overload, rate limit, temporary issues)
+   */
+  private isRetryableError(error: any): boolean {
+    if (!error || typeof error !== 'object') return false;
+    
+    const errorMessage = error.message || error.toString() || '';
+    const retryablePatterns = [
+      /model is overloaded/i,
+      /service unavailable/i,
+      /rate limit/i,
+      /quota exceeded/i,
+      /temporary/i,
+      /try again later/i,
+      /timeout/i,
+      /network error/i,
+      /connection error/i,
+      /503/i, // Service Unavailable
+      /429/i, // Too Many Requests
+      /500/i  // Internal Server Error
+    ];
+    
+    return retryablePatterns.some(pattern => pattern.test(errorMessage));
   }
 
   /**

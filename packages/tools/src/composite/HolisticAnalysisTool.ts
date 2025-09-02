@@ -133,7 +133,17 @@ export class HolisticAnalysisTool {
       const llmResult = await LLMChatTool.execute(llmInput);
       
       if (llmResult.status !== 'success' || !llmResult.result?.text) {
-        throw new HolisticAnalysisError(`LLM call failed: ${llmResult.error?.message || 'Unknown error'}`);
+        // Check if this is a retryable error (model overload, rate limit, etc.)
+        const errorMessage = llmResult.error?.message || 'Unknown error';
+        const isRetryable = this.isRetryableError(errorMessage);
+        
+        if (isRetryable) {
+          console.error(`[HolisticAnalysisTool] Retryable LLM error: ${errorMessage}`);
+          throw new HolisticAnalysisError(`LLM call failed (retryable): ${errorMessage}`);
+        } else {
+          console.error(`[HolisticAnalysisTool] Non-retryable LLM error: ${errorMessage}`);
+          throw new HolisticAnalysisError(`LLM call failed (non-retryable): ${errorMessage}`);
+        }
       }
       
       console.log(`[HolisticAnalysisTool] LLM response received, length: ${llmResult.result.text.length}`);
@@ -151,24 +161,30 @@ export class HolisticAnalysisTool {
     } catch (error) {
       console.error(`[HolisticAnalysisTool] Analysis failed:`, error);
       
-      // Return a minimal valid response to prevent system failure
-      const fallbackOutput: HolisticAnalysisOutput = {
-        persistence_payload: {
-          conversation_summary: 'Analysis failed - manual review required.',
-          conversation_importance_score: 5,
-          extracted_memory_units: [],
-          extracted_concepts: [],
-          new_relationships: [],
-          detected_growth_events: [],
-        },
-        forward_looking_context: {
-          proactive_greeting: 'Hello! How can I help you today?',
-          unresolved_topics_for_next_convo: [],
-          suggested_initial_focus: 'Let\'s continue our conversation.',
-        }
-      };
+      // Only return fallback for non-retryable errors
+      if (error instanceof HolisticAnalysisError && error.message.includes('(non-retryable)')) {
+        console.log(`[HolisticAnalysisTool] Returning fallback response for non-retryable error`);
+        const fallbackOutput: HolisticAnalysisOutput = {
+          persistence_payload: {
+            conversation_summary: 'Analysis failed - manual review required.',
+            conversation_importance_score: 5,
+            extracted_memory_units: [],
+            extracted_concepts: [],
+            new_relationships: [],
+            detected_growth_events: [],
+          },
+          forward_looking_context: {
+            proactive_greeting: 'Hello! How can I help you today?',
+            unresolved_topics_for_next_convo: [],
+            suggested_initial_focus: 'Let\'s continue our conversation.',
+          }
+        };
+        
+        return fallbackOutput;
+      }
       
-      return fallbackOutput;
+      // Re-throw retryable errors to trigger job retry
+      throw error;
     }
   }
 
@@ -294,5 +310,24 @@ ${templates.ingestion_analyst_instructions}`;
       }
       throw new HolisticAnalysisError('Unknown validation error', error as Error);
     }
+  }
+
+  /**
+   * Determine if an error is retryable based on the error message
+   */
+  private isRetryableError(errorMessage: string): boolean {
+    const retryablePatterns = [
+      /model is overloaded/i,
+      /service unavailable/i,
+      /rate limit/i,
+      /quota exceeded/i,
+      /temporary/i,
+      /try again later/i,
+      /timeout/i,
+      /network error/i,
+      /connection error/i
+    ];
+    
+    return retryablePatterns.some(pattern => pattern.test(errorMessage));
   }
 } 
