@@ -206,7 +206,7 @@ export class DialogueAgent {
   }
 
   /**
-   * Builds the prompt and executes the core LLM call.
+   * Builds the prompt and executes the core LLM call with enhanced error handling.
    */
   private async performSingleSynthesisCall(
     input: { userId: string; conversationId: string; finalInputText: string },
@@ -290,11 +290,8 @@ export class DialogueAgent {
       memoryContextLength: llmToolInput.memoryContextBlock?.length || 0
     });
 
-    const llmResult = await this.llmChatTool.execute({ payload: llmToolInput });
-
-    if (llmResult.status !== 'success' || !llmResult.result?.text) {
-      throw new Error(`LLM call failed: ${llmResult.error?.message || 'No response text'}`);
-    }
+    // Enhanced LLM call with retry logic
+    const llmResult = await this.executeLLMWithRetry(llmToolInput, callType);
 
     try {
       // Extract JSON from between markers
@@ -433,4 +430,114 @@ export class DialogueAgent {
       };
     }
   }
+
+  /**
+   * Enhanced LLM execution with automatic retry and fallback model support
+   */
+  private async executeLLMWithRetry(
+    llmInput: any,
+    callType: 'first' | 'second'
+  ): Promise<any> {
+    let attempts = 0;
+    const maxAttempts = 3; // Try primary model + 2 fallback models
+    
+    while (attempts < maxAttempts) {
+      attempts++;
+      try {
+        console.log(`[DialogueAgent] ${callType.toUpperCase()} LLM call - Attempt ${attempts}/${maxAttempts}`);
+        
+        const llmResult = await this.llmChatTool.execute({ payload: llmInput });
+        
+        if (llmResult.status === 'success' && llmResult.result?.text) {
+          console.log(`[DialogueAgent] ${callType.toUpperCase()} LLM call successful on attempt ${attempts}`);
+          return llmResult;
+        }
+        
+        // Check if this is a retryable error
+        const errorMessage = llmResult.error?.message || 'Unknown error';
+        if (attempts < maxAttempts && this.isRetryableError(errorMessage)) {
+          console.log(`[DialogueAgent] ${callType.toUpperCase()} LLM call - Retryable error detected: ${errorMessage}`);
+          console.log(`[DialogueAgent] ${callType.toUpperCase()} LLM call - Attempting to switch to fallback model...`);
+          
+          try {
+            // Force reinitialization to try a different model
+            if (this.llmChatTool.forceReinitialize) {
+              this.llmChatTool.forceReinitialize();
+              console.log(`[DialogueAgent] ${callType.toUpperCase()} LLM call - Switched to fallback model`);
+            }
+            
+            // Add exponential backoff delay before retrying
+            const delay = Math.min(1000 * Math.pow(2, attempts - 1), 10000); // Max 10 seconds
+            console.log(`[DialogueAgent] ${callType.toUpperCase()} LLM call - Waiting ${delay}ms before retry...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            
+            continue; // Try again with the new model
+          } catch (modelSwitchError) {
+            console.error(`[DialogueAgent] ${callType.toUpperCase()} LLM call - Failed to switch to fallback model:`, modelSwitchError);
+            // Continue with the next attempt
+          }
+        } else {
+          // If not retryable or all attempts exhausted, break out of retry loop
+          console.error(`[DialogueAgent] ${callType.toUpperCase()} LLM call - Non-retryable error or max attempts reached: ${errorMessage}`);
+          throw new Error(`LLM call failed: ${errorMessage}`);
+        }
+      } catch (error) {
+        console.error(`[DialogueAgent] ${callType.toUpperCase()} LLM call - Unexpected error on attempt ${attempts}:`, error);
+        
+        if (attempts < maxAttempts && this.isRetryableError(error)) {
+          console.log(`[DialogueAgent] ${callType.toUpperCase()} LLM call - Retryable error, attempting retry...`);
+          
+          try {
+            // Force reinitialization to try a different model
+            if (this.llmChatTool.forceReinitialize) {
+              this.llmChatTool.forceReinitialize();
+              console.log(`[DialogueAgent] ${callType.toUpperCase()} LLM call - Switched to fallback model after unexpected error`);
+            }
+            
+            // Add exponential backoff delay before retrying
+            const delay = Math.min(1000 * Math.pow(2, attempts - 1), 10000);
+            console.log(`[DialogueAgent] ${callType.toUpperCase()} LLM call - Waiting ${delay}ms before retry...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            
+            continue; // Try again with the new model
+          } catch (modelSwitchError) {
+            console.error(`[DialogueAgent] ${callType.toUpperCase()} LLM call - Failed to switch to fallback model:`, modelSwitchError);
+          }
+        } else {
+          // If not retryable or all attempts exhausted, re-throw the error
+          throw error;
+        }
+      }
+    }
+
+    // If all attempts fail, throw the last error
+    console.error(`[DialogueAgent] ${callType.toUpperCase()} LLM call - All ${maxAttempts} attempts failed`);
+    throw new Error(`Failed to get LLM response after ${maxAttempts} attempts. The AI service may be temporarily overloaded. Please try again in a moment.`);
+  }
+
+  /**
+   * Check if an error is retryable (e.g., model overload, rate limit, temporary issues)
+   */
+  private isRetryableError(error: any): boolean {
+    if (!error) return false;
+    
+    const errorMessage = (typeof error === 'string') ? error : (error.message || error.toString() || '');
+    const retryablePatterns = [
+      /model is overloaded/i,
+      /service unavailable/i,
+      /rate limit/i,
+      /quota exceeded/i,
+      /temporary/i,
+      /try again later/i,
+      /timeout/i,
+      /network error/i,
+      /connection error/i,
+      /503/i, // Service Unavailable
+      /429/i, // Too Many Requests
+      /500/i  // Internal Server Error
+    ];
+    
+    return retryablePatterns.some(pattern => pattern.test(errorMessage));
+  }
+
 } 
