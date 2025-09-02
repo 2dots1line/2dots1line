@@ -176,7 +176,7 @@ export class StrategicSynthesisTool {
           workerType: input.workerType || 'insight-worker',
           workerJobId: input.workerJobId,
           sourceEntityId: input.cycleId,
-          systemPrompt: "You are the InsightEngine component performing strategic cyclical analysis. Follow the instructions precisely and return valid JSON between the specified markers.",
+          systemPrompt: "You are the InsightEngine component performing strategic cyclical analysis. Follow the instructions precisely and return valid JSON without any markers or additional text.",
           history: [], // No previous history for analysis tasks
           userMessage: prompt,
           temperature: 0.4, // Balanced creativity and consistency for strategic thinking
@@ -318,61 +318,71 @@ ${responseFormat}`;
   }
 
   /**
-   * Parse and validate LLM output using JSON markers like HolisticAnalysisTool
+   * Parse and validate LLM output with Gemini-native JSON support
+   * V11.1 FIX: Updated to prioritize direct JSON parsing over marker-based extraction
    */
   private validateAndParseOutput(llmJsonResponse: string): StrategicSynthesisOutput {
-    // Extract JSON from between markers (same pattern as HolisticAnalysisTool)
-    const beginMarker = '###==BEGIN_JSON==###';
-    const endMarker = '###==END_JSON==###';
-    
-    let beginIndex = llmJsonResponse.indexOf(beginMarker);
-    let endIndex = llmJsonResponse.indexOf(endMarker);
-    
-    // If exact markers not found, try more flexible matching
-    if (beginIndex === -1) {
-      // Try variations of the begin marker
-      const beginVariations = ['###==BEGIN_JSON==###', '###==BEGIN_JSON==##', '###==BEGIN_JSON==#', '###==BEGIN_JSON=='];
-      for (const variation of beginVariations) {
-        beginIndex = llmJsonResponse.indexOf(variation);
-        if (beginIndex !== -1) {
-          console.log(`[StrategicSynthesisTool] Found begin marker variation: "${variation}"`);
-          break;
-        }
-      }
-    }
-    
-    if (endIndex === -1) {
-      // Try variations of the end marker
-      const endVariations = ['###==END_JSON==###', '###==END_JSON==##', '###==END_JSON==#', '###==END_JSON=='];
-      for (const variation of endVariations) {
-        endIndex = llmJsonResponse.indexOf(variation);
-        if (endIndex !== -1) {
-          console.log(`[StrategicSynthesisTool] Found end marker variation: "${variation}"`);
-          break;
-        }
-      }
-    }
-    
-    if (beginIndex === -1 || endIndex === -1) {
-      console.error(`[StrategicSynthesisTool] JSON markers not found. Begin index: ${beginIndex}, End index: ${endIndex}`);
-      console.error(`[StrategicSynthesisTool] Response preview: ${llmJsonResponse.substring(0, 500)}...`);
-      console.error(`[StrategicSynthesisTool] Response end: ${llmJsonResponse.substring(Math.max(0, llmJsonResponse.length - 200))}`);
-      throw new StrategicSynthesisJSONParseError(`LLM response missing required JSON markers. Response: ${llmJsonResponse.substring(0, 500)}...`, llmJsonResponse);
-    }
-    
-    const jsonString = llmJsonResponse.substring(beginIndex + beginMarker.length, endIndex).trim();
-    
-    console.log(`[StrategicSynthesisTool] Extracted JSON string length: ${jsonString.length}`);
-    console.log(`[StrategicSynthesisTool] JSON preview: ${jsonString.substring(0, 200)}...`);
-    
+    let jsonString = llmJsonResponse.trim();
     let parsed: unknown;
     
+    // Strategy 1: Try direct JSON parsing first (Gemini native mode)
     try {
       parsed = JSON.parse(jsonString);
-    } catch (error) {
-      console.error(`[StrategicSynthesisTool] JSON parsing failed:`, error);
-      console.error(`[StrategicSynthesisTool] Failed JSON string: ${jsonString.substring(0, 500)}...`);
-      throw new StrategicSynthesisJSONParseError(`Invalid JSON in LLM response: ${jsonString.substring(0, 200)}...`, jsonString);
+      console.log(`[StrategicSynthesisTool] Direct JSON parsing successful (Gemini native mode)`);
+    } catch (directParseError) {
+      console.log(`[StrategicSynthesisTool] Direct JSON parsing failed, attempting marker-based extraction as fallback`);
+      
+      // Strategy 2: Extract JSON from between markers (fallback for old responses)
+      const beginMarker = '###==BEGIN_JSON==###';
+      const endMarker = '###==END_JSON==###';
+      
+      let beginIndex = llmJsonResponse.indexOf(beginMarker);
+      let endIndex = llmJsonResponse.indexOf(endMarker);
+      
+      // If exact markers not found, try more flexible matching
+      if (beginIndex === -1) {
+        // Try variations of the begin marker
+        const beginVariations = ['###==BEGIN_JSON==###', '###==BEGIN_JSON==##', '###==BEGIN_JSON==#', '###==BEGIN_JSON=='];
+        for (const variation of beginVariations) {
+          beginIndex = llmJsonResponse.indexOf(variation);
+          if (beginIndex !== -1) {
+            console.log(`[StrategicSynthesisTool] Found begin marker variation: "${variation}"`);
+            break;
+          }
+        }
+      }
+      
+      if (endIndex === -1) {
+        // Try variations of the end marker
+        const endVariations = ['###==END_JSON==###', '###==END_JSON==##', '###==END_JSON==#', '###==END_JSON=='];
+        for (const variation of endVariations) {
+          endIndex = llmJsonResponse.indexOf(variation);
+          if (endIndex !== -1) {
+            console.log(`[StrategicSynthesisTool] Found end marker variation: "${variation}"`);
+            break;
+          }
+        }
+      }
+      
+      if (beginIndex === -1 || endIndex === -1) {
+        console.error(`[StrategicSynthesisTool] JSON markers not found. Begin index: ${beginIndex}, End index: ${endIndex}`);
+        console.error(`[StrategicSynthesisTool] Response preview: ${llmJsonResponse.substring(0, 500)}...`);
+        console.error(`[StrategicSynthesisTool] Response end: ${llmJsonResponse.substring(Math.max(0, llmJsonResponse.length - 200))}`);
+        throw new StrategicSynthesisJSONParseError(`LLM response missing required JSON markers. Response: ${llmJsonResponse.substring(0, 500)}...`, llmJsonResponse);
+      }
+      
+      jsonString = llmJsonResponse.substring(beginIndex + beginMarker.length, endIndex).trim();
+      
+      console.log(`[StrategicSynthesisTool] Extracted JSON string length: ${jsonString.length}`);
+      console.log(`[StrategicSynthesisTool] JSON preview: ${jsonString.substring(0, 200)}...`);
+      
+      try {
+        parsed = JSON.parse(jsonString);
+      } catch (error) {
+        console.error(`[StrategicSynthesisTool] JSON parsing failed:`, error);
+        console.error(`[StrategicSynthesisTool] Failed JSON string: ${jsonString.substring(0, 500)}...`);
+        throw new StrategicSynthesisJSONParseError(`Invalid JSON in LLM response: ${jsonString.substring(0, 200)}...`, jsonString);
+      }
     }
     
     try {
