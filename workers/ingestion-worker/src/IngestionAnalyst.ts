@@ -233,45 +233,79 @@ export class IngestionAnalyst {
         console.log(`🔍 [IngestionAnalyst] DEBUG: No memory units to create`);
       }
 
-      // Create concepts
+      // PHASE 1: Create ALL concepts (including those referenced in relationships)
+      const allConcepts = new Set<string>();
+      
+      // Add explicitly extracted concepts
       if (persistence_payload.extracted_concepts && persistence_payload.extracted_concepts.length > 0) {
-        console.log(`🔍 [IngestionAnalyst] DEBUG: Creating ${persistence_payload.extracted_concepts.length} concepts`);
-        
-        for (const concept of persistence_payload.extracted_concepts) {
-          console.log(`🔍 [IngestionAnalyst] DEBUG: Processing concept: ${concept.name}`);
+        persistence_payload.extracted_concepts.forEach(concept => allConcepts.add(concept.name));
+      }
+      
+      // Add concepts referenced in relationships
+      if (persistence_payload.new_relationships && persistence_payload.new_relationships.length > 0) {
+        for (const relationship of persistence_payload.new_relationships) {
+          // Skip user names (they're handled separately)
+          const user = await this.userRepository.findById(userId);
+          if (user && (user.name === relationship.source_entity_id_or_name || user.name === relationship.target_entity_id_or_name)) {
+            continue;
+          }
           
-          const conceptData: CreateConceptData = {
-            user_id: userId,
-            name: concept.name,
-            type: concept.type,
-            description: concept.description,
-            salience: this.calculateConceptSalience(concept, persistence_payload)
-          };
-
-          const createdConcept = await this.conceptRepository.create(conceptData);
-          newEntities.push({ id: createdConcept.concept_id, type: 'Concept' });
-          
-          console.log(`🔍 [IngestionAnalyst] DEBUG: Concept created in PostgreSQL: ${createdConcept.concept_id}`);
-          console.log(`🔍 [IngestionAnalyst] DEBUG: About to create Neo4j node for concept: ${createdConcept.concept_id}`);
-          
-          // Create Neo4j node for concept
-          await this.createNeo4jNode('Concept', {
-            id: createdConcept.concept_id,
-            userId: userId,
-            name: createdConcept.name,
-            description: createdConcept.description,
-            type: createdConcept.type,
-            salience: conceptData.salience, // Use the calculated salience
-            status: createdConcept.status,
-            created_at: createdConcept.created_at.toISOString(),
-            community_id: createdConcept.community_id,
-            source: 'IngestionAnalyst'
-          });
-          
-          console.log(`[IngestionAnalyst] Created concept: ${createdConcept.concept_id} - ${concept.name}`);
+          allConcepts.add(relationship.source_entity_id_or_name);
+          allConcepts.add(relationship.target_entity_id_or_name);
         }
-      } else {
-        console.log(`🔍 [IngestionAnalyst] DEBUG: No concepts to create`);
+      }
+      
+      console.log(`🔍 [IngestionAnalyst] DEBUG: Creating ${allConcepts.size} concepts (including relationship-referenced ones)`);
+      
+      // Create all concepts first
+      for (const conceptName of allConcepts) {
+        // Skip if it's a user name
+        const user = await this.userRepository.findById(userId);
+        if (user && user.name === conceptName) {
+          continue;
+        }
+        
+        // Check if concept already exists
+        const existingConcepts = await this.conceptRepository.findByUserId(userId);
+        const existingConcept = existingConcepts.find(c => c.name === conceptName);
+        
+        if (existingConcept) {
+          console.log(`🔍 [IngestionAnalyst] DEBUG: Concept already exists: ${conceptName}`);
+          continue;
+        }
+        
+        // Find the concept data from extracted concepts if available
+        const extractedConcept = persistence_payload.extracted_concepts?.find(c => c.name === conceptName);
+        
+        const conceptData: CreateConceptData = {
+          user_id: userId,
+          name: conceptName,
+          type: extractedConcept?.type || 'theme', // Default to 'theme' for auto-created concepts
+          description: extractedConcept?.description || `Concept extracted from conversation: ${conceptName}`,
+          salience: extractedConcept ? this.calculateConceptSalience(extractedConcept, persistence_payload) : 0.5
+        };
+
+        const createdConcept = await this.conceptRepository.create(conceptData);
+        newEntities.push({ id: createdConcept.concept_id, type: 'Concept' });
+        
+        console.log(`🔍 [IngestionAnalyst] DEBUG: Concept created in PostgreSQL: ${createdConcept.concept_id}`);
+        console.log(`🔍 [IngestionAnalyst] DEBUG: About to create Neo4j node for concept: ${createdConcept.concept_id}`);
+        
+        // Create Neo4j node for concept
+        await this.createNeo4jNode('Concept', {
+          id: createdConcept.concept_id,
+          userId: userId,
+          name: createdConcept.name,
+          description: createdConcept.description,
+          type: createdConcept.type,
+          salience: conceptData.salience,
+          status: createdConcept.status,
+          created_at: createdConcept.created_at.toISOString(),
+          community_id: createdConcept.community_id,
+          source: 'IngestionAnalyst'
+        });
+        
+        console.log(`[IngestionAnalyst] Created concept: ${createdConcept.concept_id} - ${conceptName}`);
       }
 
       // Create growth events
@@ -568,9 +602,22 @@ export class IngestionAnalyst {
 
   /**
    * Map relationship ID to actual node ID by querying the database
+   * V11.1.1 ENHANCEMENT: Map user names to User concepts instead of skipping
    */
   private async mapRelationshipIdToNodeId(relationshipId: string, userId: string): Promise<string | null> {
     try {
+      // V11.1.1 ENHANCEMENT: Map user names to User concepts instead of skipping
+      // Get the user's name to check if this relationshipId is the user's name
+      const user = await this.userRepository.findById(userId);
+      if (user && (user.name === relationshipId || user.email?.includes(relationshipId))) {
+        // Instead of skipping, find or create the User concept
+        const userConcept = await this.findOrCreateUserConcept(userId, user.name || 'User');
+        if (userConcept) {
+          console.log(`[IngestionAnalyst] ℹ️ Mapped user name "${relationshipId}" to User concept: ${userConcept.concept_id}`);
+          return userConcept.concept_id;
+        }
+      }
+      
       // First try to find by memory unit temp_id
       if (relationshipId.startsWith('mem_')) {
         // This is a memory unit temp_id, find the actual memory unit
@@ -599,11 +646,84 @@ export class IngestionAnalyst {
         return conceptById.concept_id;
       }
       
+      // V11.1.2 ENHANCEMENT: Auto-create missing concepts for relationships
+      console.log(`[IngestionAnalyst] ℹ️ Concept "${relationshipId}" not found, attempting to auto-create...`);
+      const autoCreatedConcept = await this.findOrCreateConceptByName(userId, relationshipId);
+      if (autoCreatedConcept) {
+        return autoCreatedConcept.concept_id;
+      }
+      
       console.warn(`[IngestionAnalyst] ⚠️ Could not map relationship ID: ${relationshipId}`);
       return null;
       
     } catch (error) {
       console.error(`[IngestionAnalyst] ❌ Error mapping relationship ID ${relationshipId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * V11.1.1 NEW: Find or create a User concept for the user
+   */
+  private async findOrCreateUserConcept(userId: string, userName: string): Promise<any | null> {
+    try {
+      // First try to find existing User concept
+      const concepts = await this.conceptRepository.findByUserId(userId);
+      const userConcept = concepts.find(c => c.name === userName && c.type === 'person');
+      
+      if (userConcept) {
+        return userConcept;
+      }
+
+      // Create User concept if it doesn't exist
+      const userConceptData = {
+        user_id: userId,
+        name: userName,
+        type: 'person',
+        description: `The user (${userName}) in this knowledge graph - the central person whose experiences, interests, and growth are being tracked.`,
+        salience: 10 // High salience since user is central to their own knowledge graph
+      };
+
+      const createdUserConcept = await this.conceptRepository.create(userConceptData);
+      console.log(`[IngestionAnalyst] ✅ Created User concept for ${userName}: ${createdUserConcept.concept_id}`);
+      
+      return createdUserConcept;
+
+    } catch (error) {
+      console.error(`[IngestionAnalyst] ❌ Error finding/creating User concept for ${userName}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * V11.1.2 NEW: Find or create any concept by name
+   */
+  private async findOrCreateConceptByName(userId: string, conceptName: string, conceptType: string = 'theme'): Promise<any | null> {
+    try {
+      // First try to find existing concept
+      const concepts = await this.conceptRepository.findByUserId(userId);
+      const existingConcept = concepts.find(c => c.name === conceptName);
+      
+      if (existingConcept) {
+        return existingConcept;
+      }
+
+      // Create concept if it doesn't exist
+      const conceptData = {
+        user_id: userId,
+        name: conceptName,
+        type: conceptType,
+        description: `Concept extracted from conversation: ${conceptName}`,
+        salience: 0.5 // Default salience for auto-created concepts
+      };
+
+      const createdConcept = await this.conceptRepository.create(conceptData);
+      console.log(`[IngestionAnalyst] ✅ Auto-created concept for relationship: ${conceptName} (${createdConcept.concept_id})`);
+      
+      return createdConcept;
+
+    } catch (error) {
+      console.error(`[IngestionAnalyst] ❌ Error finding/creating concept for ${conceptName}:`, error);
       return null;
     }
   }

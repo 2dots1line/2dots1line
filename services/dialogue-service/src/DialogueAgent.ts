@@ -231,6 +231,14 @@ export class DialogueAgent {
     const isNewConversation = conversationHistory.length === 0;
     
     console.log(`[DialogueAgent] V11.0 - ${callType.toUpperCase()} LLM call - Conversation analysis: isNewConversation=${isNewConversation}, historyLength=${conversationHistory.length}, hasAugmentedMemory=${!!augmentedMemoryContext}`);
+    
+    // Debug: Log the raw conversation history to understand the issue
+    if (conversationHistory.length > 0) {
+      console.log(`[DialogueAgent] Raw conversation history from DB (${conversationHistory.length} messages):`);
+      conversationHistory.forEach((msg, index) => {
+        console.log(`  [${index}] Role: ${msg.role}, Content: ${msg.content.substring(0, 50)}..., Timestamp: ${msg.timestamp}`);
+      });
+    }
 
     const promptBuildInput: PromptBuildInput = {
       userId: input.userId,
@@ -250,6 +258,14 @@ export class DialogueAgent {
     }
 
     // V11.0 STANDARD: Prepare LLM input with separated prompts and proper history
+    const formattedHistory = this.formatHistoryForLLM(promptOutput.conversationHistory);
+    
+    // Debug: Log the formatted history
+    console.log(`[DialogueAgent] Formatted history for LLM (${formattedHistory.length} messages):`);
+    formattedHistory.forEach((msg, index) => {
+      console.log(`  [${index}] Role: ${msg.role}, Content: ${msg.content.substring(0, 50)}...`);
+    });
+    
     const llmToolInput = {
       userId: input.userId,
       sessionId: input.conversationId,
@@ -260,7 +276,7 @@ export class DialogueAgent {
       sourceEntityId: input.conversationId,
       systemPrompt: promptOutput.systemPrompt,        // ✅ Background context only
       userMessage: promptOutput.userPrompt,           // ✅ Current turn context  
-      history: this.formatHistoryForLLM(promptOutput.conversationHistory), // ✅ Properly formatted history
+      history: formattedHistory, // ✅ Properly formatted history
       memoryContextBlock: augmentedMemoryContext?.relevant_memories?.join('\n') || '',
       temperature: 0.3, // ✅ Lower for consistent formatting
       maxTokens: 50000
@@ -332,19 +348,50 @@ export class DialogueAgent {
 
   /**
    * V11.0: Format conversation history for LLM consumption
+   * Ensures proper chronological order and validates message roles
    */
   private formatHistoryForLLM(messages: Array<{
     role: string;
     content: string;
     timestamp?: Date;
   }>): Array<{role: "assistant" | "user"; content: string; timestamp?: string}> {
-    // Convert conversation_messages to LLM-compatible format
-    // Reverse to get chronological order (most recent messages come first from DB)
-          return [...messages].reverse().map(msg => ({
-        role: msg.role as "assistant" | "user", // Type assertion for valid roles
-        content: msg.content,
-        timestamp: msg.timestamp?.toISOString()
-      }));
+    if (!messages || messages.length === 0) {
+      return [];
+    }
+
+    // The database returns messages in descending order (most recent first)
+    // We want chronological order (oldest first) for the LLM
+    // So we reverse the array to get proper chronological order
+    const chronologicalMessages = [...messages].reverse();
+    
+    // Validate that the first message is from user
+    if (chronologicalMessages.length > 0 && chronologicalMessages[0].role !== 'user') {
+      console.warn(`DialogueAgent: First message in chronological order has role '${chronologicalMessages[0].role}', expected 'user'. This may cause LLM issues.`);
+      
+      // If the first message is not from user, try to find the first user message
+      const firstUserMessageIndex = chronologicalMessages.findIndex(msg => msg.role === 'user');
+      if (firstUserMessageIndex !== -1) {
+        // Start from the first user message
+        const validMessages = chronologicalMessages.slice(firstUserMessageIndex);
+        console.log(`DialogueAgent: Starting conversation history from first user message at index ${firstUserMessageIndex}`);
+        return validMessages.map(msg => ({
+          role: msg.role as "assistant" | "user",
+          content: msg.content,
+          timestamp: msg.timestamp?.toISOString()
+        }));
+      } else {
+        // No user messages found, this is a problem
+        console.error('DialogueAgent: No user messages found in conversation history');
+        throw new Error('Invalid conversation history: No user messages found');
+      }
+    }
+    
+    // Normal case: first message is from user
+    return chronologicalMessages.map(msg => ({
+      role: msg.role as "assistant" | "user",
+      content: msg.content,
+      timestamp: msg.timestamp?.toISOString()
+    }));
   }
 
   /**
