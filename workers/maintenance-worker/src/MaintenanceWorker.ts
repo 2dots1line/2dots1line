@@ -38,6 +38,7 @@ export class MaintenanceWorker {
     // CRITICAL: Load environment variables first
     console.log('[MaintenanceWorker] Loading environment variables...');
     environmentLoader.load();
+    environmentLoader.injectIntoProcess(); // CRITICAL: Inject into process.env for Prisma
     console.log('[MaintenanceWorker] Environment variables loaded successfully');
 
     // Load configuration from EnvironmentLoader
@@ -289,7 +290,7 @@ export class MaintenanceWorker {
           totalCheckedCount++;
           
           const result = await neo4jSession.run(
-            'MATCH (c:Concept {concept_id: $conceptId, userId: $userId}) RETURN c.concept_id AS conceptId LIMIT 1',
+            'MATCH (c:Concept {id: $conceptId, userId: $userId}) RETURN c.id AS conceptId LIMIT 1',
             { conceptId: concept.concept_id, userId: userId }
           );
           
@@ -349,7 +350,7 @@ export class MaintenanceWorker {
           totalCheckedCount++;
           
           const result = await neo4jSession.run(
-            'MATCH (m:MemoryUnit {muid: $muid, userId: $userId}) RETURN m.muid AS muid LIMIT 1',
+            'MATCH (m:MemoryUnit {id: $muid, userId: $userId}) RETURN m.id AS muid LIMIT 1',
             { muid: memoryUnit.muid, userId: userId }
           );
           
@@ -371,66 +372,163 @@ export class MaintenanceWorker {
   }
 
   private async checkVectorSyncIntegrity(): Promise<void> {
-    console.log('[MaintenanceWorker] 🔍 Checking vector sync integrity...');
+    console.log('[MaintenanceWorker] 🔍 Checking Weaviate data integrity...');
     
     try {
-      // Get distinct user IDs from PostgreSQL
-      const usersWithConcepts = await this.dbService.prisma.concepts.findMany({
-        select: { user_id: true },
-        distinct: ['user_id']
-      });
+      // First, get Weaviate schema to understand what classes exist
+      console.log('[MaintenanceWorker] 🔍 Discovering Weaviate schema...');
       
-      console.log(`[MaintenanceWorker] Found ${usersWithConcepts.length} users with concepts to check in Weaviate`);
+      const schemaResult = await this.dbService.weaviate.schema
+        .getter()
+        .do();
+      
+      const weaviateClasses = schemaResult.classes || [];
+      console.log(`[MaintenanceWorker] Found ${weaviateClasses.length} classes in Weaviate:`, 
+        weaviateClasses.map(c => c.class).join(', '));
+      
+      if (weaviateClasses.length === 0) {
+        console.log('[MaintenanceWorker] ⚠️ No classes found in Weaviate - schema may be empty');
+        return;
+      }
       
       let totalCheckedCount = 0;
-      let totalMissingVectorsCount = 0;
+      let totalMissingCount = 0;
+      let totalOrphanedCount = 0;
       
-      for (const userRecord of usersWithConcepts) {
-        const userId = userRecord.user_id;
+      // Check each entity type systematically
+      for (const weaviateClass of weaviateClasses) {
+        const className = weaviateClass.class;
+        if (!className) continue;
         
-        // Get concepts for this user from PostgreSQL
-        const conceptsInPg = await this.dbService.prisma.concepts.findMany({
-          select: { concept_id: true },
-          where: { user_id: userId },
-          take: this.config.INTEGRITY_CHECK_BATCH_SIZE
-        });
+        console.log(`[MaintenanceWorker] 🔍 Checking class: ${className}`);
         
-        if (conceptsInPg.length === 0) continue;
-        
-        // Check each concept in Weaviate
-        for (const concept of conceptsInPg) {
+        try {
+          // Get count of objects in this Weaviate class
+                              const countResult = await this.dbService.weaviate.graphql
+                      .aggregate()
+                      .withClassName(className)
+                      .withFields('meta { count }')
+                      .do();
+          
+                              const weaviateCount = countResult.data.Aggregate[className]?.[0]?.meta?.count || 0;
+          console.log(`[MaintenanceWorker] Weaviate ${className}: ${weaviateCount} objects`);
+          
+          // Get corresponding PostgreSQL count based on class type
+          let pgCount = 0;
+          let pgTableName = '';
+          
+          switch (className.toLowerCase()) {
+            case 'concept':
+              pgTableName = 'concepts';
+              pgCount = await this.dbService.prisma.concepts.count();
+              break;
+            case 'memoryunit':
+            case 'memory_unit':
+              pgTableName = 'memory_units';
+              pgCount = await this.dbService.prisma.memory_units.count();
+              break;
+            case 'conversation':
+              pgTableName = 'conversations';
+              pgCount = await this.dbService.prisma.conversations.count();
+              break;
+            case 'conversationmessage':
+            case 'conversation_message':
+              pgTableName = 'conversation_messages';
+              pgCount = await this.dbService.prisma.conversation_messages.count();
+              break;
+            case 'card':
+              pgTableName = 'cards';
+              pgCount = await this.dbService.prisma.cards.count();
+              break;
+            default:
+              console.log(`[MaintenanceWorker] ⚠️ Unknown class type: ${className} - skipping count comparison`);
+              continue;
+          }
+          
+          console.log(`[MaintenanceWorker] PostgreSQL ${pgTableName}: ${pgCount} records`);
+          
+          // Compare counts
+          if (pgCount > weaviateCount) {
+            const missing = pgCount - weaviateCount;
+            totalMissingCount += missing;
+            console.log(`[MaintenanceWorker] ❌ Missing ${missing} ${className} objects in Weaviate`);
+          } else if (weaviateCount > pgCount) {
+            const orphaned = weaviateCount - pgCount;
+            totalOrphanedCount += orphaned;
+            console.log(`[MaintenanceWorker] ⚠️ Orphaned ${orphaned} ${className} objects in Weaviate (not in PostgreSQL)`);
+          } else {
+            console.log(`[MaintenanceWorker] ✅ ${className} counts match: ${pgCount} = ${weaviateCount}`);
+          }
+          
           totalCheckedCount++;
           
-          try {
-            // Query Weaviate for this specific concept
-                         const weaviateResult = await this.dbService.weaviate.graphql
-              .get()
-              .withClassName('Concept')
-              .withFields('concept_id userId')
-              .withWhere({
-                operator: 'And',
-                operands: [
-                  { path: ['concept_id'], operator: 'Equal', valueString: concept.concept_id },
-                  { path: ['userId'], operator: 'Equal', valueString: userId }
-                ]
-              })
-              .do();
-            
-            if (!weaviateResult.data.Get.Concept || weaviateResult.data.Get.Concept.length === 0) {
-              totalMissingVectorsCount++;
-              console.log(`[MaintenanceWorker] ❌ Missing vector: ${concept.concept_id} (user: ${userId}) - exists in PostgreSQL but not in Weaviate`);
-            }
-          } catch (error) {
-            console.error(`[MaintenanceWorker] Error checking concept ${concept.concept_id} in Weaviate:`, error);
-            totalMissingVectorsCount++;
+          // Sample check: verify a few specific records exist in both systems
+          if (pgCount > 0 && weaviateCount > 0) {
+            await this.sampleCheckEntityIntegrity(className, pgTableName);
           }
+          
+        } catch (error) {
+          console.error(`[MaintenanceWorker] Error checking class ${className}:`, error);
         }
       }
       
-      console.log(`[MaintenanceWorker] Vector sync integrity check complete. Total checked: ${totalCheckedCount}. Total missing vectors: ${totalMissingVectorsCount}`);
+      console.log(`[MaintenanceWorker] Weaviate integrity check complete.`);
+      console.log(`[MaintenanceWorker] Classes checked: ${totalCheckedCount}`);
+      console.log(`[MaintenanceWorker] Total missing in Weaviate: ${totalMissingCount}`);
+      console.log(`[MaintenanceWorker] Total orphaned in Weaviate: ${totalOrphanedCount}`);
       
     } catch (error) {
-      console.error('[MaintenanceWorker] Vector sync integrity check failed:', error);
+      console.error('[MaintenanceWorker] Weaviate integrity check failed:', error);
+    }
+  }
+  
+  private async sampleCheckEntityIntegrity(className: string, pgTableName: string): Promise<void> {
+    try {
+      // Get a sample of records from PostgreSQL
+      const sampleRecords = await this.dbService.prisma.$queryRawUnsafe(
+        `SELECT id, user_id FROM ${pgTableName} ORDER BY RANDOM() LIMIT 5`
+      ) as Array<{id: string, user_id: string}>;
+      
+      console.log(`[MaintenanceWorker] 🔍 Sample checking ${sampleRecords.length} ${className} records...`);
+      
+      let foundCount = 0;
+      for (const record of sampleRecords) {
+        try {
+          // Build appropriate query based on class type
+          const weaviateQuery = this.dbService.weaviate.graphql
+            .get()
+            .withClassName(className)
+            .withFields('id userId _additional { vector }')
+            .withWhere({
+              path: ['id'],
+              operator: 'Equal',
+              valueString: record.id
+            });
+          
+          const result = await weaviateQuery.do();
+          const weaviateObject = result.data.Get[className]?.[0];
+          
+          if (weaviateObject) {
+            foundCount++;
+            // Verify the object has a vector (check if _additional.vector exists)
+            if (weaviateObject._additional?.vector) {
+              console.log(`[MaintenanceWorker] ✅ ${className} ${record.id}: Found with vector`);
+            } else {
+              console.log(`[MaintenanceWorker] ⚠️ ${className} ${record.id}: Found but no vector`);
+            }
+          } else {
+            console.log(`[MaintenanceWorker] ❌ ${className} ${record.id}: Not found in Weaviate`);
+          }
+          
+        } catch (error) {
+          console.error(`[MaintenanceWorker] Error checking ${className} ${record.id}:`, error);
+        }
+      }
+      
+      console.log(`[MaintenanceWorker] Sample check: ${foundCount}/${sampleRecords.length} ${className} records found in Weaviate`);
+      
+    } catch (error) {
+      console.error(`[MaintenanceWorker] Error in sample check for ${className}:`, error);
     }
   }
 
