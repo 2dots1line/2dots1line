@@ -221,40 +221,50 @@ ${templates.ingestion_analyst_instructions}`;
   /**
    * Parse and validate LLM output according to V9.6 specification
    * V11.1 FIX: Enhanced error logging and more flexible validation
+   * V11.1.1 FIX: Updated to expect clean JSON without markers (matching prompt template fixes)
    */
   private validateAndParseOutput(llmJsonResponse: string): HolisticAnalysisOutput {
-    // Extract JSON from between markers
-    const beginMarker = '###==BEGIN_JSON==###';
-    const endMarker = '###==END_JSON==###';
-    
-    const beginIndex = llmJsonResponse.indexOf(beginMarker);
-    const endIndex = llmJsonResponse.indexOf(endMarker);
-    
+    // V11.1.1 FIX: Expect clean JSON without markers (matching our prompt template fixes)
     let jsonString: string;
     
-    if (beginIndex === -1) {
-      console.error(`[HolisticAnalysisTool] Missing BEGIN_JSON marker in response:`, llmJsonResponse.substring(0, 500));
-      throw new JSONParseError(`LLM response missing BEGIN_JSON marker. Response: ${llmJsonResponse.substring(0, 500)}...`);
-    }
-    
-    if (endIndex === -1) {
-      // End marker is missing, try to extract JSON from after the begin marker
-      console.warn(`[HolisticAnalysisTool] Missing END_JSON marker, attempting to extract JSON from truncated response`);
-      const afterBeginMarker = llmJsonResponse.substring(beginIndex + beginMarker.length).trim();
+    // First, try to parse the response directly as JSON
+    try {
+      const parsed = JSON.parse(llmJsonResponse.trim());
+      // If it parses successfully, use it directly
+      jsonString = llmJsonResponse.trim();
+      console.log(`[HolisticAnalysisTool] Direct JSON parsing successful, length: ${jsonString.length}`);
+    } catch (directParseError) {
+      // If direct parsing fails, try to extract JSON from between markers (fallback for old responses)
+      const beginMarker = '###==BEGIN_JSON==###';
+      const endMarker = '###==END_JSON==###';
       
-      // Try to find the end of the JSON by looking for the last closing brace
-      const lastBraceIndex = afterBeginMarker.lastIndexOf('}');
-      if (lastBraceIndex === -1) {
-        console.error(`[HolisticAnalysisTool] No closing brace found in truncated response:`, afterBeginMarker.substring(0, 500));
-        throw new JSONParseError(`No valid JSON structure found in truncated response: ${afterBeginMarker.substring(0, 500)}...`);
+      const beginIndex = llmJsonResponse.indexOf(beginMarker);
+      const endIndex = llmJsonResponse.indexOf(endMarker);
+      
+      if (beginIndex === -1) {
+        console.error(`[HolisticAnalysisTool] Response is not valid JSON and missing BEGIN_JSON marker:`, llmJsonResponse.substring(0, 500));
+        throw new JSONParseError(`LLM response is not valid JSON and missing BEGIN_JSON marker. Response: ${llmJsonResponse.substring(0, 500)}...`);
       }
       
-      jsonString = afterBeginMarker.substring(0, lastBraceIndex + 1).trim();
-      console.log(`[HolisticAnalysisTool] Extracted JSON from truncated response, length: ${jsonString.length}`);
-    } else {
-      // Both markers present, extract normally
-      jsonString = llmJsonResponse.substring(beginIndex + beginMarker.length, endIndex).trim();
-      console.log(`[HolisticAnalysisTool] Extracted JSON string length: ${jsonString.length}`);
+      if (endIndex === -1) {
+        // End marker is missing, try to extract JSON from after the begin marker
+        console.warn(`[HolisticAnalysisTool] Missing END_JSON marker, attempting to extract JSON from truncated response`);
+        const afterBeginMarker = llmJsonResponse.substring(beginIndex + beginMarker.length).trim();
+        
+        // Try to find the end of the JSON by looking for the last closing brace
+        const lastBraceIndex = afterBeginMarker.lastIndexOf('}');
+        if (lastBraceIndex === -1) {
+          console.error(`[HolisticAnalysisTool] No closing brace found in truncated response:`, afterBeginMarker.substring(0, 500));
+          throw new JSONParseError(`No valid JSON structure found in truncated response: ${afterBeginMarker.substring(0, 500)}...`);
+        }
+        
+        jsonString = afterBeginMarker.substring(0, lastBraceIndex + 1).trim();
+        console.log(`[HolisticAnalysisTool] Extracted JSON from truncated response, length: ${jsonString.length}`);
+      } else {
+        // Both markers present, extract normally
+        jsonString = llmJsonResponse.substring(beginIndex + beginMarker.length, endIndex).trim();
+        console.log(`[HolisticAnalysisTool] Extracted JSON string length: ${jsonString.length}`);
+      }
     }
     
     let parsed: unknown;

@@ -41,6 +41,6 @@
     "always_eligible": true
   },
   "User": {
-    "always_eligible": false
+    "always_eligible": true
   }
 } 

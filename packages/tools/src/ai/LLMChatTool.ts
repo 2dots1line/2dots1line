@@ -250,6 +250,32 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
         ...this.formatHistoryForGemini(input.payload.history),
       ];
 
+      // Log the formatted history for debugging
+      console.log('🔍 LLMChatTool - Formatted history for Gemini:', {
+        originalHistoryLength: input.payload.history?.length || 0,
+        formattedHistoryLength: history.length,
+        firstMessageRole: history[0]?.role || 'none',
+        historyRoles: history.map(h => h.role)
+      });
+
+      // Validate that the first message is from user
+      if (history.length > 0 && history[0].role !== 'user') {
+        console.error('❌ LLMChatTool - Invalid history format: First message must be from user, got:', history[0].role);
+        throw new Error('Invalid conversation history: First message must be from user');
+      }
+      console.log('🔍 LLMChatTool - Formatted history for Gemini:', {
+        originalHistoryLength: input.payload.history?.length || 0,
+        formattedHistoryLength: history.length,
+        firstMessageRole: history[0]?.role || 'none',
+        historyRoles: history.map(h => h.role)
+      });
+
+      // Validate that the first message is from user
+      if (history.length > 0 && history[0].role !== 'user') {
+        console.error('❌ LLMChatTool - Invalid history format: First message must be from user, got:', history[0].role);
+        throw new Error('Invalid conversation history: First message must be from user');
+      }
+
       // Start chat session with history
       const chat = this.model!.startChat({
         history,
@@ -398,12 +424,37 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
 
   /**
    * Format conversation history for Gemini API
+   * Gemini requires the first message to have role 'user'
    */
   private formatHistoryForGemini(history: Array<{ role: string; content: string }>): Array<any> {
-    return history.map(msg => ({
-      role: msg.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: msg.content }]
-    }));
+    if (!history || history.length === 0) {
+      return [];
+    }
+
+    // Ensure the first message is always from the user
+    // If the first message is from assistant, we need to handle this carefully
+    const formattedHistory = [];
+    
+    for (let i = 0; i < history.length; i++) {
+      const msg = history[i];
+      const role = msg.role === 'assistant' ? 'model' : 'user';
+      
+      // For the first message, if it's from assistant, we need to skip it
+      // or create a placeholder user message to maintain conversation flow
+      if (i === 0 && role === 'model') {
+        // Skip the first assistant message to avoid Gemini's validation error
+        // This is a safety measure - in normal conversation flow, the first message should be from user
+        console.warn('LLMChatTool: First message in history is from assistant, skipping to avoid Gemini validation error');
+        continue;
+      }
+      
+      formattedHistory.push({
+        role,
+        parts: [{ text: msg.content }]
+      });
+    }
+    
+    return formattedHistory;
   }
 
   /**
