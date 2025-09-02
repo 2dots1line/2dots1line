@@ -184,8 +184,8 @@ export class StrategicSynthesisTool {
         }
       };
       
-      // Call LLM using static method like HolisticAnalysisTool
-      const llmResult = await LLMChatTool.execute(llmInput);
+      // Enhanced LLM call with retry logic
+      const llmResult = await this.executeLLMWithRetry(llmInput, 'strategic-synthesis');
       
       console.log(`[StrategicSynthesisTool] DEBUG: Full prompt sent to LLM:`, prompt.substring(0, 1000) + '...');
       console.log(`[StrategicSynthesisTool] DEBUG: LLM response received:`, llmResult.result?.text?.substring(0, 1000) + '...');
@@ -395,12 +395,121 @@ ${responseFormat}`;
   }
 
   /**
+   * Check if an error is retryable (e.g., model overload, rate limit, temporary issues)
+   */
+  private isRetryableError(error: any): boolean {
+    if (!error) return false;
+    
+    const errorMessage = (typeof error === 'string') ? error : (error.message || error.toString() || '');
+    const retryablePatterns = [
+      /model is overloaded/i,
+      /service unavailable/i,
+      /rate limit/i,
+      /quota exceeded/i,
+      /temporary/i,
+      /try again later/i,
+      /timeout/i,
+      /network error/i,
+      /connection error/i,
+      /503/i, // Service Unavailable
+      /429/i, // Too Many Requests
+      /500/i  // Internal Server Error
+    ];
+    
+    return retryablePatterns.some(pattern => pattern.test(errorMessage));
+  }
+
+  /**
+   * Enhanced LLM execution with automatic retry and fallback model support
+   */
+  private async executeLLMWithRetry(
+    llmInput: any,
+    callType: string
+  ): Promise<any> {
+    let attempts = 0;
+    const maxAttempts = 3; // Try primary model + 2 fallback models
+    
+    while (attempts < maxAttempts) {
+      attempts++;
+      try {
+        console.log(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Attempt ${attempts}/${maxAttempts}`);
+        
+        const llmResult = await LLMChatTool.execute(llmInput);
+        
+        if (llmResult.status === 'success' && llmResult.result?.text) {
+          console.log(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call successful on attempt ${attempts}`);
+          return llmResult;
+        }
+        
+        // Check if this is a retryable error
+        const errorMessage = llmResult.error?.message || 'Unknown error';
+        if (attempts < maxAttempts && this.isRetryableError(errorMessage)) {
+          console.log(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Retryable error detected: ${errorMessage}`);
+          console.log(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Attempting to switch to fallback model...`);
+          
+          try {
+            // Force reinitialization to try a different model
+            if (LLMChatTool.forceReinitialize) {
+              LLMChatTool.forceReinitialize();
+              console.log(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Switched to fallback model`);
+            }
+            
+            // Add exponential backoff delay before retrying
+            const delay = Math.min(1000 * Math.pow(2, attempts - 1), 10000); // Max 10 seconds
+            console.log(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Waiting ${delay}ms before retry...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            
+            continue; // Try again with the new model
+          } catch (modelSwitchError) {
+            console.error(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Failed to switch to fallback model:`, modelSwitchError);
+            // Continue with the next attempt
+          }
+        } else {
+          // If not retryable or all attempts exhausted, break out of retry loop
+          console.error(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Non-retryable error or max attempts reached: ${errorMessage}`);
+          throw new Error(`LLM call failed: ${errorMessage}`);
+        }
+      } catch (error) {
+        console.error(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Unexpected error on attempt ${attempts}:`, error);
+        
+        if (attempts < maxAttempts && this.isRetryableError(error)) {
+          console.log(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Retryable error, attempting retry...`);
+          
+          try {
+            // Force reinitialization to try a different model
+            if (LLMChatTool.forceReinitialize) {
+              LLMChatTool.forceReinitialize();
+              console.log(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Switched to fallback model after unexpected error`);
+            }
+            
+            // Add exponential backoff delay before retrying
+            const delay = Math.min(1000 * Math.pow(2, attempts - 1), 10000);
+            console.log(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Waiting ${delay}ms before retry...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            
+            continue; // Try again with the new model
+          } catch (modelSwitchError) {
+            console.error(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Failed to switch to fallback model:`, modelSwitchError);
+          }
+        } else {
+          // If not retryable or all attempts exhausted, re-throw the error
+          throw error;
+        }
+      }
+    }
+
+    // If all attempts fail, throw the last error
+    console.error(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - All ${maxAttempts} attempts failed`);
+    throw new Error(`Failed to get LLM response after ${maxAttempts} attempts. The AI service may be temporarily overloaded. Please try again in a moment.`);
+  }
+
+  /**
    * Get tool metadata for ToolRegistry
    */
   static getMetadata() {
     return {
       name: 'StrategicSynthesisTool',
-      description: 'Composite tool for strategic knowledge graph analysis and optimization',
+      description: ' Composite tool for strategic knowledge graph analysis and optimization',
       version: '1.0.0',
       requiredAtomicTools: ['LLMChatTool'],
       inputSchema: 'StrategicSynthesisInput',
