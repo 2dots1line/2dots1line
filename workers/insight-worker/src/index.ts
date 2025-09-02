@@ -71,6 +71,20 @@ async function main() {
       }
     );
 
+    // Configure queue-level retry settings for BullMQ v4+
+    const insightQueue = new Queue('insight', { 
+      connection: redisConnection,
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 2000,
+        },
+        removeOnComplete: { count: 10 },
+        removeOnFail: { count: 50 },
+      }
+    });
+
     // DEBUGGING: Verify worker object state
     console.log(`[InsightWorker] DEBUGGING - Worker created with name: ${worker.name}`);
     console.log(`[InsightWorker] DEBUGGING - Worker opts:`, JSON.stringify(worker.opts, null, 2));

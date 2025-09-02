@@ -67,10 +67,22 @@ async function main() {
       {
         connection: redisConnection,
         concurrency: 2, // Process up to 2 jobs concurrently
-        // Note: BullMQ v4+ handles retries differently - retry logic is configured at the queue level
-        // or through job options when adding jobs to the queue
       }
     );
+
+    // Configure queue-level retry settings for BullMQ v4+
+    const ingestionQueue = new Queue('ingestion-queue', { 
+      connection: redisConnection,
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 2000,
+        },
+        removeOnComplete: { count: 10 },
+        removeOnFail: { count: 50 },
+      }
+    });
 
     // Handle worker events
     worker.on('completed', (job) => {
