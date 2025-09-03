@@ -43,9 +43,16 @@ v1Router.post('/auth/login', authController.login);
 // --- Conversation Routes (Authenticated) ---
 v1Router.post('/conversations/messages', authMiddleware, conversationController.postMessage);
 v1Router.post('/conversations/upload', authMiddleware, uploadSingle, handleUploadError, conversationController.uploadFile);
+v1Router.post('/conversations/new-chat', authMiddleware, conversationController.startNewChat);
 v1Router.post('/conversations/:conversationId/end', authMiddleware, conversationController.endConversation);
 v1Router.get('/conversations', authMiddleware, conversationController.getConversationHistory);
 v1Router.get('/conversations/:conversationId', authMiddleware, conversationController.getConversation);
+
+// --- Session Routes (Authenticated) ---
+v1Router.get('/sessions', authMiddleware, conversationController.getSessions);
+v1Router.get('/sessions/:sessionId', authMiddleware, conversationController.getSessionInfo);
+
+
 
 // --- Card Routes (Authenticated) ---
 v1Router.get('/cards', authMiddleware, cardController.getCards);

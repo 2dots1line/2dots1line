@@ -51,25 +51,27 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
   // Chat store state
   const {
     currentConversationId,
+    currentSessionId,
     messages,
     isLoading,
     isInitialized,
-    conversationHistory,
+    sessionHistory,
     isHistoryLoading,
     showHistoryModal,
     setShowHistoryModal,
     setCurrentConversation,
+    setCurrentSession,
     setMessages,
     addMessage,
     clearMessages,
     setLoading,
     setInitialized,
-    setConversationHistory,
+    setSessionHistory,
     setHistoryLoading,
-    addToHistory,
-    updateHistoryItem,
+    addToSessionHistory,
+    updateSessionHistoryItem,
     startNewChat,
-    loadConversation,
+    loadSession,
     resetChat
   } = useChatStore();
 
@@ -146,6 +148,24 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
       initializeChat();
     }
   }, [isOpen, isInitialized, setMessages, setInitialized]);
+
+  // Refresh session history when modal opens to ensure up-to-date information
+  useEffect(() => {
+    if (isOpen && sessionHistory.length > 0) {
+      // Refresh session history to get latest conversation data
+      const refreshSessionHistory = async () => {
+        try {
+          const sessions = await chatService.getSessions(50);
+          setSessionHistory(sessions);
+          console.log('🔄 Refreshed session history on modal open');
+        } catch (error) {
+          console.error('Error refreshing session history:', error);
+        }
+      };
+      
+      refreshSessionHistory();
+    }
+  }, [isOpen, setSessionHistory]);
 
   // Load existing conversation if we have a conversation ID
   useEffect(() => {
@@ -248,7 +268,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
           message: messageContent,
           conversation_id: currentConversationId || undefined,
           context: {
-            session_id: `session-${Date.now()}`,
+            session_id: currentSessionId || undefined, // Use actual session ID from store
             trigger_background_processing: true
           }
         });
@@ -265,6 +285,22 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
         
         addMessage(botMessage);
         setCurrentConversation(response.conversation_id || null);
+        
+        // Update session ID if provided in response
+        if (response.session_id && response.session_id !== currentSessionId) {
+          setCurrentSession(response.session_id);
+          console.log('🔄 Updated session ID from backend:', response.session_id);
+        }
+        
+        // Update session history with the new conversation
+        if (response.conversation_id && response.session_id) {
+          updateSessionHistoryItem(response.session_id, {
+            most_recent_conversation_title: response.conversation_title || `Conversation: ${new Date().toISOString().slice(0, 19)}`,
+            conversation_count: 1, // This will be updated when we load the full session
+            last_active_at: new Date()
+          });
+          console.log('🔄 Updated session history with new conversation:', response.conversation_title);
+        }
       } else {
         throw new Error(response.error || 'Failed to send message');
       }

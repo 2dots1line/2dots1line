@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
-import { chatService, type ConversationSummary } from '../../services/chatService';
+import { chatService, type SessionSummary } from '../../services/chatService';
 import { useChatStore } from '../../stores/ChatStore';
 
 interface ConversationHistoryModalProps {
@@ -29,20 +29,20 @@ export const ConversationHistoryModal: React.FC<ConversationHistoryModalProps> =
   const [searchQuery, setSearchQuery] = useState('');
   
   const {
-    conversationHistory,
-    setConversationHistory,
+    sessionHistory,
+    setSessionHistory,
     setHistoryLoading,
-    loadConversation,
+    loadSession,
     startNewChat,
     setShowHistoryModal
   } = useChatStore();
 
   const modalRef = useRef<HTMLDivElement>(null);
 
-  // Load conversation history when modal opens
+  // Load session history when modal opens
   useEffect(() => {
-    if (isOpen && conversationHistory.length === 0) {
-      loadConversationHistory();
+    if (isOpen && sessionHistory.length === 0) {
+      loadSessionHistory();
     }
   }, [isOpen]);
 
@@ -63,60 +63,62 @@ export const ConversationHistoryModal: React.FC<ConversationHistoryModalProps> =
     };
   }, [isOpen, onClose]);
 
-  const loadConversationHistory = useCallback(async () => {
+  const loadSessionHistory = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     
     try {
-      const response = await chatService.getConversationHistory(50, 0);
-      setConversationHistory(response.conversations);
+      const sessions = await chatService.getSessions(50);
+      setSessionHistory(sessions);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load conversation history');
+      setError(err instanceof Error ? err.message : 'Failed to load session history');
     } finally {
       setIsLoading(false);
     }
-  }, [setConversationHistory]);
+  }, [setSessionHistory]);
 
-  const handleConversationSelect = useCallback(async (conversationId: string) => {
+  const handleSessionSelect = useCallback(async (sessionId: string) => {
     try {
-      // Load the selected conversation
-      loadConversation(conversationId);
+      // Load the selected session
+      loadSession(sessionId);
       
       // Close the history modal
       onClose();
     } catch (err) {
-      console.error('Error loading conversation:', err);
-      setError('Failed to load conversation');
+      console.error('Error loading session:', err);
+      setError('Failed to load session');
     }
-  }, [loadConversation, onClose]);
+  }, [loadSession, onClose]);
 
   const handleNewChat = useCallback(() => {
     startNewChat();
     onClose();
   }, [startNewChat, onClose]);
 
-  const handleDeleteConversation = useCallback(async (conversationId: string, event: React.MouseEvent) => {
+  const handleDeleteSession = useCallback(async (sessionId: string, event: React.MouseEvent) => {
     event.stopPropagation();
     
-    if (!confirm('Are you sure you want to delete this conversation? This action cannot be undone.')) {
+    if (!confirm('Are you sure you want to delete this session? This action cannot be undone.')) {
       return;
     }
 
     try {
       // TODO: Add delete endpoint to API
-      // await chatService.deleteConversation(conversationId);
+      // await chatService.deleteSession(sessionId);
       
       // Remove from local state
-      setConversationHistory(conversationHistory.filter(conv => conv.id !== conversationId));
+      setSessionHistory(sessionHistory.filter(session => session.session_id !== sessionId));
     } catch (err) {
-      console.error('Error deleting conversation:', err);
-      setError('Failed to delete conversation');
+      console.error('Error deleting session:', err);
+      setError('Failed to delete session');
     }
-  }, [conversationHistory, setConversationHistory]);
+  }, [sessionHistory, setSessionHistory]);
 
-  const filteredConversations = conversationHistory.filter(conv =>
-    conv.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    conv.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredSessions = sessionHistory.filter(session =>
+    session.most_recent_conversation_title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (session.conversations && session.conversations.some(conv => 
+      conv.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())
+    ))
   );
 
   const formatTimestamp = (timestamp: Date) => {
@@ -150,7 +152,7 @@ export const ConversationHistoryModal: React.FC<ConversationHistoryModalProps> =
         >
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-white font-brand">Conversation History</h2>
+            <h2 className="text-xl font-bold text-white font-brand">Session History</h2>
             <div className="flex items-center gap-2">
               <MinimizeToggle
                 isExpanded={isExpanded}
@@ -170,7 +172,7 @@ export const ConversationHistoryModal: React.FC<ConversationHistoryModalProps> =
           <div className="mb-4">
             <input
               type="text"
-              placeholder="Search conversations..."
+              placeholder="Search sessions..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:border-white/40 focus:outline-none"
@@ -196,54 +198,51 @@ export const ConversationHistoryModal: React.FC<ConversationHistoryModalProps> =
               <div className="text-center py-8">
                 <p className="text-red-400 mb-4">{error}</p>
                 <GlassButton
-                  onClick={loadConversationHistory}
+                  onClick={loadSessionHistory}
                   className="px-4 py-2"
                 >
                   Try Again
                 </GlassButton>
               </div>
-            ) : filteredConversations.length === 0 ? (
+            ) : filteredSessions.length === 0 ? (
               <div className="text-center py-8">
                 <MessageSquare size={48} className="mx-auto mb-4 text-white/40" />
                 <p className="text-white/60">
-                  {searchQuery ? 'No conversations found' : 'No conversations yet'}
+                  {searchQuery ? 'No sessions found' : 'No sessions yet'}
                 </p>
                 {!searchQuery && (
                   <p className="text-white/40 text-sm mt-2">
-                    Start a new conversation to see it here
+                    Start a new chat to see it here
                   </p>
                 )}
               </div>
             ) : (
               <div className="space-y-2 max-h-[50vh] overflow-y-auto">
-                {filteredConversations.map((conversation) => (
+                {filteredSessions.map((session) => (
                   <div
-                    key={conversation.id}
-                    onClick={() => handleConversationSelect(conversation.id)}
+                    key={session.session_id}
+                    onClick={() => handleSessionSelect(session.session_id)}
                     className="group flex items-center justify-between p-3 rounded-lg hover:bg-white/10 cursor-pointer transition-colors"
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <MessageSquare size={16} className="text-white/60 flex-shrink-0" />
                         <h3 className="text-white font-medium truncate">
-                          {conversation.title}
+                          {session.most_recent_conversation_title || 'New Chat'}
                         </h3>
-                        {conversation.status === 'active' && (
-                          <span className="px-2 py-1 text-xs bg-green-500/20 text-green-300 rounded-full">
-                            Active
-                          </span>
-                        )}
                       </div>
                       <p className="text-white/60 text-sm truncate">
-                        {conversation.lastMessage}
+                        {session.conversations && session.conversations.length > 0 
+                          ? session.conversations[0].lastMessage 
+                          : 'No messages yet'}
                       </p>
                       <div className="flex items-center gap-2 mt-1">
                         <Clock size={12} className="text-white/40" />
                         <span className="text-white/40 text-xs">
-                          {formatTimestamp(conversation.timestamp)}
+                          {formatTimestamp(session.last_active_at)}
                         </span>
                         <span className="text-white/40 text-xs">
-                          • {conversation.messageCount} messages
+                          • {session.conversation_count} conversations
                         </span>
                       </div>
                     </div>
@@ -251,9 +250,9 @@ export const ConversationHistoryModal: React.FC<ConversationHistoryModalProps> =
                     <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <ChevronRight size={16} className="text-white/40" />
                       <button
-                        onClick={(e) => handleDeleteConversation(conversation.id, e)}
+                        onClick={(e) => handleDeleteSession(session.session_id, e)}
                         className="p-1 hover:bg-red-500/20 rounded text-red-400 hover:text-red-300"
-                        title="Delete conversation"
+                        title="Delete session"
                       >
                         <Trash2 size={14} />
                       </button>
