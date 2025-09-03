@@ -245,6 +245,9 @@ export class MaintenanceWorker {
       // Check vector sync integrity (PostgreSQL vs Weaviate)
       await this.checkVectorSyncIntegrity();
       
+      // Skip Weaviate auto-fix for now - focus on Neo4j node creation
+      console.log('[MaintenanceWorker] 🔧 Weaviate auto-fix skipped - prioritizing Neo4j node creation');
+      
       console.log('[MaintenanceWorker] ✅ Data integrity check completed');
     } catch (error) {
       console.error('[MaintenanceWorker] ❌ Data integrity check failed:', error);
@@ -306,6 +309,12 @@ export class MaintenanceWorker {
       
       console.log(`[MaintenanceWorker] Concept integrity check complete. Total checked: ${totalCheckedCount}. Total orphaned: ${totalOrphanedCount}`);
       
+      // Auto-fix missing concepts if any found
+      if (totalOrphanedCount > 0) {
+        console.log(`[MaintenanceWorker] 🔧 Auto-fixing ${totalOrphanedCount} missing concepts...`);
+        await this.autoFixMissingConcepts();
+      }
+      
     } finally {
       await neo4jSession.close();
     }
@@ -365,6 +374,12 @@ export class MaintenanceWorker {
       }
       
       console.log(`[MaintenanceWorker] Memory unit integrity check complete. Total checked: ${totalCheckedCount}. Total orphaned: ${totalOrphanedCount}`);
+      
+      // Auto-fix missing memory units if any found
+      if (totalOrphanedCount > 0) {
+        console.log(`[MaintenanceWorker] 🔧 Auto-fixing ${totalOrphanedCount} missing memory units...`);
+        await this.autoFixMissingMemoryUnits();
+      }
       
     } finally {
       await neo4jSession.close();
@@ -533,6 +548,202 @@ export class MaintenanceWorker {
   }
 
   /**
+   * Auto-fix methods for data discrepancies
+   */
+  private async autoFixMissingConcepts(): Promise<void> {
+    console.log('[MaintenanceWorker] 🔧 Starting auto-fix for missing concepts...');
+    
+    try {
+      // Get all concepts that exist in PostgreSQL but not in Neo4j
+      const missingConcepts = await this.dbService.prisma.concepts.findMany({
+        where: {
+          concept_id: {
+            notIn: await this.getExistingNeo4jConceptIds()
+          }
+        },
+        select: {
+          concept_id: true,
+          name: true,
+          description: true,
+          user_id: true,
+          created_at: true,
+          last_updated_ts: true
+        }
+      });
+
+      if (missingConcepts.length === 0) {
+        console.log('[MaintenanceWorker] ✅ No missing concepts to fix');
+        return;
+      }
+
+      console.log(`[MaintenanceWorker] 🔧 Found ${missingConcepts.length} missing concepts to create in Neo4j`);
+
+      const neo4jSession = this.dbService.neo4j.session();
+      let createdCount = 0;
+
+      try {
+        for (const concept of missingConcepts) {
+          try {
+            await neo4jSession.run(`
+              CREATE (c:Concept {
+                id: $conceptId,
+                name: $name,
+                description: $description,
+                userId: $userId,
+                createdAt: $createdAt,
+                updatedAt: $updatedAt
+              })
+            `, {
+              conceptId: concept.concept_id,
+              name: concept.name || '',
+              description: concept.description || '',
+              userId: concept.user_id,
+              createdAt: concept.created_at,
+              updatedAt: concept.last_updated_ts
+            });
+
+            createdCount++;
+            console.log(`[MaintenanceWorker] ✅ Created Neo4j concept: ${concept.concept_id}`);
+          } catch (error) {
+            console.error(`[MaintenanceWorker] ❌ Failed to create concept ${concept.concept_id}:`, error);
+          }
+        }
+      } finally {
+        await neo4jSession.close();
+      }
+
+      console.log(`[MaintenanceWorker] 🔧 Auto-fix complete: ${createdCount}/${missingConcepts.length} concepts created in Neo4j`);
+
+    } catch (error) {
+      console.error('[MaintenanceWorker] ❌ Auto-fix for concepts failed:', error);
+    }
+  }
+
+  private async autoFixMissingMemoryUnits(): Promise<void> {
+    console.log('[MaintenanceWorker] 🔧 Starting auto-fix for missing memory units...');
+    
+    try {
+      // Get all memory units that exist in PostgreSQL but not in Neo4j
+      const missingMemoryUnits = await this.dbService.prisma.memory_units.findMany({
+        where: {
+          muid: {
+            notIn: await this.getExistingNeo4jMemoryUnitIds()
+          }
+        },
+        select: {
+          muid: true,
+          content: true,
+          user_id: true,
+          creation_ts: true,
+          last_modified_ts: true
+        }
+      });
+
+      if (missingMemoryUnits.length === 0) {
+        console.log('[MaintenanceWorker] ✅ No missing memory units to fix');
+        return;
+      }
+
+      console.log(`[MaintenanceWorker] 🔧 Found ${missingMemoryUnits.length} missing memory units to create in Neo4j`);
+
+      const neo4jSession = this.dbService.neo4j.session();
+      let createdCount = 0;
+
+      try {
+        for (const memoryUnit of missingMemoryUnits) {
+          try {
+            await neo4jSession.run(`
+              CREATE (m:MemoryUnit {
+                id: $muid,
+                content: $content,
+                userId: $userId,
+                createdAt: $createdAt,
+                updatedAt: $updatedAt
+              })
+            `, {
+              muid: memoryUnit.muid,
+              content: memoryUnit.content || '',
+              userId: memoryUnit.user_id,
+              createdAt: memoryUnit.creation_ts,
+              updatedAt: memoryUnit.last_modified_ts
+            });
+
+            createdCount++;
+            console.log(`[MaintenanceWorker] ✅ Created Neo4j memory unit: ${memoryUnit.muid}`);
+          } catch (error) {
+            console.error(`[MaintenanceWorker] ❌ Failed to create memory unit ${memoryUnit.muid}:`, error);
+          }
+        }
+      } finally {
+        await neo4jSession.close();
+      }
+
+      console.log(`[MaintenanceWorker] 🔧 Auto-fix complete: ${createdCount}/${missingMemoryUnits.length} memory units created in Neo4j`);
+
+    } catch (error) {
+      console.error('[MaintenanceWorker] ❌ Auto-fix for memory units failed:', error);
+    }
+  }
+
+  private async getExistingNeo4jConceptIds(): Promise<string[]> {
+    const neo4jSession = this.dbService.neo4j.session();
+    try {
+      const result = await neo4jSession.run('MATCH (c:Concept) RETURN c.id AS conceptId');
+      return result.records.map(record => record.get('conceptId'));
+    } finally {
+      await neo4jSession.close();
+    }
+  }
+
+  private async getExistingNeo4jMemoryUnitIds(): Promise<string[]> {
+    const neo4jSession = this.dbService.neo4j.session();
+    try {
+      const result = await neo4jSession.run('MATCH (m:MemoryUnit) RETURN m.id AS muid');
+      return result.records.map(record => record.get('muid'));
+    } finally {
+      await neo4jSession.close();
+    }
+  }
+
+  private async triggerReEmbedding(entityId: string, entityType: string): Promise<void> {
+    console.log(`[MaintenanceWorker] 🔧 Triggering re-embedding for ${entityType}: ${entityId}`);
+    
+    try {
+      // Add to embedding worker queue for re-processing
+      const embeddingJob = {
+        type: 're-embed',
+        entityType: entityType,
+        entityId: entityId,
+        timestamp: new Date().toISOString(),
+        source: 'maintenance-worker'
+      };
+
+      await this.dbService.redis.lpush('embedding:queue', JSON.stringify(embeddingJob));
+      console.log(`[MaintenanceWorker] ✅ Added ${entityType} ${entityId} to embedding queue`);
+      
+    } catch (error) {
+      console.error(`[MaintenanceWorker] ❌ Failed to trigger re-embedding for ${entityType} ${entityId}:`, error);
+    }
+  }
+
+  private async autoFixWeaviateVectors(): Promise<void> {
+    console.log('[MaintenanceWorker] 🔧 Starting auto-fix for Weaviate vector issues...');
+    
+    try {
+      // Only check concepts that are missing from Weaviate (not all concepts!)
+      // This is a more targeted approach that won't overwhelm the system
+      console.log('[MaintenanceWorker] 🔧 Checking for concepts missing from Weaviate...');
+      
+      // For now, skip the Weaviate auto-fix until we have a proper schema mapping
+      // The real priority is fixing the missing Neo4j nodes
+      console.log('[MaintenanceWorker] 🔧 Weaviate vector auto-fix skipped - focusing on Neo4j node creation first');
+      
+    } catch (error) {
+      console.error('[MaintenanceWorker] ❌ Auto-fix for Weaviate vectors failed:', error);
+    }
+  }
+
+  /**
    * Task 3: Database Optimization
    * Maintains PostgreSQL query planner performance
    */
@@ -695,5 +906,37 @@ export class MaintenanceWorker {
   public async triggerExpiredSessionCleanup(): Promise<void> {
     console.log('[MaintenanceWorker] 🔧 MANUAL TRIGGER: Expired session cleanup task');
     await this.cleanupExpiredSessions();
+  }
+
+  /**
+   * Manually trigger auto-fix for all data discrepancies
+   */
+  public async triggerAutoFix(): Promise<void> {
+    console.log('[MaintenanceWorker] 🔧 MANUAL TRIGGER: Auto-fix for data discrepancies');
+    
+    try {
+      console.log('[MaintenanceWorker] 🔧 Starting comprehensive auto-fix process...');
+      
+      // Auto-fix missing Neo4j concepts
+      console.log('[MaintenanceWorker] 🔧 Step 1: Fixing missing Neo4j concepts...');
+      await this.autoFixMissingConcepts();
+      console.log('[MaintenanceWorker] 🔧 Step 1 completed');
+      
+      // Auto-fix missing Neo4j memory units  
+      console.log('[MaintenanceWorker] 🔧 Step 2: Fixing missing Neo4j memory units...');
+      await this.autoFixMissingMemoryUnits();
+      console.log('[MaintenanceWorker] 🔧 Step 2 completed');
+      
+      // Auto-fix Weaviate vector issues
+      console.log('[MaintenanceWorker] 🔧 Step 3: Fixing Weaviate vector issues...');
+      await this.autoFixWeaviateVectors();
+      console.log('[MaintenanceWorker] 🔧 Step 3 completed');
+      
+      console.log('[MaintenanceWorker] ✅ Comprehensive auto-fix process completed');
+      
+    } catch (error) {
+      console.error('[MaintenanceWorker] ❌ Auto-fix process failed:', error);
+      throw error;
+    }
   }
 }

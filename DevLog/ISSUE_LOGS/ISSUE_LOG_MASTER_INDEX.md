@@ -1,8 +1,8 @@
 # 2dots1line Issue Log Master Index
 
-**Last Updated:** 2025-01-02  
-**Total Issues Tracked:** 3  
-**Active Issues:** 2  
+**Last Updated:** 2025-09-02  
+**Total Issues Tracked:** 4  
+**Active Issues:** 3  
 **Resolved Issues:** 1  
 
 ## Issue Status Legend
@@ -21,6 +21,12 @@
   - **Impact:** Knowledge graph integrity compromised
   - **Created:** 2025-01-02
   - **Priority:** Immediate
+
+- [ISSUE-004: Maintenance Worker Complete Audit - Fundamentally Broken](ISSUE_LOGS/2025-09-02_MaintenanceWorker_CompleteAudit.md)
+  - **Status:** Investigation
+  - **Impact:** Cannot maintain database integrity, insight worker failures
+  - **Created:** 2025-09-02
+  - **Priority:** Critical
 
 ### 🟠 HIGH
 - [ISSUE-002: Neo4j Relationship Synchronization Failures](ISSUE_LOGS/ISSUE-002_Neo4j_RelationshipSync.md)
@@ -43,6 +49,7 @@
 - Concept merging failures
 - Relationship synchronization problems
 - Database consistency issues
+- Maintenance worker architectural failures
 
 ### **System Architecture Issues**
 - Build system configuration
@@ -113,4 +120,4 @@ This index should be updated whenever:
 - Issues are resolved
 - Priority levels are modified
 
-**Next Review Date:** 2025-01-09
+**Next Review Date:** 2025-09-09

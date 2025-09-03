@@ -28,14 +28,14 @@ async function triggerMaintenance() {
   console.log('');
 
   // Validate task type
-  const validTasks = ['integrity-check', 'redis-cleanup', 'db-optimization', 'full-maintenance'];
+  const validTasks = ['integrity-check', 'redis-cleanup', 'db-optimization', 'full-maintenance', 'auto-fix'];
   if (!validTasks.includes(taskType)) {
     console.error('❌ Error: Invalid task type');
     console.log('');
     console.log('Valid task types:');
     validTasks.forEach(task => console.log(`  - ${task}`));
     console.log('');
-    console.log('Usage: node workers/maintenance-worker/trigger-maintenance.js [task]');
+    console.log('Usage: node scripts/GUIDES/trigger-maintenance.js [task]');
     process.exit(1);
   }
 
@@ -49,7 +49,7 @@ async function triggerMaintenance() {
     console.log('');
 
     // Create a simple maintenance worker instance
-    const MaintenanceWorker = require('./dist/MaintenanceWorker').MaintenanceWorker;
+                const MaintenanceWorker = require('../../workers/maintenance-worker/dist/MaintenanceWorker').MaintenanceWorker;
     const worker = new MaintenanceWorker();
     
     console.log('🔧 Initializing maintenance worker...');
@@ -75,10 +75,15 @@ async function triggerMaintenance() {
         await worker.triggerDatabaseOptimization();
         break;
         
-      case 'full-maintenance':
-        console.log('🔄 Running full maintenance cycle...');
-        await worker.runMaintenanceCycle();
-        break;
+                  case 'full-maintenance':
+              console.log('🔄 Running full maintenance cycle...');
+              await worker.runMaintenanceCycle();
+              break;
+
+            case 'auto-fix':
+              console.log('🔧 Running auto-fix for data discrepancies...');
+              await worker.triggerAutoFix();
+              break;
     }
 
     console.log('');

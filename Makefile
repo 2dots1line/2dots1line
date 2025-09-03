@@ -54,22 +54,27 @@ start-all: start-backend start-webapp-dev
 maintenance-integrity-check:
 	@echo "🔍 Triggering maintenance worker integrity check..."
 	@cd workers/maintenance-worker && $(PNPM) build
-	@node workers/maintenance-worker/trigger-maintenance.js integrity-check
+	@node scripts/GUIDES/trigger-maintenance.js integrity-check
 
 maintenance-redis-cleanup:
 	@echo "🧹 Triggering Redis cleanup..."
 	@cd workers/maintenance-worker && $(PNPM) build
-	@node workers/maintenance-worker/trigger-maintenance.js redis-cleanup
+	@node scripts/GUIDES/trigger-maintenance.js redis-cleanup
 
 maintenance-db-optimization:
 	@echo "⚡ Triggering database optimization..."
 	@cd workers/maintenance-worker && $(PNPM) build
-	@node workers/maintenance-worker/trigger-maintenance.js db-optimization
+	@node scripts/GUIDES/trigger-maintenance.js db-optimization
 
 maintenance-full-cycle:
 	@echo "🔄 Triggering full maintenance cycle..."
 	@cd workers/maintenance-worker && $(PNPM) build
-	@node workers/maintenance-worker/trigger-maintenance.js full-maintenance
+	@node scripts/GUIDES/trigger-maintenance.js full-maintenance
+
+maintenance-auto-fix:
+	@echo "🔧 Triggering maintenance worker auto-fix..."
+	@cd workers/maintenance-worker && $(PNPM) build
+	@node scripts/GUIDES/trigger-maintenance.js auto-fix
 
 maintenance-worker-dev:
 	@echo "🔧 Starting maintenance worker in development mode..."
