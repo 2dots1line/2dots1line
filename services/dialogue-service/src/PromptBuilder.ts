@@ -5,6 +5,7 @@ import {
 } from '@2dots1line/shared-types';
 import { Redis } from 'ioredis';
 import * as Mustache from 'mustache';
+import { SessionRepository } from '@2dots1line/database';
 
 
 export interface PromptBuildInput {
@@ -27,6 +28,7 @@ export class PromptBuilder {
     private configService: ConfigService,
     private userRepository: UserRepository,
     private conversationRepository: ConversationRepository,
+    private sessionRepository: SessionRepository, // NEW DEPENDENCY
     private redisClient: Redis
   ) {}
 
@@ -51,6 +53,7 @@ export class PromptBuilder {
     const historyPromise = this.conversationRepository.getMostRecentMessages(conversationId, 10);
     const summariesPromise = this.conversationRepository.getRecentImportantConversationSummaries(userId);
     const turnContextPromise = this.redisClient.get(`turn_context:${conversationId}`);
+    const sessionContextPromise = this.getSessionContext(userId, conversationId); // NEW: Session context
     
     // Get static templates
     const preambleTpl = this.configService.getTemplate('preamble');
@@ -60,11 +63,12 @@ export class PromptBuilder {
     const coreIdentity = this.configService.getCoreIdentity();
 
     // --- STEP 2: AWAIT ALL DATA ---
-    const [user, conversationHistory, recentSummaries, turnContextStr] = await Promise.all([
+    const [user, conversationHistory, recentSummaries, turnContextStr, sessionContext] = await Promise.all([
       userPromise,
       historyPromise,
       summariesPromise,
-      turnContextPromise
+      turnContextPromise,
+      sessionContextPromise // NEW
     ]);
 
     if (!user) {
@@ -89,6 +93,13 @@ export class PromptBuilder {
       this.formatComponent('user_memory_profile', user.memory_profile),
       this.formatComponent('knowledge_graph_schema', user.knowledge_graph_schema),
       this.formatComponent('summaries_of_recent_important_conversations_this_cycle', recentSummaries),
+      
+      // CRITICAL: Current conversation history - this was missing!
+      this.formatComponent('current_conversation_history', conversationHistory),
+      
+      // NEW: Session context from previous conversations
+      sessionContext.length > 0 ? 
+        this.formatComponent('session_context', sessionContext) : null,
       
       // V11.0 SIMPLIFIED LOGIC: Use flag from controller
       isNewConversation ? 
@@ -129,11 +140,11 @@ export class PromptBuilder {
 
   /**
    * A helper to format a component into an XML-like tag structure.
-   * If content is null, undefined, or an empty array, it returns a self-closing tag.
+   * If content is null, undefined, or an empty array, it returns null so it gets filtered out.
    */
-  private formatComponent(tagName: string, content: unknown): string {
+  private formatComponent(tagName: string, content: unknown): string | null {
     if (content === null || content === undefined || (Array.isArray(content) && content.length === 0)) {
-      return `<${tagName}>\n</${tagName}>`;
+      return null; // Return null instead of empty tags so it gets filtered out
     }
     
     let formattedContent: string;
@@ -141,6 +152,8 @@ export class PromptBuilder {
     // Handle special formatting for conversation history
     if (tagName === 'current_conversation_history' && Array.isArray(content)) {
       formattedContent = this.formatConversationHistory(content as conversation_messages[]);
+    } else if (tagName === 'session_context' && Array.isArray(content)) {
+      formattedContent = this.formatSessionContext(content as conversation_messages[]);
     } else if (typeof content === 'string') {
       formattedContent = content;
     } else {
@@ -206,5 +219,65 @@ export class PromptBuilder {
       console.error('Error rendering context_from_last_turn template:', error);
       return `<context_from_last_turn>\n${JSON.stringify(turnContext, null, 2)}\n</context_from_last_turn>`;
     }
+  }
+
+  /**
+   * NEW METHOD: Get session context from previous conversations in same session
+   */
+  private async getSessionContext(userId: string, conversationId: string): Promise<conversation_messages[]> {
+    try {
+      console.log(`🔍 PromptBuilder.getSessionContext - Starting for conversation: ${conversationId}`);
+      
+      // Get current conversation to find its session
+      const conversation = await this.conversationRepository.findByIdWithSessionId(conversationId);
+      console.log(`🔍 PromptBuilder.getSessionContext - Conversation found:`, {
+        id: conversation?.id,
+        session_id: conversation?.session_id,
+        status: conversation?.status,
+        hasSessionId: !!conversation?.session_id
+      });
+      
+      if (!conversation?.session_id) {
+        console.log(`❌ PromptBuilder.getSessionContext - No session_id found for conversation ${conversationId}`);
+        return [];
+      }
+
+      // Get context from previous conversations in same session
+      const sessionContext = await this.conversationRepository.getSessionContext(
+        conversation.session_id, 
+        conversationId, 
+        3 // Last 3 messages from most recent processed conversation
+      );
+      
+      console.log(`🔍 PromptBuilder.getSessionContext - Session context retrieved:`, {
+        sessionId: conversation.session_id,
+        messageCount: sessionContext.length,
+        messages: sessionContext.map(m => ({ role: m.role, content: m.content.substring(0, 50) + '...' }))
+      });
+      
+      return sessionContext;
+    } catch (error) {
+      console.error('❌ PromptBuilder.getSessionContext - Failed to get session context:', error);
+      return [];
+    }
+  }
+
+  /**
+   * NEW METHOD: Format session context component
+   */
+  private formatSessionContext(messages: conversation_messages[]): string {
+    if (messages.length === 0) return '';
+    
+    const contextText = messages
+      .reverse() // Show in chronological order
+      .map(msg => `${msg.role.toUpperCase()}: ${msg.content}`)
+      .join('\n');
+    
+    return `## Session Context (Previous Conversation in Same Chat Window)
+This context comes from the most recently processed conversation in your current chat session:
+
+${contextText}
+
+---`;
   }
 } 

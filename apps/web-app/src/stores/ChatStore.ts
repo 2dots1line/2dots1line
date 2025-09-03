@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { ChatMessage } from '../services/chatService';
+import type { ChatMessage, SessionSummary } from '../services/chatService';
+import { chatService } from '../services/chatService';
 
 export interface ConversationSummary {
   id: string;
@@ -14,12 +15,13 @@ export interface ConversationSummary {
 interface ChatState {
   // Current conversation state
   currentConversationId: string | null;
+  currentSessionId: string | null;
   messages: ChatMessage[];
   isLoading: boolean;
   isInitialized: boolean;
   
-  // Conversation history
-  conversationHistory: ConversationSummary[];
+  // Session history (replaces conversation history)
+  sessionHistory: SessionSummary[];
   isHistoryLoading: boolean;
   
   // UI state
@@ -28,17 +30,18 @@ interface ChatState {
   
   // Actions
   setCurrentConversation: (conversationId: string | null) => void;
+  setCurrentSession: (sessionId: string | null) => void;
   setMessages: (messages: ChatMessage[]) => void;
   addMessage: (message: ChatMessage) => void;
   clearMessages: () => void;
   setLoading: (loading: boolean) => void;
   setInitialized: (initialized: boolean) => void;
   
-  // History actions
-  setConversationHistory: (history: ConversationSummary[]) => void;
+  // Session history actions
+  setSessionHistory: (history: SessionSummary[]) => void;
   setHistoryLoading: (loading: boolean) => void;
-  addToHistory: (conversation: ConversationSummary) => void;
-  updateHistoryItem: (id: string, updates: Partial<ConversationSummary>) => void;
+  addToSessionHistory: (session: SessionSummary) => void;
+  updateSessionHistoryItem: (sessionId: string, updates: Partial<SessionSummary>) => void;
   
   // UI actions
   setShowHistoryModal: (show: boolean) => void;
@@ -46,7 +49,7 @@ interface ChatState {
   
   // Utility actions
   startNewChat: () => void;
-  loadConversation: (conversationId: string) => void;
+  loadSession: (sessionId: string) => void;
   resetChat: () => void;
 }
 
@@ -55,11 +58,12 @@ export const useChatStore = create<ChatState>()(
     (set, get) => ({
       // Initial state
       currentConversationId: null,
+      currentSessionId: null,
       messages: [],
       isLoading: false,
       isInitialized: false,
       
-      conversationHistory: [],
+      sessionHistory: [],
       isHistoryLoading: false,
       
       showHistoryModal: false,
@@ -68,6 +72,10 @@ export const useChatStore = create<ChatState>()(
       // Actions
       setCurrentConversation: (conversationId) => {
         set({ currentConversationId: conversationId });
+      },
+      
+      setCurrentSession: (sessionId) => {
+        set({ currentSessionId: sessionId });
       },
       
       setMessages: (messages) => {
@@ -112,25 +120,25 @@ export const useChatStore = create<ChatState>()(
         set({ isInitialized: initialized });
       },
       
-      // History actions
-      setConversationHistory: (history) => {
-        set({ conversationHistory: history });
+      // Session history actions
+      setSessionHistory: (history) => {
+        set({ sessionHistory: history });
       },
       
       setHistoryLoading: (loading) => {
         set({ isHistoryLoading: loading });
       },
       
-      addToHistory: (conversation) => {
+      addToSessionHistory: (session) => {
         set((state) => ({
-          conversationHistory: [conversation, ...state.conversationHistory]
+          sessionHistory: [session, ...state.sessionHistory]
         }));
       },
       
-      updateHistoryItem: (id, updates) => {
+      updateSessionHistoryItem: (sessionId, updates) => {
         set((state) => ({
-          conversationHistory: state.conversationHistory.map(conv =>
-            conv.id === id ? { ...conv, ...updates } : conv
+          sessionHistory: state.sessionHistory.map(session =>
+            session.session_id === sessionId ? { ...session, ...updates } : session
           )
         }));
       },
@@ -145,18 +153,50 @@ export const useChatStore = create<ChatState>()(
       },
       
       // Utility actions
-      startNewChat: () => {
-        set({
-          currentConversationId: null,
-          messages: [],
-          isInitialized: false,
-          showNewChatButton: false
-        });
+      startNewChat: async () => {
+        try {
+          // Call the backend to create a new session
+          const newSession = await chatService.startNewChat();
+          
+          set({
+            currentConversationId: null,
+            currentSessionId: newSession.session_id,
+            messages: [],
+            isInitialized: false,
+            showNewChatButton: false
+          });
+          
+          // Add the new session to the history
+          const sessionSummary: SessionSummary = {
+            session_id: newSession.session_id,
+            created_at: new Date(newSession.created_at),
+            last_active_at: new Date(newSession.last_active_at),
+            most_recent_conversation_title: 'New Chat',
+            conversation_count: 0,
+            conversations: []
+          };
+          
+          // Update the session history
+          set((state) => ({
+            sessionHistory: [sessionSummary, ...state.sessionHistory]
+          }));
+          
+        } catch (error) {
+          console.error('Failed to start new chat:', error);
+          // Fallback to local state change only
+          set({
+            currentConversationId: null,
+            currentSessionId: null,
+            messages: [],
+            isInitialized: false,
+            showNewChatButton: false
+          });
+        }
       },
       
-      loadConversation: (conversationId) => {
+      loadSession: (sessionId) => {
         set({
-          currentConversationId: conversationId,
+          currentSessionId: sessionId,
           showNewChatButton: true
         });
       },
@@ -164,6 +204,7 @@ export const useChatStore = create<ChatState>()(
       resetChat: () => {
         set({
           currentConversationId: null,
+          currentSessionId: null,
           messages: [],
           isLoading: false,
           isInitialized: false,
@@ -177,9 +218,10 @@ export const useChatStore = create<ChatState>()(
       // Only persist essential state, not transient UI state
       partialize: (state) => ({
         currentConversationId: state.currentConversationId,
+        currentSessionId: state.currentSessionId,
         messages: state.messages,
         isInitialized: state.isInitialized,
-        conversationHistory: state.conversationHistory,
+        sessionHistory: state.sessionHistory,
         showNewChatButton: state.showNewChatButton,
       }),
     }

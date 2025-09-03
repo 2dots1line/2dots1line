@@ -16,6 +16,13 @@ export type {
   ConversationSummary
 } from './ConversationRepository';
 
+// Sessions
+export * from './SessionRepository';
+export type { 
+  CreateSessionData, 
+  SessionWithConversations 
+} from './SessionRepository';
+
 // Memory & Content
 export * from './MemoryRepository';
 export type { CreateMemoryUnitData, UpdateMemoryUnitData } from './MemoryRepository';
@@ -76,6 +83,7 @@ export type { CardData, CardFilters, CardResultWithMeta } from './CardRepository
 import { DatabaseService } from '../DatabaseService';
 import { UserRepository } from './UserRepository';
 import { ConversationRepository } from './ConversationRepository';
+import { SessionRepository } from './SessionRepository'; // NEW
 import { MemoryRepository } from './MemoryRepository';
 import { ConceptRepository } from './ConceptRepository';
 import { CommunityRepository } from './CommunityRepository';
@@ -91,6 +99,7 @@ export function createRepositories(db: DatabaseService) {
   return {
     user: new UserRepository(db),
     conversation: new ConversationRepository(db),
+    session: new SessionRepository(db), // NEW
     memory: new MemoryRepository(db),
     concept: new ConceptRepository(db),
     community: new CommunityRepository(db),

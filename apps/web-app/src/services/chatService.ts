@@ -31,6 +31,8 @@ export interface SendMessageRequest {
 export interface SendMessageResponse {
   success: boolean;
   conversation_id?: string;
+  session_id?: string; // NEW: Session ID from backend
+  conversation_title?: string; // NEW: Conversation title from backend
   response_text?: string;
   message_id?: string;
   timestamp?: string;
@@ -60,6 +62,15 @@ export interface ConversationSummary {
   timestamp: Date;
   messageCount: number;
   status: 'active' | 'ended';
+}
+
+export interface SessionSummary {
+  session_id: string;
+  created_at: Date;
+  last_active_at: Date;
+  most_recent_conversation_title: string;
+  conversation_count: number;
+  conversations: ConversationSummary[];
 }
 
 export interface ConversationHistoryResponse {
@@ -317,6 +328,79 @@ class ChatService {
       return newMessages;
     } catch (error) {
       console.error('Error checking for proactive messages:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get user sessions for the authenticated user
+   */
+  async getSessions(limit: number = 50): Promise<SessionSummary[]> {
+    try {
+      const params = new URLSearchParams({
+        limit: limit.toString(),
+      });
+
+      const response = await fetch(`${API_BASE_URL}/api/v1/sessions?${params}`, {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return data.data.sessions;
+    } catch (error) {
+      console.error('Error fetching sessions:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Start a new chat (creates new session)
+   */
+  async startNewChat(): Promise<{ session_id: string; created_at: Date; last_active_at: Date }> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/conversations/new-chat`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return data.data;
+    } catch (error) {
+      console.error('Error starting new chat:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get a specific session with its conversations
+   */
+  async getSession(sessionId: string): Promise<SessionSummary> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/sessions/${sessionId}`, {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return data.data;
+    } catch (error) {
+      console.error('Error fetching session:', error);
       throw error;
     }
   }

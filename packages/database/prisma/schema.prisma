@@ -80,12 +80,15 @@ model conversations {
   importance_score      Float?
   source_card_id        String?
   status                String                  @default("active")
+  session_id            String?                 // NEW FIELD: Links conversation to session
   conversation_messages conversation_messages[]
   cards                 cards?                  @relation(fields: [source_card_id], references: [card_id])
   users                 users                   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  user_sessions         user_sessions?          @relation(fields: [session_id], references: [session_id]) // NEW RELATIONSHIP
   memory_units          memory_units[]
 
   @@index([user_id, status])
+  @@index([session_id])                        // NEW INDEX
 }
 
 model derived_artifacts {
@@ -209,13 +212,11 @@ model user_graph_projections {
 model user_sessions {
   session_id     String   @id
   user_id        String
-  device_info    Json?
-  ip_address     String?
-  user_agent     String?
   created_at     DateTime @default(now())
-  expires_at     DateTime
+  expires_at     DateTime?
   last_active_at DateTime
   users          users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  conversations  conversations[] // NEW RELATIONSHIP: All conversations in this session
 
   @@index([user_id])
 }

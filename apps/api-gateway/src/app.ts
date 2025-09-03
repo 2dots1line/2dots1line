@@ -9,7 +9,7 @@ import { ConfigService } from '@2dots1line/config-service';
 import { DialogueAgent, PromptBuilder } from '@2dots1line/dialogue-service';
 import { UserService, AuthService, DashboardService } from '@2dots1line/user-service';
 import { CardService } from '@2dots1line/card-service';
-import { UserRepository, ConversationRepository, CardRepository } from '@2dots1line/database';
+import { UserRepository, ConversationRepository, SessionRepository, CardRepository } from '@2dots1line/database';
 
 // Import Tools for DialogueAgent
 import { 
@@ -50,6 +50,7 @@ async function createApp(): Promise<express.Application> {
   // Level 2: Repositories
   const userRepo = new UserRepository(databaseService);
   const conversationRepo = new ConversationRepository(databaseService);
+  const sessionRepo = new SessionRepository(databaseService); // NEW
   const cardRepo = new CardRepository(databaseService);
 
   // Level 3: Headless Services (Business Logic) - V11.0 Architecture
@@ -59,7 +60,7 @@ async function createApp(): Promise<express.Application> {
   const dashboardService = new DashboardService(databaseService);
 
   // DialogueAgent with all required dependencies
-  const promptBuilder = new PromptBuilder(configService, userRepo, conversationRepo, databaseService.redis);
+  const promptBuilder = new PromptBuilder(configService, userRepo, conversationRepo, sessionRepo, databaseService.redis);
   const hybridRetrievalTool = new HybridRetrievalTool(databaseService, configService);
   
   const dialogueAgent = new DialogueAgent({
@@ -78,7 +79,7 @@ async function createApp(): Promise<express.Application> {
   const authController = new AuthController(authService);
   const userController = new UserController(userService, dashboardService);
   const cardController = new CardController(cardService);
-  const conversationController = new ConversationController(dialogueAgent, conversationRepo, databaseService.redis);
+  const conversationController = new ConversationController(dialogueAgent, conversationRepo, sessionRepo, databaseService.redis);
   const graphController = new GraphController(databaseService);
   console.log('🔧 Initializing MediaController...');
   const mediaController = new MediaController();

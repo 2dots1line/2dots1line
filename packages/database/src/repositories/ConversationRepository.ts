@@ -11,6 +11,7 @@ export interface CreateConversationData {
   user_id: string;
   title?: string;
   source_card_id?: string;
+  session_id?: string; // NEW: Include session_id for proper linking
   metadata?: any;
 }
 
@@ -57,6 +58,26 @@ export class ConversationRepository {
         },
         cards: true,
         memory_units: true,
+      },
+    });
+  }
+
+  // NEW METHOD: Get conversation with session_id explicitly included
+  async findByIdWithSessionId(conversationId: string): Promise<{ id: string; user_id: string; title: string | null; start_time: Date; ended_at: Date | null; context_summary: string | null; metadata: any; importance_score: number | null; source_card_id: string | null; status: string; session_id: string | null } | null> {
+    return this.db.prisma.conversations.findUnique({
+      where: { id: conversationId },
+      select: {
+        id: true,
+        user_id: true,
+        title: true,
+        start_time: true,
+        ended_at: true,
+        context_summary: true,
+        metadata: true,
+        importance_score: true,
+        source_card_id: true,
+        status: true,
+        session_id: true,
       },
     });
   }
@@ -149,7 +170,7 @@ export class ConversationRepository {
     const conversations = await this.db.prisma.conversations.findMany({
       where: {
         user_id: userId,
-        status: 'ended',
+        status: { in: ['ended', 'processed'] }, // Include both ended (waiting for ingestion) and processed (already ingested)
         importance_score: {
           gte: 0.7, // Only conversations with high importance
         },
@@ -194,4 +215,62 @@ export class ConversationRepository {
       where: userId ? { user_id: userId } : undefined,
     });
   }
+
+  // NEW METHOD: Get session context from most recently processed conversation
+  async getSessionContext(sessionId: string, currentConversationId: string, limit: number = 3): Promise<conversation_messages[]> {
+    console.log(`🔍 ConversationRepository.getSessionContext - Starting for session: ${sessionId}, current conversation: ${currentConversationId}`);
+    
+    // Get the most recently processed conversation in the same session
+    // Look for conversations that are either 'ended' (waiting for ingestion) or 'processed' (already ingested)
+    const previousConversation = await this.db.prisma.conversations.findFirst({
+      where: {
+        session_id: sessionId,
+        id: { not: currentConversationId },
+        status: { in: ['ended', 'processed'] }, // Include both ended and processed conversations
+        ended_at: { not: null }
+      },
+      orderBy: { ended_at: 'desc' },
+      include: {
+        conversation_messages: {
+          orderBy: { timestamp: 'desc' },
+          take: limit
+        }
+      }
+    });
+
+    console.log(`🔍 ConversationRepository.getSessionContext - Previous conversation found:`, {
+      sessionId,
+      currentConversationId,
+      previousConversationId: previousConversation?.id,
+      previousConversationStatus: previousConversation?.status,
+      previousConversationEndedAt: previousConversation?.ended_at,
+      messageCount: previousConversation?.conversation_messages?.length || 0
+    });
+
+    return previousConversation?.conversation_messages || [];
+  }
+
+  // NEW METHOD: Assign conversation to session
+  async assignToSession(conversationId: string, sessionId: string): Promise<void> {
+    await this.db.prisma.conversations.update({
+      where: { id: conversationId },
+      data: { session_id: sessionId }
+    });
+  }
+
+  // ENHANCED METHOD: Get conversation with session info
+  async findByIdWithSession(conversationId: string): Promise<conversations | null> {
+    return this.db.prisma.conversations.findUnique({
+      where: { id: conversationId },
+      include: {
+        conversation_messages: {
+          orderBy: { timestamp: 'asc' },
+        },
+        cards: true,
+        memory_units: true,
+        user_sessions: true // Include session information
+      },
+    });
+  }
+
 } 
