@@ -10,6 +10,9 @@ From anywhere in your project:
 # Trigger the integrity check immediately
 make maintenance-integrity-check
 
+# Trigger auto-fix for data discrepancies
+make maintenance-auto-fix
+
 # Build the maintenance worker
 make maintenance-worker-build
 
@@ -107,9 +110,34 @@ Before running the manual trigger, ensure:
 ## 🎯 **Recommended Usage**
 
 - **Development/Testing**: Use `make maintenance-integrity-check` for quick checks
+- **Auto-Fixing Issues**: Use `make maintenance-auto-fix` to automatically fix data discrepancies
 - **Debugging**: Use `node scripts/GUIDES/trigger-maintenance.js integrity-check` for detailed output
 - **Automation**: Use the trigger script in CI/CD pipelines
 - **Production**: The worker runs automatically on schedule, but manual triggers are useful for immediate verification
+
+## 🔧 **Auto-Fix Capabilities**
+
+The maintenance worker now includes **automatic repair functionality** for common data inconsistencies:
+
+### **What Gets Auto-Fixed:**
+1. **Missing Neo4j Concepts**: Automatically creates missing concept nodes in Neo4j
+2. **Missing Neo4j Memory Units**: Automatically creates missing memory unit nodes in Neo4j  
+3. **Weaviate Vector Issues**: Triggers re-embedding for missing or corrupted vectors
+
+### **How to Use Auto-Fix:**
+```bash
+# Auto-fix all data discrepancies
+make maintenance-auto-fix
+
+# Or run directly
+node scripts/GUIDES/trigger-maintenance.js auto-fix
+```
+
+### **Safety Features:**
+- **Batch Processing**: Fixes are applied in small batches to avoid overwhelming the system
+- **Error Handling**: Individual failures don't stop the entire process
+- **Logging**: Comprehensive logging of all fixes applied
+- **Rollback Ready**: Changes are logged for potential rollback if needed
 
 ## 🔄 **Integration with CI/CD**
 
