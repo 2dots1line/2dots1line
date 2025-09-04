@@ -195,46 +195,56 @@ export class IngestionAnalyst {
 
       console.log(`🔍 [IngestionAnalyst] DEBUG: Conversation updated successfully`);
 
-      // Create memory units
-      if (persistence_payload.extracted_memory_units && persistence_payload.extracted_memory_units.length > 0) {
-        console.log(`🔍 [IngestionAnalyst] DEBUG: Creating ${persistence_payload.extracted_memory_units.length} memory units`);
-        
-        for (const memoryUnit of persistence_payload.extracted_memory_units) {
-          console.log(`🔍 [IngestionAnalyst] DEBUG: Processing memory unit: ${memoryUnit.title}`);
-          
-          const memoryData: CreateMemoryUnitData = {
-            user_id: userId,
-            title: memoryUnit.title,
-            content: memoryUnit.content,
-            importance_score: memoryUnit.importance_score || persistence_payload.conversation_importance_score || 5, // Use memory-specific score or fallback to conversation score
-            sentiment_score: memoryUnit.sentiment_score || 0, // Use memory-specific sentiment or neutral
-            source_conversation_id: conversationId
-          };
-
-          const createdMemory = await this.memoryRepository.create(memoryData);
-          newEntities.push({ id: createdMemory.muid, type: 'MemoryUnit' });
-          
-          console.log(`🔍 [IngestionAnalyst] DEBUG: Memory unit created in PostgreSQL: ${createdMemory.muid}`);
-          console.log(`🔍 [IngestionAnalyst] DEBUG: About to create Neo4j node for memory unit: ${createdMemory.muid}`);
-          
-          // Create Neo4j node for memory unit
-          await this.createNeo4jNode('MemoryUnit', {
-            id: createdMemory.muid,
-            userId: userId,
-            title: createdMemory.title,
-            content: createdMemory.content,
-            importance_score: createdMemory.importance_score,
-            sentiment_score: createdMemory.sentiment_score,
-            creation_ts: new Date().toISOString(), // Always use current time
-            source_conversation_id: createdMemory.source_conversation_id,
-            source: 'IngestionAnalyst'
-          });
-          
-          console.log(`[IngestionAnalyst] Created memory unit: ${createdMemory.muid} - ${memoryUnit.title}`);
-        }
-      } else {
-        console.log(`🔍 [IngestionAnalyst] DEBUG: No memory units to create`);
+      // CRITICAL FIX: Use single Neo4j transaction for all operations
+      if (!this.dbService.neo4j) {
+        console.warn(`[IngestionAnalyst] Neo4j client not available, skipping Neo4j operations`);
+        return [];
       }
+
+      const neo4jSession = this.dbService.neo4j.session();
+      const neo4jTransaction = neo4jSession.beginTransaction();
+
+      try {
+        // Create memory units
+        if (persistence_payload.extracted_memory_units && persistence_payload.extracted_memory_units.length > 0) {
+          console.log(`🔍 [IngestionAnalyst] DEBUG: Creating ${persistence_payload.extracted_memory_units.length} memory units`);
+          
+          for (const memoryUnit of persistence_payload.extracted_memory_units) {
+            console.log(`🔍 [IngestionAnalyst] DEBUG: Processing memory unit: ${memoryUnit.title}`);
+            
+            const memoryData: CreateMemoryUnitData = {
+              user_id: userId,
+              title: memoryUnit.title,
+              content: memoryUnit.content,
+              importance_score: memoryUnit.importance_score || persistence_payload.conversation_importance_score || 5, // Use memory-specific score or fallback to conversation score
+              sentiment_score: memoryUnit.sentiment_score || 0, // Use memory-specific sentiment or neutral
+              source_conversation_id: conversationId
+            };
+
+            const createdMemory = await this.memoryRepository.create(memoryData);
+            newEntities.push({ id: createdMemory.muid, type: 'MemoryUnit' });
+            
+            console.log(`🔍 [IngestionAnalyst] DEBUG: Memory unit created in PostgreSQL: ${createdMemory.muid}`);
+            console.log(`🔍 [IngestionAnalyst] DEBUG: About to create Neo4j node for memory unit: ${createdMemory.muid}`);
+            
+            // Create Neo4j node for memory unit within transaction
+            await this.createNeo4jNodeInTransaction(neo4jTransaction, 'MemoryUnit', {
+              id: createdMemory.muid,
+              userId: userId,
+              title: createdMemory.title,
+              content: createdMemory.content,
+              importance_score: createdMemory.importance_score,
+              sentiment_score: createdMemory.sentiment_score,
+              creation_ts: new Date().toISOString(), // Always use current time
+              source_conversation_id: createdMemory.source_conversation_id,
+              source: 'IngestionAnalyst'
+            });
+            
+            console.log(`[IngestionAnalyst] Created memory unit: ${createdMemory.muid} - ${memoryUnit.title}`);
+          }
+        } else {
+          console.log(`🔍 [IngestionAnalyst] DEBUG: No memory units to create`);
+        }
 
       // PHASE 1: Create ALL concepts (including those referenced in relationships)
       const allConcepts = new Set<string>();
@@ -294,8 +304,8 @@ export class IngestionAnalyst {
         console.log(`🔍 [IngestionAnalyst] DEBUG: Concept created in PostgreSQL: ${createdConcept.concept_id}`);
         console.log(`🔍 [IngestionAnalyst] DEBUG: About to create Neo4j node for concept: ${createdConcept.concept_id}`);
         
-        // Create Neo4j node for concept
-        await this.createNeo4jNode('Concept', {
+        // Create Neo4j node for concept within transaction
+        await this.createNeo4jNodeInTransaction(neo4jTransaction, 'Concept', {
           id: createdConcept.concept_id,
           userId: userId,
           name: createdConcept.name,
@@ -342,8 +352,8 @@ export class IngestionAnalyst {
           
           console.log(`[IngestionAnalyst] Created growth event: ${createdGrowthEvent.event_id} - ${growthEvent.dim_key} (${growthEvent.delta})`);
           
-          // CRITICAL FIX: Create Neo4j node for growth event
-          await this.createNeo4jNode('GrowthEvent', {
+          // CRITICAL FIX: Create Neo4j node for growth event within transaction
+          await this.createNeo4jNodeInTransaction(neo4jTransaction, 'GrowthEvent', {
             id: createdGrowthEvent.event_id,
             userId: userId,
             dimension_key: growthEvent.dim_key,
@@ -361,22 +371,35 @@ export class IngestionAnalyst {
         console.log(`🔍 [IngestionAnalyst] DEBUG: No growth events to create`);
       }
 
-      // Update user's next conversation context
-      await this.userRepository.update(userId, {
-        next_conversation_context_package: forward_looking_context
-      });
+        // Update user's next conversation context
+        await this.userRepository.update(userId, {
+          next_conversation_context_package: forward_looking_context
+        });
 
-      console.log(`🔍 [IngestionAnalyst] DEBUG: About to create Neo4j relationships`);
+        console.log(`🔍 [IngestionAnalyst] DEBUG: About to create Neo4j relationships`);
 
-      // IMPLEMENTED: Create Neo4j relationships
-      if (persistence_payload.new_relationships && persistence_payload.new_relationships.length > 0) {
-        console.log(`🔍 [IngestionAnalyst] DEBUG: Creating ${persistence_payload.new_relationships.length} Neo4j relationships`);
-        await this.createNeo4jRelationships(userId, persistence_payload.new_relationships);
-      } else {
-        console.log(`🔍 [IngestionAnalyst] DEBUG: No Neo4j relationships to create`);
+        // CRITICAL FIX: Create Neo4j relationships within the same transaction
+        if (persistence_payload.new_relationships && persistence_payload.new_relationships.length > 0) {
+          console.log(`🔍 [IngestionAnalyst] DEBUG: Creating ${persistence_payload.new_relationships.length} Neo4j relationships`);
+          await this.createNeo4jRelationshipsInTransaction(neo4jTransaction, userId, persistence_payload.new_relationships);
+        } else {
+          console.log(`🔍 [IngestionAnalyst] DEBUG: No Neo4j relationships to create`);
+        }
+
+        // CRITICAL FIX: Commit the Neo4j transaction
+        await neo4jTransaction.commit();
+        console.log(`🔍 [IngestionAnalyst] DEBUG: Neo4j transaction committed successfully`);
+
+        console.log(`[IngestionAnalyst] Persistence completed for conversation ${conversationId}`);
+        
+      } catch (neo4jError) {
+        console.error(`[IngestionAnalyst] ❌ Neo4j transaction failed, rolling back:`, neo4jError);
+        await neo4jTransaction.rollback();
+        throw neo4jError;
+      } finally {
+        await neo4jSession.close();
+        console.log(`🔍 [IngestionAnalyst] DEBUG: Neo4j session closed`);
       }
-
-      console.log(`[IngestionAnalyst] Persistence completed for conversation ${conversationId}`);
       
     } catch (error) {
       console.error(`[IngestionAnalyst] Error during persistence:`, error);
@@ -387,7 +410,54 @@ export class IngestionAnalyst {
   }
 
   /**
-   * IMPLEMENTED: Create nodes in Neo4j knowledge graph
+   * IMPLEMENTED: Create nodes in Neo4j knowledge graph within a transaction
+   */
+  private async createNeo4jNodeInTransaction(transaction: any, nodeType: string, properties: Record<string, any>): Promise<void> {
+    console.log(`🔍 [IngestionAnalyst] DEBUG: createNeo4jNodeInTransaction called for ${nodeType} with id: ${properties.id}`);
+    
+    try {
+      // Clean properties to only include primitive types
+      const cleanProperties = this.cleanNeo4jProperties(properties);
+      console.log(`🔍 [IngestionAnalyst] DEBUG: Cleaned properties: ${JSON.stringify(cleanProperties, null, 2)}`);
+      
+      const cypher = `
+        MERGE (n:${nodeType} {id: $id, userId: $userId})
+        SET n += $properties
+        SET n.updatedAt = datetime()
+        RETURN n
+      `;
+      
+      console.log(`🔍 [IngestionAnalyst] DEBUG: Cypher query: ${cypher}`);
+      console.log(`🔍 [IngestionAnalyst] DEBUG: Query parameters: ${JSON.stringify({
+        id: properties.id,
+        userId: properties.userId,
+        properties: cleanProperties
+      }, null, 2)}`);
+      
+      const result = await transaction.run(cypher, {
+        id: properties.id,
+        userId: properties.userId,
+        properties: cleanProperties
+      });
+      
+      console.log(`🔍 [IngestionAnalyst] DEBUG: Cypher query executed successfully`);
+      console.log(`🔍 [IngestionAnalyst] DEBUG: Result records length: ${result.records.length}`);
+      
+      if (result.records.length > 0) {
+        console.log(`[IngestionAnalyst] ✅ Created ${nodeType} node: ${properties.id}`);
+      } else {
+        console.warn(`[IngestionAnalyst] ⚠️ Failed to create ${nodeType} node: ${properties.id}`);
+      }
+      
+    } catch (error) {
+      console.error(`[IngestionAnalyst] ❌ Error creating ${nodeType} node:`, error);
+      console.log(`🔍 [IngestionAnalyst] DEBUG: Error details: ${JSON.stringify(error, null, 2)}`);
+      throw error; // Re-throw to trigger transaction rollback
+    }
+  }
+
+  /**
+   * IMPLEMENTED: Create nodes in Neo4j knowledge graph (legacy method for backward compatibility)
    */
   private async createNeo4jNode(nodeType: string, properties: Record<string, any>): Promise<void> {
     console.log(`🔍 [IngestionAnalyst] DEBUG: createNeo4jNode called for ${nodeType} with id: ${properties.id}`);
@@ -479,7 +549,138 @@ export class IngestionAnalyst {
   }
 
   /**
-   * IMPLEMENTED: Create relationships in Neo4j knowledge graph
+   * IMPLEMENTED: Create relationships in Neo4j knowledge graph within a transaction
+   */
+  private async createNeo4jRelationshipsInTransaction(transaction: any, userId: string, relationships: any[]): Promise<void> {
+    console.log(`🔍 [IngestionAnalyst] DEBUG: createNeo4jRelationshipsInTransaction called for ${relationships.length} relationships`);
+    
+    try {
+      for (const relationship of relationships) {
+        console.log(`🔍 [IngestionAnalyst] DEBUG: Processing relationship: ${JSON.stringify(relationship, null, 2)}`);
+        
+        // Transform relationship data structure from HolisticAnalysisTool format
+        const sourceId = relationship.source_entity_id_or_name || relationship.source_id;
+        const targetId = relationship.target_entity_id_or_name || relationship.target_id;
+        const relationshipDescription = relationship.relationship_description || relationship.type || 'general';
+        const context = relationship.relationship_description || relationship.context || 'Inferred from conversation analysis';
+        
+        console.log(`🔍 [IngestionAnalyst] DEBUG: Transformed relationship - sourceId: ${sourceId}, targetId: ${targetId}, description: ${relationshipDescription}`);
+        
+        // FIXED: Map relationship IDs to actual node IDs by querying the database
+        const actualSourceId = await this.mapRelationshipIdToNodeId(sourceId, userId);
+        const actualTargetId = await this.mapRelationshipIdToNodeId(targetId, userId);
+        
+        if (!actualSourceId || !actualTargetId) {
+          console.warn(`[IngestionAnalyst] ⚠️ Could not map relationship IDs: source=${sourceId} -> ${actualSourceId}, target=${targetId} -> ${actualTargetId}`);
+          continue;
+        }
+
+        console.log(`🔍 [IngestionAnalyst] DEBUG: Mapped IDs - actualSourceId: ${actualSourceId}, actualTargetId: ${actualTargetId}`);
+
+        // CRITICAL FIX: Use emergent relationship labels based on LLM description instead of generic 'RELATED_TO'
+        // Transform the LLM description into a valid Neo4j relationship label
+        const relationshipLabel = this.transformToValidRelationshipLabel(relationshipDescription);
+        
+        const cypher = `
+          MATCH (source), (target)
+          WHERE (source.muid = $sourceId OR source.concept_id = $sourceId OR source.id = $sourceId)
+          AND (target.muid = $targetId OR target.concept_id = $targetId OR target.id = $targetId)
+          AND source.userId = $userId AND target.userId = $userId
+          MERGE (source)-[r:${relationshipLabel}]->(target)
+          SET r.relationship_description = $relationshipDescription,
+              r.context = $context,
+              r.source_agent = 'IngestionAnalyst',
+              r.created_at = datetime(),
+              r.updated_at = datetime(),
+              r.original_description = $relationshipDescription
+          RETURN r
+        `;
+
+        console.log(`🔍 [IngestionAnalyst] DEBUG: Creating relationship with cypher: ${cypher}`);
+        console.log(`🔍 [IngestionAnalyst] DEBUG: Relationship parameters: ${JSON.stringify({
+          sourceId: actualSourceId,
+          targetId: actualTargetId,
+          userId,
+          relationshipDescription,
+          context
+        }, null, 2)}`);
+
+        // CRITICAL FIX: Verify nodes exist before creating relationship
+        const verifyCypher = `
+          MATCH (source), (target)
+          WHERE (source.muid = $sourceId OR source.concept_id = $sourceId OR source.id = $sourceId)
+          AND (target.muid = $targetId OR target.concept_id = $targetId OR target.id = $targetId)
+          AND source.userId = $userId AND target.userId = $userId
+          RETURN source, target
+        `;
+        
+        const verifyResult = await transaction.run(verifyCypher, {
+          sourceId: actualSourceId,
+          targetId: actualTargetId,
+          userId
+        });
+        
+        if (verifyResult.records.length === 0) {
+          console.error(`[IngestionAnalyst] ❌ Cannot create relationship - nodes not found in Neo4j`);
+          console.error(`[IngestionAnalyst] ❌ Source ID: ${actualSourceId}, Target ID: ${actualTargetId}, User ID: ${userId}`);
+          continue; // Skip this relationship and continue with others
+        }
+        
+        console.log(`🔍 [IngestionAnalyst] DEBUG: Verified nodes exist, proceeding with relationship creation`);
+
+        // CRITICAL FIX: Add retry logic for relationship creation
+        let relationshipCreated = false;
+        let retryCount = 0;
+        const maxRetries = 3;
+        
+        while (!relationshipCreated && retryCount < maxRetries) {
+          try {
+            const result = await transaction.run(cypher, {
+              sourceId: actualSourceId,
+              targetId: actualTargetId,
+              userId,
+              relationshipDescription,
+              context
+            });
+
+            if (result.records.length > 0) {
+              console.log(`[IngestionAnalyst] ✅ Created relationship: ${sourceId} --[${relationshipDescription}]--> ${targetId}`);
+              relationshipCreated = true;
+            } else {
+              retryCount++;
+              if (retryCount < maxRetries) {
+                console.warn(`[IngestionAnalyst] ⚠️ Relationship creation failed (attempt ${retryCount}/${maxRetries}), retrying...`);
+                // Add a small delay before retry
+                await new Promise(resolve => setTimeout(resolve, 100 * retryCount));
+              } else {
+                console.error(`[IngestionAnalyst] ❌ Relationship creation failed after ${maxRetries} attempts: ${sourceId} -> ${targetId}`);
+                console.error(`[IngestionAnalyst] ❌ Source ID: ${actualSourceId}, Target ID: ${actualTargetId}, User ID: ${userId}`);
+              }
+            }
+          } catch (retryError) {
+            retryCount++;
+            if (retryCount < maxRetries) {
+              console.warn(`[IngestionAnalyst] ⚠️ Relationship creation error (attempt ${retryCount}/${maxRetries}):`, retryError);
+              await new Promise(resolve => setTimeout(resolve, 100 * retryCount));
+            } else {
+              console.error(`[IngestionAnalyst] ❌ Relationship creation failed after ${maxRetries} attempts with error:`, retryError);
+              throw retryError; // Re-throw to trigger transaction rollback
+            }
+          }
+        }
+      }
+      
+      console.log(`[IngestionAnalyst] ✅ Created ${relationships.length} Neo4j relationships`);
+      
+    } catch (error) {
+      console.error(`[IngestionAnalyst] ❌ Error creating Neo4j relationships:`, error);
+      console.error(`[IngestionAnalyst] ❌ Error details: ${JSON.stringify(error, null, 2)}`);
+      throw error; // Re-throw to trigger transaction rollback
+    }
+  }
+
+  /**
+   * IMPLEMENTED: Create relationships in Neo4j knowledge graph (legacy method for backward compatibility)
    */
   private async createNeo4jRelationships(userId: string, relationships: any[]): Promise<void> {
     console.log(`🔍 [IngestionAnalyst] DEBUG: createNeo4jRelationships called for ${relationships.length} relationships`);
@@ -675,6 +876,16 @@ export class IngestionAnalyst {
       const userConcept = concepts.find(c => c.name === userName && c.type === 'person');
       
       if (userConcept) {
+        // CRITICAL FIX: Ensure Neo4j node exists for existing User concept
+        await this.ensureNeo4jNodeExists('Concept', userConcept.concept_id, userId, {
+          name: userConcept.name,
+          description: userConcept.description,
+          type: userConcept.type,
+          salience: userConcept.salience,
+          status: userConcept.status,
+          created_at: userConcept.created_at.toISOString(),
+          source: 'IngestionAnalyst'
+        });
         return userConcept;
       }
 
@@ -690,11 +901,57 @@ export class IngestionAnalyst {
       const createdUserConcept = await this.conceptRepository.create(userConceptData);
       console.log(`[IngestionAnalyst] ✅ Created User concept for ${userName}: ${createdUserConcept.concept_id}`);
       
+      // CRITICAL FIX: Create corresponding Neo4j node for new User concept
+      await this.createNeo4jNode('Concept', {
+        id: createdUserConcept.concept_id,
+        userId: userId,
+        name: createdUserConcept.name,
+        description: createdUserConcept.description,
+        type: createdUserConcept.type,
+        salience: createdUserConcept.salience,
+        status: createdUserConcept.status,
+        created_at: createdUserConcept.created_at.toISOString(),
+        source: 'IngestionAnalyst'
+      });
+      
       return createdUserConcept;
 
     } catch (error) {
       console.error(`[IngestionAnalyst] ❌ Error finding/creating User concept for ${userName}:`, error);
       return null;
+    }
+  }
+
+  /**
+   * CRITICAL FIX: Ensure Neo4j node exists for a given entity
+   */
+  private async ensureNeo4jNodeExists(nodeType: string, nodeId: string, userId: string, properties: Record<string, any>): Promise<void> {
+    try {
+      const session = this.dbService.neo4j.session();
+      
+      // Check if node exists
+      const checkCypher = `
+        MATCH (n:${nodeType} {id: $id, userId: $userId})
+        RETURN n
+      `;
+      
+      const result = await session.run(checkCypher, { id: nodeId, userId });
+      
+      if (result.records.length === 0) {
+        // Node doesn't exist, create it
+        console.log(`🔍 [IngestionAnalyst] DEBUG: Neo4j node missing for ${nodeType} ${nodeId}, creating it`);
+        await this.createNeo4jNode(nodeType, {
+          id: nodeId,
+          userId: userId,
+          ...properties
+        });
+      } else {
+        console.log(`🔍 [IngestionAnalyst] DEBUG: Neo4j node exists for ${nodeType} ${nodeId}`);
+      }
+      
+      await session.close();
+    } catch (error) {
+      console.error(`[IngestionAnalyst] ❌ Error ensuring Neo4j node exists for ${nodeType} ${nodeId}:`, error);
     }
   }
 
@@ -708,6 +965,16 @@ export class IngestionAnalyst {
       const existingConcept = concepts.find(c => c.name === conceptName);
       
       if (existingConcept) {
+        // CRITICAL FIX: Ensure Neo4j node exists for existing concept
+        await this.ensureNeo4jNodeExists('Concept', existingConcept.concept_id, userId, {
+          name: existingConcept.name,
+          description: existingConcept.description,
+          type: existingConcept.type,
+          salience: existingConcept.salience,
+          status: existingConcept.status,
+          created_at: existingConcept.created_at.toISOString(),
+          source: 'IngestionAnalyst'
+        });
         return existingConcept;
       }
 
@@ -722,6 +989,19 @@ export class IngestionAnalyst {
 
       const createdConcept = await this.conceptRepository.create(conceptData);
       console.log(`[IngestionAnalyst] ✅ Auto-created concept for relationship: ${conceptName} (${createdConcept.concept_id})`);
+      
+      // CRITICAL FIX: Create corresponding Neo4j node for new concept
+      await this.createNeo4jNode('Concept', {
+        id: createdConcept.concept_id,
+        userId: userId,
+        name: createdConcept.name,
+        description: createdConcept.description,
+        type: createdConcept.type,
+        salience: createdConcept.salience,
+        status: createdConcept.status,
+        created_at: createdConcept.created_at.toISOString(),
+        source: 'IngestionAnalyst'
+      });
       
       return createdConcept;
 
