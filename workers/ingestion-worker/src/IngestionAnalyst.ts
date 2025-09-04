@@ -77,7 +77,10 @@ export class IngestionAnalyst {
       // Phase III: Persistence & Graph Update
       const newEntities = await this.persistAnalysisResults(conversationId, userId, analysisOutput);
 
-      // Phase IV: Event Publishing
+      // Phase IV: Update Conversation Title
+      await this.updateConversationTitle(conversationId, analysisOutput.persistence_payload.conversation_title);
+      
+      // Phase V: Event Publishing
       await this.publishEvents(userId, newEntities);
 
       console.log(`[IngestionAnalyst] Successfully processed conversation ${conversationId}, created ${newEntities.length} new entities`);
@@ -819,10 +822,10 @@ export class IngestionAnalyst {
     let salience = 0.5; // Base salience
     
     // Boost salience based on concept type
-    if (concept.type === 'person' || concept.type === 'location') {
-      salience += 0.2; // People and places are generally more salient
-    } else if (concept.type === 'skill' || concept.type === 'knowledge') {
-      salience += 0.15; // Skills and knowledge are moderately salient
+    if (concept.type === 'person' || concept.type === 'knowledge') {
+      salience += 0.2; // People and knowledge are generally more salient
+    } else if (concept.type === 'skill' || concept.type === 'location') {
+      salience += 0.15; // Skills and locations are moderately salient
     } else if (concept.type === 'emotion' || concept.type === 'experience') {
       salience += 0.1; // Emotions and experiences have some salience
     }
@@ -838,5 +841,49 @@ export class IngestionAnalyst {
     
     // Ensure salience stays within bounds
     return Math.min(Math.max(salience, 0.1), 1.0);
+  }
+
+  /**
+   * V11.1: Generate smart, user-facing conversation title using LLM
+   * This replaces the generic timestamp-based titles with meaningful descriptions
+   */
+  private async updateConversationTitle(conversationId: string, title: string): Promise<void> {
+    try {
+      console.log(`[IngestionAnalyst] Updating conversation title: "${title}"`);
+      
+      // Clean up the title
+      let cleanTitle = title.trim();
+      
+      // Remove quotes if present
+      if ((cleanTitle.startsWith('"') && cleanTitle.endsWith('"')) ||
+          (cleanTitle.startsWith("'") && cleanTitle.endsWith("'"))) {
+        cleanTitle = cleanTitle.slice(1, -1);
+      }
+      
+      // Ensure it's not too long
+      if (cleanTitle.length > 50) {
+        cleanTitle = cleanTitle.substring(0, 47) + '...';
+      }
+      
+      // Fallback if empty
+      if (!cleanTitle || cleanTitle.trim() === '') {
+        cleanTitle = 'New Conversation';
+      }
+      
+      // Update the conversation with the title
+      await this.conversationRepository.update(conversationId, {
+        title: cleanTitle
+      });
+      
+      console.log(`[IngestionAnalyst] Successfully updated conversation title: "${cleanTitle}"`);
+      
+    } catch (error) {
+      console.error(`[IngestionAnalyst] Failed to update conversation title:`, error);
+      
+      // Set a fallback title
+      await this.conversationRepository.update(conversationId, {
+        title: 'New Conversation'
+      });
+    }
   }
 }

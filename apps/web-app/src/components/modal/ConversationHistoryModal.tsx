@@ -34,7 +34,10 @@ export const ConversationHistoryModal: React.FC<ConversationHistoryModalProps> =
     setHistoryLoading,
     loadSession,
     startNewChat,
-    setShowHistoryModal
+    setShowHistoryModal,
+    setCurrentSession,
+    setCurrentConversation,
+    setMessages
   } = useChatStore();
 
   const modalRef = useRef<HTMLDivElement>(null);
@@ -79,8 +82,35 @@ export const ConversationHistoryModal: React.FC<ConversationHistoryModalProps> =
 
   const handleSessionSelect = useCallback(async (sessionId: string) => {
     try {
-      // Load the selected session
-      loadSession(sessionId);
+      // Load the session data from the API (same logic as ConversationHistoryPanel)
+      const sessionData = await chatService.getSession(sessionId);
+      
+      // Set the session in the store
+      setCurrentSession(sessionId);
+      
+      // If the session has conversations, load ALL conversations and merge them chronologically
+      if (sessionData.conversations && sessionData.conversations.length > 0) {
+        // Load all conversations in the session
+        const allConversationData = await Promise.all(
+          sessionData.conversations.map(conv => chatService.getConversation(conv.id))
+        );
+        
+        // Merge all messages from all conversations chronologically
+        const allMessages = allConversationData
+          .flatMap(convData => convData.messages)
+          .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+        
+        // Set the most recent conversation ID (for new messages)
+        const mostRecentConversation = sessionData.conversations[0];
+        setCurrentConversation(mostRecentConversation.id);
+        
+        // Set all merged messages in the store
+        setMessages(allMessages);
+      } else {
+        // No conversations in this session yet, just set the session
+        setCurrentConversation(null);
+        setMessages([]);
+      }
       
       // Close the history modal
       onClose();
@@ -88,7 +118,7 @@ export const ConversationHistoryModal: React.FC<ConversationHistoryModalProps> =
       console.error('Error loading session:', err);
       setError('Failed to load session');
     }
-  }, [loadSession, onClose]);
+  }, [setCurrentSession, setCurrentConversation, setMessages, onClose]);
 
   const handleNewChat = useCallback(() => {
     startNewChat();

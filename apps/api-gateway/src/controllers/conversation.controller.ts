@@ -120,7 +120,7 @@ export class ConversationController {
         return;
       }
 
-      // STEP 1: Session Management
+      // STEP 1: Session Management - Only create sessions when we have a valid message
       let session: user_sessions | null;
       
       if (session_id) {
@@ -141,11 +141,11 @@ export class ConversationController {
         const isNewChatRequest = !conversation_id;
         
         if (isNewChatRequest) {
-          // Always create a new session for new chat requests
+          // Create a new session ONLY when we have a valid message to send
           session = await this.sessionRepository.createSession({
             user_id: userId
           });
-          console.log(`🆕 Created new session ${session.session_id} for new chat`);
+          console.log(`🆕 Created new session ${session.session_id} for new chat with message`);
         } else {
           // For existing conversations, try to find the active session
           session = await this.sessionRepository.getActiveSession(userId);
@@ -704,19 +704,16 @@ export class ConversationController {
         return;
       }
 
-      // Create a new session for the new chat
-      const session = await this.sessionRepository.createSession({
-        user_id: userId
-      });
-
-      console.log(`🆕 Created new session ${session.session_id} for new chat`);
+      // Don't create a session yet - just return a placeholder
+      // Session will be created when the first message is sent
+      console.log(`🆕 New chat initiated for user ${userId} - session will be created on first message`);
 
       res.status(200).json({
         success: true,
         data: {
-          session_id: session.session_id,
-          created_at: session.created_at,
-          last_active_at: session.last_active_at
+          session_id: null, // No session created yet
+          created_at: new Date().toISOString(),
+          last_active_at: new Date().toISOString()
         }
       } as TApiResponse<any>);
 

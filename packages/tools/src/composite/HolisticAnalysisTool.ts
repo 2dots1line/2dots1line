@@ -13,6 +13,7 @@ import { LLMChatTool, type LLMChatInput } from '../ai/LLMChatTool';
 // V11.1 FIX: Made schema more flexible to handle LLM response variations
 export const HolisticAnalysisOutputSchema = z.object({
   persistence_payload: z.object({
+    conversation_title: z.string().min(1).max(50), // Short, descriptive title (3-7 words)
     conversation_summary: z.string().min(1), // Removed max limit to allow comprehensive summaries
     conversation_importance_score: z.number().int().min(1).max(10),
     extracted_memory_units: z.array(z.object({
@@ -152,6 +153,7 @@ export class HolisticAnalysisTool {
         console.log(`[HolisticAnalysisTool] Returning fallback response for non-retryable error`);
         const fallbackOutput: HolisticAnalysisOutput = {
           persistence_payload: {
+            conversation_title: 'Analysis Failed',
             conversation_summary: 'Analysis failed - manual review required.',
             conversation_importance_score: 5,
             extracted_memory_units: [],

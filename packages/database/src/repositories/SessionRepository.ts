@@ -109,8 +109,8 @@ export class SessionRepository {
       orderBy: { last_active_at: 'desc' },
       include: {
         conversations: {
-          orderBy: { start_time: 'desc' },
-          take: 1 // Get most recent conversation for display
+          orderBy: { start_time: 'desc' }
+          // Get all conversations for the session
         }
       }
     }) as Promise<SessionWithConversations[]>;
