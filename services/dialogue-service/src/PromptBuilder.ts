@@ -55,11 +55,11 @@ export class PromptBuilder {
     const turnContextPromise = this.redisClient.get(`turn_context:${conversationId}`);
     const sessionContextPromise = this.getSessionContext(userId, conversationId); // NEW: Session context
     
-    // Get static templates
-    const preambleTpl = this.configService.getTemplate('preamble');
-    const identityTpl = this.configService.getTemplate('system_identity_template');
-    const responseFormatTpl = this.configService.getTemplate('response_format_block');
-    const instructionsTpl = this.configService.getTemplate('dialogue_agent_instructions');
+    // Get new optimized templates
+    const coreIdentityTpl = this.configService.getTemplate('core_identity_section');
+    const operationalConfigTpl = this.configService.getTemplate('operational_config_section');
+    const dynamicContextTpl = this.configService.getTemplate('dynamic_context_section');
+    const currentTurnTpl = this.configService.getTemplate('current_turn_section');
     const coreIdentity = this.configService.getCoreIdentity();
 
     // --- STEP 2: AWAIT ALL DATA ---
@@ -86,38 +86,43 @@ export class PromptBuilder {
       hasNextContextPackage: !!user.next_conversation_context_package
     });
 
-    // --- STEP 3: BUILD SYSTEM PROMPT (Background Context) ---
-    const systemComponents: (string | null)[] = [
-      Mustache.render(preambleTpl, { user_name: user.name || 'User' }),
-      Mustache.render(identityTpl, { ...coreIdentity, user_name: user.name || 'User' }),
-      this.formatComponent('user_memory_profile', user.memory_profile),
-      this.formatComponent('knowledge_graph_schema', user.knowledge_graph_schema),
-      this.formatComponent('summaries_of_recent_important_conversations_this_cycle', recentSummaries),
-      
-      // CRITICAL: Current conversation history - this was missing!
-      this.formatComponent('current_conversation_history', conversationHistory),
-      
-      // NEW: Session context from previous conversations
-      sessionContext.length > 0 ? 
-        this.formatComponent('session_context', sessionContext) : null,
-      
-      // V11.0 SIMPLIFIED LOGIC: Use flag from controller
-      isNewConversation ? 
-        this.formatContextFromLastConversation(user.next_conversation_context_package, user.name || 'User') : 
-        this.formatContextFromLastTurn(turnContext, user.name || 'User')
-    ];
+    // --- STEP 3: BUILD OPTIMIZED 4-SECTION PROMPT ---
+    
+    // Section 1: Core Identity (Static - Highest Cache Hit Rate)
+    const section1 = Mustache.render(coreIdentityTpl, { user_name: user.name || 'User' });
+    
+    // Section 2: Operational Configuration (Semi-Static - Medium Cache Hit Rate)
+    const section2 = Mustache.render(operationalConfigTpl, { user_name: user.name || 'User' });
+    
+    // Section 3: Dynamic Context (Variable Cache Hit Rate - Ordered by Stability)
+    const section3Data = {
+      knowledge_graph_schema: this.formatComponentContent('knowledge_graph_schema', user.knowledge_graph_schema),
+      user_memory_profile: this.formatComponentContent('user_memory_profile', user.memory_profile),
+      conversation_summaries: this.formatComponentContent('conversation_summaries', recentSummaries),
+      session_context: sessionContext.length > 0 ? this.formatComponentContent('session_context', sessionContext) : null,
+      current_conversation_history: this.formatComponentContent('current_conversation_history', conversationHistory),
+      augmented_memory_context: this.formatComponentContent('augmented_memory_context', augmentedMemoryContext)
+    };
+    const section3 = Mustache.render(dynamicContextTpl, section3Data);
+    
+    // Section 4: Current Turn (No Cache - Turn-Specific)
+    const section4Data = {
+      context_from_last_conversation: isNewConversation ? 
+        this.formatContextFromLastConversation(user.next_conversation_context_package, user.name || 'User') : null,
+      context_from_last_turn: !isNewConversation ? 
+        this.formatContextFromLastTurn(turnContext, user.name || 'User') : null,
+      user_message: finalInputText
+    };
+    const section4 = Mustache.render(currentTurnTpl, section4Data);
 
-    const systemPrompt = systemComponents.filter(c => c !== null).join('\n\n');
+    // Combine all sections with clear separators
+    const systemPrompt = [
+      section1,
+      section2,
+      section3
+    ].filter(s => s && s.trim()).join('\n\n');
 
-    // --- STEP 4: BUILD USER PROMPT (Current Turn Context) ---
-    const userComponents: (string | null)[] = [
-      this.formatComponent('augmented_memory_context', augmentedMemoryContext),
-      responseFormatTpl,
-      this.formatComponent('final_input_text', finalInputText),
-      Mustache.render(instructionsTpl, { user_name: user.name || 'User' })
-    ];
-
-    const userPrompt = userComponents.filter(c => c !== null).join('\n\n');
+    const userPrompt = section4;
     
     console.log('\n📝 PromptBuilder - V11.0 SYSTEM PROMPT:');
     console.log('='.repeat(50));
@@ -164,11 +169,71 @@ export class PromptBuilder {
   }
 
   /**
+   * V11.0: Helper to format component content for Mustache templates (without XML tags)
+   * Returns formatted content or null if empty
+   */
+  private formatComponentContent(tagName: string, content: unknown): string | null {
+    if (content === null || content === undefined || (Array.isArray(content) && content.length === 0)) {
+      return null;
+    }
+    
+    // Handle special formatting for conversation history
+    if (tagName === 'current_conversation_history' && Array.isArray(content)) {
+      return this.formatConversationHistory(content as conversation_messages[]);
+    } else if (tagName === 'session_context' && Array.isArray(content)) {
+      return this.formatSessionContext(content as conversation_messages[]);
+    } else if (tagName === 'conversation_summaries' && Array.isArray(content)) {
+      return this.formatConversationSummaries(content);
+    } else if (typeof content === 'string') {
+      return this.decodeHtmlEntities(content);
+    } else {
+      // For JSON content, decode HTML entities in string values
+      const jsonString = JSON.stringify(content, null, 2);
+      return this.decodeHtmlEntities(jsonString);
+    }
+  }
+
+  /**
    * Formats conversation history into a clean, LLM-friendly transcript.
    */
   private formatConversationHistory(messages: conversation_messages[]): string {
     // The history is fetched most-recent-first, so we reverse it for chronological order.
-    return [...messages].reverse().map(msg => `${msg.role.toUpperCase()}: ${msg.content}`).join('\n');
+    return [...messages].reverse().map(msg => 
+      `${msg.role.toUpperCase()}: ${this.decodeHtmlEntities(msg.content)}`
+    ).join('\n');
+  }
+
+  /**
+   * V11.0: Formats conversation summaries for the new template structure
+   */
+  private formatConversationSummaries(summaries: any[]): string {
+    if (!Array.isArray(summaries) || summaries.length === 0) {
+      return '';
+    }
+    
+    return summaries.map((summary, index) => {
+      const importance = summary.conversation_importance_score || summary.importance_score || 'N/A';
+      const title = summary.conversation_summary || summary.title || `Conversation ${index + 1}`;
+      // Decode HTML entities that might be in the data
+      const decodedTitle = this.decodeHtmlEntities(title);
+      return `[${importance}/10] ${decodedTitle}`;
+    }).join('\n');
+  }
+
+  /**
+   * V11.0: Helper to decode HTML entities in text
+   */
+  private decodeHtmlEntities(text: string): string {
+    if (typeof text !== 'string') return text;
+    
+    return text
+      .replace(/&quot;/g, '"')
+      .replace(/&#x2F;/g, '/')
+      .replace(/&#x27;/g, "'")
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&#39;/g, "'");
   }
 
   /**
@@ -270,7 +335,7 @@ export class PromptBuilder {
     
     const contextText = messages
       .reverse() // Show in chronological order
-      .map(msg => `${msg.role.toUpperCase()}: ${msg.content}`)
+      .map(msg => `${msg.role.toUpperCase()}: ${this.decodeHtmlEntities(msg.content)}`)
       .join('\n');
     
     return `## Session Context (Previous Conversation in Same Chat Window)
