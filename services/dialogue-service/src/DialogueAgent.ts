@@ -14,12 +14,13 @@ import {
   TDialogueAgentResult
 } from '@2dots1line/shared-types';
 import { 
-  LLMChatTool,
-  VisionCaptionTool,
-  AudioTranscribeTool,
-  DocumentExtractTool,
-  HybridRetrievalTool
+  LLMChatTool, 
+  VisionCaptionTool, 
+  AudioTranscribeTool, 
+  DocumentExtractTool, 
+  HybridRetrievalTool 
 } from '@2dots1line/tools';
+import { IExecutableTool } from '@2dots1line/shared-types';
 import { Redis } from 'ioredis';
 
 import { ConfigService } from '../../config-service/src/ConfigService';
@@ -35,10 +36,10 @@ export interface DialogueAgentDependencies {
   conversationRepository: ConversationRepository;
   redisClient: Redis;
   promptBuilder: PromptBuilder;
-  llmChatTool: typeof LLMChatTool;
-  visionCaptionTool: typeof VisionCaptionTool;
-  audioTranscribeTool: typeof AudioTranscribeTool;
-  documentExtractTool: typeof DocumentExtractTool;
+  llmChatTool: any;
+  visionCaptionTool: any;
+  audioTranscribeTool: any;
+  documentExtractTool: any;
   hybridRetrievalTool: HybridRetrievalTool;
 }
 
@@ -48,10 +49,10 @@ export class DialogueAgent {
   private conversationRepo: ConversationRepository;
   private redis: Redis;
   private promptBuilder: PromptBuilder;
-  private llmChatTool: typeof LLMChatTool;
-  private visionCaptionTool: typeof VisionCaptionTool;
-  private audioTranscribeTool: typeof AudioTranscribeTool;
-  private documentExtractTool: typeof DocumentExtractTool;
+  private llmChatTool: any;
+  private visionCaptionTool: any;
+  private audioTranscribeTool: any;
+  private documentExtractTool: any;
   private hybridRetrievalTool: HybridRetrievalTool;
 
   constructor(dependencies: DialogueAgentDependencies) {
@@ -190,19 +191,69 @@ export class DialogueAgent {
 
   /**
    * Converts any user input into a single text string.
+   * Processes images using VisionCaptionTool and other media using appropriate tools.
    */
   private async processInput(text?: string, media?: Array<{
     type: string;
     url?: string;
     content?: string;
   }>): Promise<string> {
+    console.log(`🔍 DialogueAgent - processInput called with text: "${text}", media:`, media);
     let mediaText = '';
+    
     if (media && media.length > 0) {
-      // In a real implementation, loop and call appropriate tools
-      // For now, conceptual placeholder
-      mediaText = `[User provided media: ${media[0].type}]`;
+      console.log(`🔍 DialogueAgent - Processing ${media.length} media items`);
+      
+      for (const mediaItem of media) {
+        try {
+          console.log(`🔍 DialogueAgent - Processing media item:`, {
+            type: mediaItem.type,
+            hasUrl: !!mediaItem.url,
+            hasContent: !!mediaItem.content,
+            urlLength: mediaItem.url?.length,
+            contentLength: mediaItem.content?.length
+          });
+          
+          if (mediaItem.type.startsWith('image/') && (mediaItem.url || mediaItem.content)) {
+            const imageUrl = mediaItem.url || mediaItem.content;
+            console.log(`📸 DialogueAgent - Processing image: ${imageUrl?.substring(0, 100)}...`);
+            
+            // Call VisionCaptionTool to analyze the image
+            const visionResult = await this.visionCaptionTool.execute({
+              payload: {
+                imageUrl: imageUrl!,
+                imageType: mediaItem.type,
+                prompt: "Describe what you see in this image in detail, including any people, animals, objects, or scenes."
+              }
+            });
+            
+            if (visionResult.status === 'success' && visionResult.result?.caption) {
+              mediaText += `\n[Image Analysis: ${visionResult.result.caption}]`;
+              console.log(`✅ DialogueAgent - Image analysis completed: ${(visionResult.result.caption as string).substring(0, 100)}...`);
+            } else {
+              console.warn(`⚠️ DialogueAgent - Vision analysis failed:`, visionResult.error);
+              mediaText += `\n[Image provided but analysis failed]`;
+            }
+          } else if (mediaItem.type.startsWith('audio/') && mediaItem.url) {
+            console.log(`🎵 DialogueAgent - Processing audio: ${mediaItem.url}`);
+            // TODO: Implement audio transcription
+            mediaText += `\n[Audio file provided - transcription not yet implemented]`;
+          } else if (mediaItem.type.startsWith('application/') && mediaItem.url) {
+            console.log(`📄 DialogueAgent - Processing document: ${mediaItem.url}`);
+            // TODO: Implement document extraction
+            mediaText += `\n[Document provided - extraction not yet implemented]`;
+          } else {
+            console.log(`📎 DialogueAgent - Unsupported media type: ${mediaItem.type}`);
+            mediaText += `\n[Unsupported media type: ${mediaItem.type}]`;
+          }
+        } catch (error) {
+          console.error(`❌ DialogueAgent - Error processing media:`, error);
+          mediaText += `\n[Error processing media: ${mediaItem.type}]`;
+        }
+      }
     }
-    return `${text || ''}\n${mediaText}`.trim();
+    
+    return `${text || ''}${mediaText}`.trim();
   }
 
   /**
@@ -461,8 +512,8 @@ export class DialogueAgent {
           
           try {
             // Force reinitialization to try a different model
-            if (this.llmChatTool.forceReinitialize) {
-              this.llmChatTool.forceReinitialize();
+            if ((this.llmChatTool as any).forceReinitialize) {
+              (this.llmChatTool as any).forceReinitialize();
               console.log(`[DialogueAgent] ${callType.toUpperCase()} LLM call - Switched to fallback model`);
             }
             
@@ -489,8 +540,8 @@ export class DialogueAgent {
           
           try {
             // Force reinitialization to try a different model
-            if (this.llmChatTool.forceReinitialize) {
-              this.llmChatTool.forceReinitialize();
+            if ((this.llmChatTool as any).forceReinitialize) {
+              (this.llmChatTool as any).forceReinitialize();
               console.log(`[DialogueAgent] ${callType.toUpperCase()} LLM call - Switched to fallback model after unexpected error`);
             }
             
