@@ -238,10 +238,81 @@ export class DialogueAgent {
             console.log(`🎵 DialogueAgent - Processing audio: ${mediaItem.url}`);
             // TODO: Implement audio transcription
             mediaText += `\n[Audio file provided - transcription not yet implemented]`;
-          } else if (mediaItem.type.startsWith('application/') && mediaItem.url) {
-            console.log(`📄 DialogueAgent - Processing document: ${mediaItem.url}`);
-            // TODO: Implement document extraction
-            mediaText += `\n[Document provided - extraction not yet implemented]`;
+          } else if (mediaItem.type.startsWith('application/') && (mediaItem.url || mediaItem.content)) {
+            const documentData = mediaItem.url || mediaItem.content;
+            console.log(`📄 DialogueAgent - Processing document: ${documentData?.substring(0, 100)}...`);
+            
+            try {
+              // Handle base64 data URL
+              let tempFilePath: string | null = null;
+              
+              if (documentData?.startsWith('data:')) {
+                // Extract base64 data from data URL
+                const parts = documentData.split(',');
+                if (parts.length !== 2) {
+                  throw new Error('Invalid data URL format');
+                }
+                const base64Data = parts[1];
+                const buffer = Buffer.from(base64Data, 'base64');
+                
+                // Create temporary file with proper extension
+                const fs = require('fs');
+                const path = require('path');
+                const os = require('os');
+                
+                // Determine file extension from MIME type
+                let extension = '.pdf'; // default
+                if (mediaItem.type === 'application/pdf') {
+                  extension = '.pdf';
+                } else if (mediaItem.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+                  extension = '.docx';
+                } else if (mediaItem.type === 'application/msword') {
+                  extension = '.doc';
+                } else if (mediaItem.type === 'text/plain') {
+                  extension = '.txt';
+                }
+                
+                const tempDir = os.tmpdir();
+                const fileName = `temp_document_${Date.now()}${extension}`;
+                tempFilePath = path.join(tempDir, fileName);
+                
+                fs.writeFileSync(tempFilePath, buffer);
+                console.log(`📄 DialogueAgent - Created temporary file: ${tempFilePath}`);
+              } else {
+                tempFilePath = documentData!;
+              }
+              
+              // Call DocumentExtractTool to analyze the document
+              const documentResult = await this.documentExtractTool.execute({
+                payload: {
+                  documentUrl: tempFilePath,
+                  documentType: mediaItem.type,
+                  prompt: "Extract and summarize the key content from this document."
+                }
+              });
+              
+              if (documentResult.status === 'success' && documentResult.result?.extractedText) {
+                mediaText += `\n[Document Analysis: ${documentResult.result.extractedText}]`;
+                console.log(`✅ DialogueAgent - Document analysis completed: ${(documentResult.result.extractedText as string).substring(0, 100)}...`);
+              } else {
+                console.warn(`⚠️ DialogueAgent - Document analysis failed:`, documentResult.error);
+                mediaText += `\n[Document provided but analysis failed]`;
+              }
+              
+              // Clean up temporary file
+              if (tempFilePath && documentData?.startsWith('data:')) {
+                try {
+                  const fs = require('fs');
+                  fs.unlinkSync(tempFilePath);
+                  console.log(`📄 DialogueAgent - Cleaned up temporary file: ${tempFilePath}`);
+                } catch (cleanupError) {
+                  console.warn(`⚠️ DialogueAgent - Failed to clean up temporary file:`, cleanupError);
+                }
+              }
+            } catch (error) {
+              console.error(`❌ DialogueAgent - Error processing document:`, error);
+              mediaText += `\n[Document provided but analysis failed]`;
+            }
           } else {
             console.log(`📎 DialogueAgent - Unsupported media type: ${mediaItem.type}`);
             mediaText += `\n[Unsupported media type: ${mediaItem.type}]`;
