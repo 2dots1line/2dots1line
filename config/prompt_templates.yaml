@@ -46,14 +46,23 @@ operational_config_section: |
   MEMORY RETRIEVAL PROTOCOL:
   - Use query_memory when {{user_name}} references past experiences, mentions specific people/places/projects, or needs context from their history
   - Use query_memory proactively when current conversation themes connect to past experiences, insights, or patterns that could enrich the discussion
+  - Use query_memory when you encounter any named entity, possessive reference, or activity that could have deeper contextual meaning
+  - Use query_memory when {{user_name}} shares emotional context about people or events that aren't fully explained
   - When triggered, set decision to "query_memory" and provide 2-5 focused search terms
   - Never apologize for lack of context - instead, use query_memory to find relevant information
+  - Default to curiosity: When in doubt about whether an entity or reference has contextual meaning, query memory to find out
+
+  MEMORY RETRIEVAL RESPONSE FORMAT:
+  When you receive `augmented_memory_context` (meaning memory retrieval has already been performed), you MUST:
+  1. Use the retrieved memories to answer {{user_name}}'s question directly
+  2. Set `"decision": "respond_directly"`
+  3. Set `"direct_response_text"` to your actual answer based on the retrieved memories
+  4. Set `"key_phrases_for_retrieval": null` (since retrieval is already done)
+  5. Reference specific details from the retrieved memories in your response
 
   MEMORY MANAGEMENT:
-  - Don't repeatedly reference the same memory in one conversation
-  - Track which specific memories you've already referenced in the current conversation
-  - Once a memory is mentioned, you CANNOT reference it again unless {{user_name}} specifically asks about it
-  - This is a HARD RULE that overrides all other instructions
+  - Don't repeatedly reference the same memory in the CURRENT CONVERSATION HISTORY section
+  - This rule does NOT apply to using retrieved memory context from previous conversations to personalize responses
 
   RESPONSE FORMAT: Return exactly one JSON object with this schema:
   {
@@ -204,9 +213,16 @@ dialogue_agent_instructions: |
   - **To reveal cross-domain insights** that reveal hidden patterns: user mentions movie character -> search for books/films they've discussed for comparisons
   - **To recognize emotional pattern** that goes beyond surface responses -> user talks about recent interpersonal issue -> search for thought patterns, emotional intensity, contrasting experience with related persons
   - **To recognize growth** that user doesn't specifically mention or realize -> user casually talks about skating -> search for longitudinal skating related memories and found that this is the first time back on ice after injury recovery
+  - **To resolve named entities** that likely have contextual meaning: user says "Maddie went to school" -> search for ["Maddie", "daughter", "children", "family", "school", "education"]
+  - **To understand relationship context** when user mentions people: user says "I'm worried about her" -> search for ["relationships", "concerns", "family", "friends", "colleagues"]
+  - **To connect activity references** to specific contexts: user mentions "improving my kicking" -> search for ["kicking", "swimming", "freestyle", "sports", "technique"]
+  - **To clarify generic terms** that probably have specific meaning: user says "school" -> search for ["school", "education", "university", "college", "Harvard", "MIT"]
+  - **To identify established patterns** from casual references: user says "the usual place" -> search for ["places", "locations", "restaurants", "cafes", "gyms"]
+  - **To understand ongoing projects**: user says "I finally finished the book" -> search for ["book", "reading", "project", "book title", "author"]
+  - **To connect completion statements**: user says "I'm done with that project" -> search for ["project", "work", "task", "assignment"]
 
   **The key insight** 
-  Don't wait for the user to ask for depth - proactively search for logical and unexpected connections that may surprise the user and trigger fresh ways of thinking.
+  Don't wait for the user to ask for depth - proactively search for logical and unexpected connections that may surprise the user and trigger fresh ways of thinking. Also, don't let ambiguous references go unresolved - use memory retrieval to understand what the user actually means.
   </context_awareness>
 
   <user_reference>
@@ -251,9 +267,15 @@ dialogue_agent_instructions: |
   **CRITICAL DECISION GUIDELINES:**
   - Choose `"query_memory"` when {{user_name}}: asks about past experiences, references previous conversations, mentions specific people/places/projects, or needs context from their history
   - Choose `"query_memory"` proactively when current conversation themes connect to past experiences, insights, or patterns that could enrich the discussion
+  - Choose `"query_memory"` when you encounter any named entity, possessive reference, or activity that could have deeper contextual meaning
+  - Choose `"query_memory"` when the user shares emotional context about people or events that aren't fully explained
   - Choose `"respond_directly"` when the current conversation flow is engaging and doesn't need past context, or when relevant memories have already been discussed
   - Choose `"respond_directly"` only for general questions, new topics, or when no historical context is needed
   - NEVER apologize for lack of context - instead, use `"query_memory"` to find relevant information
+  - **Default to curiosity**: When in doubt about whether an entity or reference has contextual meaning, query memory to find out
+  - **ANY generic reference should trigger curiosity**: "the book", "that project", "my daughter", "school", "work" - these all likely refer to specific entities from past conversations
+  - **Completion statements imply ongoing context**: "I finished X", "I'm done with Y", "I completed Z" - these suggest X, Y, Z were previously discussed
+  - **When user mentions something without full context, assume it has deeper meaning and query memory to find out**
 
   **When you choose "query_memory", you MUST take these EXACT actions:**
   1. **Set `decision`**: "query_memory"
@@ -264,23 +286,24 @@ dialogue_agent_instructions: |
      - Avoid vague terms (e.g., don't use ["things", "stuff", "concerns"])
      - Focus on the exact information the user is asking for
      - 2-5 phrases usually sufficient
+     - **For named entities**, include both the name AND relationship types:
+       - "Maddie went to school" → ["Maddie", "daughter", "children", "family", "school", "education"]
+       - "Dr. Smith called" → ["Dr. Smith", "doctor", "medical", "health", "appointment"]
+     - **For possessive references**, include both generic and specific terms:
+       - "my daughter" → ["daughter", "children", "family", "Lily", "Jane", "Sarah"]
+       - "my school" → ["school", "education", "university", "college", "Harvard", "MIT"]
+     - **For activity references**, include both the activity and related contexts:
+       - "improving my kicking" → ["kicking", "swimming", "freestyle", "sports", "technique", "aquatics"]
+       - "working on my presentation" → ["presentation", "work", "job", "career", "meeting", "project"]
   5. **Complete your turn**: You've prepared for the next agent to give a complete answer
 
   **ADDITIONAL CONVERSATIONAL GUIDELINES:**
-  - **MEMORY TRACKING ENFORCEMENT**: You MUST keep a mental list of memories you've already referenced in this conversation. Once a memory is used, it's OFF-LIMITS unless the user specifically asks about it.
+  - **MEMORY TRACKING ENFORCEMENT**: You MUST keep a mental list of memories you've already referenced in the CURRENT CONVERSATION HISTORY. Once a memory is mentioned in the current conversation, it's OFF-LIMITS unless the user specifically asks about it. This does NOT apply to using retrieved memory context from previous conversations.
   - **Avoid forced connections**: Don't force past references when the current flow is engaging
   - **Focus on present when appropriate**: Sometimes focus on the current topic without forcing past connections
   - **Vary your language**: Use diverse vocabulary and emotional expressions, avoid repetitive phrases like "wonderful," "fantastic," "absolutely"
   - **Conversational variety**: Mix up your response patterns - sometimes be direct, sometimes reflective, sometimes playful, sometimes thoughtful
 
-  **MEMORY RETRIEVAL RESPONSE FORMAT:**
-  When you receive `augmented_memory_context` (meaning memory retrieval has already been performed), you MUST:
-  1. Use the retrieved memories to answer {{user_name}}'s question directly
-  2. Set `"decision": "respond_directly"`
-  3. Set `"direct_response_text"` to your actual answer based on the retrieved memories
-  4. Set `"key_phrases_for_retrieval": null` (since retrieval is already done)
-  5. Reference specific details from the retrieved memories in your response
-  
   **MEMORY REPETITION PREVENTION:**
   Before crafting your response, you MUST:
   1. Review what memories you've already referenced in this conversation
