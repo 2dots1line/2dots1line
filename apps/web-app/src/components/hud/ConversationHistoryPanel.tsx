@@ -131,16 +131,24 @@ export const ConversationHistoryPanel: React.FC = () => {
       // Set the session in the store
       setCurrentSession(sessionId);
       
-      // If the session has conversations, load the most recent one
+      // If the session has conversations, load ALL conversations and merge them chronologically
       if (sessionData.conversations && sessionData.conversations.length > 0) {
-        const mostRecentConversation = sessionData.conversations[0];
-        const conversationData = await chatService.getConversation(mostRecentConversation.id);
+        // Load all conversations in the session
+        const allConversationData = await Promise.all(
+          sessionData.conversations.map(conv => chatService.getConversation(conv.id))
+        );
         
-        // Set the conversation in the store
+        // Merge all messages from all conversations chronologically
+        const allMessages = allConversationData
+          .flatMap(convData => convData.messages)
+          .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+        
+        // Set the most recent conversation ID (for new messages)
+        const mostRecentConversation = sessionData.conversations[0];
         setCurrentConversation(mostRecentConversation.id);
         
-        // Set the messages in the store
-        setMessages(conversationData.messages);
+        // Set all merged messages in the store
+        setMessages(allMessages);
       } else {
         // No conversations in this session yet, just set the session
         setCurrentConversation(null);
@@ -311,7 +319,7 @@ export const ConversationHistoryPanel: React.FC = () => {
                     <Clock size={12} />
                     <span>{formatTimestamp(session.last_active_at)}</span>
                     <span>•</span>
-                    <span>{session.conversation_count} conversations</span>
+                    <span>{session.conversations?.length || 0} conversations</span>
                   </div>
                 </GlassButton>
               ))

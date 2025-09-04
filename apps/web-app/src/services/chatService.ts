@@ -360,9 +360,9 @@ class ChatService {
   }
 
   /**
-   * Start a new chat (creates new session)
+   * Start a new chat (prepares for new chat, no session created yet)
    */
-  async startNewChat(): Promise<{ session_id: string; created_at: Date; last_active_at: Date }> {
+  async startNewChat(): Promise<{ session_id: string | null; created_at: string; last_active_at: string }> {
     try {
       const response = await fetch(`${API_BASE_URL}/api/v1/conversations/new-chat`, {
         method: 'POST',

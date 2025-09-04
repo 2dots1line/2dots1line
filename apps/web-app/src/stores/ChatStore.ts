@@ -155,31 +155,19 @@ export const useChatStore = create<ChatState>()(
       // Utility actions
       startNewChat: async () => {
         try {
-          // Call the backend to create a new session
-          const newSession = await chatService.startNewChat();
+          // Call the backend to prepare for a new chat (no session created yet)
+          const newChatData = await chatService.startNewChat();
           
           set({
             currentConversationId: null,
-            currentSessionId: newSession.session_id,
+            currentSessionId: null, // No session until first message
             messages: [],
             isInitialized: false,
             showNewChatButton: false
           });
           
-          // Add the new session to the history
-          const sessionSummary: SessionSummary = {
-            session_id: newSession.session_id,
-            created_at: new Date(newSession.created_at),
-            last_active_at: new Date(newSession.last_active_at),
-            most_recent_conversation_title: 'New Chat',
-            conversation_count: 0,
-            conversations: []
-          };
-          
-          // Update the session history
-          set((state) => ({
-            sessionHistory: [sessionSummary, ...state.sessionHistory]
-          }));
+          // Don't add to session history yet - session will be created when first message is sent
+          console.log('🆕 New chat prepared - session will be created on first message');
           
         } catch (error) {
           console.error('Failed to start new chat:', error);

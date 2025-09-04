@@ -297,6 +297,7 @@ ingestion_analyst_instructions: |
 
   **SECTION 1: persistence_payload**
   Extract and structure knowledge for long-term storage:
+  - conversation_title: Short, descriptive title (3-7 words) that captures the main topic or theme
   - conversation_summary: 2-3 sentence overview of main topics and outcomes
   - conversation_importance_score: 1-10 rating of overall significance using these criteria:
     * 1-3: Routine daily activities, casual conversation, minor updates
@@ -323,6 +324,7 @@ ingestion_analyst_instructions: |
   ```json
   {
     "persistence_payload": {
+      "conversation_title": "string",
       "conversation_summary": "string",
       "conversation_importance_score": number,
       "extracted_memory_units": [
@@ -376,6 +378,7 @@ ingestion_analyst_instructions: |
   ```json
   {
     "persistence_payload": {
+      "conversation_title": "Quantum Physics and Consciousness",
       "conversation_summary": "{{user_name}} discussed their passion for quantum physics and how reading a book about consciousness changed their perspective on reality.",
       "conversation_importance_score": 7,
       "extracted_memory_units": [
