@@ -306,6 +306,13 @@ export class ConversationController {
       // Process file through DialogueAgent using processTurn with enhanced message
       const enhancedMessage = `${message || 'What can you tell me about this file?'}\n\n[File uploaded: ${file.originalname} (${file.mimetype}, ${file.size} bytes)]`;
       
+      // STEP 1: Save the user's message to the database
+      await this.conversationRepository.addMessage({
+        conversation_id: conversationId,
+        role: 'user',
+        content: enhancedMessage,
+      });
+      
       const result = await this.dialogueAgent.processTurn({
         userId,
         conversationId,
@@ -314,6 +321,14 @@ export class ConversationController {
           type: file.mimetype,
           content: dataUrl
         }]
+      });
+
+      // STEP 2: Save the assistant's response to the database
+      await this.conversationRepository.addMessage({
+        conversation_id: conversationId,
+        role: 'assistant',
+        content: result.response_text,
+        llm_call_metadata: result.metadata || {}
       });
 
       // Clean up uploaded file after processing
@@ -371,11 +386,27 @@ export class ConversationController {
       // Set/reset conversation timeout for background processing trigger
       await this.setConversationTimeout(conversationId);
       
+      // STEP 1: Save the user's message to the database
+      await this.conversationRepository.addMessage({
+        conversation_id: conversationId,
+        role: 'user',
+        content: message,
+      });
+      
       const result = await this.dialogueAgent.processTurn({ 
         userId, 
         conversationId, 
         currentMessageText: message
       });
+
+      // STEP 2: Save the assistant's response to the database
+      await this.conversationRepository.addMessage({
+        conversation_id: conversationId,
+        role: 'assistant',
+        content: result.response_text,
+        llm_call_metadata: result.metadata || {}
+      });
+
       res.json(result);
     } catch (error) {
       next(error);
