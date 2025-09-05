@@ -1,6 +1,7 @@
 import { Router, type IRouter } from 'express';
 import { authMiddleware } from '../../middleware/auth.middleware';
 import { uploadSingle, handleUploadError } from '../../middleware/upload.middleware';
+import { notificationRoutes } from './notification.routes';
 
 // Import all V11.0 controllers
 import { AuthController } from '../../controllers/auth.controller';
@@ -97,5 +98,8 @@ v1Router.get('/media/photos/:id', mediaController.getPhotoDetails.bind(mediaCont
 // Agent routes
 v1Router.use('/agent', createAgentRoutes(conversationController));
 
+  // Mount notification routes (SSE subscribe at /api/v1/notification/subscribe)
+  v1Router.use('/notification', notificationRoutes);
+
   return v1Router;
-} 
+}

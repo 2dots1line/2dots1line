@@ -8,8 +8,8 @@
     "build": "pnpm clean && tsc -p tsconfig.build.json",
     "lint": "eslint src --ext .ts,.tsx",
     "test": "jest",
-    "clean": "rimraf dist src/**/*.js src/**/*.d.ts src/**/*.js.map src/**/*.d.ts.map .turbo",
-    "clean:all": "rimraf dist src/**/*.js src/**/*.d.ts src/**/*.js.map src/**/*.d.ts.map .turbo node_modules"
+    "clean": "rimraf dist tsconfig.build.tsbuildinfo",
+    "clean:all": "rimraf dist node_modules tsconfig.build.tsbuildinfo"
   },
   "dependencies": {
     "date-fns": "^2.30.0",

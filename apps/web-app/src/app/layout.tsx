@@ -1,10 +1,6 @@
 import React from 'react';
 import './globals.css';
-
-export const metadata = {
-  title: '2dots1line V7',
-  description: 'Welcome to the new beginning.',
-};
+import NotificationRoot from '../components/notifications/NotificationRoot';
 
 export default function RootLayout({
   children,
@@ -13,7 +9,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {/* Notification layer */}
+        <NotificationRoot />
+        {children}
+      </body>
     </html>
   );
-} 
+}

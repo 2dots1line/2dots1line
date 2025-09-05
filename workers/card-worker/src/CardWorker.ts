@@ -13,7 +13,7 @@
 import { ConfigService } from '@2dots1line/config-service';
 import { DatabaseService, CardRepository, MemoryRepository, ConceptRepository, DerivedArtifactRepository, ProactivePromptRepository, CommunityRepository, GrowthEventRepository, UserRepository } from '@2dots1line/database';
 import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
-import { Worker, Job } from 'bullmq';
+import { Worker, Job, Queue } from 'bullmq';
 import { 
   TCard
 } from '@2dots1line/shared-types';
@@ -52,6 +52,7 @@ export interface CardWorkerConfig {
 export class CardWorker {
   private worker: Worker;
   private config: CardWorkerConfig;
+  private notificationQueue: Queue;
   
   // Repository instances
   private cardRepository: CardRepository;
@@ -108,6 +109,9 @@ export class CardWorker {
         concurrency: this.config.concurrency,
       }
     );
+
+    // Initialize notification queue (same Redis connection)
+    this.notificationQueue = new Queue('notification-queue', { connection: redisConnection });
 
     this.setupEventHandlers();
   }
@@ -292,6 +296,39 @@ export class CardWorker {
       console.log(`[CardWorker] Creating card with data:`, cardData);
       const newCard = await this.cardRepository.create(cardData);
       console.log(`[CardWorker] Card created:`, newCard);
+
+      // Enqueue notification for "new_card_available"
+      try {
+        const title =
+          (newCard as any)?.display_data?.title ??
+          (entityData as any)?.title ??
+          (entityData as any)?.name ??
+          `${entityType} ${entity.id}`;
+
+        const payload = {
+          type: 'new_card_available' as const,
+          userId,
+          card: {
+            card_id: (newCard as any).card_id,
+            card_type: (newCard as any).card_type ?? entityType.toLowerCase(),
+            display_data: { title },
+          },
+        };
+
+        await this.notificationQueue.add('new_card_available', payload, {
+          removeOnComplete: true,
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 1000 },
+        });
+
+        console.log(
+          `[CardWorker] 📣 Enqueued notification 'new_card_available' for user ${userId} (card_id=${(newCard as any).card_id})`
+        );
+      } catch (notifyErr) {
+        console.error('[CardWorker] Failed to enqueue new_card_available notification:', notifyErr);
+        // Do not fail the card job if notification enqueue fails
+      }
+
       return { 
         created: true, 
         cardId: newCard.card_id 
