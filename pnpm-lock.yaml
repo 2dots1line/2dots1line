@@ -254,6 +254,9 @@ importers:
 
   apps/web-app:
     dependencies:
+      '@2dots1line/core-utils':
+        specifier: workspace:*
+        version: link:../../packages/core-utils
       '@2dots1line/shared-types':
         specifier: workspace:*
         version: link:../../packages/shared-types
@@ -626,6 +629,9 @@ importers:
 
   packages/ui-components:
     dependencies:
+      '@2dots1line/core-utils':
+        specifier: workspace:*
+        version: link:../core-utils
       '@2dots1line/shared-types':
         specifier: workspace:*
         version: link:../shared-types
