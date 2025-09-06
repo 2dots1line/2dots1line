@@ -299,6 +299,37 @@ export class ConversationController {
 
       // Generate conversation ID if not provided
       const conversationId = conversation_id || session_id || `conv_${userId}_${Date.now()}`;
+      console.log(`🆔 Generated conversation ID: ${conversationId}`);
+      console.log(`🆔 Input parameters - conversation_id: ${conversation_id}, session_id: ${session_id}, userId: ${userId}`);
+      
+      // Ensure conversation exists in database before adding messages
+      console.log(`🔍 Checking if conversation exists: ${conversationId}`);
+      let conversation = await this.conversationRepository.findById(conversationId);
+      console.log(`🔍 Conversation lookup result:`, conversation ? `Found (ID: ${conversation.id})` : 'Not found');
+      
+      if (!conversation) {
+        console.log(`📝 Creating new conversation: ${conversationId}`);
+        try {
+          conversation = await this.conversationRepository.create({
+            id: conversationId, // Pass the generated conversation ID
+            user_id: userId,
+            title: `File Upload: ${file.originalname}`,
+            session_id: session_id || undefined,
+            metadata: {
+              source: 'file_upload',
+              filename: file.originalname,
+              mime_type: file.mimetype,
+              file_size: file.size
+            }
+          });
+          console.log(`✅ Successfully created conversation: ${conversation.id}`);
+        } catch (createError) {
+          console.error(`❌ Failed to create conversation:`, createError);
+          throw createError;
+        }
+      } else {
+        console.log(`✅ Using existing conversation: ${conversation.id}`);
+      }
       
       // Set/reset conversation timeout for background processing trigger
       await this.setConversationTimeout(conversationId);
@@ -307,11 +338,20 @@ export class ConversationController {
       const enhancedMessage = `${message || 'What can you tell me about this file?'}\n\n[File uploaded: ${file.originalname} (${file.mimetype}, ${file.size} bytes)]`;
       
       // STEP 1: Save the user's message to the database
-      await this.conversationRepository.addMessage({
-        conversation_id: conversationId,
-        role: 'user',
-        content: enhancedMessage,
-      });
+      console.log(`💬 Attempting to add message to conversation: ${conversationId}`);
+      console.log(`💬 Message content preview: ${enhancedMessage.substring(0, 100)}...`);
+      
+      try {
+        await this.conversationRepository.addMessage({
+          conversation_id: conversationId,
+          role: 'user',
+          content: enhancedMessage,
+        });
+        console.log(`✅ Successfully added user message to conversation: ${conversationId}`);
+      } catch (addMessageError) {
+        console.error(`❌ Failed to add message to conversation ${conversationId}:`, addMessageError);
+        throw addMessageError;
+      }
       
       const result = await this.dialogueAgent.processTurn({
         userId,
@@ -382,6 +422,25 @@ export class ConversationController {
   async handleChat(req: Request, res: Response, next: NextFunction) {
     try {
       const { userId, conversationId, message } = chatSchema.parse(req.body);
+      
+      // Verify conversation exists before adding messages
+      const conversation = await this.conversationRepository.findById(conversationId);
+      if (!conversation) {
+        res.status(404).json({ 
+          success: false, 
+          error: { code: 'NOT_FOUND', message: 'Conversation not found' }
+        } as TApiResponse<any>);
+        return;
+      }
+      
+      // Verify conversation belongs to the user
+      if (conversation.user_id !== userId) {
+        res.status(403).json({ 
+          success: false, 
+          error: { code: 'FORBIDDEN', message: 'Conversation does not belong to user' }
+        } as TApiResponse<any>);
+        return;
+      }
       
       // Set/reset conversation timeout for background processing trigger
       await this.setConversationTimeout(conversationId);

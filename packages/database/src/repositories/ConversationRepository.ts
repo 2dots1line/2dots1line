@@ -13,6 +13,7 @@ export interface CreateConversationData {
   source_card_id?: string;
   session_id?: string; // NEW: Include session_id for proper linking
   metadata?: any;
+  id?: string; // NEW: Allow custom ID to be provided
 }
 
 export interface CreateMessageData {
@@ -43,7 +44,7 @@ export class ConversationRepository {
   async create(data: CreateConversationData): Promise<conversations> {
     return this.db.prisma.conversations.create({
       data: {
-        id: randomUUID(),
+        id: data.id || randomUUID(), // Use provided ID or generate new one
         ...data,
       },
     });

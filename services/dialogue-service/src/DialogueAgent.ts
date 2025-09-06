@@ -415,54 +415,261 @@ export class DialogueAgent {
     // Enhanced LLM call with retry logic
     const llmResult = await this.executeLLMWithRetry(llmToolInput, callType);
 
+    // Use forgiving parser with multiple strategies
+    return this.parseLLMResponse(llmResult);
+  }
+
+  /**
+   * Forgiving LLM response parser with multiple fallback strategies.
+   * Handles malformed JSON gracefully and maintains conversation flow.
+   */
+  private parseLLMResponse(llmResult: any): any {
+    const rawText = llmResult.result.text;
+    console.log('DialogueAgent - Raw LLM response:', rawText.substring(0, 200) + '...');
+    
+    // Strategy 1: Try parsing as-is (fastest)
     try {
-      // Extract JSON from between markers
-      const rawText = llmResult.result.text;
-      console.log('DialogueAgent - Raw LLM response:', rawText.substring(0, 200) + '...');
+      const json = this.extractAndParseStrict(rawText);
+      if (this.validateDialogueResponse(json)) {
+        console.log('DialogueAgent - Strategy 1 successful: parsed as-is');
+        return json;
+      }
+    } catch (e) {
+      console.log('DialogueAgent - Strategy 1 failed, trying fixes...');
+    }
+    
+    // Strategy 2: Auto-fix common issues and retry
+    try {
+      const fixed = this.autoFixCommonIssues(rawText);
+      const json = this.extractAndParseStrict(fixed);
+      if (this.validateDialogueResponse(json)) {
+        console.log('DialogueAgent - Strategy 2 successful: auto-fixed and parsed');
+        return json;
+      }
+    } catch (e) {
+      console.log('DialogueAgent - Strategy 2 failed, trying field extraction...');
+    }
+    
+    // Strategy 3: Extract fields manually and construct response
+    try {
+      const constructed = this.constructResponseFromText(rawText);
+      if (this.validateDialogueResponse(constructed)) {
+        console.log('DialogueAgent - Strategy 3 successful: constructed from text');
+        return constructed;
+      }
+    } catch (e) {
+      console.log('DialogueAgent - Strategy 3 failed, using fallback...');
+    }
+    
+    // Strategy 4: Fallback to minimal valid response
+    console.log('DialogueAgent - All strategies failed, using fallback response');
+    return this.createFallbackResponse(rawText);
+  }
+
+  /**
+   * Extract and parse JSON using strict approach (original logic)
+   */
+  private extractAndParseStrict(rawText: string): any {
+    let jsonText = '';
+    
+    // First try: Look for special JSON markers
+    const beginMarker = '###==BEGIN_JSON==###';
+    const endMarker = '###==END_JSON==###';
+    
+    const beginIndex = rawText.indexOf(beginMarker);
+    const endIndex = rawText.indexOf(endMarker);
+    
+    if (beginIndex !== -1 && endIndex !== -1) {
+      jsonText = rawText.substring(beginIndex + beginMarker.length, endIndex).trim();
+      console.log('DialogueAgent - Found special markers, extracted JSON');
+    } else {
+      // Fallback: Look for markdown code blocks
+      const codeBlockStart = rawText.indexOf('```json');
+      const codeBlockEnd = rawText.indexOf('```', codeBlockStart + 7);
       
-      let jsonText = '';
-      
-      // First try: Look for special JSON markers
-      const beginMarker = '###==BEGIN_JSON==###';
-      const endMarker = '###==END_JSON==###';
-      
-      const beginIndex = rawText.indexOf(beginMarker);
-      const endIndex = rawText.indexOf(endMarker);
-      
-      if (beginIndex !== -1 && endIndex !== -1) {
-        jsonText = rawText.substring(beginIndex + beginMarker.length, endIndex).trim();
-        console.log('DialogueAgent - Found special markers, extracted JSON');
+      if (codeBlockStart !== -1 && codeBlockEnd !== -1) {
+        jsonText = rawText.substring(codeBlockStart + 7, codeBlockEnd).trim();
+        console.log('DialogueAgent - Found markdown code block, extracted JSON');
       } else {
-        // Fallback: Look for markdown code blocks
-        const codeBlockStart = rawText.indexOf('```json');
-        const codeBlockEnd = rawText.indexOf('```', codeBlockStart + 7);
+        // Final fallback: Try to find JSON by looking for { and }
+        const firstBrace = rawText.indexOf('{');
+        const lastBrace = rawText.lastIndexOf('}');
         
-        if (codeBlockStart !== -1 && codeBlockEnd !== -1) {
-          jsonText = rawText.substring(codeBlockStart + 7, codeBlockEnd).trim();
-          console.log('DialogueAgent - Found markdown code block, extracted JSON');
+        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+          jsonText = rawText.substring(firstBrace, lastBrace + 1).trim();
+          console.log('DialogueAgent - Found braces, extracted JSON');
         } else {
-          // Final fallback: Try to find JSON by looking for { and }
-          const firstBrace = rawText.indexOf('{');
-          const lastBrace = rawText.lastIndexOf('}');
-          
-          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-            jsonText = rawText.substring(firstBrace, lastBrace + 1).trim();
-            console.log('DialogueAgent - Found braces, extracted JSON');
-          } else {
-            console.error('DialogueAgent - No JSON markers or code blocks found in LLM response:', rawText);
-            throw new Error("LLM response missing JSON markers or code blocks.");
-          }
+          throw new Error("No JSON markers or code blocks found in LLM response");
         }
       }
-      
-      console.log('DialogueAgent - Extracted JSON:', jsonText.substring(0, 100) + '...');
-      
-      return JSON.parse(jsonText);
-    } catch (e) {
-      console.error('DialogueAgent - JSON parsing error:', e);
-      console.error('DialogueAgent - Raw LLM response:', llmResult.result.text);
-      throw new Error("LLM returned malformed JSON.");
     }
+    
+    console.log('DialogueAgent - Extracted JSON:', jsonText.substring(0, 100) + '...');
+    return JSON.parse(jsonText);
+  }
+
+  /**
+   * Auto-fix common JSON issues that LLMs often produce
+   */
+  private autoFixCommonIssues(rawText: string): string {
+    console.log('DialogueAgent - Applying auto-fixes to JSON...');
+    
+    // Extract JSON first
+    let jsonText = '';
+    const firstBrace = rawText.indexOf('{');
+    const lastBrace = rawText.lastIndexOf('}');
+    
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      jsonText = rawText.substring(firstBrace, lastBrace + 1).trim();
+    } else {
+      throw new Error("No JSON found to fix");
+    }
+    
+    // Apply fixes
+    let fixed = jsonText
+      // Fix unescaped control characters in string values
+      .replace(/"([^"\\]*(\\.[^"\\]*)*)"/g, (match, content) => {
+        const escapedContent = content
+          .replace(/\n/g, '\\n')
+          .replace(/\r/g, '\\r')
+          .replace(/\t/g, '\\t')
+          .replace(/\x08/g, '\\b')  // Fix: Use \x08 for actual backspace character, not \b (word boundary)
+          .replace(/\f/g, '\\f')
+          .replace(/\v/g, '\\v')
+          .replace(/\0/g, '\\0');
+        return `"${escapedContent}"`;
+      })
+      // Fix trailing commas
+      .replace(/,(\s*[}\]])/g, '$1')
+      // Fix missing quotes around keys
+      .replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '$1"$2":')
+      // Fix single quotes to double quotes (but be careful with content)
+      .replace(/'/g, '"');
+    
+    console.log('DialogueAgent - Auto-fixes applied');
+    return fixed;
+  }
+
+  /**
+   * Construct response by extracting key fields from text
+   */
+  private constructResponseFromText(rawText: string): any {
+    console.log('DialogueAgent - Constructing response from text extraction...');
+    
+    // Extract thought_process
+    const thoughtProcessMatch = rawText.match(/"thought_process"\s*:\s*"([^"]*(?:\\.[^"]*)*)"/);
+    const thoughtProcess = thoughtProcessMatch ? 
+      this.cleanExtractedText(thoughtProcessMatch[1]) : 
+      "Unable to parse thought process from LLM response.";
+    
+    // Extract direct_response_text
+    const responseTextMatch = rawText.match(/"direct_response_text"\s*:\s*"([^"]*(?:\\.[^"]*)*)"/);
+    const responseText = responseTextMatch ? 
+      this.cleanExtractedText(responseTextMatch[1]) : 
+      "I apologize, but I encountered an issue processing your message. Could you please rephrase your question?";
+    
+    // Extract decision
+    const decisionMatch = rawText.match(/"decision"\s*:\s*"([^"]*)"/);
+    const decision = decisionMatch ? decisionMatch[1] : "respond_directly";
+    
+    // Extract suggested_next_focus
+    const focusMatch = rawText.match(/"suggested_next_focus"\s*:\s*"([^"]*(?:\\.[^"]*)*)"/);
+    const suggestedFocus = focusMatch ? 
+      this.cleanExtractedText(focusMatch[1]) : 
+      "Continue the conversation";
+    
+    // Extract emotional_tone_to_adopt
+    const toneMatch = rawText.match(/"emotional_tone_to_adopt"\s*:\s*"([^"]*(?:\\.[^"]*)*)"/);
+    const emotionalTone = toneMatch ? 
+      this.cleanExtractedText(toneMatch[1]) : 
+      "Supportive and helpful";
+    
+    // Extract flags_for_ingestion
+    const flagsMatch = rawText.match(/"flags_for_ingestion"\s*:\s*\[([^\]]*)\]/);
+    let flags = [];
+    if (flagsMatch) {
+      try {
+        flags = JSON.parse(`[${flagsMatch[1]}]`);
+      } catch (e) {
+        // If array parsing fails, extract individual flags
+        const flagMatches = rawText.match(/"([a-zA-Z_][a-zA-Z0-9_]*)"(?=\s*[,}\]])/g);
+        flags = flagMatches ? flagMatches.map(f => f.replace(/"/g, '')) : [];
+      }
+    }
+    
+    return {
+      thought_process: thoughtProcess,
+      response_plan: {
+        decision: decision,
+        key_phrases_for_retrieval: null,
+        direct_response_text: responseText
+      },
+      turn_context_package: {
+        suggested_next_focus: suggestedFocus,
+        emotional_tone_to_adopt: emotionalTone,
+        flags_for_ingestion: flags
+      }
+    };
+  }
+
+  /**
+   * Clean extracted text by unescaping common escape sequences
+   */
+  private cleanExtractedText(text: string): string {
+    return text
+      .replace(/\\n/g, '\n')
+      .replace(/\\r/g, '\r')
+      .replace(/\\t/g, '\t')
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, '\\');
+  }
+
+  /**
+   * Create a fallback response when all parsing strategies fail
+   */
+  private createFallbackResponse(rawText: string): any {
+    console.log('DialogueAgent - Creating fallback response');
+    
+    // Try to extract any meaningful text from the response
+    const textContent = rawText
+      .replace(/thought_process\s*/g, '')
+      .replace(/[{}[\]"]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    const fallbackResponse = textContent.length > 50 ? 
+      `I understand your message, but I'm having trouble processing my response properly. Let me try to address your point: ${textContent.substring(0, 200)}...` :
+      "I apologize, but I encountered an issue processing your message. Could you please rephrase your question?";
+    
+    return {
+      thought_process: "System encountered parsing issues and is using fallback response to maintain conversation flow.",
+      response_plan: {
+        decision: "respond_directly",
+        key_phrases_for_retrieval: null,
+        direct_response_text: fallbackResponse
+      },
+      turn_context_package: {
+        suggested_next_focus: "Continue the conversation",
+        emotional_tone_to_adopt: "Supportive and apologetic",
+        flags_for_ingestion: ["parsing_error", "fallback_response"]
+      }
+    };
+  }
+
+  /**
+   * Validate that the parsed response has the expected structure
+   */
+  private validateDialogueResponse(response: any): boolean {
+    return (
+      response &&
+      typeof response === 'object' &&
+      typeof response.thought_process === 'string' &&
+      response.response_plan &&
+      typeof response.response_plan.decision === 'string' &&
+      typeof response.response_plan.direct_response_text === 'string' &&
+      response.turn_context_package &&
+      typeof response.turn_context_package.suggested_next_focus === 'string'
+    );
   }
 
   /**
