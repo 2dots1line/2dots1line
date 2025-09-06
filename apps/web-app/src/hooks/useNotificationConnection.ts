@@ -10,7 +10,10 @@ export const useNotificationConnection = () => {
   const eventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
+    console.log('[SSE] useNotificationConnection effect - user:', user, 'user_id:', user?.user_id);
+    
     if (!user?.user_id) {
+      console.log('[SSE] No user_id found, disconnecting if connected');
       // User not authenticated, disconnect if connected
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
@@ -30,12 +33,13 @@ export const useNotificationConnection = () => {
 
         // Get token for SSE (sent via query param)
         const token = (typeof window !== 'undefined' && localStorage.getItem('auth_token')) || 'dev-token';
-        const url = `/api/v1/notification/subscribe?userId=${encodeURIComponent(user.user_id)}&token=${encodeURIComponent(token)}`;
+        const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+        const url = `${API_BASE_URL}/api/v1/notification/subscribe?userId=${encodeURIComponent(user.user_id)}&token=${encodeURIComponent(token)}`;
         console.log('[SSE] Connecting to:', url);
-        const eventSource = new EventSource(url, { withCredentials: true });
+        const eventSource = new EventSource(url);
 
         eventSource.onopen = () => {
-          console.log('[SSE] connection established');
+          console.log('[SSE] ✅ Connection established successfully');
           connectSSE();
         };
 
@@ -44,7 +48,7 @@ export const useNotificationConnection = () => {
           try {
             const raw = event.data;
             const eventName = (event as any).type || 'message';
-            console.log('[SSE] Event received:', { eventName, raw });
+            console.log('[SSE] 📨 Event received:', { eventName, raw });
 
             const data = JSON.parse(raw);
 
@@ -79,7 +83,7 @@ export const useNotificationConnection = () => {
               metadata: data.metadata
             };
 
-            console.log('[SSE] Parsed notification:', notification);
+            console.log('[SSE] 🎉 Adding notification to store:', notification);
             addNotification(notification);
           } catch (error) {
             console.error('Error parsing SSE message:', error);
