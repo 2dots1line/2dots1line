@@ -8,6 +8,8 @@ import { useHUDStore } from '../../stores/HUDStore';
 import { useCardStore } from '../../stores/CardStore';
 import { useChatStore } from '../../stores/ChatStore';
 import { useBackgroundVideoStore, type ViewType } from '../../stores/BackgroundVideoStore';
+import { useNotificationPreferencesStore, type NotificationPosition, type NotificationType } from '../../stores/NotificationPreferencesStore';
+import { useNotificationStore } from '../../stores/NotificationStore';
 import { PexelsSearchModal } from './PexelsSearchModal';
 
 import { EnhancedCardModal } from './EnhancedCardModal';
@@ -26,6 +28,20 @@ const SettingsModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
   const { mediaPreferences, setMediaForView, resetToDefaults } = useBackgroundVideoStore();
   const [pexelsModalOpen, setPexelsModalOpen] = useState(false);
   const [targetView, setTargetView] = useState<ViewType>('dashboard');
+
+  // Notification preferences
+  const {
+    preferences,
+    setEnabled,
+    setTypeEnabled,
+    setPosition,
+    setMaxToasts,
+    setAutoHide,
+    snoozeFor,
+    clearSnooze,
+  } = useNotificationPreferencesStore();
+
+  const { addNotification } = useNotificationStore();
   
   if (!isOpen) return null;
   
@@ -140,6 +156,130 @@ const SettingsModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
           </div>
         </div>
         
+        {/* Notification Settings */}
+        <div className="border-t border-white/20 pt-6 mb-8">
+          <h3 className="text-xl font-semibold text-white mb-4">Notification Settings</h3>
+          <p className="text-white/80 mb-6">Configure in-app toasts and delivery preferences.</p>
+
+          {/* Master Enable */}
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-white/90">Enable Notifications</span>
+            <button
+              onClick={() => setEnabled(!preferences.enabled)}
+              className={`px-3 py-1 rounded-lg text-sm ${preferences.enabled ? 'bg-green-600/70 hover:bg-green-600' : 'bg-white/10 hover:bg-white/20'} text-white`}
+            >
+              {preferences.enabled ? 'Enabled' : 'Disabled'}
+            </button>
+          </div>
+
+          {/* Allowed Types */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-white/80 mb-2">Allow Types</label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {([
+                { key: 'new_card_available', label: 'New Card Available' },
+                { key: 'graph_projection_updated', label: 'Graph Projection Updated' },
+                { key: 'new_star_generated', label: 'New Star Generated' },
+              ] as Array<{ key: NotificationType; label: string }>).map(({ key, label }) => {
+                const enabled = preferences.allowTypes[key];
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setTypeEnabled(key, !enabled)}
+                    className={`px-3 py-2 rounded-lg text-left text-sm border border-white/20 ${enabled ? 'bg-white/15 hover:bg-white/25' : 'bg-transparent hover:bg-white/10'} text-white`}
+                  >
+                    <div className="font-medium">{label}</div>
+                    <div className="text-xs opacity-80">{enabled ? 'Allowed' : 'Blocked'}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Position and Limits */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <div>
+              <label className="block text-sm font-medium text-white/80 mb-2">Position</label>
+              <select
+                value={preferences.position}
+                onChange={(e) => setPosition(e.target.value as NotificationPosition)}
+                className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-transparent text-sm"
+              >
+                {(['top-right', 'top-left', 'bottom-right', 'bottom-left'] as NotificationPosition[]).map(p => (
+                  <option key={p} value={p} className="bg-gray-800 text-white">
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-white/80 mb-2">Max Visible</label>
+              <input
+                type="number"
+                min={1}
+                max={10}
+                value={preferences.maxToasts}
+                onChange={(e) => setMaxToasts(Number(e.target.value || 1))}
+                className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-transparent text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-white/80 mb-2">Auto-hide (seconds, 0 = never)</label>
+              <input
+                type="number"
+                min={0}
+                value={Math.floor(preferences.autoHide / 1000)}
+                onChange={(e) => setAutoHide(Math.max(0, Number(e.target.value || 0)) * 1000)}
+                className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-transparent text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Do Not Disturb */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-white/80 mb-2">Do Not Disturb</label>
+            <div className="flex flex-wrap gap-3">
+              <GlassButton className="px-3 py-2 text-sm hover:bg-white/20" onClick={() => snoozeFor(15)}>
+                Snooze 15m
+              </GlassButton>
+              <GlassButton className="px-3 py-2 text-sm hover:bg-white/20" onClick={() => snoozeFor(30)}>
+                Snooze 30m
+              </GlassButton>
+              <GlassButton className="px-3 py-2 text-sm hover:bg-white/20" onClick={() => snoozeFor(60)}>
+                Snooze 60m
+              </GlassButton>
+              <GlassButton className="px-3 py-2 text-sm hover:bg-white/20" onClick={clearSnooze}>
+                Clear Snooze
+              </GlassButton>
+            </div>
+            {preferences.snoozeUntil && (
+              <div className="mt-2 text-sm text-white/70">
+                Snoozing until {new Date(preferences.snoozeUntil).toLocaleTimeString()}
+              </div>
+            )}
+          </div>
+
+          {/* Local Test */}
+          <div className="flex items-center justify-between">
+            <span className="text-white/80 text-sm">Send Test Notification (local)</span>
+            <GlassButton
+              className="px-3 py-2 text-sm hover:bg-white/20"
+              onClick={() =>
+                addNotification({
+                  type: 'new_card_available',
+                  title: 'Test Notification',
+                  description: 'This is a local test toast',
+                  userId: 'local',
+                })
+              }
+            >
+              Send Test
+            </GlassButton>
+          </div>
+        </div>
+
         {/* Placeholder for other settings */}
         <div className="border-t border-white/20 pt-6">
           <h3 className="text-xl font-semibold text-white mb-4">Other Settings</h3>
@@ -212,4 +352,4 @@ export const ModalContainer: React.FC<ModalContainerProps> = ({
       />
     </div>
   );
-}; 
+};

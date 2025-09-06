@@ -15,7 +15,7 @@
 
 import { DatabaseService, GraphProjectionRepository, GraphProjectionData, Neo4jService } from '@2dots1line/database';
 import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
-import { Worker, Job } from 'bullmq';
+import { Worker, Job, Queue } from 'bullmq';
 
 // Event types that trigger projection updates
 export interface NewEntitiesCreatedEvent {
@@ -111,6 +111,8 @@ export class GraphProjectionWorker {
   private graphProjectionRepo: GraphProjectionRepository;
   private neo4jService: Neo4jService;
   private retryCounts: Map<string, number> = new Map(); // Track retry attempts per job
+  // Add a queue for publishing notification jobs
+  private notificationQueue: Queue;
 
   constructor(
     private databaseService: DatabaseService,
@@ -155,6 +157,9 @@ export class GraphProjectionWorker {
         concurrency: this.config.concurrency,
       }
     );
+
+    // Initialize notification queue (same Redis connection)
+    this.notificationQueue = new Queue('notification-queue', { connection: redisConnection });
 
     this.setupEventHandlers();
   }
@@ -234,6 +239,31 @@ export class GraphProjectionWorker {
       console.log(`[GraphProjectionWorker] ✅ Successfully regenerated projection for user ${data.userId} in ${duration}ms`);
       console.log(`[GraphProjectionWorker] Projection contains ${projection.nodes.length} nodes and ${projection.edges.length} edges`);
 
+      // Enqueue notification for "graph_projection_updated"
+      try {
+        const payload = {
+          type: 'graph_projection_updated' as const,
+          userId: data.userId,
+          projection: {
+            version: projection.version,
+            nodeCount: projection.nodes.length,
+            edgeCount: projection.edges.length,
+          },
+        };
+
+        await this.notificationQueue.add('graph_projection_updated', payload, {
+          removeOnComplete: true,
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 1000 },
+        });
+
+        console.log(
+          `[GraphProjectionWorker] 📣 Enqueued notification 'graph_projection_updated' for user ${data.userId} (version=${projection.version})`
+        );
+      } catch (notifyErr) {
+        console.error('[GraphProjectionWorker] Failed to enqueue graph_projection_updated notification:', notifyErr);
+        // Do not fail the projection job if notification enqueue fails
+      }
     } catch (error) {
       const duration = Date.now() - startTime;
       console.error(`[GraphProjectionWorker] Failed to generate projection for user ${data.userId} after ${duration}ms:`, error);
