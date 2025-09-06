@@ -30,7 +30,11 @@ import { MediaController } from './controllers/media.controller';
 
 async function createApp(): Promise<express.Application> {
   const app: express.Application = express();
-  app.use(cors());
+  app.use(cors({
+    origin: 'http://localhost:3000',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control']
+  }));
   app.use(express.json());
 
   // --- COMPOSITION ROOT ---
