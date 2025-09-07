@@ -96,12 +96,13 @@ export class DialogueAgent {
       memory_retrieval_performed?: boolean;
     };
     vision_analysis?: string; // Add vision analysis result for record keeping
+    document_analysis?: string; // Add document analysis result for record keeping
   }> {
     const executionId = `da_${Date.now()}`;
     console.log(`[${executionId}] Starting turn processing for convo: ${input.conversationId}`);
 
     // --- PHASE I: INPUT PRE-PROCESSING ---
-    const { processedText: finalInputText, visionAnalysis } = await this.processInput(input.currentMessageText, input.currentMessageMedia);
+    const { processedText: finalInputText, visionAnalysis, documentAnalysis } = await this.processInput(input.currentMessageText, input.currentMessageMedia);
 
     // --- PHASE II: SINGLE SYNTHESIS LLM CALL ---
     const llmResponse = await this.performSingleSynthesisCall({ ...input, finalInputText }, undefined, 'first');
@@ -130,7 +131,8 @@ export class DialogueAgent {
           decision: response_plan.decision,
           processing_time_ms: Date.now() - parseInt(executionId.split('_')[1])
         },
-        vision_analysis: visionAnalysis
+        vision_analysis: visionAnalysis,
+        document_analysis: documentAnalysis
       };
     } 
     
@@ -185,7 +187,8 @@ export class DialogueAgent {
           memory_retrieval_performed: true,
           processing_time_ms: Date.now() - parseInt(executionId.split('_')[1])
         },
-        vision_analysis: visionAnalysis
+        vision_analysis: visionAnalysis,
+        document_analysis: documentAnalysis
       };
     }
 
@@ -200,10 +203,11 @@ export class DialogueAgent {
     type: string;
     url?: string;
     content?: string;
-  }>): Promise<{ processedText: string; visionAnalysis?: string }> {
+  }>): Promise<{ processedText: string; visionAnalysis?: string; documentAnalysis?: string }> {
     console.log(`🔍 DialogueAgent - processInput called with text: "${text}", media:`, media);
     let mediaText = '';
     let visionAnalysis: string | undefined;
+    let documentAnalysis: string | undefined;
     
     if (media && media.length > 0) {
       console.log(`🔍 DialogueAgent - Processing ${media.length} media items`);
@@ -298,8 +302,10 @@ export class DialogueAgent {
               });
               
               if (documentResult.status === 'success' && documentResult.result?.extractedText) {
-                mediaText += `\n[Document Analysis: ${documentResult.result.extractedText}]`;
-                console.log(`✅ DialogueAgent - Document analysis completed: ${(documentResult.result.extractedText as string).substring(0, 100)}...`);
+                const extractedText = documentResult.result.extractedText as string;
+                mediaText += `\n[Document Analysis: ${extractedText}]`;
+                documentAnalysis = extractedText; // Store the full document analysis for record keeping
+                console.log(`✅ DialogueAgent - Document analysis completed: ${extractedText.substring(0, 100)}...`);
               } else {
                 console.warn(`⚠️ DialogueAgent - Document analysis failed:`, documentResult.error);
                 mediaText += `\n[Document provided but analysis failed]`;
@@ -332,7 +338,8 @@ export class DialogueAgent {
     
     return {
       processedText: `${text || ''}${mediaText}`.trim(),
-      visionAnalysis
+      visionAnalysis,
+      documentAnalysis
     };
   }
 
