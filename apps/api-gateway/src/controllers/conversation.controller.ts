@@ -482,8 +482,8 @@ export class ConversationController {
         }]
       });
 
-      // STEP 3: Create separate assistant message with vision analysis
-      // Use the vision analysis directly from DialogueAgent result
+      // STEP 3: Create separate assistant message with file analysis
+      // Use the analysis results directly from DialogueAgent result
       if (result.vision_analysis) {
         console.log(`✅ Found vision analysis from DialogueAgent (${result.vision_analysis.length} chars)`);
         
@@ -495,8 +495,19 @@ export class ConversationController {
           media_ids: mediaRecord ? [mediaRecord.media_id] : []
         });
         console.log(`✅ Created separate assistant message with vision analysis`);
+      } else if (result.document_analysis) {
+        console.log(`✅ Found document analysis from DialogueAgent (${result.document_analysis.length} chars)`);
+        
+        // Store the document analysis as a separate message for record keeping
+        await this.conversationRepository.addMessage({
+          conversation_id: conversationId,
+          role: 'assistant',
+          content: result.document_analysis,
+          media_ids: mediaRecord ? [mediaRecord.media_id] : []
+        });
+        console.log(`✅ Created separate assistant message with document analysis`);
       } else {
-        console.log(`⚠️ No vision analysis found in DialogueAgent result`);
+        console.log(`⚠️ No file analysis found in DialogueAgent result`);
       }
 
       // STEP 4: Save the main assistant's response to the database
