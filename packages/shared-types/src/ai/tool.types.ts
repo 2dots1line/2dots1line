@@ -106,8 +106,8 @@ export interface IToolCapability {
 export interface TTextEmbeddingInputPayload {
   /** Text to embed */
   text_to_embed: string;
-  /** Identifier of the embedding model to use (e.g., 'google-gecko-003', 'deepseek-embed-v1') */
-  model_id: string;
+  /** Optional: Identifier of the embedding model to use (e.g., 'google-gecko-003', 'deepseek-embed-v1'). If not provided, the tool will use its configured model. */
+  model_id?: string;
   /** Optional: specific embedding type or task (e.g., 'retrieval_document', 'similarity_query') */
   embedding_type?: string;
 }

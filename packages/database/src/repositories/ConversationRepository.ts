@@ -31,6 +31,7 @@ export interface UpdateConversationData {
   context_summary?: string;
   metadata?: any;
   ended_at?: Date;
+  session_id?: string;
 }
 
 export interface ConversationSummary {
@@ -251,13 +252,6 @@ export class ConversationRepository {
     return previousConversation?.conversation_messages || [];
   }
 
-  // NEW METHOD: Assign conversation to session
-  async assignToSession(conversationId: string, sessionId: string): Promise<void> {
-    await this.db.prisma.conversations.update({
-      where: { id: conversationId },
-      data: { session_id: sessionId }
-    });
-  }
 
   // ENHANCED METHOD: Get conversation with session info
   async findByIdWithSession(conversationId: string): Promise<conversations | null> {
