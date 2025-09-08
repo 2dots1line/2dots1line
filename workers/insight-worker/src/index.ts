@@ -8,6 +8,7 @@ import { DatabaseService } from '@2dots1line/database';
 import { StrategicSynthesisTool } from '@2dots1line/tools';
 import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
 import { Worker, Queue } from 'bullmq';
+import { Redis } from 'ioredis';
 
 import { InsightEngine, InsightJobData } from './InsightEngine';
 
@@ -32,14 +33,42 @@ async function main() {
     const strategicSynthesisTool = new StrategicSynthesisTool(configService);
     console.log('[InsightWorker] StrategicSynthesisTool instantiated');
 
-    // 3. Initialize BullMQ queues with EnvironmentLoader
-    const redisConnection = {
-      host: environmentLoader.get('REDIS_HOST') || 'localhost',
-      port: parseInt(environmentLoader.get('REDIS_PORT') || '6379'),
-      password: environmentLoader.get('REDIS_PASSWORD'),
-    };
+    // 3. Create dedicated Redis connection for BullMQ to prevent connection pool exhaustion
+    const redisUrl = environmentLoader.get('REDIS_URL');
+    let redisConnection: Redis;
+    
+    if (redisUrl) {
+      redisConnection = new Redis(redisUrl, {
+        maxRetriesPerRequest: null, // Required by BullMQ
+        enableReadyCheck: false,
+        lazyConnect: true,
+        family: 4,
+        keepAlive: 30000,
+        connectTimeout: 10000,
+        commandTimeout: 10000,
+        enableOfflineQueue: true
+      });
+    } else {
+      const redisHost = environmentLoader.get('REDIS_HOST') || environmentLoader.get('REDIS_HOST_DOCKER') || 'localhost';
+      const redisPort = parseInt(environmentLoader.get('REDIS_PORT') || environmentLoader.get('REDIS_PORT_DOCKER') || '6379');
+      const redisPassword = environmentLoader.get('REDIS_PASSWORD');
+      
+      redisConnection = new Redis({
+        host: redisHost,
+        port: redisPort,
+        password: redisPassword,
+        maxRetriesPerRequest: null, // Required by BullMQ
+        enableReadyCheck: false,
+        lazyConnect: true,
+        family: 4,
+        keepAlive: 30000,
+        connectTimeout: 10000,
+        commandTimeout: 10000,
+        enableOfflineQueue: true
+      });
+    }
 
-    console.log(`[InsightWorker] Redis connection configured: ${redisConnection.host}:${redisConnection.port}`);
+    console.log(`[InsightWorker] Using dedicated Redis connection for BullMQ`);
 
     const cardQueue = new Queue('card-queue', { connection: redisConnection });
     const graphQueue = new Queue('graph-queue', { connection: redisConnection });
@@ -146,25 +175,25 @@ async function main() {
     console.log('[InsightWorker] Worker is running and listening for jobs on insight queue');
 
     // Graceful shutdown
-    process.on('SIGINT', async () => {
-      console.log('[InsightWorker] Received SIGINT, shutting down gracefully...');
-      await worker.close();
-      await cardQueue.close();
-      await graphQueue.close();
-      await embeddingQueue.close();
-      console.log('[InsightWorker] Shutdown complete');
-      process.exit(0);
-    });
+    const gracefulShutdown = async (signal: string) => {
+      console.log(`[InsightWorker] Received ${signal}, shutting down gracefully...`);
+      try {
+        await worker.close();
+        await cardQueue.close();
+        await graphQueue.close();
+        await embeddingQueue.close();
+        // Close dedicated Redis connection
+        await redisConnection.quit();
+        console.log('[InsightWorker] Shutdown complete');
+        process.exit(0);
+      } catch (error) {
+        console.error('[InsightWorker] Error during shutdown:', error);
+        process.exit(1);
+      }
+    };
 
-    process.on('SIGTERM', async () => {
-      console.log('[InsightWorker] Received SIGTERM, shutting down gracefully...');
-      await worker.close();
-      await cardQueue.close();
-      await graphQueue.close();
-      await embeddingQueue.close();
-      console.log('[InsightWorker] Shutdown complete');
-      process.exit(0);
-    });
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
   } catch (error) {
     console.error('[InsightWorker] Failed to start:', error);

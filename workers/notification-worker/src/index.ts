@@ -37,11 +37,42 @@ if (require.main === module) {
       // Create HTTP server
       const httpServer = createServer(app);
       
-      // Get DatabaseService singleton instance (shares Redis connection pool)
-      const databaseService = DatabaseService.getInstance();
-      const redisConnection = databaseService.redis;
+      // Create dedicated Redis connection for BullMQ to prevent connection pool exhaustion
+      const redisUrl = process.env.REDIS_URL;
+      let redisConnection: Redis;
+      
+      if (redisUrl) {
+        redisConnection = new Redis(redisUrl, {
+          maxRetriesPerRequest: null, // Required by BullMQ
+          enableReadyCheck: false,
+          lazyConnect: true,
+          family: 4,
+          keepAlive: 30000,
+          connectTimeout: 10000,
+          commandTimeout: 10000,
+          enableOfflineQueue: true
+        });
+      } else {
+        const redisHost = process.env.REDIS_HOST || process.env.REDIS_HOST_DOCKER || 'localhost';
+        const redisPort = parseInt(process.env.REDIS_PORT || process.env.REDIS_PORT_DOCKER || '6379');
+        redisConnection = new Redis({
+          host: redisHost,
+          port: redisPort,
+          maxRetriesPerRequest: null, // Required by BullMQ
+          enableReadyCheck: false,
+          lazyConnect: true,
+          family: 4,
+          keepAlive: 30000,
+          connectTimeout: 10000,
+          commandTimeout: 10000,
+          enableOfflineQueue: true
+        });
+      }
 
-      console.log(`[NotificationWorker] Using shared Redis connection from DatabaseService`);
+      console.log(`[NotificationWorker] Using dedicated Redis connection for BullMQ`);
+      
+      // Get DatabaseService singleton instance for other database operations
+      const databaseService = DatabaseService.getInstance();
 
       // Create worker with HTTP server for Socket.IO
       const worker = new NotificationWorker(redisConnection, databaseService, httpServer);
@@ -76,6 +107,8 @@ if (require.main === module) {
         try {
           httpServer.close(async () => {
             await worker.stop();
+            // Close dedicated Redis connection
+            await redisConnection.quit();
             console.log('[NotificationWorker] Shutdown complete');
             process.exit(0);
           });
