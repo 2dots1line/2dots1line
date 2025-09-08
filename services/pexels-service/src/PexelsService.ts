@@ -1,5 +1,7 @@
-import axios, { AxiosInstance } from 'axios';
 import { environmentLoader } from '@2dots1line/core-utils';
+
+import axios, { AxiosInstance } from 'axios';
+
 import { 
   PexelsVideo, 
   PexelsPhoto, 
