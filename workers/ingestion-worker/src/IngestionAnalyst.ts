@@ -14,12 +14,28 @@ import type {
   CreateConceptData, 
   CreateGrowthEventData 
 } from '@2dots1line/database';
-import { HolisticAnalysisTool, HolisticAnalysisOutput } from '@2dots1line/tools';
+import { HolisticAnalysisTool, HolisticAnalysisOutput, SemanticSimilarityTool } from '@2dots1line/tools';
+import type { SemanticSimilarityInput, SemanticSimilarityResult } from '@2dots1line/tools';
 import { Job , Queue } from 'bullmq';
 
 export interface IngestionJobData {
   conversationId: string;
   userId: string;
+}
+
+// HRT Deduplication Types
+export interface DeduplicationDecision {
+  candidate: any;
+  existingEntity: any; // Hydrated entity from HRT, not just ScoredEntity
+  similarityScore: number;
+}
+
+export interface DeduplicationDecisions {
+  conceptsToCreate: any[];
+  conceptsToReuse: DeduplicationDecision[];
+  memoryUnitsToCreate: any[];
+  memoryUnitsToReuse: DeduplicationDecision[];
+  entityMappings: Map<string, string>; // Maps candidate entity names to actual entity IDs
 }
 
 export class IngestionAnalyst {
@@ -34,6 +50,7 @@ export class IngestionAnalyst {
 
   constructor(
     private holisticAnalysisTool: HolisticAnalysisTool,
+    private semanticSimilarityTool: SemanticSimilarityTool,
     private dbService: DatabaseService,
     private embeddingQueue: Queue,
     private cardQueue: Queue,
@@ -74,13 +91,16 @@ export class IngestionAnalyst {
 
       console.log(`[IngestionAnalyst] Analysis completed with importance score: ${analysisOutput.persistence_payload.conversation_importance_score}`);
 
-      // Phase III: Persistence & Graph Update
-      const newEntities = await this.persistAnalysisResults(conversationId, userId, analysisOutput);
+      // Phase III: Semantic Similarity Deduplication
+      const deduplicationDecisions = await this.performSemanticDeduplication(userId, analysisOutput);
 
-      // Phase IV: Update Conversation Title
+      // Phase IV: Enhanced Persistence with Deduplication
+      const newEntities = await this.persistAnalysisResultsWithDeduplication(conversationId, userId, analysisOutput, deduplicationDecisions);
+
+      // Phase V: Update Conversation Title
       await this.updateConversationTitle(conversationId, analysisOutput.persistence_payload.conversation_title);
       
-      // Phase V: Event Publishing
+      // Phase VI: Event Publishing
       await this.publishEvents(userId, newEntities);
 
       console.log(`[IngestionAnalyst] Successfully processed conversation ${conversationId}, created ${newEntities.length} new entities`);
@@ -1165,5 +1185,572 @@ export class IngestionAnalyst {
         title: 'New Conversation'
       });
     }
+  }
+
+  /**
+   * Semantic Similarity Deduplication - Phase III
+   * Checks candidate entities against existing entities using semantic similarity
+   */
+  private async performSemanticDeduplication(
+    userId: string,
+    analysisOutput: HolisticAnalysisOutput
+  ): Promise<DeduplicationDecisions> {
+    
+    console.log(`[IngestionAnalyst] Starting semantic similarity deduplication for user ${userId}`);
+    
+    // Extract candidate entities
+    const candidateConcepts = analysisOutput.persistence_payload.extracted_concepts || [];
+    const candidateMemoryUnits = analysisOutput.persistence_payload.extracted_memory_units || [];
+    
+    // Prepare candidate names for semantic similarity search
+    const candidateNames = [
+      ...candidateConcepts.map(c => c.name),
+      ...candidateMemoryUnits.map(m => m.title)
+    ].filter(name => name && name.trim().length > 0);
+    
+    if (candidateNames.length === 0) {
+      console.log(`[IngestionAnalyst] No candidate entities to check, returning empty decisions`);
+      return {
+        conceptsToCreate: candidateConcepts,
+        conceptsToReuse: [],
+        memoryUnitsToCreate: candidateMemoryUnits,
+        memoryUnitsToReuse: [],
+        entityMappings: new Map()
+      };
+    }
+    
+    // Execute semantic similarity search
+    const similarityInput: SemanticSimilarityInput = {
+      candidateNames,
+      userId,
+      entityTypes: ['concept', 'memory_unit'],
+      maxResults: 1 // Only need the single best match per candidate
+    };
+
+    const similarityResults = await this.semanticSimilarityTool.execute(similarityInput);
+    
+    console.log(`[IngestionAnalyst] Semantic similarity search completed for ${similarityResults.length} candidates`);
+    
+    const deduplicationDecisions = this.processSemanticSimilarityResults(
+      candidateConcepts,
+      candidateMemoryUnits,
+      similarityResults
+    );
+    
+    console.log(`[IngestionAnalyst] Semantic deduplication completed: ${deduplicationDecisions.conceptsToReuse.length} concepts to reuse, ${deduplicationDecisions.memoryUnitsToReuse.length} memory units to reuse`);
+    console.log(`[IngestionAnalyst] Will create ${deduplicationDecisions.conceptsToCreate.length} new concepts and ${deduplicationDecisions.memoryUnitsToCreate.length} new memory units`);
+    
+    return deduplicationDecisions;
+  }
+
+  /**
+   * Process semantic similarity results and make deduplication decisions
+   */
+  private processSemanticSimilarityResults(
+    candidateConcepts: any[],
+    candidateMemoryUnits: any[],
+    similarityResults: SemanticSimilarityResult[]
+  ): DeduplicationDecisions {
+    
+    const decisions: DeduplicationDecisions = {
+      conceptsToCreate: [],
+      conceptsToReuse: [],
+      memoryUnitsToCreate: [],
+      memoryUnitsToReuse: [],
+      entityMappings: new Map()
+    };
+
+    const SIMILARITY_THRESHOLD = 0.7; // 70% similarity threshold
+
+    // Create a map of candidate names to similarity results for quick lookup
+    const similarityMap = new Map(
+      similarityResults.map(result => [result.candidateName, result])
+    );
+
+    // Process concept candidates
+    for (const concept of candidateConcepts) {
+      const similarityResult = similarityMap.get(concept.name);
+      
+      if (similarityResult?.bestMatch && 
+          similarityResult.bestMatch.entityType === 'concept' && 
+          similarityResult.bestMatch.similarityScore > SIMILARITY_THRESHOLD) {
+        // Found similar concept - reuse existing entity
+        decisions.conceptsToReuse.push({
+          candidate: concept,
+          existingEntity: { 
+            concept_id: similarityResult.bestMatch.entityId,
+            name: similarityResult.bestMatch.entityName 
+          },
+          similarityScore: similarityResult.bestMatch.similarityScore
+        });
+        
+        // Map candidate name to existing entity ID for relationship updates
+        decisions.entityMappings.set(concept.name, similarityResult.bestMatch.entityId);
+        console.log(`[IngestionAnalyst] Concept "${concept.name}" will reuse existing concept "${similarityResult.bestMatch.entityName}" (similarity: ${similarityResult.bestMatch.similarityScore.toFixed(3)})`);
+      } else {
+        // No similar concept found or below threshold - create new entity
+        decisions.conceptsToCreate.push(concept);
+        decisions.entityMappings.set(concept.name, `new_concept_${concept.name}`);
+        console.log(`[IngestionAnalyst] Concept "${concept.name}" will be created as new (similarity: ${similarityResult?.bestMatch?.similarityScore?.toFixed(3) || 'N/A'}, below threshold ${SIMILARITY_THRESHOLD})`);
+      }
+    }
+
+    // Process memory unit candidates
+    for (const memoryUnit of candidateMemoryUnits) {
+      const similarityResult = similarityMap.get(memoryUnit.title);
+      
+      if (similarityResult?.bestMatch && 
+          similarityResult.bestMatch.entityType === 'memory_unit' && 
+          similarityResult.bestMatch.similarityScore > SIMILARITY_THRESHOLD) {
+        // Found similar memory unit - reuse existing entity
+        decisions.memoryUnitsToReuse.push({
+          candidate: memoryUnit,
+          existingEntity: { 
+            muid: similarityResult.bestMatch.entityId,
+            title: similarityResult.bestMatch.entityName 
+          },
+          similarityScore: similarityResult.bestMatch.similarityScore
+        });
+        
+        // Map candidate name to existing entity ID for relationship updates
+        decisions.entityMappings.set(memoryUnit.title, similarityResult.bestMatch.entityId);
+        console.log(`[IngestionAnalyst] Memory unit "${memoryUnit.title}" will reuse existing memory unit "${similarityResult.bestMatch.entityName}" (similarity: ${similarityResult.bestMatch.similarityScore.toFixed(3)})`);
+      } else {
+        // No similar memory unit found or below threshold - create new entity
+        decisions.memoryUnitsToCreate.push(memoryUnit);
+        decisions.entityMappings.set(memoryUnit.title, `new_memory_${memoryUnit.title}`);
+        console.log(`[IngestionAnalyst] Memory unit "${memoryUnit.title}" will be created as new (similarity: ${similarityResult?.bestMatch?.similarityScore?.toFixed(3) || 'N/A'}, below threshold ${SIMILARITY_THRESHOLD})`);
+      }
+    }
+
+    return decisions;
+  }
+
+  /**
+   * Find the most similar concept by name
+   */
+  private findSimilarConcept(candidateName: string, existingConcepts: any[]): any | null {
+    if (!existingConcepts || existingConcepts.length === 0) return null;
+    
+    console.log(`[IngestionAnalyst] Looking for similar concept to "${candidateName}" among ${existingConcepts.length} existing concepts`);
+    
+    // Find concepts with similar names using string similarity
+    const similarConcepts = existingConcepts.filter(concept => {
+      const conceptName = concept.name || concept.title || '';
+      const similarity = this.calculateNameSimilarity(candidateName, conceptName);
+      console.log(`[IngestionAnalyst] Comparing "${candidateName}" with "${conceptName}" - similarity: ${similarity.toFixed(3)}`);
+      return similarity > 0.7; // 70% string similarity threshold
+    });
+    
+    if (similarConcepts.length === 0) {
+      console.log(`[IngestionAnalyst] No similar concept found for "${candidateName}"`);
+      return null;
+    }
+    
+    // Return the most similar concept
+    const bestMatch = similarConcepts.reduce((best, current) => {
+      const bestSimilarity = this.calculateNameSimilarity(candidateName, best.name || best.title || '');
+      const currentSimilarity = this.calculateNameSimilarity(candidateName, current.name || current.title || '');
+      return currentSimilarity > bestSimilarity ? current : best;
+    });
+    
+    console.log(`[IngestionAnalyst] Found similar concept: "${bestMatch.name || bestMatch.title}" (ID: ${bestMatch.concept_id || bestMatch.id})`);
+    return bestMatch;
+  }
+
+  /**
+   * Find the most similar memory unit by title
+   */
+  private findSimilarMemoryUnit(candidateTitle: string, existingMemoryUnits: any[]): any | null {
+    if (!existingMemoryUnits || existingMemoryUnits.length === 0) return null;
+    
+    console.log(`[IngestionAnalyst] Looking for similar memory unit to "${candidateTitle}" among ${existingMemoryUnits.length} existing memory units`);
+    
+    // Find memory units with similar titles using string similarity
+    const similarMemoryUnits = existingMemoryUnits.filter(memoryUnit => {
+      const memoryTitle = memoryUnit.title || memoryUnit.name || '';
+      const similarity = this.calculateNameSimilarity(candidateTitle, memoryTitle);
+      console.log(`[IngestionAnalyst] Comparing "${candidateTitle}" with "${memoryTitle}" - similarity: ${similarity.toFixed(3)}`);
+      return similarity > 0.7; // 70% string similarity threshold
+    });
+    
+    if (similarMemoryUnits.length === 0) {
+      console.log(`[IngestionAnalyst] No similar memory unit found for "${candidateTitle}"`);
+      return null;
+    }
+    
+    // Return the most similar memory unit
+    const bestMatch = similarMemoryUnits.reduce((best, current) => {
+      const bestSimilarity = this.calculateNameSimilarity(candidateTitle, best.title || best.name || '');
+      const currentSimilarity = this.calculateNameSimilarity(candidateTitle, current.title || current.name || '');
+      return currentSimilarity > bestSimilarity ? current : best;
+    });
+    
+    console.log(`[IngestionAnalyst] Found similar memory unit: "${bestMatch.title || bestMatch.name}" (ID: ${bestMatch.muid || bestMatch.id})`);
+    return bestMatch;
+  }
+
+  /**
+   * Calculate semantic similarity using word overlap and semantic mappings
+   */
+  private calculateNameSimilarity(name1: string, name2: string): number {
+    if (!name1 || !name2) return 0;
+    
+    const normalized1 = name1.toLowerCase().trim();
+    const normalized2 = name2.toLowerCase().trim();
+    
+    // Exact match
+    if (normalized1 === normalized2) return 1.0;
+    
+    // Calculate word overlap similarity
+    const wordOverlapScore = this.calculateWordOverlapSimilarity(normalized1, normalized2);
+    
+    // Calculate semantic similarity
+    const semanticScore = this.calculateSemanticSimilarity(normalized1, normalized2);
+    
+    // Use the higher of the two scores
+    return Math.max(wordOverlapScore, semanticScore);
+  }
+
+  /**
+   * Calculate similarity based on word overlap
+   */
+  private calculateWordOverlapSimilarity(name1: string, name2: string): number {
+    const words1 = new Set(name1.split(/\s+/).filter(w => w.length > 2));
+    const words2 = new Set(name2.split(/\s+/).filter(w => w.length > 2));
+    
+    if (words1.size === 0 && words2.size === 0) return 1.0;
+    if (words1.size === 0 || words2.size === 0) return 0.0;
+    
+    const intersection = new Set([...words1].filter(x => words2.has(x)));
+    const union = new Set([...words1, ...words2]);
+    
+    return intersection.size / union.size;
+  }
+
+  /**
+   * Calculate semantic similarity based on similar concepts
+   */
+  private calculateSemanticSimilarity(name1: string, name2: string): number {
+    const words1 = name1.split(/\s+/);
+    const words2 = name2.split(/\s+/);
+    
+    let semanticMatches = 0;
+    let totalComparisons = 0;
+    
+    for (const word1 of words1) {
+      for (const word2 of words2) {
+        totalComparisons++;
+        if (this.areSemanticallySimilar(word1, word2)) {
+          semanticMatches++;
+        }
+      }
+    }
+    
+    return totalComparisons > 0 ? semanticMatches / totalComparisons : 0;
+  }
+
+  /**
+   * Check if two words are semantically similar
+   */
+  private areSemanticallySimilar(word1: string, word2: string): boolean {
+    // Exact match
+    if (word1 === word2) return true;
+    
+    // Semantic mappings for common variations
+    const semanticMappings: { [key: string]: string[] } = {
+      'consolidation': ['consolidating', 'consolidate', 'consolidated'],
+      'minimization': ['minimizing', 'minimize', 'minimized'],
+      'optimization': ['optimizing', 'optimize', 'optimized'],
+      'efficiency': ['efficient', 'efficiently'],
+      'process': ['processes', 'processing', 'processed'],
+      'task': ['tasks', 'tasking'],
+      'fridge': ['refrigerator', 'refrigerators'],
+      'container': ['containers', 'containing'],
+      'ingredient': ['ingredients'],
+      'kitchen': ['kitchens'],
+      'multi-tasking': ['multitasking', 'multi-tasking', 'multitask'],
+      'trip': ['trips', 'tripping']
+    };
+    
+    // Check direct mappings
+    for (const [base, variations] of Object.entries(semanticMappings)) {
+      if ((word1 === base && variations.includes(word2)) || 
+          (word2 === base && variations.includes(word1))) {
+        return true;
+      }
+    }
+    
+    // Check if one word contains the other (for compound words)
+    if (word1.includes(word2) || word2.includes(word1)) {
+      return true;
+    }
+    
+    return false;
+  }
+
+  /**
+   * Calculate Levenshtein distance between two strings
+   */
+  private levenshteinDistance(str1: string, str2: string): number {
+    const matrix = Array(str2.length + 1).fill(null).map(() => Array(str1.length + 1).fill(null));
+    
+    for (let i = 0; i <= str1.length; i++) matrix[0][i] = i;
+    for (let j = 0; j <= str2.length; j++) matrix[j][0] = j;
+    
+    for (let j = 1; j <= str2.length; j++) {
+      for (let i = 1; i <= str1.length; i++) {
+        const indicator = str1[i - 1] === str2[j - 1] ? 0 : 1;
+        matrix[j][i] = Math.min(
+          matrix[j][i - 1] + 1,     // deletion
+          matrix[j - 1][i] + 1,     // insertion
+          matrix[j - 1][i - 1] + indicator // substitution
+        );
+      }
+    }
+    
+    return matrix[str2.length][str1.length];
+  }
+
+  /**
+   * Enhanced persistence with deduplication decisions
+   * This method modifies the existing persistAnalysisResults to handle entity reuse
+   */
+  private async persistAnalysisResultsWithDeduplication(
+    conversationId: string, 
+    userId: string, 
+    analysisOutput: HolisticAnalysisOutput,
+    deduplicationDecisions: DeduplicationDecisions
+  ): Promise<Array<{ id: string; type: string }>> {
+    
+    const { persistence_payload, forward_looking_context } = analysisOutput;
+    
+    console.log(`🔍 [IngestionAnalyst] DEBUG: Starting enhanced persistence for conversation ${conversationId}`);
+    console.log(`🔍 [IngestionAnalyst] DEBUG: Importance score: ${persistence_payload.conversation_importance_score}`);
+    console.log(`🔍 [IngestionAnalyst] DEBUG: Concepts to create: ${deduplicationDecisions.conceptsToCreate.length}, to reuse: ${deduplicationDecisions.conceptsToReuse.length}`);
+    console.log(`🔍 [IngestionAnalyst] DEBUG: Memory units to create: ${deduplicationDecisions.memoryUnitsToCreate.length}, to reuse: ${deduplicationDecisions.memoryUnitsToReuse.length}`);
+
+    // Check importance score threshold
+    if (persistence_payload.conversation_importance_score < 1) {
+      console.log(`🔍 [IngestionAnalyst] DEBUG: Importance score ${persistence_payload.conversation_importance_score} below threshold, skipping entity creation`);
+      
+      // Update conversation only
+      await this.conversationRepository.update(conversationId, {
+        context_summary: persistence_payload.conversation_summary,
+        importance_score: persistence_payload.conversation_importance_score,
+        status: 'processed'
+      });
+
+      // Update user's next conversation context
+      await this.userRepository.update(userId, {
+        next_conversation_context_package: forward_looking_context
+      });
+      
+      return [];
+    }
+
+    console.log(`🔍 [IngestionAnalyst] DEBUG: Importance score above threshold, proceeding with entity creation`);
+
+    // Start transaction for high-importance conversations
+    const newEntities: Array<{ id: string; type: string }> = [];
+
+    try {
+      // Update conversation
+      await this.conversationRepository.update(conversationId, {
+        context_summary: persistence_payload.conversation_summary,
+        importance_score: persistence_payload.conversation_importance_score,
+        status: 'processed'
+      });
+
+      console.log(`🔍 [IngestionAnalyst] DEBUG: Conversation updated successfully`);
+
+      // Use existing Neo4j transaction pattern
+      if (!this.dbService.neo4j) {
+        console.warn(`[IngestionAnalyst] Neo4j client not available, skipping Neo4j operations`);
+        return [];
+      }
+
+      const neo4jSession = this.dbService.neo4j.session();
+      const neo4jTransaction = neo4jSession.beginTransaction();
+
+      try {
+        // ENHANCED: Process memory units with deduplication decisions
+        for (const memoryUnit of deduplicationDecisions.memoryUnitsToCreate) {
+          const memoryData: CreateMemoryUnitData = {
+            user_id: userId,
+            title: memoryUnit.title,
+            content: memoryUnit.content,
+            importance_score: memoryUnit.importance_score || persistence_payload.conversation_importance_score || 5,
+            sentiment_score: memoryUnit.sentiment_score || 0,
+            source_conversation_id: conversationId
+          };
+
+          const createdMemory = await this.memoryRepository.create(memoryData);
+          newEntities.push({ id: createdMemory.muid, type: 'MemoryUnit' });
+          
+          // Update entity mapping
+          deduplicationDecisions.entityMappings.set(memoryUnit.title, createdMemory.muid);
+          
+          // Create Neo4j node
+          await this.createNeo4jNodeInTransaction(neo4jTransaction, 'MemoryUnit', {
+            id: createdMemory.muid,
+            userId: userId,
+            title: createdMemory.title,
+            content: createdMemory.content,
+            importance_score: createdMemory.importance_score,
+            sentiment_score: createdMemory.sentiment_score,
+            creation_ts: new Date().toISOString(),
+            source_conversation_id: createdMemory.source_conversation_id,
+            source: 'IngestionAnalyst'
+          });
+        }
+
+        // ENHANCED: Process memory units to reuse (update existing)
+        for (const decision of deduplicationDecisions.memoryUnitsToReuse) {
+          // Get the correct memory unit ID from the existing entity
+          const memoryUnitId = decision.existingEntity.muid || decision.existingEntity.id;
+          
+          // Update existing memory unit with incremental insights
+          await this.memoryRepository.update(memoryUnitId, {
+            content: `${decision.existingEntity.content || ''}: ${decision.candidate.content}`, // Combine insights
+            importance_score: Math.max(0, decision.candidate.importance_score)
+          });
+          
+          // Update entity mapping
+          deduplicationDecisions.entityMappings.set(decision.candidate.title, memoryUnitId);
+        }
+
+        // ENHANCED: Process concepts with deduplication decisions
+        for (const concept of deduplicationDecisions.conceptsToCreate) {
+          const conceptData: CreateConceptData = {
+            user_id: userId,
+            name: concept.name,
+            type: concept.type || 'theme',
+            description: concept.description || `Concept extracted from conversation: ${concept.name}`,
+            salience: concept.salience || 0.5
+          };
+
+          const createdConcept = await this.conceptRepository.create(conceptData);
+          newEntities.push({ id: createdConcept.concept_id, type: 'Concept' });
+          
+          // Update entity mapping
+          deduplicationDecisions.entityMappings.set(concept.name, createdConcept.concept_id);
+          
+          // Create Neo4j node
+          await this.createNeo4jNodeInTransaction(neo4jTransaction, 'Concept', {
+            id: createdConcept.concept_id,
+            userId: userId,
+            name: createdConcept.name,
+            description: createdConcept.description,
+            type: createdConcept.type,
+            salience: conceptData.salience,
+            status: createdConcept.status,
+            created_at: createdConcept.created_at.toISOString(),
+            community_id: createdConcept.community_id,
+            source: 'IngestionAnalyst'
+          });
+        }
+
+        // ENHANCED: Process concepts to reuse (update existing)
+        for (const decision of deduplicationDecisions.conceptsToReuse) {
+          // Get the correct concept ID from the existing entity
+          const conceptId = decision.existingEntity.concept_id || decision.existingEntity.id;
+          
+          // Update existing concept with incremental insights
+          await this.conceptRepository.update(conceptId, {
+            description: `${decision.existingEntity.description || ''}: ${decision.candidate.description}` // Combine insights
+          });
+          
+          // Update entity mapping
+          deduplicationDecisions.entityMappings.set(decision.candidate.name, conceptId);
+        }
+
+        // ENHANCED: Process relationships with entity mapping
+        if (persistence_payload.new_relationships && persistence_payload.new_relationships.length > 0) {
+          await this.createNeo4jRelationshipsInTransactionWithMapping(
+            neo4jTransaction, 
+            userId, 
+            persistence_payload.new_relationships,
+            deduplicationDecisions.entityMappings
+          );
+        }
+
+        // Process growth events (unchanged - always created as new)
+        if (persistence_payload.detected_growth_events && persistence_payload.detected_growth_events.length > 0) {
+          for (const growthEvent of persistence_payload.detected_growth_events) {
+            const growthData: CreateGrowthEventData = {
+              user_id: userId,
+              related_memory_units: [],
+              related_concepts: [],
+              growth_dimensions: [],
+              source: 'IngestionAnalyst',
+              details: {
+                entity_id: conversationId,
+                entity_type: 'conversation'
+              },
+              dimension_key: growthEvent.dim_key,
+              delta_value: growthEvent.delta,
+              rationale: growthEvent.rationale
+            };
+
+            const createdGrowthEvent = await this.growthEventRepository.create(growthData);
+            newEntities.push({ id: createdGrowthEvent.event_id, type: 'GrowthEvent' });
+          }
+        }
+
+        // Commit Neo4j transaction
+        await neo4jTransaction.commit();
+        
+      } catch (error) {
+        await neo4jTransaction.rollback();
+        throw error;
+      } finally {
+        await neo4jSession.close();
+      }
+
+      // Update user's next conversation context
+      await this.userRepository.update(userId, {
+        next_conversation_context_package: forward_looking_context
+      });
+
+      return newEntities;
+      
+    } catch (error) {
+      console.error(`[IngestionAnalyst] Error in enhanced persistence:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Enhanced relationship creation with entity mapping
+   */
+  private async createNeo4jRelationshipsInTransactionWithMapping(
+    transaction: any, 
+    userId: string, 
+    relationships: any[],
+    entityMappings: Map<string, string>
+  ): Promise<void> {
+    
+    for (const relationship of relationships) {
+      const sourceId = this.resolveEntityIdWithMapping(relationship.source_entity_id_or_name, entityMappings);
+      const targetId = this.resolveEntityIdWithMapping(relationship.target_entity_id_or_name, entityMappings);
+      
+      // Use existing relationship creation logic with resolved IDs
+      await this.createNeo4jRelationshipsInTransaction(transaction, userId, [{
+        source_entity_id_or_name: sourceId,
+        target_entity_id_or_name: targetId,
+        relationship_description: relationship.relationship_description
+      }]);
+    }
+  }
+
+  private resolveEntityIdWithMapping(entityNameOrId: string, entityMappings: Map<string, string>): string {
+    // If it's already an ID, return as-is
+    if (entityNameOrId.startsWith('concept_') || entityNameOrId.startsWith('memory_')) {
+      return entityNameOrId;
+    }
+    
+    // Otherwise, look up in entity mappings
+    return entityMappings.get(entityNameOrId) || entityNameOrId;
   }
 }

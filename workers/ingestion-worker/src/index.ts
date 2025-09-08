@@ -2,7 +2,7 @@ import { ConfigService } from '@2dots1line/config-service';
 import { DatabaseService } from '@2dots1line/database';
 import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
 
-import { HolisticAnalysisTool } from '@2dots1line/tools';
+import { HolisticAnalysisTool, SemanticSimilarityTool, TextEmbeddingTool } from '@2dots1line/tools';
 import { Worker, Queue } from 'bullmq';
 
 import { IngestionAnalyst, IngestionJobData } from './IngestionAnalyst';
@@ -26,9 +26,23 @@ async function main() {
 
 
 
-    // 2. Directly instantiate the HolisticAnalysisTool (avoiding circular dependency)
+    // 2. Directly instantiate the tools (avoiding circular dependency)
     const holisticAnalysisTool = new HolisticAnalysisTool(configService);
     console.log('[IngestionWorker] HolisticAnalysisTool instantiated');
+    
+    // Initialize embedding tool (it's exported as an instance, not a class)
+    const embeddingTool = TextEmbeddingTool;
+    console.log('[IngestionWorker] TextEmbeddingTool instantiated');
+    
+    // Initialize Weaviate client for semantic similarity
+    const weaviate = require('weaviate-ts-client').default;
+    const weaviateClient = weaviate.client({
+      scheme: 'http',
+      host: environmentLoader.get('WEAVIATE_HOST') || 'localhost:8080',
+    });
+    
+    const semanticSimilarityTool = new SemanticSimilarityTool(weaviateClient, configService, embeddingTool);
+    console.log('[IngestionWorker] SemanticSimilarityTool instantiated');
 
     // 3. Initialize BullMQ queues with EnvironmentLoader
     const redisConnection = {
@@ -48,6 +62,7 @@ async function main() {
     // 4. Instantiate the IngestionAnalyst with its dependencies
     const analyst = new IngestionAnalyst(
       holisticAnalysisTool,
+      semanticSimilarityTool,
       dbService,
       embeddingQueue,
       cardQueue,
