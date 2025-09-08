@@ -77,8 +77,11 @@ class UserService {
     try {
       const response = await this.getUserData(userId);
       
-      if (response.success && response.data?.next_conversation_context_package?.proactive_greeting) {
-        return response.data.next_conversation_context_package.proactive_greeting;
+      const proactiveGreeting = response.data?.next_conversation_context_package?.proactive_greeting;
+      
+      // Return the greeting only if it exists and is not empty (after trimming whitespace)
+      if (response.success && proactiveGreeting && proactiveGreeting.trim().length > 0) {
+        return proactiveGreeting.trim();
       }
       
       return null;

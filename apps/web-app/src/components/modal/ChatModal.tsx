@@ -120,10 +120,11 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
           const proactiveGreeting = await userService.getProactiveGreeting(userId);
           
           // Set initial message with proactive greeting or fallback
+          const defaultGreeting = 'Hello! I\'m here to help you explore your thoughts and experiences. What would you like to talk about today?';
           const initialMessage: EnhancedChatMessage = {
             id: '1',
             type: 'bot',
-            content: proactiveGreeting || 'Hello! I\'m here to help you explore your thoughts and experiences. What would you like to talk about today?',
+            content: proactiveGreeting || defaultGreeting,
             timestamp: new Date()
           };
           
@@ -133,10 +134,11 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
           console.error('Error fetching proactive greeting:', error);
           
           // Fallback to default greeting
+          const defaultGreeting = 'Hello! I\'m here to help you explore your thoughts and experiences. What would you like to talk about today?';
           const fallbackMessage: EnhancedChatMessage = {
             id: '1',
             type: 'bot',
-            content: 'Hello! I\'m here to help you explore your thoughts and experiences. What would you like to talk about today?',
+            content: defaultGreeting,
             timestamp: new Date()
           };
           

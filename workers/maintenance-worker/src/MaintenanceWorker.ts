@@ -225,6 +225,19 @@ export class MaintenanceWorker {
       }
     }
 
+    // Scan for conversation timeout keys without TTL (these can get stuck when Redis fails)
+    const conversationTimeoutStream = this.dbService.redis.scanStream({ match: 'conversation:timeout:*' });
+    for await (const keys of conversationTimeoutStream) {
+      for (const key of keys) {
+        const ttl = await this.dbService.redis.ttl(key);
+        if (ttl === -1) {
+          console.warn(`[MaintenanceWorker] Found stale conversation timeout key: ${key}. Deleting.`);
+          await this.dbService.redis.del(key);
+          staleKeysFound++;
+        }
+      }
+    }
+
     console.log(`[MaintenanceWorker] Deleted ${staleKeysFound} stale Redis keys.`);
   }
 
