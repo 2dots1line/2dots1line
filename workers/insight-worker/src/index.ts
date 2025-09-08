@@ -62,8 +62,19 @@ async function main() {
       'insight',
       async (job) => {
         console.log(`[InsightWorker] Processing job ${job.id}: ${job.data.userId}`);
-        await insightEngine.processUserCycle(job);
-        console.log(`[InsightWorker] Completed job ${job.id}`);
+        try {
+          await insightEngine.processUserCycle(job);
+          console.log(`[InsightWorker] Completed job ${job.id}`);
+        } catch (error) {
+          // Check if this is a non-retryable error
+          if (error instanceof Error && error.name === 'NonRetryableError') {
+            console.error(`[InsightWorker] Non-retryable error detected for job ${job.id}: ${error.message}`);
+            // Mark job as failed without retry
+            throw new Error(`NON_RETRYABLE: ${error.message}`);
+          }
+          // Re-throw other errors for normal retry logic
+          throw error;
+        }
       },
       {
         connection: redisConnection,
@@ -75,7 +86,7 @@ async function main() {
     const insightQueue = new Queue('insight', { 
       connection: redisConnection,
       defaultJobOptions: {
-        attempts: 3,
+        attempts: 2, // Reduced from 3 to 2 (1 retry + 1 original attempt)
         backoff: {
           type: 'exponential',
           delay: 2000,
@@ -83,6 +94,16 @@ async function main() {
         removeOnComplete: { count: 10 },
         removeOnFail: { count: 50 },
       }
+    });
+
+    // Add error handler to prevent retrying non-retryable errors
+    worker.on('failed', (job, err) => {
+      if (err.message && err.message.includes('NON_RETRYABLE')) {
+        console.log(`[InsightWorker] Job ${job?.id} failed with non-retryable error, not retrying`);
+        // Don't retry non-retryable errors
+        return;
+      }
+      console.log(`[InsightWorker] Job ${job?.id} failed with retryable error: ${err.message}`);
     });
 
     // DEBUGGING: Verify worker object state
