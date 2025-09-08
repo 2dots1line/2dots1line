@@ -148,12 +148,21 @@ export class ConversationController {
           return;
         }
 
+        // If conversation is ended, create a new conversation in the same session
         if (conversation.status === 'ended' || conversation.ended_at !== null) {
-          res.status(400).json({ 
-            success: false, 
-            error: { code: 'BAD_REQUEST', message: 'Cannot send message to ended conversation' }
-          } as TApiResponse<any>);
-          return;
+          console.log(`🔄 Conversation ${conversation_id} is ended, creating new conversation in same session ${conversation.session_id}`);
+          
+          // Create new conversation in the same session
+          const newConversation = await this.conversationRepository.create({
+            user_id: userId,
+            title: `Conversation started at ${new Date().toISOString()}`,
+            session_id: conversation.session_id
+          });
+          
+          // Update conversation to the new one
+          conversation = newConversation;
+          
+          console.log(`✅ Created new conversation ${newConversation.id} in session ${conversation.session_id}`);
         }
 
         // Use the conversation's existing session
@@ -239,7 +248,7 @@ export class ConversationController {
       // STEP 6: Send the final response to the client
       res.status(200).json({
         success: true,
-        conversation_id: actualConversationId, // Ensure the client always gets the correct ID
+        conversation_id: conversation.id, // Use the actual conversation ID (may be new if ended conversation was replaced)
         session_id: session.session_id, // NEW: Include session ID
         conversation_title: conversation?.title || `Conversation: ${new Date().toISOString()}`, // NEW: Include conversation title with null safety
         response_text: agentResult.response_text,

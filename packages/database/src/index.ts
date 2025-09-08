@@ -38,6 +38,9 @@ export { WeaviateService } from './services/WeaviateService';
 export { InsightQueryLibrary } from './services/InsightQueryLibrary';
 export { GraphProjectionRepository } from './repositories/GraphProjectionRepository';
 
+// Monitoring utilities
+export { RedisConnectionMonitor } from './RedisConnectionMonitor';
+
 // Type definitions for database operations
 export interface DatabaseConnectionStatus {
   postgres: boolean;
