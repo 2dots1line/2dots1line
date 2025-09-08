@@ -657,6 +657,13 @@ strategic_synthesis_instructions: |
   4. **Proactive Engagement**: Generate contextual prompts for future conversations
   5. **Growth Trajectory**: Assess {{user_name}}'s development and recommend strategic focus areas
 
+  **CRITICAL OUTPUT RULES:**
+  ⚠️  CRITICAL RULES — READ CAREFULLY ⚠️
+  1. You must **return exactly one JSON object**.
+  2. **NO text** (explanation, markdown, code fences, headings, apologies, etc.) is allowed before or after the JSON.
+  3. Put *all* internal reasoning inside the "thought_process" field if present.
+  4. If you break any rule above, the system will fail to process your response.
+
   **OUTPUT FORMAT:**
   Return ONLY the JSON object, no markers, no extra text.
 

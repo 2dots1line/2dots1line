@@ -93,6 +93,11 @@ export class InsightEngine {
       console.error(`[InsightEngine] Job ID: ${job.id}`);
       console.error(`[InsightEngine] Cycle period: ${cycleDates.cycleStartDate.toISOString()} to ${cycleDates.cycleEndDate.toISOString()}`);
       
+      // Classify error type to determine if it's retryable
+      const errorClassification = this.classifyError(error);
+      console.error(`[InsightEngine] Error classification: ${errorClassification.type}`);
+      console.error(`[InsightEngine] Is retryable: ${errorClassification.isRetryable}`);
+      
       // Type-safe error logging
       if (error instanceof Error) {
         console.error(`[InsightEngine] Error type: ${error.constructor.name}`);
@@ -116,20 +121,89 @@ export class InsightEngine {
       
       console.error(`[InsightEngine] ================================================`);
       
+      // For non-retryable errors, throw a special error that BullMQ won't retry
+      if (!errorClassification.isRetryable) {
+        const nonRetryableError = new Error(`NON_RETRYABLE_ERROR: ${errorClassification.type} - ${error instanceof Error ? error.message : String(error)}`);
+        nonRetryableError.name = 'NonRetryableError';
+        throw nonRetryableError;
+      }
+      
       throw error;
     }
   }
 
   /**
    * Calculate cycle dates based on current time
-   * Default: Last 30 days, but can be configured
+   * Default: Last 2 days, but can be configured
    */
   private calculateCycleDates(): CycleDates {
     const now = new Date();
     const cycleEndDate = new Date(now);
-    const cycleStartDate = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000)); // 30 days ago
+    const cycleStartDate = new Date(now.getTime() - (2 * 24 * 60 * 60 * 1000)); // 2 days ago
     
     return { cycleStartDate, cycleEndDate };
+  }
+
+  /**
+   * Classify error type to determine if it's retryable
+   * V11.2 FIX: Prevent retrying validation/parsing errors
+   */
+  private classifyError(error: unknown): { type: string; isRetryable: boolean } {
+    if (!error) {
+      return { type: 'Unknown', isRetryable: false };
+    }
+
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorName = error instanceof Error ? error.constructor.name : typeof error;
+
+    // Non-retryable errors (validation, parsing, schema issues)
+    const nonRetryablePatterns = [
+      /validation.*failed/i,
+      /parsing.*failed/i,
+      /json.*parse.*error/i,
+      /schema.*error/i,
+      /malformed.*json/i,
+      /invalid.*json/i,
+      /missing.*required.*field/i,
+      /strategic.*synthesis.*error/i,
+      /non.*retryable/i,
+      /validation.*error/i,
+      /parse.*error/i
+    ];
+
+    // Retryable errors (API issues, network, rate limits)
+    const retryablePatterns = [
+      /model.*overloaded/i,
+      /service.*unavailable/i,
+      /rate.*limit/i,
+      /quota.*exceeded/i,
+      /temporary/i,
+      /timeout/i,
+      /network.*error/i,
+      /connection.*error/i,
+      /api.*error/i,
+      /503/i,
+      /429/i,
+      /502/i,
+      /504/i
+    ];
+
+    // Check for non-retryable patterns first
+    for (const pattern of nonRetryablePatterns) {
+      if (pattern.test(errorMessage) || pattern.test(errorName)) {
+        return { type: 'Validation/Parsing Error', isRetryable: false };
+      }
+    }
+
+    // Check for retryable patterns
+    for (const pattern of retryablePatterns) {
+      if (pattern.test(errorMessage) || pattern.test(errorName)) {
+        return { type: 'API/Network Error', isRetryable: true };
+      }
+    }
+
+    // Default to non-retryable for unknown errors to be safe
+    return { type: 'Unknown Error', isRetryable: false };
   }
 
   private async gatherComprehensiveContext(userId: string, jobId: string, cycleDates: CycleDates) {

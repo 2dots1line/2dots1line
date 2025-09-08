@@ -184,8 +184,8 @@ export class StrategicSynthesisTool {
         }
       };
       
-      // Enhanced LLM call with retry logic
-      const llmResult = await this.executeLLMWithRetry(llmInput, 'strategic-synthesis');
+      // Direct LLM call (LLMChatTool already has retry logic)
+      const llmResult = await LLMChatTool.execute(llmInput);
       
       console.log(`[StrategicSynthesisTool] DEBUG: Full prompt sent to LLM:`, prompt.substring(0, 1000) + '...');
       console.log(`[StrategicSynthesisTool] DEBUG: LLM response received:`, llmResult.result?.text?.substring(0, 1000) + '...');
@@ -319,65 +319,36 @@ ${responseFormat}`;
 
   /**
    * Parse and validate LLM output with Gemini-native JSON support
-   * V11.1 FIX: Updated to prioritize direct JSON parsing over marker-based extraction
+   * V11.2 FIX: Simplified parsing like DialogueAgent, more forgiving validation
    */
   private validateAndParseOutput(llmJsonResponse: string): StrategicSynthesisOutput {
-    let jsonString = llmJsonResponse.trim();
+    console.log(`[StrategicSynthesisTool] LLM response received, length: ${llmJsonResponse.length}`);
+    
     let parsed: unknown;
     
     // Strategy 1: Try direct JSON parsing first (Gemini native mode)
     try {
-      parsed = JSON.parse(jsonString);
+      parsed = JSON.parse(llmJsonResponse.trim());
       console.log(`[StrategicSynthesisTool] Direct JSON parsing successful (Gemini native mode)`);
     } catch (directParseError) {
-      console.log(`[StrategicSynthesisTool] Direct JSON parsing failed, attempting marker-based extraction as fallback`);
+      console.log(`[StrategicSynthesisTool] Direct JSON parsing failed, attempting simple JSON extraction`);
       
-      // Strategy 2: Extract JSON from between markers (fallback for old responses)
-      const beginMarker = '###==BEGIN_JSON==###';
-      const endMarker = '###==END_JSON==###';
+      // Strategy 2: Simple JSON extraction like DialogueAgent (more forgiving)
+      const firstBrace = llmJsonResponse.indexOf('{');
+      const lastBrace = llmJsonResponse.lastIndexOf('}');
       
-      let beginIndex = llmJsonResponse.indexOf(beginMarker);
-      let endIndex = llmJsonResponse.indexOf(endMarker);
-      
-      // If exact markers not found, try more flexible matching
-      if (beginIndex === -1) {
-        // Try variations of the begin marker
-        const beginVariations = ['###==BEGIN_JSON==###', '###==BEGIN_JSON==##', '###==BEGIN_JSON==#', '###==BEGIN_JSON=='];
-        for (const variation of beginVariations) {
-          beginIndex = llmJsonResponse.indexOf(variation);
-          if (beginIndex !== -1) {
-            console.log(`[StrategicSynthesisTool] Found begin marker variation: "${variation}"`);
-            break;
-          }
-        }
-      }
-      
-      if (endIndex === -1) {
-        // Try variations of the end marker
-        const endVariations = ['###==END_JSON==###', '###==END_JSON==##', '###==END_JSON==#', '###==END_JSON=='];
-        for (const variation of endVariations) {
-          endIndex = llmJsonResponse.indexOf(variation);
-          if (endIndex !== -1) {
-            console.log(`[StrategicSynthesisTool] Found end marker variation: "${variation}"`);
-            break;
-          }
-        }
-      }
-      
-      if (beginIndex === -1 || endIndex === -1) {
-        console.error(`[StrategicSynthesisTool] JSON markers not found. Begin index: ${beginIndex}, End index: ${endIndex}`);
+      if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+        console.error(`[StrategicSynthesisTool] No valid JSON found in LLM response`);
         console.error(`[StrategicSynthesisTool] Response preview: ${llmJsonResponse.substring(0, 500)}...`);
-        console.error(`[StrategicSynthesisTool] Response end: ${llmJsonResponse.substring(Math.max(0, llmJsonResponse.length - 200))}`);
-        throw new StrategicSynthesisJSONParseError(`LLM response missing required JSON markers. Response: ${llmJsonResponse.substring(0, 500)}...`, llmJsonResponse);
+        throw new StrategicSynthesisJSONParseError(`No valid JSON found in LLM response. Response: ${llmJsonResponse.substring(0, 500)}...`, llmJsonResponse);
       }
       
-      jsonString = llmJsonResponse.substring(beginIndex + beginMarker.length, endIndex).trim();
-      
-      console.log(`[StrategicSynthesisTool] Extracted JSON string length: ${jsonString.length}`);
-      console.log(`[StrategicSynthesisTool] JSON preview: ${jsonString.substring(0, 200)}...`);
+      const jsonString = llmJsonResponse.substring(firstBrace, lastBrace + 1).trim();
+      console.log(`[StrategicSynthesisTool] Extracted JSON, length: ${jsonString.length}`);
       
       try {
         parsed = JSON.parse(jsonString);
+        console.log(`[StrategicSynthesisTool] JSON extraction successful`);
       } catch (error) {
         console.error(`[StrategicSynthesisTool] JSON parsing failed:`, error);
         console.error(`[StrategicSynthesisTool] Failed JSON string: ${jsonString.substring(0, 500)}...`);
@@ -385,6 +356,7 @@ ${responseFormat}`;
       }
     }
     
+    // More forgiving validation - try to fix common issues
     try {
       const validatedResult = StrategicSynthesisOutputSchema.parse(parsed);
       console.log(`[StrategicSynthesisTool] Validation successful. Parsed data:`, {
@@ -396,6 +368,25 @@ ${responseFormat}`;
       return validatedResult;
     } catch (error) {
       if (error instanceof z.ZodError) {
+        console.warn(`[StrategicSynthesisTool] Validation failed, attempting to fix common issues...`);
+        
+        // Try to fix common validation issues
+        const fixedData = this.attemptValidationFixes(parsed, error.errors);
+        if (fixedData) {
+          try {
+            const validatedResult = StrategicSynthesisOutputSchema.parse(fixedData);
+            console.log(`[StrategicSynthesisTool] Validation successful after fixes. Parsed data:`, {
+              concepts_to_merge: validatedResult.ontology_optimizations.concepts_to_merge.length,
+              new_strategic_relationships: validatedResult.ontology_optimizations.new_strategic_relationships.length,
+              derived_artifacts: validatedResult.derived_artifacts.length,
+              proactive_prompts: validatedResult.proactive_prompts.length
+            });
+            return validatedResult;
+          } catch (fixError) {
+            console.error(`[StrategicSynthesisTool] Validation still failed after fixes:`, fixError);
+          }
+        }
+        
         console.error('[StrategicSynthesisTool] Validation errors:', error.errors);
         console.error('[StrategicSynthesisTool] Raw parsed data:', JSON.stringify(parsed, null, 2).substring(0, 1000));
         throw new StrategicSynthesisValidationError('Validation failed', error.errors);
@@ -405,113 +396,82 @@ ${responseFormat}`;
   }
 
   /**
-   * Check if an error is retryable (e.g., model overload, rate limit, temporary issues)
+   * Attempt to fix common validation issues to make validation more forgiving
    */
-  private isRetryableError(error: any): boolean {
-    if (!error) return false;
-    
-    const errorMessage = (typeof error === 'string') ? error : (error.message || error.toString() || '');
-    const retryablePatterns = [
-      /model is overloaded/i,
-      /service unavailable/i,
-      /rate limit/i,
-      /quota exceeded/i,
-      /temporary/i,
-      /try again later/i,
-      /timeout/i,
-      /network error/i,
-      /connection error/i,
-      /503/i, // Service Unavailable
-      /429/i, // Too Many Requests
-      /500/i  // Internal Server Error
-    ];
-    
-    return retryablePatterns.some(pattern => pattern.test(errorMessage));
-  }
-
-  /**
-   * Enhanced LLM execution with automatic retry and fallback model support
-   */
-  private async executeLLMWithRetry(
-    llmInput: any,
-    callType: string
-  ): Promise<any> {
-    let attempts = 0;
-    const maxAttempts = 3; // Try primary model + 2 fallback models
-    
-    while (attempts < maxAttempts) {
-      attempts++;
-      try {
-        console.log(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Attempt ${attempts}/${maxAttempts}`);
-        
-        const llmResult = await LLMChatTool.execute(llmInput);
-        
-        if (llmResult.status === 'success' && llmResult.result?.text) {
-          console.log(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call successful on attempt ${attempts}`);
-          return llmResult;
-        }
-        
-        // Check if this is a retryable error
-        const errorMessage = llmResult.error?.message || 'Unknown error';
-        if (attempts < maxAttempts && this.isRetryableError(errorMessage)) {
-          console.log(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Retryable error detected: ${errorMessage}`);
-          console.log(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Attempting to switch to fallback model...`);
-          
-          try {
-            // Force reinitialization to try a different model
-            if (LLMChatTool.forceReinitialize) {
-              LLMChatTool.forceReinitialize();
-              console.log(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Switched to fallback model`);
-            }
-            
-            // Add exponential backoff delay before retrying
-            const delay = Math.min(1000 * Math.pow(2, attempts - 1), 10000); // Max 10 seconds
-            console.log(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Waiting ${delay}ms before retry...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            
-            continue; // Try again with the new model
-          } catch (modelSwitchError) {
-            console.error(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Failed to switch to fallback model:`, modelSwitchError);
-            // Continue with the next attempt
-          }
-        } else {
-          // If not retryable or all attempts exhausted, break out of retry loop
-          console.error(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Non-retryable error or max attempts reached: ${errorMessage}`);
-          throw new Error(`LLM call failed: ${errorMessage}`);
-        }
-      } catch (error) {
-        console.error(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Unexpected error on attempt ${attempts}:`, error);
-        
-        if (attempts < maxAttempts && this.isRetryableError(error)) {
-          console.log(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Retryable error, attempting retry...`);
-          
-          try {
-            // Force reinitialization to try a different model
-            if (LLMChatTool.forceReinitialize) {
-              LLMChatTool.forceReinitialize();
-              console.log(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Switched to fallback model after unexpected error`);
-            }
-            
-            // Add exponential backoff delay before retrying
-            const delay = Math.min(1000 * Math.pow(2, attempts - 1), 10000);
-            console.log(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Waiting ${delay}ms before retry...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            
-            continue; // Try again with the new model
-          } catch (modelSwitchError) {
-            console.error(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Failed to switch to fallback model:`, modelSwitchError);
-          }
-        } else {
-          // If not retryable or all attempts exhausted, re-throw the error
-          throw error;
-        }
+  private attemptValidationFixes(data: any, errors: z.ZodIssue[]): any | null {
+    try {
+      const fixedData = JSON.parse(JSON.stringify(data)); // Deep clone
+      
+      // Fix missing required fields by adding empty defaults
+      if (!fixedData.ontology_optimizations) {
+        fixedData.ontology_optimizations = {
+          concepts_to_merge: [],
+          new_strategic_relationships: []
+        };
       }
+      
+      if (!fixedData.ontology_optimizations.concepts_to_merge) {
+        fixedData.ontology_optimizations.concepts_to_merge = [];
+      }
+      
+      if (!fixedData.ontology_optimizations.new_strategic_relationships) {
+        fixedData.ontology_optimizations.new_strategic_relationships = [];
+      }
+      
+      if (!fixedData.derived_artifacts) {
+        fixedData.derived_artifacts = [];
+      }
+      
+      if (!fixedData.proactive_prompts) {
+        fixedData.proactive_prompts = [];
+      }
+      
+      if (!fixedData.growth_trajectory_updates) {
+        fixedData.growth_trajectory_updates = {
+          identified_patterns: [],
+          emerging_themes: [],
+          recommended_focus_areas: [],
+          potential_blind_spots: [],
+          celebration_moments: []
+        };
+      }
+      
+      if (!fixedData.cycle_metrics) {
+        fixedData.cycle_metrics = {
+          total_concepts_analyzed: 0,
+          total_memory_units_analyzed: 0,
+          total_growth_events_analyzed: 0,
+          optimization_recommendations_count: 0,
+          strategic_relationships_created: 0
+        };
+      }
+      
+      // Fix array items that might be null or undefined
+      if (Array.isArray(fixedData.ontology_optimizations.concepts_to_merge)) {
+        fixedData.ontology_optimizations.concepts_to_merge = fixedData.ontology_optimizations.concepts_to_merge.filter((item: any) => item != null);
+      }
+      
+      if (Array.isArray(fixedData.ontology_optimizations.new_strategic_relationships)) {
+        fixedData.ontology_optimizations.new_strategic_relationships = fixedData.ontology_optimizations.new_strategic_relationships.filter((item: any) => item != null);
+      }
+      
+      if (Array.isArray(fixedData.derived_artifacts)) {
+        fixedData.derived_artifacts = fixedData.derived_artifacts.filter((item: any) => item != null);
+      }
+      
+      if (Array.isArray(fixedData.proactive_prompts)) {
+        fixedData.proactive_prompts = fixedData.proactive_prompts.filter((item: any) => item != null);
+      }
+      
+      console.log(`[StrategicSynthesisTool] Applied validation fixes`);
+      return fixedData;
+    } catch (error) {
+      console.error(`[StrategicSynthesisTool] Failed to apply validation fixes:`, error);
+      return null;
     }
-
-    // If all attempts fail, throw the last error
-    console.error(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - All ${maxAttempts} attempts failed`);
-    throw new Error(`Failed to get LLM response after ${maxAttempts} attempts. The AI service may be temporarily overloaded. Please try again in a moment.`);
   }
+
+
 
   /**
    * Get tool metadata for ToolRegistry
