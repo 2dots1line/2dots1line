@@ -15,6 +15,7 @@ import { DatabaseService } from '@2dots1line/database';
 import { TTextEmbeddingInputPayload, TTextEmbeddingResult, IExecutableTool } from '@2dots1line/shared-types';
 import { TextEmbeddingTool } from '@2dots1line/tools';
 import { Worker, Job } from 'bullmq';
+import { Redis } from 'ioredis';
 
 export interface EmbeddingJob {
   entityId: string;           // UUID of the entity
@@ -39,6 +40,7 @@ export class EmbeddingWorker {
   private worker: Worker;
   private textEmbeddingTool: IExecutableTool<TTextEmbeddingInputPayload, TTextEmbeddingResult>;
   private config: EmbeddingWorkerConfig;
+  private redisConnection: Redis;
 
   constructor(
     private databaseService: DatabaseService,
@@ -61,20 +63,47 @@ export class EmbeddingWorker {
     // Use TextEmbeddingTool as singleton instance
     this.textEmbeddingTool = TextEmbeddingTool;
 
-    // Initialize BullMQ worker with EnvironmentLoader
-    const redisConnection = {
-      host: environmentLoader.get('REDIS_HOST') || 'localhost',
-      port: parseInt(environmentLoader.get('REDIS_PORT') || '6379'),
-      password: environmentLoader.get('REDIS_PASSWORD'),
-    };
+    // Create dedicated Redis connection for BullMQ to prevent connection pool exhaustion
+    const redisUrl = environmentLoader.get('REDIS_URL');
+    
+    if (redisUrl) {
+      this.redisConnection = new Redis(redisUrl, {
+        maxRetriesPerRequest: null, // Required by BullMQ
+        enableReadyCheck: false,
+        lazyConnect: true,
+        family: 4,
+        keepAlive: 30000,
+        connectTimeout: 10000,
+        commandTimeout: 10000,
+        enableOfflineQueue: true
+      });
+    } else {
+      const redisHost = environmentLoader.get('REDIS_HOST') || environmentLoader.get('REDIS_HOST_DOCKER') || 'localhost';
+      const redisPort = parseInt(environmentLoader.get('REDIS_PORT') || environmentLoader.get('REDIS_PORT_DOCKER') || '6379');
+      const redisPassword = environmentLoader.get('REDIS_PASSWORD');
+      
+      this.redisConnection = new Redis({
+        host: redisHost,
+        port: redisPort,
+        password: redisPassword,
+        maxRetriesPerRequest: null, // Required by BullMQ
+        enableReadyCheck: false,
+        lazyConnect: true,
+        family: 4,
+        keepAlive: 30000,
+        connectTimeout: 10000,
+        commandTimeout: 10000,
+        enableOfflineQueue: true
+      });
+    }
 
-    console.log(`[EmbeddingWorker] Redis connection configured: ${redisConnection.host}:${redisConnection.port}`);
+    console.log(`[EmbeddingWorker] Using dedicated Redis connection for BullMQ`);
 
     this.worker = new Worker(
       this.config.queueName!,
       this.processJob.bind(this),
       {
-        connection: redisConnection,
+        connection: this.redisConnection,
         concurrency: this.config.concurrency,
       }
     );
@@ -205,6 +234,8 @@ export class EmbeddingWorker {
   async shutdown(): Promise<void> {
     console.log('[EmbeddingWorker] Shutting down...');
     await this.worker.close();
+    // Close dedicated Redis connection
+    await this.redisConnection.quit();
     console.log('[EmbeddingWorker] Shutdown complete');
   }
 }

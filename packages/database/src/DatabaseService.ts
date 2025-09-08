@@ -59,7 +59,7 @@ export class DatabaseService {
     if (redisUrl) {
       this.redis = new Redis(redisUrl, {
         // Connection pool configuration to prevent exhaustion
-        maxRetriesPerRequest: 3,
+        maxRetriesPerRequest: null, // Required by BullMQ
         enableReadyCheck: false,
         lazyConnect: true,
         // Connection pool settings
@@ -67,7 +67,7 @@ export class DatabaseService {
         keepAlive: 30000, // Keep alive timeout in milliseconds
         // Connection timeout settings
         connectTimeout: 10000,
-        commandTimeout: 5000,
+        commandTimeout: 10000, // Increased from 5000ms to 10000ms for stability
         enableOfflineQueue: true
       });
     } else {
@@ -77,13 +77,13 @@ export class DatabaseService {
         host: redisHost, 
         port: redisPort,
         // Same connection pool configuration
-        maxRetriesPerRequest: 3,
+        maxRetriesPerRequest: null, // Required by BullMQ
         enableReadyCheck: false,
         lazyConnect: true,
         family: 4,
         keepAlive: 30000, // Keep alive timeout in milliseconds
         connectTimeout: 10000,
-        commandTimeout: 5000,
+        commandTimeout: 10000, // Increased from 5000ms to 10000ms for stability
         enableOfflineQueue: true
       });
     }

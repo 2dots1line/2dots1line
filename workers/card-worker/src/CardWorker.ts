@@ -14,6 +14,7 @@ import { ConfigService } from '@2dots1line/config-service';
 import { DatabaseService, CardRepository, MemoryRepository, ConceptRepository, DerivedArtifactRepository, ProactivePromptRepository, CommunityRepository, GrowthEventRepository, UserRepository } from '@2dots1line/database';
 import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
 import { Worker, Job, Queue } from 'bullmq';
+import { Redis } from 'ioredis';
 import { 
   TCard
 } from '@2dots1line/shared-types';
@@ -53,6 +54,7 @@ export class CardWorker {
   private worker: Worker;
   private config: CardWorkerConfig;
   private notificationQueue: Queue;
+  private redisConnection: Redis;
   
   // Repository instances
   private cardRepository: CardRepository;
@@ -92,26 +94,55 @@ export class CardWorker {
     this.growthEventRepository = new GrowthEventRepository(databaseService);
     this.userRepository = new UserRepository(databaseService);
 
-    // Initialize BullMQ worker with EnvironmentLoader
-    const redisConnection = {
-      host: environmentLoader.get('REDIS_HOST') || 'localhost',
-      port: parseInt(environmentLoader.get('REDIS_PORT') || '6379'),
-      password: environmentLoader.get('REDIS_PASSWORD'),
-    };
+    // Create dedicated Redis connection for BullMQ to prevent connection pool exhaustion
+    const redisUrl = environmentLoader.get('REDIS_URL');
+    
+    if (redisUrl) {
+      this.redisConnection = new Redis(redisUrl, {
+        maxRetriesPerRequest: null, // Required by BullMQ
+        enableReadyCheck: false,
+        lazyConnect: true,
+        family: 4,
+        keepAlive: 30000,
+        connectTimeout: 10000,
+        commandTimeout: 10000,
+        enableOfflineQueue: true
+      });
+    } else {
+      const redisHost = environmentLoader.get('REDIS_HOST') || environmentLoader.get('REDIS_HOST_DOCKER') || 'localhost';
+      const redisPort = parseInt(environmentLoader.get('REDIS_PORT') || environmentLoader.get('REDIS_PORT_DOCKER') || '6379');
+      const redisPassword = environmentLoader.get('REDIS_PASSWORD');
+      
+      this.redisConnection = new Redis({
+        host: redisHost,
+        port: redisPort,
+        password: redisPassword,
+        maxRetriesPerRequest: null, // Required by BullMQ
+        enableReadyCheck: false,
+        lazyConnect: true,
+        family: 4,
+        keepAlive: 30000,
+        connectTimeout: 10000,
+        commandTimeout: 10000,
+        enableOfflineQueue: true
+      });
+    }
 
-    console.log(`[CardWorker] Redis connection configured:`, redisConnection);
+    console.log(`[CardWorker] Using dedicated Redis connection for BullMQ`);
+
+    console.log(`[CardWorker] Redis connection configured:`, this.redisConnection);
 
     this.worker = new Worker(
       this.config.queueName!,
       this.processJob.bind(this),
       {
-        connection: redisConnection,
+        connection: this.redisConnection,
         concurrency: this.config.concurrency,
       }
     );
 
     // Initialize notification queue (same Redis connection)
-    this.notificationQueue = new Queue('notification-queue', { connection: redisConnection });
+    this.notificationQueue = new Queue('notification-queue', { connection: this.redisConnection });
 
     this.setupEventHandlers();
   }
@@ -393,6 +424,8 @@ export class CardWorker {
   async shutdown(): Promise<void> {
     console.log('[CardWorker] Shutting down...');
     await this.worker.close();
+    // Close dedicated Redis connection
+    await this.redisConnection.quit();
     console.log('[CardWorker] Shutdown complete');
   }
 }

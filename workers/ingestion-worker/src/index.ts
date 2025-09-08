@@ -1,6 +1,7 @@
 import { ConfigService } from '@2dots1line/config-service';
 import { DatabaseService } from '@2dots1line/database';
 import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
+import { Redis } from 'ioredis';
 
 import { HolisticAnalysisTool, SemanticSimilarityTool, TextEmbeddingTool } from '@2dots1line/tools';
 import { Worker, Queue } from 'bullmq';
@@ -44,14 +45,42 @@ async function main() {
     const semanticSimilarityTool = new SemanticSimilarityTool(weaviateClient, configService, embeddingTool);
     console.log('[IngestionWorker] SemanticSimilarityTool instantiated');
 
-    // 3. Initialize BullMQ queues with EnvironmentLoader
-    const redisConnection = {
-      host: environmentLoader.get('REDIS_HOST') || 'localhost',
-      port: parseInt(environmentLoader.get('REDIS_PORT') || '6379'),
-      password: environmentLoader.get('REDIS_PASSWORD'),
-    };
+    // 3. Create dedicated Redis connection for BullMQ to prevent connection pool exhaustion
+    const redisUrl = environmentLoader.get('REDIS_URL');
+    let redisConnection: Redis;
+    
+    if (redisUrl) {
+      redisConnection = new Redis(redisUrl, {
+        maxRetriesPerRequest: null, // Required by BullMQ
+        enableReadyCheck: false,
+        lazyConnect: true,
+        family: 4,
+        keepAlive: 30000,
+        connectTimeout: 10000,
+        commandTimeout: 10000,
+        enableOfflineQueue: true
+      });
+    } else {
+      const redisHost = environmentLoader.get('REDIS_HOST') || environmentLoader.get('REDIS_HOST_DOCKER') || 'localhost';
+      const redisPort = parseInt(environmentLoader.get('REDIS_PORT') || environmentLoader.get('REDIS_PORT_DOCKER') || '6379');
+      const redisPassword = environmentLoader.get('REDIS_PASSWORD');
+      
+      redisConnection = new Redis({
+        host: redisHost,
+        port: redisPort,
+        password: redisPassword,
+        maxRetriesPerRequest: null, // Required by BullMQ
+        enableReadyCheck: false,
+        lazyConnect: true,
+        family: 4,
+        keepAlive: 30000,
+        connectTimeout: 10000,
+        commandTimeout: 10000,
+        enableOfflineQueue: true
+      });
+    }
 
-    console.log(`[IngestionWorker] Redis connection configured: ${redisConnection.host}:${redisConnection.port}`);
+    console.log(`[IngestionWorker] Using dedicated Redis connection for BullMQ`);
 
     const embeddingQueue = new Queue('embedding-queue', { connection: redisConnection });
     const cardQueue = new Queue('card-queue', { connection: redisConnection });
@@ -119,25 +148,25 @@ async function main() {
     console.log('[IngestionWorker] Worker is running and listening for jobs on ingestion-queue');
 
     // Graceful shutdown
-    process.on('SIGINT', async () => {
-      console.log('[IngestionWorker] Received SIGINT, shutting down gracefully...');
-      await worker.close();
-      await embeddingQueue.close();
-      await cardQueue.close();
-      await graphQueue.close();
-      console.log('[IngestionWorker] Shutdown complete');
-      process.exit(0);
-    });
+    const gracefulShutdown = async (signal: string) => {
+      console.log(`[IngestionWorker] Received ${signal}, shutting down gracefully...`);
+      try {
+        await worker.close();
+        await embeddingQueue.close();
+        await cardQueue.close();
+        await graphQueue.close();
+        // Close dedicated Redis connection
+        await redisConnection.quit();
+        console.log('[IngestionWorker] Shutdown complete');
+        process.exit(0);
+      } catch (error) {
+        console.error('[IngestionWorker] Error during shutdown:', error);
+        process.exit(1);
+      }
+    };
 
-    process.on('SIGTERM', async () => {
-      console.log('[IngestionWorker] Received SIGTERM, shutting down gracefully...');
-      await worker.close();
-      await embeddingQueue.close();
-      await cardQueue.close();
-      await graphQueue.close();
-      console.log('[IngestionWorker] Shutdown complete');
-      process.exit(0);
-    });
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
   } catch (error) {
     console.error('[IngestionWorker] Failed to start:', error);
