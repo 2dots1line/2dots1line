@@ -6,7 +6,7 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.build.json && npm run copy:css",
-    "copy:css": "find src -name '*.css' | while read file; do mkdir -p \"dist/$(dirname \"${file#src/}\")\" && cp \"$file\" \"dist/${file#src/}\"; done",
+    "copy:css": "copyfiles 'src/**/*.css' dist --up 1",
     "dev": "tsc --watch",
     "lint": "eslint src --max-warnings 0",
     "test": "jest"
@@ -37,6 +37,7 @@
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.2.0",
     "@types/three": "^0.164.1",
+    "copyfiles": "^2.4.1",
     "react": "^18.3.1",
     "typescript": "^5.8.3"
   },

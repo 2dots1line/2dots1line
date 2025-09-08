@@ -12,17 +12,22 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: 8
+
     - name: Set up Node.js
       uses: actions/setup-node@v3
       with:
-        node-version: '18' # Or your project's node version
-        cache: 'npm'
+        node-version: '18'
+        cache: 'pnpm'
 
     - name: Install dependencies
-      run: npm ci
+      run: pnpm install --frozen-lockfile
 
     - name: Run ESLint via Turbo
-      run: npm run lint # This should execute "turbo run lint"
+      run: pnpm run lint
 
     - name: Run Prettier Check via Turbo
-      run: npm run format:check # This should execute "prettier --check ..." 
+      run: pnpm run format:check

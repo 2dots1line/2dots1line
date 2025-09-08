@@ -97,5 +97,7 @@ v1Router.get('/media/photos/:id', mediaController.getPhotoDetails.bind(mediaCont
 // Agent routes
 v1Router.use('/agent', createAgentRoutes(conversationController));
 
+  // Notification routes removed - now handled by dedicated Socket.IO service
+
   return v1Router;
-} 
+}

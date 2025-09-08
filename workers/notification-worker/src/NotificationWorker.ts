@@ -5,25 +5,68 @@ import {
   NewCardAvailablePayload, 
   GraphProjectionUpdatedPayload, 
   SSEMessage,
-  NotificationJobPayload 
+  NotificationJobPayload
 } from '@2dots1line/shared-types';
 import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
+import { DatabaseService } from '@2dots1line/database';
+import { UserService } from '@2dots1line/user-service';
 import { Worker, Job } from 'bullmq';
 import { Redis } from 'ioredis';
+import * as path from 'path';
+
+// Fallback-safe runtime resolver for UserService to avoid MODULE_NOT_FOUND
+type IUserService = {
+  shouldReceiveNotification: (
+    userId: string,
+    notificationType: 'new_card_available' | 'graph_projection_updated' | 'proactive_insights'
+  ) => Promise<boolean>;
+};
+
+function resolveUserServiceModule(): { UserService: new (db: DatabaseService) => IUserService } {
+  // 1) Try normal package resolution (pnpm workspace link)
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const mod = require('@2dots1line/user-service');
+    if (mod?.UserService) return mod;
+  } catch (_) {
+    // ignore and try fallback
+  }
+
+  // 2) Fallback to the compiled dist relative to the built worker file
+  // __dirname at runtime will be "<repo>/workers/notification-worker/dist"
+  const distPath = path.resolve(__dirname, '..', '..', '..', 'services', 'user-service', 'dist');
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const mod = require(distPath);
+    if (mod?.UserService) return mod;
+  } catch (err) {
+    console.error('[NotificationWorker] Failed to resolve UserService from fallback dist path:', distPath, err);
+  }
+
+  throw new Error(
+    "[NotificationWorker] Unable to resolve '@2dots1line/user-service'. " +
+    'Ensure the user-service is built and workspace links are installed.'
+  );
+}
 
 const NOTIFICATION_QUEUE_NAME = 'notification-queue';
 
 export class NotificationWorker {
   private worker: Worker;
   private publisher: Redis;
+  private userService: IUserService;
   private isShuttingDown: boolean = false;
   private redisPubSubChannel: string;
 
-  constructor(redisConnection: Redis) {
+  constructor(redisConnection: Redis, databaseService: DatabaseService) {
     // CRITICAL: Load environment variables first
     console.log('[NotificationWorker] Loading environment variables...');
     environmentLoader.load();
     console.log('[NotificationWorker] Environment variables loaded successfully');
+
+    // Initialize UserService for preference checking (with robust resolution)
+    const { UserService } = resolveUserServiceModule();
+    this.userService = new UserService(databaseService);
 
     // Get Redis pub/sub channel from EnvironmentLoader
     this.redisPubSubChannel = environmentLoader.get('NOTIFICATION_REDIS_CHANNEL') || 'sse_notifications_channel';
@@ -78,9 +121,16 @@ export class NotificationWorker {
     const { type, userId } = job.data;
     console.log(`[NotificationWorker] Processing job ${job.id} of type ${type} for user ${userId}`);
 
-    let sseMessage: SSEMessage | null = null;
-
     try {
+      // Check user preferences before processing
+      const shouldSend = await this.shouldSendNotification(userId, type);
+      if (!shouldSend) {
+        console.log(`[NotificationWorker] Skipping notification ${type} for user ${userId} due to preferences`);
+        return;
+      }
+
+      let sseMessage: SSEMessage | null = null;
+
       switch (type) {
         case 'new_card_available':
           sseMessage = this.formatNewCardMessage(job.data as NewCardAvailablePayload);
@@ -102,6 +152,33 @@ export class NotificationWorker {
     } catch (error) {
       console.error(`[NotificationWorker] Error processing job ${job.id}:`, error);
       throw error; // Let BullMQ handle retry logic
+    }
+  }
+
+  /**
+   * Check if user should receive a specific notification type
+   */
+  private async shouldSendNotification(userId: string, notificationType: string): Promise<boolean> {
+    try {
+      // Use direct string literal types that match notification types
+      type NotificationTypeKey = 'new_card_available' | 'graph_projection_updated' | 'proactive_insights';
+      
+      // Map notification job types to preference keys
+      const preferenceKeyMap: Record<string, NotificationTypeKey> = {
+        'new_card_available': 'new_card_available',
+        'graph_projection_updated': 'graph_projection_updated'
+      };
+  
+      const preferenceKey = preferenceKeyMap[notificationType];
+      if (!preferenceKey) {
+        console.warn(`[NotificationWorker] Unknown notification type for preference check: ${notificationType}`);
+        return true; // Default to sending if unknown type
+      }
+  
+      return await this.userService.shouldReceiveNotification(userId, preferenceKey);
+    } catch (error) {
+      console.error(`[NotificationWorker] Error checking user preferences for ${userId}:`, error);
+      return true; // Default to sending on error to avoid blocking notifications
     }
   }
 
@@ -138,6 +215,11 @@ export class NotificationWorker {
   }
 
   /**
+   * Formats the SSE message for a new star notification.
+   */
+ 
+
+  /**
    * Starts the worker and begins processing jobs.
    */
   public async start(): Promise<void> {
@@ -172,4 +254,4 @@ export class NotificationWorker {
   public async stop(): Promise<void> {
     await this.gracefulShutdown();
   }
-} 
+}

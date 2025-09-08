@@ -205,8 +205,8 @@ export class HybridRetrievalTool {
           // Generate embedding for the search phrase
           const embeddingResult = await this.embeddingTool.execute({
             payload: {
-              text_to_embed: phrase,
-              model_id: 'gemini-embedding-004' // Use Gemini embedding model
+              text_to_embed: phrase
+              // model_id will be determined by the TextEmbeddingTool from config
             }
           });
           

@@ -37,6 +37,11 @@ export interface EnvironmentConfig {
   // Ports
   PORT?: string;
   API_GATEWAY_PORT?: string;
+  NOTIFICATION_SERVICE_PORT?: string;
+  
+  // Notification service
+  NOTIFICATION_REDIS_CHANNEL?: string;
+  FRONTEND_URL?: string;
   
   [key: string]: string | undefined;
 }
@@ -133,10 +138,14 @@ export class EnvironmentLoader {
       NODE_ENV: 'development',
       PORT: '3000',
       API_GATEWAY_PORT: '3001',
+      NOTIFICATION_SERVICE_PORT: '3002',
       REDIS_HOST: 'localhost',
       REDIS_PORT: '6379',
       NEO4J_URI: 'bolt://localhost:7687',
       WEAVIATE_URL: 'http://localhost:8080',
+      // Notification service
+      NOTIFICATION_REDIS_CHANNEL: 'socketio_notifications_channel',
+      FRONTEND_URL: 'http://localhost:3000',
       // LLM Model defaults - these can be overridden by .env
       LLM_CHAT_MODEL: 'gemini-2.5-flash',
       LLM_VISION_MODEL: 'gemini-2.5-flash',

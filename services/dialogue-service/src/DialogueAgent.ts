@@ -95,12 +95,14 @@ export class DialogueAgent {
       key_phrases_used?: string[];
       memory_retrieval_performed?: boolean;
     };
+    vision_analysis?: string; // Add vision analysis result for record keeping
+    document_analysis?: string; // Add document analysis result for record keeping
   }> {
     const executionId = `da_${Date.now()}`;
     console.log(`[${executionId}] Starting turn processing for convo: ${input.conversationId}`);
 
     // --- PHASE I: INPUT PRE-PROCESSING ---
-    const finalInputText = await this.processInput(input.currentMessageText, input.currentMessageMedia);
+    const { processedText: finalInputText, visionAnalysis, documentAnalysis } = await this.processInput(input.currentMessageText, input.currentMessageMedia);
 
     // --- PHASE II: SINGLE SYNTHESIS LLM CALL ---
     const llmResponse = await this.performSingleSynthesisCall({ ...input, finalInputText }, undefined, 'first');
@@ -128,7 +130,9 @@ export class DialogueAgent {
           execution_id: executionId,
           decision: response_plan.decision,
           processing_time_ms: Date.now() - parseInt(executionId.split('_')[1])
-        }
+        },
+        vision_analysis: visionAnalysis,
+        document_analysis: documentAnalysis
       };
     } 
     
@@ -182,7 +186,9 @@ export class DialogueAgent {
           key_phrases_used: keyPhrases,
           memory_retrieval_performed: true,
           processing_time_ms: Date.now() - parseInt(executionId.split('_')[1])
-        }
+        },
+        vision_analysis: visionAnalysis,
+        document_analysis: documentAnalysis
       };
     }
 
@@ -197,9 +203,11 @@ export class DialogueAgent {
     type: string;
     url?: string;
     content?: string;
-  }>): Promise<string> {
+  }>): Promise<{ processedText: string; visionAnalysis?: string; documentAnalysis?: string }> {
     console.log(`🔍 DialogueAgent - processInput called with text: "${text}", media:`, media);
     let mediaText = '';
+    let visionAnalysis: string | undefined;
+    let documentAnalysis: string | undefined;
     
     if (media && media.length > 0) {
       console.log(`🔍 DialogueAgent - Processing ${media.length} media items`);
@@ -228,8 +236,10 @@ export class DialogueAgent {
             });
             
             if (visionResult.status === 'success' && visionResult.result?.caption) {
-              mediaText += `\n[Image Analysis: ${visionResult.result.caption}]`;
-              console.log(`✅ DialogueAgent - Image analysis completed: ${(visionResult.result.caption as string).substring(0, 100)}...`);
+              const caption = visionResult.result.caption as string;
+              mediaText += `\n[Image Analysis: ${caption}]`;
+              visionAnalysis = caption; // Store the full vision analysis for record keeping
+              console.log(`✅ DialogueAgent - Image analysis completed: ${caption.substring(0, 100)}...`);
             } else {
               console.warn(`⚠️ DialogueAgent - Vision analysis failed:`, visionResult.error);
               mediaText += `\n[Image provided but analysis failed]`;
@@ -292,8 +302,10 @@ export class DialogueAgent {
               });
               
               if (documentResult.status === 'success' && documentResult.result?.extractedText) {
-                mediaText += `\n[Document Analysis: ${documentResult.result.extractedText}]`;
-                console.log(`✅ DialogueAgent - Document analysis completed: ${(documentResult.result.extractedText as string).substring(0, 100)}...`);
+                const extractedText = documentResult.result.extractedText as string;
+                mediaText += `\n[Document Analysis: ${extractedText}]`;
+                documentAnalysis = extractedText; // Store the full document analysis for record keeping
+                console.log(`✅ DialogueAgent - Document analysis completed: ${extractedText.substring(0, 100)}...`);
               } else {
                 console.warn(`⚠️ DialogueAgent - Document analysis failed:`, documentResult.error);
                 mediaText += `\n[Document provided but analysis failed]`;
@@ -324,7 +336,11 @@ export class DialogueAgent {
       }
     }
     
-    return `${text || ''}${mediaText}`.trim();
+    return {
+      processedText: `${text || ''}${mediaText}`.trim(),
+      visionAnalysis,
+      documentAnalysis
+    };
   }
 
   /**
@@ -415,55 +431,40 @@ export class DialogueAgent {
     // Enhanced LLM call with retry logic
     const llmResult = await this.executeLLMWithRetry(llmToolInput, callType);
 
+    // Use Gemini's native JSON parsing
+    return this.parseLLMResponse(llmResult);
+  }
+
+  /**
+   * Simple LLM response parser using Gemini's native JSON capabilities.
+   * Clean and reliable - no complex fallback strategies.
+   */
+  private parseLLMResponse(llmResult: any): any {
+    const rawText = llmResult.result.text;
+    console.log('DialogueAgent - Raw LLM response:', rawText.substring(0, 200) + '...');
+    
     try {
-      // Extract JSON from between markers
-      const rawText = llmResult.result.text;
-      console.log('DialogueAgent - Raw LLM response:', rawText.substring(0, 200) + '...');
+      // Simple JSON extraction - just find the JSON between { and }
+      const firstBrace = rawText.indexOf('{');
+      const lastBrace = rawText.lastIndexOf('}');
       
-      let jsonText = '';
-      
-      // First try: Look for special JSON markers
-      const beginMarker = '###==BEGIN_JSON==###';
-      const endMarker = '###==END_JSON==###';
-      
-      const beginIndex = rawText.indexOf(beginMarker);
-      const endIndex = rawText.indexOf(endMarker);
-      
-      if (beginIndex !== -1 && endIndex !== -1) {
-        jsonText = rawText.substring(beginIndex + beginMarker.length, endIndex).trim();
-        console.log('DialogueAgent - Found special markers, extracted JSON');
-      } else {
-        // Fallback: Look for markdown code blocks
-        const codeBlockStart = rawText.indexOf('```json');
-        const codeBlockEnd = rawText.indexOf('```', codeBlockStart + 7);
-        
-        if (codeBlockStart !== -1 && codeBlockEnd !== -1) {
-          jsonText = rawText.substring(codeBlockStart + 7, codeBlockEnd).trim();
-          console.log('DialogueAgent - Found markdown code block, extracted JSON');
-        } else {
-          // Final fallback: Try to find JSON by looking for { and }
-          const firstBrace = rawText.indexOf('{');
-          const lastBrace = rawText.lastIndexOf('}');
-          
-          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-            jsonText = rawText.substring(firstBrace, lastBrace + 1).trim();
-            console.log('DialogueAgent - Found braces, extracted JSON');
-          } else {
-            console.error('DialogueAgent - No JSON markers or code blocks found in LLM response:', rawText);
-            throw new Error("LLM response missing JSON markers or code blocks.");
-          }
-        }
+      if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+        throw new Error("No valid JSON found in LLM response");
       }
       
+      const jsonText = rawText.substring(firstBrace, lastBrace + 1).trim();
       console.log('DialogueAgent - Extracted JSON:', jsonText.substring(0, 100) + '...');
       
+      // Parse the JSON directly
       return JSON.parse(jsonText);
+      
     } catch (e) {
       console.error('DialogueAgent - JSON parsing error:', e);
       console.error('DialogueAgent - Raw LLM response:', llmResult.result.text);
       throw new Error("LLM returned malformed JSON.");
     }
   }
+
 
   /**
    * V11.0: Format conversation history for LLM consumption

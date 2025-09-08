@@ -1,84 +1,67 @@
-/**
- * Notification Worker Entry Point
- * V11.0 - EnvironmentLoader Integration
- */
-
-import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
-import { Redis } from 'ioredis';
 import { NotificationWorker } from './NotificationWorker';
+import { Redis } from 'ioredis';
+import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
+import { DatabaseService } from '@2dots1line/database';
 
 export { NotificationWorker };
 
 if (require.main === module) {
-  console.log('Notification Worker starting...');
-  
-  try {
-    // CRITICAL: Load environment variables first using EnvironmentLoader
-    console.log('[NotificationWorker] Loading environment variables...');
-    environmentLoader.load();
-    console.log('[NotificationWorker] Environment variables loaded successfully');
+  (async () => {
+    try {
+      console.log('[NotificationWorker] Starting notification worker...');
+      
+      // Load environment variables
+      environmentLoader.load();
+      
+      // Create Redis connection for BullMQ
+      const redisConnection = new Redis({
+        host: environmentLoader.get('REDIS_HOST') || 'localhost',
+        port: parseInt(environmentLoader.get('REDIS_PORT') || '6379'),
+        enableReadyCheck: false,
+        lazyConnect: true,
+      });
 
-    // Create Redis connection with EnvironmentLoader
-    const redisConnection = new Redis({
-      host: environmentLoader.get('REDIS_HOST') || 'localhost',
-      port: parseInt(environmentLoader.get('REDIS_PORT') || '6379'),
-      password: environmentLoader.get('REDIS_PASSWORD'),
-      db: parseInt(environmentLoader.get('REDIS_DB') || '0'),
-      maxRetriesPerRequest: 3,
-      lazyConnect: true
-    });
+      console.log(`[NotificationWorker] Redis connection configured: ${environmentLoader.get('REDIS_HOST') || 'localhost'}:${environmentLoader.get('REDIS_PORT') || '6379'}`);
 
-    console.log(`[NotificationWorker] Redis connection configured: ${environmentLoader.get('REDIS_HOST') || 'localhost'}:${environmentLoader.get('REDIS_PORT') || '6379'}`);
+      // Get DatabaseService singleton instance
+      const databaseService = DatabaseService.getInstance();
 
-    const worker = new NotificationWorker(redisConnection);
-    
-    // Handle Redis connection events
-    redisConnection.on('error', (error) => {
-      console.error('[NotificationWorker] Redis connection error:', error);
-    });
+      // Create worker with both required parameters
+      const worker = new NotificationWorker(redisConnection, databaseService);
+      
+      // Handle Redis connection events
+      redisConnection.on('error', (error) => {
+        console.error('[NotificationWorker] Redis connection error:', error);
+      });
 
-    redisConnection.on('connect', () => {
-      console.log('[NotificationWorker] Connected to Redis');
-    });
+      redisConnection.on('connect', () => {
+        console.log('[NotificationWorker] Redis connected successfully');
+      });
 
-    redisConnection.on('ready', () => {
-      console.log('[NotificationWorker] Redis connection ready');
-    });
+      // Start the worker
+      await worker.start();
+      console.log('[NotificationWorker] Worker started successfully');
 
-    // Graceful shutdown handling
-    process.on('SIGINT', async () => {
-      console.log('Received SIGINT, shutting down gracefully...');
-      await worker.stop();
-      process.exit(0);
-    });
-    
-    process.on('SIGTERM', async () => {
-      console.log('Received SIGTERM, shutting down gracefully...');
-      await worker.stop();
-      process.exit(0);
-    });
-    
-    // Handle uncaught exceptions
-    process.on('uncaughtException', async (error) => {
-      console.error('[NotificationWorker] Uncaught exception:', error);
-      await worker.stop();
+      // Graceful shutdown handling
+      const gracefulShutdown = async (signal: string) => {
+        console.log(`[NotificationWorker] Received ${signal}, shutting down gracefully...`);
+        try {
+          await worker.stop();
+          await redisConnection.quit();
+          console.log('[NotificationWorker] Shutdown complete');
+          process.exit(0);
+        } catch (error) {
+          console.error('[NotificationWorker] Error during shutdown:', error);
+          process.exit(1);
+        }
+      };
+
+      process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+      process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+      
+    } catch (error) {
+      console.error('[NotificationWorker] Failed to start worker:', error);
       process.exit(1);
-    });
-
-    process.on('unhandledRejection', async (reason, promise) => {
-      console.error('[NotificationWorker] Unhandled rejection at:', promise, 'reason:', reason);
-      await worker.stop();
-      process.exit(1);
-    });
-
-    // Start the worker
-    worker.start().catch(error => {
-      console.error('Failed to start NotificationWorker:', error);
-      process.exit(1);
-    });
-
-  } catch (error) {
-    console.error('[NotificationWorker] Failed to initialize:', error);
-    process.exit(1);
-  }
-} 
+    }
+  })();
+}

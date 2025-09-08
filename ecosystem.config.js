@@ -143,5 +143,17 @@ module.exports = {
       out_file: path.join(__dirname, 'logs', 'notification-worker-out.log'),
       log_file: path.join(__dirname, 'logs', 'notification-worker-combined.log'),
     },
+    {
+      name: 'notification-service',
+      script: './services/notification-service/dist/index.js',
+      instances: 1,
+      exec_mode: 'fork',
+      watch: false,
+      ...baseConfig,
+      // Force individual logging to prevent shared context
+      error_file: path.join(__dirname, 'logs', 'notification-service-error.log'),
+      out_file: path.join(__dirname, 'logs', 'notification-service-out.log'),
+      log_file: path.join(__dirname, 'logs', 'notification-service-combined.log'),
+    },
   ],
 }; 

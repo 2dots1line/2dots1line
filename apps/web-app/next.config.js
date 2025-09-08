@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: [],
+  transpilePackages: ['@2dots1line/ui-components', '@2dots1line/shared-types'],
   productionBrowserSourceMaps: false,
   
   webpack: (config, { dev }) => {
@@ -19,6 +19,16 @@ const nextConfig = {
       },
     ];
   },
+
+  // Skip type-checking in Next build (we rely on tsc builds in the monorepo)
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+
+  // Skip ESLint during Next build (optional)
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
 }
 
-module.exports = nextConfig 
+module.exports = nextConfig

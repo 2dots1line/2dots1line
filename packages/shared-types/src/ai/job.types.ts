@@ -71,6 +71,23 @@ export interface GraphProjectionUpdatedPayload {
 }
 
 /**
+ * Payload for NotificationWorker - New Star Generated
+ * Published by: StarWorker after successfully creating a Star record
+ */
+export interface NewStarGeneratedPayload {
+  type: "new_star_generated";
+  userId: string;
+  star: {
+    star_id: string;
+    star_type: string;
+    display_data: {
+      title: string;
+      description?: string;
+    };
+  };
+}
+
+/**
  * SSE Message format for broadcasting to API Gateway
  */
 export interface SSEMessage {
@@ -80,7 +97,7 @@ export interface SSEMessage {
 }
 
 // Union type for all notification payloads
-export type NotificationJobPayload = NewCardAvailablePayload | GraphProjectionUpdatedPayload;
+export type NotificationJobPayload = NewCardAvailablePayload | GraphProjectionUpdatedPayload | NewStarGeneratedPayload;
 
 // It seems the workers are importing `EmbeddingJob`, etc. directly.
 // Let's define these as the payload types for now.
@@ -90,4 +107,4 @@ export type NotificationJobPayload = NewCardAvailablePayload | GraphProjectionUp
 export type EmbeddingJob = TEmbeddingJobPayload;
 export type IngestionJob = TIngestionJobPayload;
 export type InsightJob = TInsightJobPayload;
-export type NotificationJob = NotificationJobPayload; 
+export type NotificationJob = NotificationJobPayload;
