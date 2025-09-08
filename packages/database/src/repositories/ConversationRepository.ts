@@ -13,6 +13,7 @@ export interface CreateConversationData {
   source_card_id?: string;
   session_id?: string; // NEW: Include session_id for proper linking
   metadata?: any;
+  id?: string; // NEW: Allow custom ID to be provided
 }
 
 export interface CreateMessageData {
@@ -30,6 +31,7 @@ export interface UpdateConversationData {
   context_summary?: string;
   metadata?: any;
   ended_at?: Date;
+  session_id?: string;
 }
 
 export interface ConversationSummary {
@@ -43,7 +45,7 @@ export class ConversationRepository {
   async create(data: CreateConversationData): Promise<conversations> {
     return this.db.prisma.conversations.create({
       data: {
-        id: randomUUID(),
+        id: data.id || randomUUID(), // Use provided ID or generate new one
         ...data,
       },
     });
@@ -250,13 +252,6 @@ export class ConversationRepository {
     return previousConversation?.conversation_messages || [];
   }
 
-  // NEW METHOD: Assign conversation to session
-  async assignToSession(conversationId: string, sessionId: string): Promise<void> {
-    await this.db.prisma.conversations.update({
-      where: { id: conversationId },
-      data: { session_id: sessionId }
-    });
-  }
 
   // ENHANCED METHOD: Get conversation with session info
   async findByIdWithSession(conversationId: string): Promise<conversations | null> {

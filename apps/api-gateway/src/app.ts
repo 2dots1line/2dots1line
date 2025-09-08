@@ -9,7 +9,7 @@ import { ConfigService } from '@2dots1line/config-service';
 import { DialogueAgent, PromptBuilder } from '@2dots1line/dialogue-service';
 import { UserService, AuthService, DashboardService } from '@2dots1line/user-service';
 import { CardService } from '@2dots1line/card-service';
-import { UserRepository, ConversationRepository, SessionRepository, CardRepository } from '@2dots1line/database';
+import { UserRepository, ConversationRepository, SessionRepository, CardRepository, MediaRepository } from '@2dots1line/database';
 
 // Import Tools for DialogueAgent
 import { 
@@ -30,7 +30,11 @@ import { MediaController } from './controllers/media.controller';
 
 async function createApp(): Promise<express.Application> {
   const app: express.Application = express();
-  app.use(cors());
+  app.use(cors({
+    origin: 'http://localhost:3000',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control']
+  }));
   app.use(express.json());
 
   // --- COMPOSITION ROOT ---
@@ -52,6 +56,7 @@ async function createApp(): Promise<express.Application> {
   const conversationRepo = new ConversationRepository(databaseService);
   const sessionRepo = new SessionRepository(databaseService); // NEW
   const cardRepo = new CardRepository(databaseService);
+  const mediaRepo = new MediaRepository(databaseService);
 
   // Level 3: Headless Services (Business Logic) - V11.0 Architecture
   const userService = new UserService(databaseService);
@@ -79,7 +84,7 @@ async function createApp(): Promise<express.Application> {
   const authController = new AuthController(authService);
   const userController = new UserController(userService, dashboardService);
   const cardController = new CardController(cardService);
-  const conversationController = new ConversationController(dialogueAgent, conversationRepo, sessionRepo, databaseService.redis);
+  const conversationController = new ConversationController(dialogueAgent, conversationRepo, sessionRepo, mediaRepo, databaseService.redis);
   const graphController = new GraphController(databaseService);
   console.log('🔧 Initializing MediaController...');
   const mediaController = new MediaController();

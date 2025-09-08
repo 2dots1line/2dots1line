@@ -30,6 +30,13 @@ const storage = multer.diskStorage({
 
 // File filter for allowed types
 const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  // Simple debug logging - no file size
+  console.log('🔍 File upload:', {
+    originalname: file.originalname,
+    mimetype: file.mimetype,
+    fieldname: file.fieldname
+  });
+
   // Allowed file types
   const allowedMimes = [
     // Images
@@ -48,8 +55,10 @@ const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCa
   ];
 
   if (allowedMimes.includes(file.mimetype)) {
+    console.log('✅ File type accepted:', file.mimetype);
     cb(null, true);
   } else {
+    console.log('❌ File type rejected:', file.mimetype);
     cb(new Error(`File type ${file.mimetype} is not allowed. Supported types: images (JPEG, PNG, GIF, WebP) and documents (PDF, DOC, DOCX, TXT, MD, RTF)`));
   }
 };
@@ -59,8 +68,11 @@ const upload = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
-    files: 1 // Only one file at a time
+    fileSize: 50 * 1024 * 1024, // Increased to 50MB limit for better reliability
+    files: 1, // Only one file at a time
+    fieldSize: 10 * 1024 * 1024, // 10MB for form fields
+    fieldNameSize: 100, // Max field name size
+    parts: 20 // Max number of parts
   }
 });
 

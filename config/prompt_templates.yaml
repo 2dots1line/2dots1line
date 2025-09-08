@@ -468,7 +468,7 @@ ingestion_analyst_instructions: |
 
   **SECTION 1: persistence_payload**
   Extract and structure knowledge for long-term storage:
-  - conversation_title: Short, descriptive title (3-7 words) that captures the main topic or theme
+  - conversation_title: Short, descriptive title (3-7 words, max 100 characters) that captures the main topic or theme
   - conversation_summary: 2-3 sentence overview of main topics and outcomes
   - conversation_importance_score: 1-10 rating of overall significance using these criteria:
     * 1-3: Routine daily activities, casual conversation, minor updates
@@ -479,8 +479,20 @@ ingestion_analyst_instructions: |
     * importance_score (1-10): Rate how significant this memory is to {{user_name}}'s life/journey
     * sentiment_score (-1.0 to 1.0): Rate the emotional tone from negative to positive
   - extracted_concepts: Array of topics, themes, interests, or entities discussed. ALWAYS extract at least 2-3 concepts from any conversation with meaningful content.
-  - new_relationships: Array of connections between entities (person-to-concept, concept-to-concept, etc.)
   - detected_growth_events: Array of personal development moments with quantified impact
+  - new_relationships: Array of connections between entities. Create relationships when entities are clearly connected in the conversation.
+    
+    **RELATIONSHIP EXAMPLES:**
+    * MemoryUnit → Concept: "mem_career_change_2024" → "Career Transition"
+    * MemoryUnit → GrowthEvent: "mem_leadership_breakthrough" → "growth_leadership_development"
+    * Concept → GrowthEvent: "Leadership" → "growth_leadership_development"
+    * Concept → Concept: "Leadership" → "Team Management"
+    * MemoryUnit → MemoryUnit: "mem_project_success" → "mem_team_celebration"
+    
+    **RULES:**
+    1. Create relationships when entities are clearly connected, regardless of the entity type. Link MemoryUnits to Concepts, Concepts to GrowthEvents, and MemoryUnits to GrowthEvents, etc. would hugely facilitate effective retrieval of connected entities.
+    2. Use exact temp_ids (e.g., "mem_career_change_2024") and exact concept names
+    3. People are represented as Concepts with type="person"
 
   **SECTION 2: forward_looking_context**
   Prepare context for the next conversation:
@@ -549,7 +561,7 @@ ingestion_analyst_instructions: |
   ```json
   {
     "persistence_payload": {
-      "conversation_title": "Quantum Physics and Consciousness",
+      "conversation_title": "Quantum Physics Insights",
       "conversation_summary": "{{user_name}} discussed their passion for quantum physics and how reading a book about consciousness changed their perspective on reality.",
       "conversation_importance_score": 7,
       "extracted_memory_units": [
@@ -575,12 +587,38 @@ ingestion_analyst_instructions: |
           "description": "Interest in the nature of consciousness and the mind-body problem"
         }
       ],
-      "new_relationships": [],
       "detected_growth_events": [
         {
           "dim_key": "know_world",
           "delta": 3.0,
           "rationale": "Gained new perspective on reality through quantum physics reading"
+        }
+      ],
+      "new_relationships": [
+        {
+          "source_entity_id_or_name": "mem_quantum_book_insight",
+          "target_entity_id_or_name": "Quantum Physics",
+          "relationship_description": "Memory unit exemplifies the concept of quantum physics exploration"
+        },
+        {
+          "source_entity_id_or_name": "mem_quantum_book_insight", 
+          "target_entity_id_or_name": "Consciousness",
+          "relationship_description": "Memory unit demonstrates connection between quantum physics and consciousness studies"
+        },
+        {
+          "source_entity_id_or_name": "Quantum Physics",
+          "target_entity_id_or_name": "Consciousness", 
+          "relationship_description": "Concepts are thematically related through the study of mind-body connection"
+        },
+        {
+          "source_entity_id_or_name": "mem_quantum_book_insight",
+          "target_entity_id_or_name": "growth_philosophical_awakening",
+          "relationship_description": "Memory unit triggered a growth event in philosophical understanding"
+        },
+        {
+          "source_entity_id_or_name": "Quantum Physics",
+          "target_entity_id_or_name": "growth_philosophical_awakening",
+          "relationship_description": "Concept drove growth in philosophical understanding"
         }
       ]
     },
@@ -697,6 +735,21 @@ strategic_synthesis_instructions: |
     }
   }
   ```
+
+  **STRATEGIC RELATIONSHIP CREATION:**
+  Create strategic relationships between ALL entity types (Concept, MemoryUnit, GrowthEvent, DerivedArtifact, Community, ProactivePrompt) based on cyclical analysis.
+  
+  **RELATIONSHIP EXAMPLES:**
+  * Concept → MemoryUnit: "Leadership" → "mem_team_management_success" (when concepts are exemplified by specific memories)
+  * MemoryUnit → DerivedArtifact: "mem_learning_journey" → "artifact_skill_development_insights" (when memories generate insights)
+  * GrowthEvent → Concept: "growth_confidence_building" → "Self-Confidence" (when growth events develop concepts)
+  * Concept → Community: "Teamwork" → "community_work_collaboration" (when concepts define communities)
+  
+  **RULES:**
+  1. Create strategic relationships that reveal hidden patterns across entity types
+  2. Focus on connections that support growth trajectory and knowledge optimization and facilitates effective retrieval of connected entities.
+  3. Use exact entity IDs and meaningful relationship descriptions
+  4. Prioritize relationships that enhance retrieval and insight generation
 
   **STRATEGIC GUIDELINES:**
   1. **Quality Focus**: Prioritize high-impact optimizations over numerous small changes
