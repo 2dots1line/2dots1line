@@ -79,7 +79,7 @@ export class SemanticSimilarityTool {
         .graphql
         .get()
         .withClassName('UserKnowledgeItem')
-        .withFields('externalId sourceEntityType _additional { distance }')
+        .withFields('externalId sourceEntityType title _additional { distance }')
         .withWhere({
           operator: 'Equal',
           path: ['userId'],
@@ -128,11 +128,12 @@ export class SemanticSimilarityTool {
         return null;
       }
       
-      console.log(`[SemanticSimilarityTool] MOST SIMILAR entity found for "${candidateName}": ${bestEntity.externalId} (type: ${bestEntity.sourceEntityType}, similarity: ${bestSimilarity.toFixed(3)})`);
+      const entityName = bestEntity.title || bestEntity.externalId;
+      console.log(`[SemanticSimilarityTool] MOST SIMILAR entity found for "${candidateName}": "${entityName}" (id: ${bestEntity.externalId}, type: ${bestEntity.sourceEntityType}, similarity: ${bestSimilarity.toFixed(3)})`);
       
       return {
         entityId: bestEntity.externalId,
-        entityName: bestEntity.externalId, // Use externalId as name since we don't have title
+        entityName: bestEntity.title || bestEntity.externalId, // Use title if available, fallback to externalId
         entityType: (bestEntity.sourceEntityType === 'Concept' ? 'concept' : 'memory_unit') as 'concept' | 'memory_unit',
         similarityScore: bestSimilarity
       };
