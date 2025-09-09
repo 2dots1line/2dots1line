@@ -283,8 +283,17 @@ export class IngestionAnalyst {
             continue;
           }
           
-          allConcepts.add(relationship.source_entity_id_or_name);
-          allConcepts.add(relationship.target_entity_id_or_name);
+          // FIX: Only add entity names that are NOT memory unit temp_ids or growth dimensions
+          if (!this.isMemoryUnitTempId(relationship.source_entity_id_or_name) && !this.isGrowthDimension(relationship.source_entity_id_or_name)) {
+            allConcepts.add(relationship.source_entity_id_or_name);
+          } else {
+            console.log(`🔍 [IngestionAnalyst] DEBUG: Filtered out memory unit temp_id or growth dimension from concepts: ${relationship.source_entity_id_or_name}`);
+          }
+          if (!this.isMemoryUnitTempId(relationship.target_entity_id_or_name) && !this.isGrowthDimension(relationship.target_entity_id_or_name)) {
+            allConcepts.add(relationship.target_entity_id_or_name);
+          } else {
+            console.log(`🔍 [IngestionAnalyst] DEBUG: Filtered out memory unit temp_id or growth dimension from concepts: ${relationship.target_entity_id_or_name}`);
+          }
         }
       }
       
@@ -295,6 +304,16 @@ export class IngestionAnalyst {
         // Skip if it's a user name
         const user = await this.userRepository.findById(userId);
         if (user && user.name === conceptName) {
+          continue;
+        }
+        
+        // Additional safety check: Skip if it's a memory unit temp_id or growth dimension
+        if (this.isMemoryUnitTempId(conceptName)) {
+          console.log(`🔍 [IngestionAnalyst] DEBUG: Skipping concept creation for memory unit temp_id: ${conceptName}`);
+          continue;
+        }
+        if (this.isGrowthDimension(conceptName)) {
+          console.log(`🔍 [IngestionAnalyst] DEBUG: Skipping concept creation for growth dimension: ${conceptName}`);
           continue;
         }
         
@@ -571,7 +590,7 @@ export class IngestionAnalyst {
   /**
    * IMPLEMENTED: Create relationships in Neo4j knowledge graph within a transaction
    */
-  private async createNeo4jRelationshipsInTransaction(transaction: any, userId: string, relationships: any[]): Promise<void> {
+  private async createNeo4jRelationshipsInTransaction(transaction: any, userId: string, relationships: any[], entityMappings?: Map<string, string>): Promise<void> {
     console.log(`🔍 [IngestionAnalyst] DEBUG: createNeo4jRelationshipsInTransaction called for ${relationships.length} relationships`);
     
     try {
@@ -587,8 +606,8 @@ export class IngestionAnalyst {
         console.log(`🔍 [IngestionAnalyst] DEBUG: Transformed relationship - sourceId: ${sourceId}, targetId: ${targetId}, description: ${relationshipDescription}`);
         
         // FIXED: Map relationship IDs to actual node IDs by querying the database
-        const actualSourceId = await this.mapRelationshipIdToNodeId(sourceId, userId);
-        const actualTargetId = await this.mapRelationshipIdToNodeId(targetId, userId);
+        const actualSourceId = await this.mapRelationshipIdToNodeId(sourceId, userId, entityMappings);
+        const actualTargetId = await this.mapRelationshipIdToNodeId(targetId, userId, entityMappings);
         
         if (!actualSourceId || !actualTargetId) {
           console.warn(`[IngestionAnalyst] ⚠️ Could not map relationship IDs: source=${sourceId} -> ${actualSourceId}, target=${targetId} -> ${actualTargetId}`);
@@ -702,7 +721,7 @@ export class IngestionAnalyst {
   /**
    * IMPLEMENTED: Create relationships in Neo4j knowledge graph (legacy method for backward compatibility)
    */
-  private async createNeo4jRelationships(userId: string, relationships: any[]): Promise<void> {
+  private async createNeo4jRelationships(userId: string, relationships: any[], entityMappings?: Map<string, string>): Promise<void> {
     console.log(`🔍 [IngestionAnalyst] DEBUG: createNeo4jRelationships called for ${relationships.length} relationships`);
     
     if (!this.dbService.neo4j) {
@@ -729,8 +748,8 @@ export class IngestionAnalyst {
         console.log(`🔍 [IngestionAnalyst] DEBUG: Transformed relationship - sourceId: ${sourceId}, targetId: ${targetId}, description: ${relationshipDescription}`);
         
         // FIXED: Map relationship IDs to actual node IDs by querying the database
-        const actualSourceId = await this.mapRelationshipIdToNodeId(sourceId, userId);
-        const actualTargetId = await this.mapRelationshipIdToNodeId(targetId, userId);
+        const actualSourceId = await this.mapRelationshipIdToNodeId(sourceId, userId, entityMappings);
+        const actualTargetId = await this.mapRelationshipIdToNodeId(targetId, userId, entityMappings);
         
         if (!actualSourceId || !actualTargetId) {
           console.warn(`[IngestionAnalyst] ⚠️ Could not map relationship IDs: source=${sourceId} -> ${actualSourceId}, target=${targetId} -> ${actualTargetId}`);
@@ -828,8 +847,22 @@ export class IngestionAnalyst {
    * Map relationship ID to actual node ID by querying the database
    * V11.1.1 ENHANCEMENT: Map user names to User concepts instead of skipping
    */
-  private async mapRelationshipIdToNodeId(relationshipId: string, userId: string): Promise<string | null> {
+  private async mapRelationshipIdToNodeId(relationshipId: string, userId: string, entityMappings?: Map<string, string>): Promise<string | null> {
     try {
+      // FIX: Check entity mappings first (for temp_ids and newly created entities)
+      if (entityMappings && entityMappings.has(relationshipId)) {
+        const mappedId = entityMappings.get(relationshipId);
+        console.log(`🔍 [IngestionAnalyst] DEBUG: Mapped relationship ID "${relationshipId}" to "${mappedId}" via entity mappings`);
+        
+        // FIX: If the mapped ID is a UUID, it's likely a concept ID, so return it directly
+        if (mappedId && this.isUUID(mappedId)) {
+          console.log(`🔍 [IngestionAnalyst] DEBUG: Mapped ID "${mappedId}" is a UUID, treating as concept ID`);
+          return mappedId;
+        }
+        
+        return mappedId || null;
+      }
+      
       // V11.1.1 ENHANCEMENT: Map user names to User concepts instead of skipping
       // Get the user's name to check if this relationshipId is the user's name
       const user = await this.userRepository.findById(userId);
@@ -980,6 +1013,18 @@ export class IngestionAnalyst {
    */
   private async findOrCreateConceptByName(userId: string, conceptName: string, conceptType: string = 'theme'): Promise<any | null> {
     try {
+      // FIX: Don't create concepts for memory unit temp_ids
+      if (this.isMemoryUnitTempId(conceptName)) {
+        console.log(`🔍 [IngestionAnalyst] DEBUG: Skipping concept creation for memory unit temp_id: ${conceptName}`);
+        return null;
+      }
+      
+      // FIX: Don't create concepts for growth dimensions
+      if (this.isGrowthDimension(conceptName)) {
+        console.log(`🔍 [IngestionAnalyst] DEBUG: Skipping concept creation for growth dimension: ${conceptName}`);
+        return null;
+      }
+      
       // First try to find existing concept
       const concepts = await this.conceptRepository.findByUserId(userId);
       const existingConcept = concepts.find(c => c.name === conceptName);
@@ -1314,11 +1359,13 @@ export class IngestionAnalyst {
         
         // Map candidate name to existing entity ID for relationship updates
         decisions.entityMappings.set(memoryUnit.title, similarityResult.bestMatch.entityId);
+        decisions.entityMappings.set(memoryUnit.temp_id, similarityResult.bestMatch.entityId);
         console.log(`[IngestionAnalyst] Memory unit "${memoryUnit.title}" will reuse existing memory unit "${similarityResult.bestMatch.entityName}" (similarity: ${similarityResult.bestMatch.similarityScore.toFixed(3)})`);
       } else {
         // No similar memory unit found or below threshold - create new entity
         decisions.memoryUnitsToCreate.push(memoryUnit);
         decisions.entityMappings.set(memoryUnit.title, `new_memory_${memoryUnit.title}`);
+        decisions.entityMappings.set(memoryUnit.temp_id, `new_memory_${memoryUnit.title}`);
         console.log(`[IngestionAnalyst] Memory unit "${memoryUnit.title}" will be created as new (similarity: ${similarityResult?.bestMatch?.similarityScore?.toFixed(3) || 'N/A'}, below threshold ${SIMILARITY_THRESHOLD})`);
       }
     }
@@ -1588,8 +1635,9 @@ export class IngestionAnalyst {
           const createdMemory = await this.memoryRepository.create(memoryData);
           newEntities.push({ id: createdMemory.muid, type: 'MemoryUnit' });
           
-          // Update entity mapping
+          // Update entity mapping - map both title and temp_id to the actual memory unit ID
           deduplicationDecisions.entityMappings.set(memoryUnit.title, createdMemory.muid);
+          deduplicationDecisions.entityMappings.set(memoryUnit.temp_id, createdMemory.muid);
           
           // Create Neo4j node
           await this.createNeo4jNodeInTransaction(neo4jTransaction, 'MemoryUnit', {
@@ -1616,8 +1664,9 @@ export class IngestionAnalyst {
             importance_score: Math.max(0, decision.candidate.importance_score)
           });
           
-          // Update entity mapping
+          // Update entity mapping - map both title and temp_id to the actual memory unit ID
           deduplicationDecisions.entityMappings.set(decision.candidate.title, memoryUnitId);
+          deduplicationDecisions.entityMappings.set(decision.candidate.temp_id, memoryUnitId);
         }
 
         // ENHANCED: Process concepts with deduplication decisions
@@ -1740,7 +1789,7 @@ export class IngestionAnalyst {
         source_entity_id_or_name: sourceId,
         target_entity_id_or_name: targetId,
         relationship_description: relationship.relationship_description
-      }]);
+      }], entityMappings);
     }
   }
 
@@ -1752,5 +1801,30 @@ export class IngestionAnalyst {
     
     // Otherwise, look up in entity mappings
     return entityMappings.get(entityNameOrId) || entityNameOrId;
+  }
+
+  /**
+   * Check if an entity name is a memory unit temp_id
+   * Memory unit temp_ids start with 'mem_' and contain only alphanumeric characters and underscores
+   */
+  private isMemoryUnitTempId(entityName: string): boolean {
+    return entityName.startsWith('mem_') && /^mem_[a-zA-Z0-9_]+$/.test(entityName);
+  }
+
+  /**
+   * Check if an entity name is a growth dimension
+   * Growth dimensions are the HRT framework dimensions: act_self, know_world, etc.
+   */
+  private isGrowthDimension(entityName: string): boolean {
+    const growthDimensions = ['act_self', 'know_world', 'act_world', 'know_self'];
+    return growthDimensions.includes(entityName);
+  }
+
+  /**
+   * Check if a string is a valid UUID
+   */
+  private isUUID(str: string): boolean {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(str);
   }
 }
