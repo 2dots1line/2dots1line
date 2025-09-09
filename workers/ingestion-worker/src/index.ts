@@ -118,11 +118,7 @@ async function main() {
     const ingestionQueue = new Queue('ingestion-queue', { 
       connection: redisConnection,
       defaultJobOptions: {
-        attempts: 3,
-        backoff: {
-          type: 'exponential',
-          delay: 2000,
-        },
+        attempts: 1, // No retries - LLM retries are handled by LLMChatTool internally
         removeOnComplete: { count: 10 },
         removeOnFail: { count: 50 },
       }
@@ -134,7 +130,12 @@ async function main() {
     });
 
     worker.on('failed', (job, err) => {
-      console.error(`[IngestionWorker] Job ${job?.id} failed:`, err);
+      if (err.message && err.message.includes('NON_RETRYABLE')) {
+        console.log(`[IngestionWorker] Job ${job?.id} failed with non-retryable error, not retrying`);
+        // Don't retry non-retryable errors
+        return;
+      }
+      console.log(`[IngestionWorker] Job ${job?.id} failed with retryable error: ${err.message}`);
       if (job) {
         console.error(`[IngestionWorker] Job data:`, job.data);
         console.error(`[IngestionWorker] Attempt ${job.attemptsMade} of ${job.opts.attempts || 'unknown'}`);
