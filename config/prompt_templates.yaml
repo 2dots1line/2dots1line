@@ -484,8 +484,8 @@ ingestion_analyst_instructions: |
     
     **RELATIONSHIP EXAMPLES:**
     * MemoryUnit → Concept: "mem_career_change_2024" → "Career Transition"
-    * MemoryUnit → GrowthEvent: "mem_leadership_breakthrough" → "growth_leadership_development"
-    * Concept → GrowthEvent: "Leadership" → "growth_leadership_development"
+    * MemoryUnit → GrowthEvent: "mem_leadership_breakthrough" → "event_123e4567-e89b-12d3-a456-426614174000"
+    * Concept → GrowthEvent: "Leadership" → "event_123e4567-e89b-12d3-a456-426614174000"
     * Concept → Concept: "Leadership" → "Team Management"
     * MemoryUnit → MemoryUnit: "mem_project_success" → "mem_team_celebration"
     
@@ -493,6 +493,8 @@ ingestion_analyst_instructions: |
     1. Create relationships when entities are clearly connected, regardless of the entity type. Link MemoryUnits to Concepts, Concepts to GrowthEvents, and MemoryUnits to GrowthEvents, etc. would hugely facilitate effective retrieval of connected entities.
     2. Use exact temp_ids (e.g., "mem_career_change_2024") and exact concept names
     3. People are represented as Concepts with type="person"
+    4. Growth events should be referenced by their actual event_id (e.g., "event_123e4567-e89b-12d3-a456-426614174000"), NOT by dimension keys like "act_self" or "know_world"
+    5. Relationship descriptions should be simple and clear (e.g., "evidences this growth event" rather than complex rationales)
 
   **SECTION 2: forward_looking_context**
   Prepare context for the next conversation:
@@ -612,13 +614,13 @@ ingestion_analyst_instructions: |
         },
         {
           "source_entity_id_or_name": "mem_quantum_book_insight",
-          "target_entity_id_or_name": "growth_philosophical_awakening",
-          "relationship_description": "Memory unit triggered a growth event in philosophical understanding"
+          "target_entity_id_or_name": "event_123e4567-e89b-12d3-a456-426614174000",
+          "relationship_description": "Memory unit evidences this growth event"
         },
         {
           "source_entity_id_or_name": "Quantum Physics",
-          "target_entity_id_or_name": "growth_philosophical_awakening",
-          "relationship_description": "Concept drove growth in philosophical understanding"
+          "target_entity_id_or_name": "event_123e4567-e89b-12d3-a456-426614174000",
+          "relationship_description": "Concept evidences this growth event"
         }
       ]
     },
