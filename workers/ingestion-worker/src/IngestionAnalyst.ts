@@ -108,13 +108,13 @@ export class IngestionAnalyst {
     } catch (error) {
       console.error(`[IngestionAnalyst] Error processing conversation ${conversationId}:`, error);
       
-      // Update conversation with error information
-      await this.conversationRepository.update(conversationId, {
+        // Update conversation with error information
+        await this.conversationRepository.update(conversationId, {
         context_summary: `Analysis failed: ${error instanceof Error ? error.message : String(error)}`,
-        importance_score: 0,
-        status: 'failed'
-      });
-      
+          importance_score: 0,
+          status: 'failed'
+        });
+        
       // All errors should be treated as non-retryable at the BullMQ level
       // LLM retries are handled by LLMChatTool internally
       // Database/validation errors shouldn't be retried
@@ -223,34 +223,34 @@ export class IngestionAnalyst {
       try {
         // ENHANCED: Process memory units with deduplication decisions
         for (const memoryUnit of deduplicationDecisions.memoryUnitsToCreate) {
-          const memoryData: CreateMemoryUnitData = {
-            user_id: userId,
-            title: memoryUnit.title,
-            content: memoryUnit.content,
+            const memoryData: CreateMemoryUnitData = {
+              user_id: userId,
+              title: memoryUnit.title,
+              content: memoryUnit.content,
             importance_score: memoryUnit.importance_score || persistence_payload.conversation_importance_score || 5,
             sentiment_score: memoryUnit.sentiment_score || 0,
-            source_conversation_id: conversationId
-          };
+              source_conversation_id: conversationId
+            };
 
-          const createdMemory = await this.memoryRepository.create(memoryData);
-          newEntities.push({ id: createdMemory.muid, type: 'MemoryUnit' });
-          
+            const createdMemory = await this.memoryRepository.create(memoryData);
+            newEntities.push({ id: createdMemory.muid, type: 'MemoryUnit' });
+            
           // Update entity mapping - map both title and temp_id to the actual memory unit ID
           deduplicationDecisions.entityMappings.set(memoryUnit.title, createdMemory.muid);
           deduplicationDecisions.entityMappings.set(memoryUnit.temp_id, createdMemory.muid);
-          
+            
           // Create Neo4j node
-          await this.createNeo4jNodeInTransaction(neo4jTransaction, 'MemoryUnit', {
-            id: createdMemory.muid,
-            userId: userId,
-            title: createdMemory.title,
-            content: createdMemory.content,
-            importance_score: createdMemory.importance_score,
-            sentiment_score: createdMemory.sentiment_score,
+            await this.createNeo4jNodeInTransaction(neo4jTransaction, 'MemoryUnit', {
+              id: createdMemory.muid,
+              userId: userId,
+              title: createdMemory.title,
+              content: createdMemory.content,
+              importance_score: createdMemory.importance_score,
+              sentiment_score: createdMemory.sentiment_score,
             creation_ts: new Date().toISOString(),
-            source_conversation_id: createdMemory.source_conversation_id,
-            source: 'IngestionAnalyst'
-          });
+              source_conversation_id: createdMemory.source_conversation_id,
+              source: 'IngestionAnalyst'
+            });
         }
 
         // ENHANCED: Process memory units to reuse (update existing)
@@ -280,33 +280,33 @@ export class IngestionAnalyst {
 
         // ENHANCED: Process concepts with deduplication decisions
         for (const concept of deduplicationDecisions.conceptsToCreate) {
-          const conceptData: CreateConceptData = {
-            user_id: userId,
+        const conceptData: CreateConceptData = {
+          user_id: userId,
             name: concept.name,
             type: concept.type || 'theme',
             description: concept.description || `Concept extracted from conversation: ${concept.name}`,
             salience: concept.salience || 0.5
-          };
+        };
 
-          const createdConcept = await this.conceptRepository.create(conceptData);
-          newEntities.push({ id: createdConcept.concept_id, type: 'Concept' });
-          
+        const createdConcept = await this.conceptRepository.create(conceptData);
+        newEntities.push({ id: createdConcept.concept_id, type: 'Concept' });
+        
           // Update entity mapping
           deduplicationDecisions.entityMappings.set(concept.name, createdConcept.concept_id);
-          
+        
           // Create Neo4j node
-          await this.createNeo4jNodeInTransaction(neo4jTransaction, 'Concept', {
-            id: createdConcept.concept_id,
-            userId: userId,
-            name: createdConcept.name,
-            description: createdConcept.description,
-            type: createdConcept.type,
-            salience: conceptData.salience,
-            status: createdConcept.status,
-            created_at: createdConcept.created_at.toISOString(),
-            community_id: createdConcept.community_id,
-            source: 'IngestionAnalyst'
-          });
+        await this.createNeo4jNodeInTransaction(neo4jTransaction, 'Concept', {
+          id: createdConcept.concept_id,
+          userId: userId,
+          name: createdConcept.name,
+          description: createdConcept.description,
+          type: createdConcept.type,
+          salience: conceptData.salience,
+          status: createdConcept.status,
+          created_at: createdConcept.created_at.toISOString(),
+          community_id: createdConcept.community_id,
+          source: 'IngestionAnalyst'
+        });
         }
 
         // ENHANCED: Process concepts to reuse (update existing)
@@ -343,29 +343,29 @@ export class IngestionAnalyst {
         // Process growth events (unchanged - always created as new)
         if (persistence_payload.detected_growth_events && persistence_payload.detected_growth_events.length > 0) {
           for (const growthEvent of persistence_payload.detected_growth_events) {
-            const growthData: CreateGrowthEventData = {
-              user_id: userId,
+          const growthData: CreateGrowthEventData = {
+            user_id: userId,
               related_memory_units: [],
               related_concepts: [],
               growth_dimensions: [],
-              source: 'IngestionAnalyst',
-              details: {
-                entity_id: conversationId,
-                entity_type: 'conversation'
-              },
-              dimension_key: growthEvent.dim_key,
-              delta_value: growthEvent.delta,
-              rationale: growthEvent.rationale
-            };
+            source: 'IngestionAnalyst',
+            details: {
+              entity_id: conversationId,
+              entity_type: 'conversation'
+            },
+            dimension_key: growthEvent.dim_key,
+            delta_value: growthEvent.delta,
+            rationale: growthEvent.rationale
+          };
 
-            const createdGrowthEvent = await this.growthEventRepository.create(growthData);
-            newEntities.push({ id: createdGrowthEvent.event_id, type: 'GrowthEvent' });
+          const createdGrowthEvent = await this.growthEventRepository.create(growthData);
+          newEntities.push({ id: createdGrowthEvent.event_id, type: 'GrowthEvent' });
           }
         }
 
         // Commit Neo4j transaction
         await neo4jTransaction.commit();
-        
+
       } catch (error) {
         await neo4jTransaction.rollback();
         throw error;
@@ -477,15 +477,15 @@ export class IngestionAnalyst {
           entityTypes: ['concept'],
           userId
         });
-
+        
         this.processSemanticSimilarityResults(conceptResults, decisions, 'concept', analysisOutput);
       }
 
       // Process memory units
       if (analysisOutput.persistence_payload.extracted_memory_units) {
-        const memoryTitles = analysisOutput.persistence_payload.extracted_memory_units.map(m => m.title);
+        const memoryTextContent = analysisOutput.persistence_payload.extracted_memory_units.map(m => `${m.title}\n${m.content}`);
         const memoryResults = await this.semanticSimilarityTool.execute({
-          candidateNames: memoryTitles,
+          candidateNames: memoryTextContent,
           entityTypes: ['memory_unit'],
           userId
         });
@@ -532,8 +532,8 @@ export class IngestionAnalyst {
             decisions.entityMappings.set(similarityResult.candidateName, similarityResult.bestMatch.entityId);
           }
         } else {
-          // Find the original memory unit data by title
-          const originalMemory = analysisOutput.persistence_payload.extracted_memory_units?.find(m => m.title === similarityResult.candidateName);
+          // Find the original memory unit data by textContent
+          const originalMemory = analysisOutput.persistence_payload.extracted_memory_units?.find(m => `${m.title}\n${m.content}` === similarityResult.candidateName);
           if (originalMemory) {
             decisions.memoryUnitsToReuse.push({
               candidate: originalMemory,
@@ -555,8 +555,8 @@ export class IngestionAnalyst {
             decisions.entityMappings.set(originalConcept.name, `new_concept_${originalConcept.name}`);
           }
         } else {
-          // Find the original memory unit data by title
-          const originalMemory = analysisOutput.persistence_payload.extracted_memory_units?.find(m => m.title === similarityResult.candidateName);
+          // Find the original memory unit data by textContent
+          const originalMemory = analysisOutput.persistence_payload.extracted_memory_units?.find(m => `${m.title}\n${m.content}` === similarityResult.candidateName);
           if (originalMemory) {
             decisions.memoryUnitsToCreate.push(originalMemory);
             // Map both title and temp_id to placeholder IDs
@@ -598,7 +598,7 @@ export class IngestionAnalyst {
         textContent = memory ? `${memory.title}\n${memory.content}` : '';
       } else if (entity.type === 'Concept') {
         const concept = await this.conceptRepository.findById(entity.id);
-        textContent = concept ? `${concept.name}: ${concept.description || ''}` : '';
+        textContent = concept ? concept.name : '';
       } else if (entity.type === 'GrowthEvent') {
         const growthEvent = await this.growthEventRepository.findById(entity.id);
         if (growthEvent) {
@@ -728,16 +728,16 @@ export class IngestionAnalyst {
       console.log(`🔍 [IngestionAnalyst] DEBUG: Skipping concept creation for memory unit temp_id: ${entityIdOrName}`);
       return null;
     }
-
+    
     if (this.isGrowthDimension(entityIdOrName)) {
       console.log(`🔍 [IngestionAnalyst] DEBUG: Skipping concept creation for growth dimension: ${entityIdOrName}`);
       return null;
     }
-
+    
     // Auto-create concept as fallback
     console.log(`🔍 [IngestionAnalyst] DEBUG: Auto-creating concept for: ${entityIdOrName}`);
     const createdConcept = await this.conceptRepository.create({
-      user_id: userId,
+            user_id: userId,
       name: entityIdOrName,
       type: 'auto_generated',
       description: `Auto-generated concept from relationship: ${entityIdOrName}`,
