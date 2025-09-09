@@ -707,7 +707,7 @@ export class InsightEngine {
           // MergedConcepts are stored in the concepts table, so use concept repository
           const concept = await this.conceptRepository.findById(entityId);
           if (concept) {
-            textContent = `${concept.name}: ${concept.description || ''}`;
+            textContent = concept.name; // Use only name for consistency with IngestionAnalyst
           }
           break;
           

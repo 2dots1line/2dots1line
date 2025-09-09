@@ -209,7 +209,7 @@ export class EmbeddingWorker {
         .withProperties({
           externalId: data.entityId, // This should now be a valid UUID
           userId: data.userId,
-          title: data.textContent.substring(0, 200), // Use first 200 chars as title
+          title: data.textContent, // Use the full textContent as title (what gets vectorized)
           textContent: data.textContent,
           sourceEntityType: data.entityType,
           sourceEntityId: data.entityId, // This should now be a valid UUID

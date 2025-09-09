@@ -223,7 +223,7 @@ export class HybridRetrievalTool {
             .graphql
             .get()
             .withClassName('UserKnowledgeItem')
-            .withFields('externalId sourceEntityType _additional { distance }')
+            .withFields('externalId sourceEntityType textContent _additional { distance }')
             .withWhere({
               operator: 'Equal',
               path: ['userId'],
