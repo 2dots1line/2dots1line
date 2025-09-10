@@ -1,0 +1,270 @@
+“Multi-Style Covers: export + gallery (tabs like my HTML)”
+
+Role: You are a repo-aware assistant. Implement a style-agnostic export (covers.json) and a multi-style gallery UI that can switch between style packs (tabs/dropdown), showing per-card “Retrieved/Generated”, score, motif, and optional seeds/specs. Reuse my project’s existing card data; don’t break anything.
+
+What to build (two parts)
+A) Export a style-agnostic covers.json
+
+Create public/covers.json with this neutral schema (no hardcoded Wabi-Sabi; the UI chooses styles at render time):
+
+{
+  "default_style": "Wabi-Sabi Paper",      // optional, used as initial selection
+  "generated_at": "2025-08-28T00:00:00Z",
+  "cards": [
+    {
+      "id": "string",
+      "title": "string",
+      "category": "diary | achievement | thought | introspection",
+      "text": "short synopsis (<= 280 chars)",
+
+      "intent": {
+        "keywords": ["sun","walk","calm"],
+        "tone": "calm | energetic | reflective"
+      },
+
+      "decision": {
+        "source": "retrieved | generated",
+        "score": 0.00,                         // 0..1, deterministic
+        "motif": "human-readable motif",
+        "icon_id": "/path/or/symbol",          // present if retrieved
+        "seed": "S12345",                      // present if generated
+        "quality": "medium",                   // present if generated
+        "spec": "centered silhouette, no text, transparent bg" // present if generated
+      },
+
+      "assets": {
+        "svg": "/icons/<id>/icon.svg",         // if available
+        "png_64": "/icons/<id>/64.png",
+        "png_256": "/icons/<id>/256.png",
+        "png_1024": "/icons/<id>/1024.png"
+      }
+    }
+  ]
+}
+
+
+Where to discover cards (in this order; any may be missing):
+
+content/cards/**/*.{md,mdx,markdown} (frontmatter: id,title,category,summary/description/excerpt)
+
+data/cards.{json,yaml,yml}
+
+src/data/cards.{ts,js} (default export array)
+
+Optional read-only DB: if prisma/schema.prisma has a Card model and a local SQLite exists (no creds), read it; else skip DB.
+
+Detect existing icons (“retrieved”):
+
+Look for mappings first: public/covers.json, src/**/iconMap.{ts,js}, src/**/covers.{ts,js,json}.
+
+Then file patterns: public/icons/**/{id}.{svg,png,webp}, public/icons/{id}/**/*, public/**/icons/**, assets/**/icons/**.
+
+If id (or slug(title)) matches, mark decision.source="retrieved" and set decision.icon_id to that path/symbol.
+
+If none found → “generated”:
+
+decision.source="generated", seed = "S" + (md5(title) % 100000).padStart(5,"0"), quality="medium", spec as above.
+
+Motif & keywords (no API calls):
+
+Extract 3–5 top keywords from title+text (lowercase, remove stopwords).
+
+Use a small motif table, else fall back to top keyword:
+
+const MOTIF_BY_TITLE: Record<string,string> = {
+  "morning clarity": "mountain + sun",
+  "shipped v1": "trophy",
+  "on persistence": "metronome",
+  "naming the fear": "mask",
+  "deep work sprint": "hourglass",
+  "tiny joy": "cat",
+  "bridging gaps": "bridge",
+  "letting go": "crane",
+  "flow state": "ensō",
+  "resilience checkpoint": "kintsugi bowl",
+  "signal over noise": "funnel",
+  "compassion loop": "hand mirror"
+};
+
+
+Deterministic demo score:
+
+If retrieved → map hash(title) into [0.75, 0.95]; if generated → into [0.55, 0.74].
+
+Deliverables (export):
+
+scripts/export_covers.ts (Node/TS; use tsx or ts-node)
+
+Add scripts to package.json:
+
+{
+  "scripts": {
+    "export:covers": "tsx scripts/export_covers.ts",
+    "check:covers": "tsx scripts/export_covers.ts --dry-run"
+  }
+}
+
+
+On run, write public/covers.json and log: “Exported N cards (R retrieved / G generated) → public/covers.json”.
+
+B) Multi-style gallery UI (tabs like my HTML)
+
+Build a page that reads public/covers.json and lets users switch among 12 style packs similar to my demo HTML. Include chips for Retrieved/Generated, score, motif, and seeds/specs (for generated).
+
+Files to create (Next.js / React):
+
+src/styles/stylePacks.ts — style pack registry (see interface below).
+
+src/components/CoverTile.tsx — renders one card in the selected style.
+
+src/components/StyleTabs.tsx — clickable tabs + keyboard navigation.
+
+src/pages/covers.tsx (Next pages/) or src/app/covers/page.tsx (Next App Router) — gallery grid page.
+
+src/styles/covers.css — minimal CSS (grid, chips, cards, shadows).
+
+Style pack interface (copy & implement packs):
+
+// src/styles/stylePacks.ts
+export type StyleName =
+  | "Bright & Modern" | "Duotone Gradient" | "Outline Mono" | "Glassmorphic Lite"
+  | "Pastel Pictogram" | "Neumorph Soft"
+  | "Sumi Brush" | "Zen Minimal" | "Wabi-Sabi Paper" | "Hanko Stamp"
+  | "Indigo Ukiyo" | "Nocturne Luxe";
+
+export type Category = "diary" | "achievement" | "thought" | "introspection";
+
+export interface StylePack {
+  name: StyleName;
+  // Returns inline styles and CSS classnames to draw the tile background.
+  // The icon (SVG/PNG) is provided separately and centered on top.
+  tileFor(category: Category): {
+    className: string;                    // e.g., "tile wabi deckle shadow-soft"
+    style?: React.CSSProperties;          // e.g., CSS gradient vars
+    overlay?: React.ReactNode;            // optional SVG overlay (noise/deckle)
+  };
+  // Optional post styling for the icon element (tint/duotone/outline).
+  iconClassName?: string;                 // e.g., "icon outline"
+}
+
+export const STYLE_PACKS: StylePack[] = [ /* implement all 12 */ ];
+export const STYLE_NAMES = STYLE_PACKS.map(s => s.name);
+
+
+Implementation notes (match the HTML look):
+
+Gradients & palettes: replicate the per-category gradients from the demo (diary/achievement/thought/introspection). Use CSS variables (e.g., --c1, --c2) for backgrounds.
+
+Shadows: box-shadow tokens that match the demo’s softness.
+
+Deckle (Wabi-Sabi): approximate with an SVG mask + feTurbulence noise and a rounded rect clip. If that’s heavy, fallback to a subtle border + radial-gradient vignette.
+
+Glassmorphic Lite: add a translucent white overlay.
+
+Off-register (Indigo Ukiyo): duplicate the icon node with a slight offset and low opacity accent.
+
+Neumorph Soft: light & dark inner shadows—can be approximated with layered box-shadows.
+
+CoverTile behavior:
+
+Inputs: { card, styleName }.
+
+Renders:
+
+Tile background as defined by the selected style pack.
+
+Centered icon: prefer assets.svg; else assets.png_256 / _1024.
+
+Metadata block with chips:
+
+Retrieved (green) or Generated (amber)
+
+score 0.87
+
+motif: …
+
+If generated: seed S12345, spec …
+
+Truncated text synopsis.
+
+StyleTabs behavior:
+
+Show all 12 styles as tabs (or a dropdown on small screens).
+
+Sync selection with ?style=NAME in the URL and persist to localStorage.
+
+Keyboard support: Left/Right to switch tabs, Enter/Space to activate.
+
+Page layout:
+
+Responsive CSS grid with minmax(300px, 1fr) columns.
+
+Lazy-load images, loading="lazy".
+
+A11y: each tile is an <article> with accessible labels.
+
+If the repo is NOT React/Next:
+
+Create public/covers_gallery.html that fetches /covers.json and renders the same UI with plain JS + the same CSS tokens. Keep all logic in one file for easy testing.
+
+Accept my HTML as reference
+
+I will provide a self-contained HTML demo (12 styles, tabs, chips). Mirror the look and behavior:
+
+Style names, chip colors, spacing, card shadow, grid breakpoints.
+
+Include the score/retrieved/motif/seed/spec chips.
+
+Cursor: Extract color tokens and spacing from that file and translate them into CSS variables and Tailwind classes (if Tailwind is in the repo); otherwise plain CSS modules.
+
+Non-breaking & idempotent
+
+Do not modify existing pages/routes unless adding a new /covers page.
+
+Add new files under src/styles, src/components, and scripts.
+
+The export should succeed even if some sources are missing; skip gracefully.
+
+Dev scripts & validation
+
+npm run export:covers → writes public/covers.json.
+
+npm run dev → navigate to /covers to see the gallery.
+
+Add a simple type guard for covers.json and log a warning if fields are missing.
+
+Definition files to create now:
+
+scripts/export_covers.ts (as above)
+
+src/styles/stylePacks.ts (registry of 12 packs)
+
+src/components/CoverTile.tsx
+
+src/components/StyleTabs.tsx
+
+src/pages/covers.tsx or src/app/covers/page.tsx
+
+src/styles/covers.css
+
+Acceptance criteria (Cursor must verify)
+
+Running npm run export:covers produces public/covers.json with ≥ N cards.
+
+Navigating to /covers renders the gallery, defaulting to default_style (or Wabi-Sabi if absent).
+
+Changing the style tab updates all tiles instantly; URL reflects ?style=…; reload preserves selection.
+
+Each tile displays chips: Retrieved/Generated, score, motif, and seed/spec when generated.
+
+Images lazy-load; layout works on mobile and desktop.
+
+No changes to existing business logic; all additions are new files/routes.
+
+(Optional) Nice-to-haves
+
+Add ?q= filter to search by title/keywords.
+
+Add a “Download ZIP” button that bundles the current style’s rendered PNGs (client-side canvas or server route).
+
+Unit test: a tiny check that stylePacks.ts exports the 12 names and that tileFor() returns category-specific values.

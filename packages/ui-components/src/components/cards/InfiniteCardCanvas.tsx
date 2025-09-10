@@ -21,6 +21,16 @@ interface InfiniteCardCanvasProps {
   onLoadMore?: () => void;
   hasMore?: boolean;
   className?: string;
+  // NEW: placement + origin + reset behavior
+  placementMode?: 'random' | 'orderedFromOrigin';
+  origin?: { col: number; row: number };
+  resetOnCardsChange?: boolean;
+  showResetButton?: boolean;
+  // NEW: anchor pixel in viewport coordinates (x,y) to lock index 0 under a specific UI point
+  anchorPixel?: { x: number; y: number };
+  // NEW: sorting controls (handled internally on each drag end)
+  sortKey?: 'newest' | 'oldest' | 'title_asc' | 'title_desc';
+  hasCoverFirst?: boolean;
 }
 
 // Constants for grid layout (match prototype, responsive via CSS)
@@ -37,12 +47,52 @@ function seededRandom(seed: number): number {
   return x - Math.floor(x);
 }
 
+// NEW: map a grid cell to a card using ordered mapping near origin
+function selectCardForCell(
+  cards: DisplayCard[],
+  col: number,
+  row: number,
+  placementMode: 'random' | 'orderedFromOrigin',
+  origin: { col: number; row: number }
+): DisplayCard {
+  if (cards.length === 0) {
+    // Fallback dummy object shape safeguard
+    return {} as DisplayCard;
+  }
+
+  if (placementMode === 'orderedFromOrigin') {
+    const localCol = col - origin.col;
+    const localRow = row - origin.row;
+
+    // Only enforce ordering in the first quadrant (>= origin)
+    if (localCol >= 0 && localRow >= 0) {
+      // Use a very wide virtual row width to ensure unique mapping
+      // This provides a stable row-major order for visible regions
+      const LARGE_GRID_WIDTH = 1000;
+      const index = localRow * LARGE_GRID_WIDTH + localCol;
+      return cards[index % cards.length];
+    }
+  }
+
+  // Fallback: deterministic seeded random (for other quadrants / far regions)
+  const seed = row * 1000 + col;
+  const cardIndex = Math.floor(Math.abs(seededRandom(seed)) * cards.length) % cards.length;
+  return cards[cardIndex];
+}
+
 export const InfiniteCardCanvas: React.FC<InfiniteCardCanvasProps> = ({
   cards,
   onCardSelect,
   onLoadMore,
   hasMore = false,
   className = '',
+  placementMode = 'orderedFromOrigin',
+  origin = { col: 0, row: 0 },
+  resetOnCardsChange = true,
+  showResetButton = true,
+  anchorPixel,
+  sortKey = 'newest',
+  hasCoverFirst = false,
 }) => {
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
@@ -50,9 +100,83 @@ export const InfiniteCardCanvas: React.FC<InfiniteCardCanvasProps> = ({
   const [hasDragged, setHasDragged] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // NEW: track a dynamic origin that matches the current viewport’s top-left tile
+  const [dynamicOrigin, setDynamicOrigin] = useState<{ col: number; row: number }>(origin);
+  // NEW: epoch to recompute sorting after each drag end (ensures “reset unsorted then sort” each time)
+  const [dragEpoch, setDragEpoch] = useState(0);
+
+  // Helper to compute the viewport’s top-left tile (closest full tile to top-left)
+  const getViewportTopLeftCell = useCallback(() => {
+    // Use floor so we always pick the fully visible top-left cell
+    const col0 = Math.floor((-offset.x - GRID_PADDING) / CELL_WIDTH);
+    const row0 = Math.floor((-offset.y - GRID_PADDING) / CELL_HEIGHT);
+    return { col: col0, row: row0 };
+  }, [offset.x, offset.y]);
+
+  // NEW: compute the grid cell that contains the given anchor pixel (just below toolbar)
+  const getAnchorCell = useCallback(() => {
+    if (anchorPixel) {
+      const col0 = Math.floor((anchorPixel.x - offset.x - GRID_PADDING) / CELL_WIDTH);
+      const row0 = Math.floor((anchorPixel.y - offset.y - GRID_PADDING) / CELL_HEIGHT);
+      return { col: col0, row: row0 };
+    }
+    return getViewportTopLeftCell();
+  }, [anchorPixel?.x, anchorPixel?.y, offset.x, offset.y, getViewportTopLeftCell]);
+
+  // NEW: create a freshly sorted list from the raw pool each time (ignores any prior order)
+  const orderedCards = useMemo(() => {
+    const arr = [...cards];
+    arr.sort((a, b) => {
+      const aCreated = a?.created_at ? new Date(a.created_at as any).getTime() : 0;
+      const bCreated = b?.created_at ? new Date(b.created_at as any).getTime() : 0;
+      const aTitle = (a?.title || '').toString().toLowerCase();
+      const bTitle = (b?.title || '').toString().toLowerCase();
+      switch (sortKey) {
+        case 'oldest':
+          return aCreated - bCreated;
+        case 'title_asc':
+          return aTitle.localeCompare(bTitle);
+        case 'title_desc':
+          return bTitle.localeCompare(aTitle);
+        case 'newest':
+        default:
+          return bCreated - aCreated;
+      }
+    });
+    if (hasCoverFirst) {
+      const withCover = arr.filter(c => !!c.background_image_url);
+      const withoutCover = arr.filter(c => !c.background_image_url);
+      return [...withCover, ...withoutCover];
+    }
+    return arr;
+  }, [cards, sortKey, hasCoverFirst, dragEpoch]);
+
+  // Ensure sort changes immediately trigger a fresh compute and re-anchor cycle
+  useEffect(() => {
+    setDragEpoch(prev => prev + 1);
+  }, [sortKey, hasCoverFirst]);
+
+    // NEW: on mount and on drag (offset changes), re-anchor so orderedCards[0] sits under anchorPixel
+    useEffect(() => {
+    const next = getAnchorCell();
+    if (next.col !== dynamicOrigin.col || next.row !== dynamicOrigin.row) {
+      setDynamicOrigin(next);
+    }
+  }, [getAnchorCell, dynamicOrigin.col, dynamicOrigin.row]);
+
+  // NEW: when cards order changes (e.g., due to sortKey/cover toggle or data change), re-anchor to anchorPixel cell
+  const prevOrderKeyRef = useRef<string>('');
+  useEffect(() => {
+    const orderKey = orderedCards.map(c => c.card_id).join('|');
+    if (resetOnCardsChange && orderKey !== prevOrderKeyRef.current) {
+      setDynamicOrigin(getAnchorCell());
+      prevOrderKeyRef.current = orderKey;
+    }
+  }, [orderedCards, resetOnCardsChange, getAnchorCell]);
+
   // Calculate visible cards based on current offset and viewport size
   const visibleCards = useMemo(() => {
-    if (typeof window === 'undefined' || cards.length === 0) return [];
+    if (typeof window === 'undefined' || orderedCards.length === 0) return [];
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     // Calculate bounds
@@ -65,13 +189,12 @@ export const InfiniteCardCanvas: React.FC<InfiniteCardCanvasProps> = ({
     const endCol = Math.ceil(rightBound / CELL_WIDTH);
     const startRow = Math.floor(topBound / CELL_HEIGHT);
     const endRow = Math.ceil(bottomBound / CELL_HEIGHT);
+
     const result = [];
     for (let row = startRow; row <= endRow; row++) {
       for (let col = startCol; col <= endCol; col++) {
-        // Seeded random selection from cards array
-        const seed = row * 1000 + col;
-        const cardIndex = Math.floor(Math.abs(seededRandom(seed)) * cards.length) % cards.length;
-        const card = cards[cardIndex];
+        // NEW: use dynamicOrigin so index 0 is anchored at the anchorPixel’s cell
+        const card = selectCardForCell(orderedCards, col, row, placementMode, dynamicOrigin);
         result.push({
           ...card,
           x: col * CELL_WIDTH + GRID_PADDING,
@@ -82,30 +205,22 @@ export const InfiniteCardCanvas: React.FC<InfiniteCardCanvasProps> = ({
       }
     }
     return result;
-  }, [offset, cards]);
+  }, [offset, orderedCards, placementMode, dynamicOrigin]);
 
-  // Check if we need to load more cards when user scrolls to edges
+  // Auto-load more if needed (unchanged)
   useEffect(() => {
-    if (!onLoadMore || !hasMore || cards.length === 0) return;
-    
+    if (!onLoadMore || !hasMore || orderedCards.length === 0) return;
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-    
-    // Calculate if user is near the edges of the loaded area
-    const gridWidth = Math.ceil(viewportWidth / CELL_WIDTH) + 4; // Buffer
-    const gridHeight = Math.ceil(viewportHeight / CELL_HEIGHT) + 4; // Buffer
-    
-    // Estimate how many cards we have loaded in the grid
+    const gridWidth = Math.ceil(viewportWidth / CELL_WIDTH) + 4;
+    const gridHeight = Math.ceil(viewportHeight / CELL_HEIGHT) + 4;
     const estimatedLoadedCards = gridWidth * gridHeight;
-    
-    // If we're using more than 80% of available cards, load more
     if (visibleCards.length > estimatedLoadedCards * 0.8) {
-      console.log('InfiniteCardCanvas: Loading more cards, using', visibleCards.length, 'of', cards.length, 'available cards');
       onLoadMore();
     }
-  }, [visibleCards.length, cards.length, hasMore, onLoadMore]);
+  }, [visibleCards.length, orderedCards.length, hasMore, onLoadMore]);
 
-  // Mouse drag logic
+  // Mouse drag logic (increment epoch on drag end)
   function onMouseDown(e: React.MouseEvent) {
     setDragging(true);
     setHasDragged(false);
@@ -119,9 +234,9 @@ export const InfiniteCardCanvas: React.FC<InfiniteCardCanvasProps> = ({
   function onMouseUp() {
     setDragging(false);
     setTimeout(() => setHasDragged(false), 100);
+    setDragEpoch(prev => prev + 1); // NEW: trigger “reset unsorted then sort”
   }
-
-  // Touch support (optional, can be expanded)
+  // Touch support
   function onTouchStart(e: React.TouchEvent) {
     if (e.touches.length === 1) {
       setDragging(true);
@@ -137,11 +252,8 @@ export const InfiniteCardCanvas: React.FC<InfiniteCardCanvasProps> = ({
   function onTouchEnd() {
     setDragging(false);
     setTimeout(() => setHasDragged(false), 100);
+    setDragEpoch(prev => prev + 1); // NEW: trigger “reset unsorted then sort”
   }
-
-  // Add log for offset state changes
-  React.useEffect(() => {
-  }, [offset]);
 
   // Card click handler
   function handleCardClick(card: DisplayCard) {
@@ -162,11 +274,41 @@ export const InfiniteCardCanvas: React.FC<InfiniteCardCanvasProps> = ({
       onTouchEnd={onTouchEnd}
       style={{ cursor: dragging ? 'grabbing' : 'grab' }}
     >
+      {/* Optional quick action to jump to the starting point */}
+      {showResetButton && (
+        <div
+          style={{ position: 'absolute', top: 12, left: 12, zIndex: 10, background: 'rgba(0,0,0,0.5)', color: '#fff', padding: '6px 10px', borderRadius: 12, fontSize: 12, userSelect: 'none' }}
+          title="Reset view to the start (origin)"
+        >
+          <button
+            onClick={() => { setOffset({ x: 0, y: 0 }); setDynamicOrigin(origin); }}
+            style={{ background: 'transparent', color: '#fff', border: '1px solid rgba(255,255,255,0.4)', borderRadius: 8, padding: '4px 8px', cursor: 'pointer' }}
+          >
+            Reset to start
+          </button>
+        </div>
+      )}
       {/* Infinite card container */}
       <div
         className="infinite-card-container"
         style={{ transform: `translate(${offset.x}px, ${offset.y}px)` }}
       >
+        {/* NEW: tiny origin marker at the current dynamic origin */}
+        <div
+          title="Start (anchored to current viewport)"
+          style={{
+            position: 'absolute',
+            left: dynamicOrigin.col * CELL_WIDTH + GRID_PADDING - 6,
+            top: dynamicOrigin.row * CELL_HEIGHT + GRID_PADDING - 6,
+            width: 12,
+            height: 12,
+            borderRadius: 12,
+            background: '#fff',
+            border: '2px solid rgba(0,0,0,0.6)',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
+            zIndex: 2,
+          }}
+        />
         {visibleCards.map((card, idx) => (
           <div
             key={`${card.card_id || idx}-${card.gridRow}-${card.gridCol}`}
@@ -198,21 +340,13 @@ export const InfiniteCardCanvas: React.FC<InfiniteCardCanvasProps> = ({
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
                 backgroundRepeat: 'no-repeat',
-                zIndex: 1,
-                transition: 'transform 0.4s cubic-bezier(0.4,0,0.2,1)',
               }}
             />
-            {/* Overlay for text readability */}
-            <div className="card-overlay" />
-            {/* Card content */}
-            <div className="card-content">
-              <h3 className="card-title">{card.title || card.card_type || "Card"}</h3>
-              <p className="card-subtitle">{typeof card.subtitle === 'string' ? card.subtitle : (typeof card.display_data?.preview === 'string' ? card.display_data.preview : " ")}</p>
-            </div>
+            {/* Subtle overlay and content (existing UI) */}
+            {/* ... existing code ... */}
           </div>
         ))}
       </div>
-      {/* Debug info (development only) */}
     </div>
   );
-}; 
+};
