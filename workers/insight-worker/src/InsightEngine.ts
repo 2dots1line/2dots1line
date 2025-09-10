@@ -5,7 +5,8 @@ import {
   MemoryRepository,
   ConceptRepository,
   DerivedArtifactRepository,
-  ProactivePromptRepository
+  ProactivePromptRepository,
+  WeaviateService
 } from '@2dots1line/database';
 import type { 
   CreateDerivedArtifactData,
@@ -34,6 +35,7 @@ export class InsightEngine {
   private derivedArtifactRepository: DerivedArtifactRepository;
   private proactivePromptRepository: ProactivePromptRepository;
   private insightDataCompiler: InsightDataCompiler;
+  private weaviateService: WeaviateService;
 
   constructor(
     private strategicSynthesisTool: StrategicSynthesisTool,
@@ -49,6 +51,7 @@ export class InsightEngine {
     this.derivedArtifactRepository = new DerivedArtifactRepository(dbService);
     this.proactivePromptRepository = new ProactivePromptRepository(dbService);
     this.insightDataCompiler = new InsightDataCompiler(dbService, dbService.neo4j);
+    this.weaviateService = new WeaviateService(dbService);
   }
 
   async processUserCycle(job: Job<InsightJobData>): Promise<void> {
@@ -976,6 +979,13 @@ export class InsightEngine {
               merged_into_concept_id: merge.primary_concept_id
             });
             console.log(`[InsightEngine] Marked concept ${secondaryId} as merged into ${merge.primary_concept_id}`);
+            
+            // Sync status to Weaviate
+            try {
+              await this.weaviateService.updateConceptStatus(secondaryId, 'merged');
+            } catch (weaviateError) {
+              console.warn(`[InsightEngine] Failed to sync concept ${secondaryId} status to Weaviate:`, weaviateError);
+            }
           } catch (updateError) {
             const errorMsg = `Failed to update secondary concept ${secondaryId}: ${updateError instanceof Error ? updateError.message : 'Unknown error'}`;
             console.error(`[InsightEngine] ${errorMsg}`);
@@ -1097,6 +1107,13 @@ export class InsightEngine {
           description: `ARCHIVED: ${archive.archive_rationale}${archive.replacement_concept_id ? ` (Replaced by: ${archive.replacement_concept_id})` : ''}`
         });
         console.log(`[InsightEngine] Archived concept ${archive.concept_id} with rationale: ${archive.archive_rationale}`);
+        
+        // Sync status to Weaviate
+        try {
+          await this.weaviateService.updateConceptStatus(archive.concept_id, 'archived');
+        } catch (weaviateError) {
+          console.warn(`[InsightEngine] Failed to sync concept ${archive.concept_id} status to Weaviate:`, weaviateError);
+        }
       } catch (error: unknown) {
         const errorMsg = `Failed to archive concept ${archive.concept_id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
         console.error(`[InsightEngine] ${errorMsg}`);

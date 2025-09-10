@@ -37,6 +37,7 @@ export interface WeaviateUpsertItem {
   createdAt: string;
   updatedAt: string;
   vector?: number[];
+  status?: string;
 }
 
 export class WeaviateService {
@@ -73,7 +74,8 @@ export class WeaviateService {
             textContent: item.textContent,
             title: item.title,
             createdAt: item.createdAt,
-            updatedAt: item.updatedAt
+            updatedAt: item.updatedAt,
+            ...(item.status && { status: item.status })
           }
         };
 
@@ -472,6 +474,108 @@ export class WeaviateService {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       throw new Error(`Schema setup failed: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * Update concept status in Weaviate for a single concept
+   */
+  public async updateConceptStatus(conceptId: string, status: string): Promise<void> {
+    try {
+      console.log(`[WeaviateService] Updating concept ${conceptId} status to: ${status}`);
+      
+      // Find the Weaviate object by sourceEntityId (concept ID)
+      const existingObjects = await this.client.graphql
+        .get()
+        .withClassName(this.className)
+        .withFields('_additional { id }')
+        .withWhere({
+          path: ['sourceEntityId'],
+          operator: 'Equal',
+          valueString: conceptId
+        })
+        .withLimit(1)
+        .do();
+
+      if (!existingObjects.data?.Get?.[this.className] || existingObjects.data.Get[this.className].length === 0) {
+        console.warn(`[WeaviateService] No Weaviate object found for concept ${conceptId}`);
+        return;
+      }
+
+      const weaviateObject = existingObjects.data.Get[this.className][0];
+      
+      // Update the status field
+      await this.client.data
+        .updater()
+        .withClassName(this.className)
+        .withId(weaviateObject._additional.id)
+        .withProperties({
+          status: status,
+          updatedAt: new Date().toISOString()
+        })
+        .do();
+
+      console.log(`[WeaviateService] Successfully updated concept ${conceptId} status to: ${status}`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`[WeaviateService] Failed to update concept ${conceptId} status:`, errorMessage);
+      // Don't throw - allow the operation to continue even if Weaviate update fails
+    }
+  }
+
+  /**
+   * Batch update concept statuses in Weaviate
+   */
+  public async batchUpdateConceptStatus(updates: Array<{conceptId: string, status: string}>): Promise<void> {
+    if (updates.length === 0) {
+      return;
+    }
+
+    try {
+      console.log(`[WeaviateService] Batch updating ${updates.length} concept statuses`);
+      
+      let batcher = this.client.batch.objectsBatcher();
+      let updateCount = 0;
+
+      for (const update of updates) {
+        // Find the Weaviate object by sourceEntityId
+        const existingObjects = await this.client.graphql
+          .get()
+          .withClassName(this.className)
+          .withFields('_additional { id }')
+          .withWhere({
+            path: ['sourceEntityId'],
+            operator: 'Equal',
+            valueString: update.conceptId
+          })
+          .withLimit(1)
+          .do();
+
+        if (existingObjects.data?.Get?.[this.className] && existingObjects.data.Get[this.className].length > 0) {
+          const weaviateObject = existingObjects.data.Get[this.className][0];
+          
+          batcher = batcher.withObject({
+            class: this.className,
+            id: weaviateObject._additional.id,
+            properties: {
+              status: update.status,
+              updatedAt: new Date().toISOString()
+            }
+          });
+          updateCount++;
+        } else {
+          console.warn(`[WeaviateService] No Weaviate object found for concept ${update.conceptId}`);
+        }
+      }
+
+      if (updateCount > 0) {
+        await batcher.do();
+        console.log(`[WeaviateService] Successfully batch updated ${updateCount} concept statuses`);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`[WeaviateService] Failed to batch update concept statuses:`, errorMessage);
+      // Don't throw - allow the operation to continue even if Weaviate update fails
     }
   }
 } 
