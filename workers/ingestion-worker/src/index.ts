@@ -42,7 +42,7 @@ async function main() {
       host: environmentLoader.get('WEAVIATE_HOST') || 'localhost:8080',
     });
     
-    const semanticSimilarityTool = new SemanticSimilarityTool(weaviateClient, configService, embeddingTool);
+    const semanticSimilarityTool = new SemanticSimilarityTool(weaviateClient, configService, embeddingTool, dbService);
     console.log('[IngestionWorker] SemanticSimilarityTool instantiated');
 
     // 3. Create dedicated Redis connection for BullMQ to prevent connection pool exhaustion

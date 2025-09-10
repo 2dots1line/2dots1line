@@ -252,7 +252,8 @@ export class InsightEngine {
           ];
         })(),
         concepts: await this.getUserConcepts(userId, cycleDates),
-        relationships: await this.getUserRelationships(userId, cycleDates)
+        relationships: await this.getUserRelationships(userId, cycleDates),
+        conceptsNeedingSynthesis: await this.getConceptsNeedingSynthesis(userId, cycleDates.cycleStartDate)
       },
       recentGrowthEvents: await (async () => {
         // Get actual growth events from the database within the cycle period
@@ -536,6 +537,12 @@ export class InsightEngine {
         const communityIds = await this.createCommunities(userId, ontology_optimizations.community_structures);
         newEntities.push(...communityIds.map(id => ({ id, type: 'Community' })));
         console.log(`[InsightEngine] Created ${ontology_optimizations.community_structures.length} communities`);
+      }
+
+      // Process concept description synthesis
+      if (ontology_optimizations.concept_description_synthesis?.length > 0) {
+        await this.synthesizeConceptDescriptions(ontology_optimizations.concept_description_synthesis);
+        console.log(`[InsightEngine] Synthesized descriptions for ${ontology_optimizations.concept_description_synthesis.length} concepts`);
       }
 
       // Create new strategic relationships if specified
@@ -1103,6 +1110,114 @@ export class InsightEngine {
       console.warn(`[InsightEngine] Completed concept archiving with ${errors.length} errors:`, errors);
     } else {
       console.log(`[InsightEngine] Successfully completed all concept archiving`);
+    }
+  }
+
+  /**
+   * Get concepts that need description synthesis (those updated within the cycle period)
+   */
+  private async getConceptsNeedingSynthesis(userId: string, cycleStartDate?: Date): Promise<Array<{
+    id: string;
+    name: string;
+    description: string;
+    category: string;
+    salience: number;
+    created_at: string;
+    merged_into_concept_id?: string;
+  }>> {
+    try {
+      console.log(`[InsightEngine] Fetching concepts needing synthesis for user ${userId}`);
+      
+      // Build where clause for concepts updated within the cycle period
+      const whereClause: any = { 
+        user_id: userId, 
+        status: 'active'
+      };
+      
+      // If cycleStartDate is provided, filter by last_updated_ts
+      if (cycleStartDate) {
+        whereClause.last_updated_ts = {
+          gte: cycleStartDate
+        };
+      } else {
+        // Fallback to text search if no date provided (for backward compatibility)
+        whereClause.description = { contains: '[20' };
+      }
+      
+      const concepts = await this.dbService.prisma.concepts.findMany({
+        where: whereClause,
+        select: {
+          concept_id: true,
+          name: true,
+          description: true,
+          type: true,
+          salience: true,
+          created_at: true,
+          merged_into_concept_id: true
+        },
+        orderBy: { salience: 'desc' }
+      });
+
+      // Map to the expected interface
+      const mappedConcepts = concepts.map((concept: any) => ({
+        id: concept.concept_id,
+        name: concept.name,
+        description: concept.description || '',
+        category: concept.type,
+        salience: concept.salience || 0,
+        created_at: concept.created_at.toISOString(),
+        merged_into_concept_id: concept.merged_into_concept_id
+      }));
+
+      console.log(`[InsightEngine] Found ${mappedConcepts.length} concepts needing description synthesis`);
+      return mappedConcepts;
+
+    } catch (error: unknown) {
+      console.error(`[InsightEngine] Error fetching concepts needing synthesis for user ${userId}:`, error);
+      return []; // Return empty array on error to prevent system failure
+    }
+  }
+
+  /**
+   * Synthesize concept descriptions with validation and fallback protection
+   */
+  private async synthesizeConceptDescriptions(conceptsToSynthesize: Array<{ concept_id: string; synthesized_description: string }>): Promise<void> {
+    const errors: string[] = [];
+    
+    for (const concept of conceptsToSynthesize) {
+      try {
+        // Validate LLM output before updating
+        if (!concept.concept_id || !concept.synthesized_description) {
+          console.warn(`[InsightEngine] Skipping concept synthesis - missing concept_id or synthesized_description:`, concept);
+          continue;
+        }
+
+        // Additional validation: ensure synthesized description is meaningful
+        if (concept.synthesized_description.trim().length < 3) {
+          console.warn(`[InsightEngine] Skipping concept ${concept.concept_id} - synthesized description too short: "${concept.synthesized_description}"`);
+          continue;
+        }
+
+        // Only update if we have valid data
+        await this.conceptRepository.update(concept.concept_id, {
+          description: concept.synthesized_description
+        });
+        console.log(`[InsightEngine] Successfully synthesized description for concept ${concept.concept_id}`);
+        
+      } catch (error: unknown) {
+        const errorMsg = `Failed to synthesize concept ${concept.concept_id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        console.error(`[InsightEngine] ${errorMsg}`);
+        errors.push(errorMsg);
+        // Continue with other concepts instead of failing the entire job
+        // Original description remains unchanged
+      }
+    }
+    
+    // Log summary of any errors but don't fail the job
+    if (errors.length > 0) {
+      console.warn(`[InsightEngine] Completed concept description synthesis with ${errors.length} errors:`, errors);
+    } else {
+      console.log(`[InsightEngine] Successfully completed all concept description synthesis`);
     }
   }
 

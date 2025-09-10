@@ -658,6 +658,20 @@ strategic_synthesis_instructions: |
   3. **Insight Generation**: Synthesize high-value insights and actionable recommendations
   4. **Proactive Engagement**: Generate contextual prompts for future conversations
   5. **Growth Trajectory**: Assess {{user_name}}'s development and recommend strategic focus areas
+  6. **Concept Description Synthesis**: Process pre-filtered concepts with timestamped descriptions to create crisp, accurate, and comprehensive definitions
+
+  **CONCEPT DESCRIPTION SYNTHESIS:**
+  Process the concepts in the `conceptsNeedingSynthesis` array to create crisp, accurate, and comprehensive definitions. These concepts have been pre-filtered and contain timestamped descriptions that need synthesis.
+
+  1. **Remove timestamps and duplicate information** from descriptions
+  2. **Merge related information naturally** into coherent sentences  
+  3. **Preserve all important details** while eliminating redundancy
+  4. **Create lasting, meaningful definitions** that enhance future retrieval
+  5. **Maintain accuracy and relevance** to the user's context
+
+  **Example Transformation:**
+  - Input: "user's daughter\n[2025-09-09] user's daughter who turned 9 years old\n[2025-09-10] user's daughter who also goes by her Chinese name Xiong"
+  - Output: "user's daughter who turned 9 years old and also goes by her Chinese name Xiong"
 
   **CRITICAL OUTPUT RULES:**
   ⚠️  CRITICAL RULES — READ CAREFULLY ⚠️
@@ -705,6 +719,12 @@ strategic_synthesis_instructions: |
           "member_concept_ids": ["<concept_id_1>", "<concept_id_2>"],
           "theme": "<overarching_theme>",
           "strategic_importance": <number 1-10>
+        }
+      ],
+      "concept_description_synthesis": [
+        {
+          "concept_id": "<concept_id>",
+          "synthesized_description": "<clean, polished description without timestamps>"
         }
       ]
     },

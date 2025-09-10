@@ -321,9 +321,22 @@ export class IngestionAnalyst {
             continue;
           }
           
-          // Update existing concept with incremental insights
+          // Update existing concept with incremental insights - append with timestamp
+          // Only update active concepts, not merged ones
+          const currentConcept = await this.conceptRepository.findById(conceptId);
+          if (!currentConcept) {
+            console.warn(`🔍 [IngestionAnalyst] WARNING: Concept ${conceptId} not found, skipping description update`);
+            continue;
+          }
+          
+          const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+          const newDescription = currentConcept.description 
+            ? `${currentConcept.description}\n[${timestamp}] ${decision.candidate.description}`
+            : `[${timestamp}] ${decision.candidate.description}`;
+
           await this.conceptRepository.update(conceptId, {
-            description: `${decision.candidate.description}` // Use the new description
+            description: newDescription,
+            last_updated_ts: new Date()
           });
           
           // Update entity mapping
