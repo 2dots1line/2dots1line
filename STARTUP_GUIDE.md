@@ -71,7 +71,7 @@ cd "D:\postgre\bin"
 
 ```powershell
 # Set environment variable and start Prisma Studio
-$env:DATABASE_URL="postgresql://danniwang:password123@localhost:5432/notification?schema=public"
+$env:DATABASE_URL="postgresql://danniwang:password123@localhost:5432/twodots1line?schema=public"
 cd packages\database
 npx prisma studio --schema=prisma\schema.prisma
 ```
@@ -107,7 +107,7 @@ cd "D:\postgre\bin"
 & "D:\postgre\bin\postgres.exe" -D "D:\postgre\data" -p 5432
 
 # Start Prisma Studio (in separate terminal)
-$env:DATABASE_URL="postgresql://danniwang:password123@localhost:5432/notification?schema=public"
+$env:DATABASE_URL="postgresql://danniwang:password123@localhost:5432/twodots1line?schema=public"
 cd packages\database
 npx prisma studio --schema=prisma\schema.prisma
 

@@ -1,7 +1,8 @@
+// top-level imports
 'use client';
 
 import { GlassmorphicPanel, GlassButton, InfiniteCardCanvas } from '@2dots1line/ui-components';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 
 import { useAutoLoadCards } from '../components/hooks/useAutoLoadCards';
 import { HUDContainer } from '../components/hud/HUDContainer';
@@ -14,25 +15,48 @@ import { useCardStore } from '../stores/CardStore';
 import { useHUDStore } from '../stores/HUDStore';
 import { useUserStore } from '../stores/UserStore';
 import { useBackgroundVideoStore } from '../stores/BackgroundVideoStore';
+import { cardService } from '../services/cardService';
 
-const HomePage = () => {
+function HomePage() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isSignupModalOpen, setIsSignupModalOpen] = useState(false);
-  
+
   const { user, isAuthenticated, logout, initializeAuth, hasHydrated } = useUserStore();
   const { setActiveView, activeView, setCardDetailModalOpen } = useHUDStore();
-  const { cards, loadCards, loadMoreCards, hasMore, isLoading, setSelectedCard } = useCardStore();
+  const { cards, loadCards, loadMoreCards, hasMore, isLoading, setSelectedCard, updateCardBackground, loadAllCards } = useCardStore();
   const { loadUserPreferences } = useBackgroundVideoStore();
-  
+
+  // UI state for sorting and cover prioritization
+  const [sortKey, setSortKey] = useState<'newest' | 'oldest' | 'title_asc' | 'title_desc'>('newest');
+  const [hasCoverFirst, setHasCoverFirst] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  // NEW: anchor pixel for InfiniteCardCanvas
+  const [anchorPixel, setAnchorPixel] = useState<{ x: number; y: number } | null>(null);
+  const anchorElRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    const updateAnchor = () => {
+      const el = anchorElRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      // Offset below the button so the first card never hides under the toolbar
+      setAnchorPixel({ x: rect.left + rect.width / 2, y: rect.bottom + 8 });
+    };
+    updateAnchor();
+    window.addEventListener('resize', updateAnchor);
+    return () => window.removeEventListener('resize', updateAnchor);
+  }, []);
+
   // Automatically load cards when user is authenticated
   const { cardsLoaded, totalCards } = useAutoLoadCards();
-  
+
   // Load cards when cards view becomes active
   useEffect(() => {
     if (isAuthenticated && activeView === 'cards') {
-      loadCards(200);
+      // Fetch ALL cards to guarantee true oldest/newest across the whole DB
+      loadAllCards();
     }
-  }, [isAuthenticated, activeView, loadCards]);
+  }, [isAuthenticated, activeView, loadAllCards]);
 
   // Memoize initializeAuth to prevent unnecessary re-renders
   const memoizedInitializeAuth = useCallback(() => {
@@ -46,7 +70,7 @@ const HomePage = () => {
     console.log('HomePage - Auth state:', { user, isAuthenticated, hasHydrated });
     console.log('HomePage - localStorage token:', localStorage.getItem('auth_token'));
     console.log('HomePage - localStorage state:', localStorage.getItem('user-storage'));
-    
+
     // Fallback: Force hydration after 2 seconds if it hasn't completed
     const hydrationTimeout = setTimeout(() => {
       if (!hasHydrated) {
@@ -54,7 +78,7 @@ const HomePage = () => {
         useUserStore.getState().setHasHydrated(true);
       }
     }, 2000);
-    
+
     return () => clearTimeout(hydrationTimeout);
   }, [memoizedInitializeAuth, user, isAuthenticated, hasHydrated]);
 
@@ -96,12 +120,257 @@ const HomePage = () => {
     // Clear active view on logout
     setActiveView(null);
   };
-  
+
   // Handle card selection from InfiniteCardCanvas
-  const handleCardSelect = useCallback((card: any) => {
-    setSelectedCard(card);
-    setCardDetailModalOpen(true); // Open card detail modal over cards view
-  }, [setSelectedCard, setCardDetailModalOpen]);
+  const handleCardSelect = useCallback(
+    (card: any) => {
+      setSelectedCard(card);
+      setCardDetailModalOpen(true); // Open card detail modal over cards view
+    },
+    [setSelectedCard, setCardDetailModalOpen]
+  );
+
+  // Strictly manual cover generation states
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
+
+  // Helper: sleep
+  const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
+
+  // Helper: Parse Retry-After header (seconds or HTTP-date)
+  const parseRetryAfter = (retryAfter: string | null): number | null => {
+    if (!retryAfter) return null;
+    const s = retryAfter.trim();
+    const secs = Number(s);
+    if (!Number.isNaN(secs)) return Math.max(0, secs) * 1000;
+    const dateMs = Date.parse(s);
+    if (!Number.isNaN(dateMs)) {
+      const delay = dateMs - Date.now();
+      return delay > 0 ? delay : 0;
+    }
+    return null;
+  };
+
+  // Helper: Generate cover for a single card with conservative retries/backoff
+  const generateCoverForCard = async (card: any) => {
+    const motif =
+      (typeof card.title === 'string' && card.title.trim()) ||
+      (typeof card.subtitle === 'string' && card.subtitle.trim()) ||
+      (typeof card.display_data?.preview === 'string' && card.display_data.preview.trim()) ||
+      card.card_type ||
+      'abstract motif';
+
+    const payload = {
+      motif,
+      style_pack: 'Wabi-Sabi Paper',
+      constraints: ['centered', 'solid silhouette', 'no text', '1:1 aspect'],
+      palette: { ink: '#2D2A2A', accent: '#D0A848' },
+      export: { size: 1024, background: 'transparent', quality: 'medium' },
+      cacheKey: card.card_id ? `cover:${card.card_id}` : undefined,
+    };
+
+    const maxAttempts = 2; // keep it conservative
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const res = await fetch('/api/covers/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const image: string | undefined = data?.image;
+          if (image) return image;
+          // no image -> retry below
+        } else {
+          // Abort on clear quota/server-unavailable signals
+          if (res.status === 503) return null;
+
+          // Try to read response body to detect RESOURCE_EXHAUSTED
+          let body = '';
+          try {
+            body = await res.text();
+          } catch {
+            body = '';
+          }
+          if (body && /RESOURCE_EXHAUSTED|QuotaFailure|rate[- ]?limit/i.test(body)) {
+            console.warn('Cover generation aborted due to quota exhaustion.');
+            return null;
+          }
+
+          // Respect Retry-After if present (e.g., 429)
+          const retryAfterMs = parseRetryAfter(res.headers.get('Retry-After'));
+          if (retryAfterMs != null) {
+            await sleep(retryAfterMs);
+          } else {
+            // Backoff with jitter
+            const base = Math.pow(2, attempt) * 300;
+            const jitter = Math.floor(Math.random() * 250);
+            await sleep(base + jitter);
+          }
+        }
+      } catch {
+        // Network error -> small backoff then retry
+        const base = Math.pow(2, attempt) * 300;
+        const jitter = Math.floor(Math.random() * 250);
+        await sleep(base + jitter);
+      }
+    }
+    return null;
+  };
+
+  // Manual: Generate one cover per click (pick newest missing cover)
+  const handleGenerateOne = useCallback(async () => {
+    if (isGenerating) return;
+    if (!cards || cards.length === 0) return;
+
+    const getTime = (v: any) => {
+      const t = v ? new Date(v as any).getTime() : 0;
+      return Number.isFinite(t) ? t : 0;
+    };
+
+    const target =
+      [...cards]
+        .filter((c) => !c.background_image_url)
+        .sort((a, b) => getTime(b?.created_at) - getTime(a?.created_at))[0] || null;
+
+    if (!target) {
+      console.log('No cards need cover generation.');
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const image = await generateCoverForCard(target);
+      if (image) {
+        // Optimistic update so UI shows immediately
+        updateCardBackground(target.card_id, image);
+
+        // Persist to backend
+        try {
+          await cardService.updateCardBackground({
+            card_id: String(target.card_id),
+            background_image_url: image,
+          });
+
+          // Optional: verify persistence (logs result)
+          try {
+            const verify = await cardService.getCard(String(target.card_id));
+            if (verify?.success && verify?.card?.background_image_url === image) {
+              console.info('Cover persisted and verified for card', target.card_id);
+            } else {
+              console.warn('Cover persistence verification failed for card', target.card_id, verify);
+            }
+          } catch (vErr) {
+            console.warn('Verification request failed for card', target.card_id, vErr);
+          }
+        } catch (err) {
+          console.error('Failed to persist generated cover for card', target.card_id, err);
+        }
+      }
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [cards, isGenerating, updateCardBackground]);
+
+  // Manual only: Triggered by button click
+  const handleGenerateBatch = useCallback(async () => {
+    if (isGenerating) return;
+    if (!cards || cards.length === 0) return;
+
+    // Determine up to 10 newest cards without background image
+    const sorted = [...cards].sort((a, b) => {
+      const aTime = a.created_at ? new Date(a.created_at as any).getTime() : 0;
+      const bTime = b.created_at ? new Date(b.created_at as any).getTime() : 0;
+      return bTime - aTime;
+    });
+    const targets = sorted.filter((c) => !c.background_image_url).slice(0, 10);
+
+    if (targets.length === 0) {
+      console.log('No cards need cover generation.');
+      return;
+    }
+
+    setIsGenerating(true);
+    setProgress({ done: 0, total: targets.length });
+
+    // Process sequentially to avoid rate-limit spikes
+    for (let i = 0; i < targets.length; i++) {
+      const card = targets[i];
+      const image = await generateCoverForCard(card);
+      if (image) {
+        // Optimistic update so UI shows immediately
+        updateCardBackground(card.card_id, image);
+
+        // Persist to backend
+        try {
+          await cardService.updateCardBackground({
+            card_id: String(card.card_id),
+            background_image_url: image,
+          });
+        } catch (err) {
+          console.error('Failed to persist generated cover for card', card.card_id, err);
+        }
+      }
+      setProgress({ done: i + 1, total: targets.length });
+    }
+
+    // Refresh the page to show generated images (as requested)
+    try {
+      window.location.reload();
+    } catch {
+      // Fallback no-op
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [cards, isGenerating, updateCardBackground]);
+
+  // Compute sorted cards (base sort by sortKey)
+  const baseSortedCards = useMemo(() => {
+    if (!cards) return [] as any[];
+    const arr = [...cards];
+    arr.sort((a, b) => {
+      const aCreated = a?.created_at ? new Date(a.created_at as any).getTime() : 0;
+      const bCreated = b?.created_at ? new Date(b.created_at as any).getTime() : 0;
+      const aTitle = (a?.title || '').toString().toLowerCase();
+      const bTitle = (b?.title || '').toString().toLowerCase();
+      switch (sortKey) {
+        case 'oldest':
+          return aCreated - bCreated;
+        case 'title_asc':
+          return aTitle.localeCompare(bTitle);
+        case 'title_desc':
+          return bTitle.localeCompare(aTitle);
+        case 'newest':
+        default:
+          return bCreated - aCreated;
+      }
+    });
+    return arr;
+  }, [cards, sortKey]);
+
+  const sortedCards = useMemo(() => {
+    if (!hasCoverFirst) return baseSortedCards;
+    const withCover = baseSortedCards.filter((c) => !!c.background_image_url);
+    const withoutCover = baseSortedCards.filter((c) => !c.background_image_url);
+    return [...withCover, ...withoutCover];
+  }, [baseSortedCards, hasCoverFirst]);
+
+  // NEW: Filter by search query (live; hides non-matching titles)
+  const filteredCards = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return sortedCards;
+    return sortedCards.filter((c) => (c?.title || '').toLowerCase().includes(q));
+  }, [sortedCards, searchQuery]);
+
+  // NEW: unsorted, search-filtered pool used by InfiniteCardCanvas for viewport-anchored sorting
+  const searchFilteredCards = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const base = cards ?? [];
+    if (!q) return base;
+    return base.filter((c) => (c?.title || '').toLowerCase().includes(q));
+  }, [cards, searchQuery]);
 
   // Don't render auth-dependent UI until hydration is complete
   if (!hasHydrated) {
@@ -119,7 +388,7 @@ const HomePage = () => {
   const currentView = activeView || 'dashboard';
 
   return (
-    <div className="relative w-full h-screen overflow-hidden">
+    <div className="relative w-full h-dvh overflow-hidden bg-black">
       {/* Background Media - Layer 1 (bottom) */}
       <DynamicBackground view={currentView} />
 
@@ -131,41 +400,30 @@ const HomePage = () => {
             {isAuthenticated ? (
               <>
                 {/* User Greeting */}
-                <GlassmorphicPanel 
-                  variant="glass-panel" 
-                  rounded="lg" 
-                  padding="sm" 
+                <GlassmorphicPanel
+                  variant="glass-panel"
+                  rounded="lg"
+                  padding="sm"
                   className="text-sm text-onSurface"
                 >
                   Welcome, {user?.name || user?.email?.split('@')[0] || 'User'}
                   {cardsLoaded && (
-                    <span className="ml-2 text-xs opacity-75">
-                      ({totalCards} cards)
-                    </span>
+                    <span className="ml-2 text-xs opacity-75">({totalCards} cards)</span>
                   )}
                 </GlassmorphicPanel>
                 {/* Logout Button */}
-                <GlassButton 
-                  onClick={handleLogout}
-                  className="text-onBackground font-brand"
-                >
+                <GlassButton onClick={handleLogout} className="text-onBackground font-brand">
                   Log out
                 </GlassButton>
               </>
             ) : (
               <>
                 {/* Login Button */}
-                <GlassButton 
-                  onClick={openLoginModal}
-                  className="text-onBackground font-brand"
-                >
+                <GlassButton onClick={openLoginModal} className="text-onBackground font-brand">
                   Log in
                 </GlassButton>
                 {/* Signup Button */}
-                <GlassButton 
-                  onClick={openSignupModal}
-                  className="text-onBackground font-brand"
-                >
+                <GlassButton onClick={openSignupModal} className="text-onBackground font-brand">
                   Sign up
                 </GlassButton>
               </>
@@ -175,9 +433,9 @@ const HomePage = () => {
 
         {/* Centered Welcome Panel - Only shown when not authenticated */}
         {!isAuthenticated && (
-          <GlassmorphicPanel 
+          <GlassmorphicPanel
             variant="glass-panel"
-            rounded="xl" 
+            rounded="xl"
             padding="lg"
             className="w-full max-w-xl md:max-w-2xl text-center sm:rounded-2xl"
           >
@@ -205,13 +463,72 @@ const HomePage = () => {
               <div className="text-white text-xl">Loading your cards...</div>
             </div>
           ) : (
-            <InfiniteCardCanvas
-              cards={cards}
-              onCardSelect={handleCardSelect}
-              onLoadMore={loadMoreCards}
-              hasMore={hasMore}
-              className="z-30"
-            />
+            <>
+              {/* Manual-only toolbar for Cards view */}
+              <div className="fixed z-40 top-20 left-4">
+                <GlassmorphicPanel variant="glass-panel" rounded="lg" padding="sm">
+                  <div className="flex items-center gap-3">
+                    <GlassButton
+                      onClick={handleGenerateOne}
+                      className="text-onBackground font-brand"
+                      title="Generate a cover for the next newest card without a cover"
+                      disabled={isGenerating}
+                    >
+                      {isGenerating ? 'Generating…' : 'Generate 1 cover (next missing)'}
+                    </GlassButton>
+                    {/* NEW: invisible anchor marker next to the button */}
+                    <span ref={anchorElRef} style={{ display: 'inline-block', width: 0, height: 0 }} />
+                    <div className="flex items-center gap-3 ml-4">
+                      <label className="flex items-center gap-2 text-sm text-onSurface/80">
+                        <input
+                          type="checkbox"
+                          checked={hasCoverFirst}
+                          onChange={(e) => setHasCoverFirst(e.target.checked)}
+                        />
+                        Covers first
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-onSurface/80">Sort by</span>
+                        <select
+                          className="bg-transparent border border-white/20 rounded px-2 py-1 text-sm text-onSurface"
+                          value={sortKey}
+                          onChange={(e) => setSortKey(e.target.value as any)}
+                        >
+                          <option value="newest">Newest</option>
+                          <option value="oldest">Oldest</option>
+                          <option value="title_asc">Title A–Z</option>
+                          <option value="title_desc">Title Z–A</option>
+                        </select>
+                      </div>
+                      {/* NEW: Search box */}
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search by name…"
+                        className="ml-3 bg-transparent border border-white/20 rounded px-2 py-1 text-sm text-onSurface placeholder:text-onSurface/50 w-48"
+                      />
+                    </div>
+                  </div>
+                </GlassmorphicPanel>
+              </div>
+
+              <InfiniteCardCanvas
+                cards={filteredCards} // Use sorted + search-filtered list so sort dropdown takes effect immediately
+                onCardSelect={handleCardSelect}
+                onLoadMore={loadMoreCards}
+                hasMore={hasMore}
+                className="z-30"
+                placementMode="orderedFromOrigin"
+                origin={{ col: 0, row: 0 }}
+                showResetButton={true}
+                // NEW: pin index 0 to the cell nearest the “Generate 1 cover” button
+                anchorPixel={anchorPixel ?? undefined}
+                // NEW: pass current sorting selections for dynamic re-sort after each drag
+                sortKey={sortKey}
+                hasCoverFirst={hasCoverFirst}
+              />
+            </>
           )}
         </>
       )}
@@ -220,19 +537,11 @@ const HomePage = () => {
       {isAuthenticated && <ModalContainer />}
 
       {/* Authentication Modals - Layer 6 (highest) */}
-      <LoginModal
-        isOpen={isLoginModalOpen}
-        onClose={closeModals}
-        onSwitchToSignup={openSignupModal}
-      />
-      
-      <SignupModal
-        isOpen={isSignupModalOpen}
-        onClose={closeModals}
-        onSwitchToLogin={openLoginModal}
-      />
+      <LoginModal isOpen={isLoginModalOpen} onClose={closeModals} onSwitchToSignup={openSignupModal} />
+
+      <SignupModal isOpen={isSignupModalOpen} onClose={closeModals} onSwitchToLogin={openLoginModal} />
     </div>
   );
-};
+}
 
 export default HomePage;

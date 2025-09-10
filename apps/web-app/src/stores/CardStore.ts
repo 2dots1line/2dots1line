@@ -5,6 +5,19 @@ import { persist } from 'zustand/middleware';
 
 import { cardService } from '../services/cardService';
 
+// Proactively remove legacy oversized localStorage key on the client to free space
+if (typeof window !== 'undefined') {
+  try {
+    const legacyKey = 'card-storage';
+    if (window.localStorage.getItem(legacyKey)) {
+      window.localStorage.removeItem(legacyKey);
+      console.log('CardStore: removed legacy localStorage key to free space:', legacyKey);
+    }
+  } catch (e) {
+    console.warn('CardStore: failed to cleanup legacy storage key:', e);
+  }
+}
+
 // Simplified card state focused on real database cards
 interface CardState {
   // Core data
@@ -25,6 +38,8 @@ interface CardState {
   loadMoreCards: () => Promise<void>;
   setSelectedCard: (card: DisplayCard | null) => void;
   refreshCards: () => Promise<void>;
+  updateCardBackground: (cardId: string, url: string) => void;
+  loadAllCards: () => Promise<void>; // NEW
 }
 
 export const useCardStore = create<CardState>()(
@@ -116,13 +131,63 @@ export const useCardStore = create<CardState>()(
       
       refreshCards: async () => {
         await get().loadCards();
-      }
+      },
+
+      updateCardBackground: (cardId: string, url: string) => {
+        set((state) => {
+          const updated = state.cards.map((c) =>
+            c.card_id === cardId ? { ...c, background_image_url: url } : c
+          );
+          const selected =
+            state.selectedCard?.card_id === cardId
+              ? { ...state.selectedCard, background_image_url: url }
+              : state.selectedCard || null;
+          return { cards: updated, selectedCard: selected };
+        });
+      },
+      // NEW: Load ALL cards from the database by paging through until completion
+      loadAllCards: async () => {
+        console.log('CardStore.loadAllCards - Fetching entire card set via pagination');
+        set({ isLoading: true, error: null, currentOffset: 0, hasMore: false });
+        const pageSize = 200; // conservative page size; adjust if needed
+        let offset = 0;
+        let all: DisplayCard[] = [];
+        try {
+          // Safety cap to avoid infinite loop in case of API bug
+          const maxPages = 200;
+          for (let page = 0; page < maxPages; page++) {
+            const response = await cardService.getCards({ limit: pageSize, offset });
+            if (!response.success) {
+              throw new Error(response.error || 'Failed to fetch cards');
+            }
+            const batch = response.cards || [];
+            all = all.concat(batch);
+            offset += batch.length;
+            const hasMore = !!response.has_more && batch.length > 0;
+            console.log(`CardStore.loadAllCards - Page ${page + 1}, fetched ${batch.length}, total ${all.length}, hasMore=${hasMore}`);
+            if (!hasMore) break;
+          }
+          set({
+            cards: all,
+            totalCount: all.length,
+            hasMore: false,
+            currentOffset: all.length,
+            isLoading: false,
+          });
+          console.log('CardStore.loadAllCards - Completed. Total cards:', all.length);
+        } catch (error) {
+          console.error('CardStore.loadAllCards - Exception:', error);
+          set({
+            error: error instanceof Error ? error.message : 'Failed to load all cards',
+            isLoading: false,
+          });
+        }
+      },
     }),
     {
-      name: 'card-storage',
-      partialize: (state) => ({
-        cards: state.cards, // Persist loaded cards
-      }),
+      // Use a new key and persist nothing heavy to avoid quota issues
+      name: 'card-storage-v2',
+      partialize: () => ({}),
     }
   )
-); 
+);

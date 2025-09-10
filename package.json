@@ -35,6 +35,7 @@
     "audit:system": "./scripts/AUTOMATION/systematic-audit.sh"
   },
   "dependencies": {
+    "@google/genai": "^1.17.0",
     "axios": "^1.11.0",
     "bullmq": "^5.56.4",
     "has-tostringtag": "^1.0.2",
