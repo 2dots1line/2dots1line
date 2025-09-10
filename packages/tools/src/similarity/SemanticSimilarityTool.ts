@@ -1,6 +1,7 @@
 import { WeaviateClient } from 'weaviate-ts-client';
 import { ConfigService } from '@2dots1line/config-service';
 import { TextEmbeddingTool } from '../ai/TextEmbeddingTool';
+import { DatabaseService } from '@2dots1line/database';
 
 export interface SemanticSimilarityInput {
   candidateNames: string[];
@@ -23,11 +24,13 @@ export class SemanticSimilarityTool {
   private weaviateClient: WeaviateClient;
   private configService: ConfigService;
   private embeddingTool: typeof TextEmbeddingTool;
+  private dbService: DatabaseService;
 
-  constructor(weaviateClient: WeaviateClient, configService: ConfigService, embeddingTool: typeof TextEmbeddingTool) {
+  constructor(weaviateClient: WeaviateClient, configService: ConfigService, embeddingTool: typeof TextEmbeddingTool, dbService: DatabaseService) {
     this.weaviateClient = weaviateClient;
     this.configService = configService;
     this.embeddingTool = embeddingTool;
+    this.dbService = dbService;
   }
 
   async execute(input: SemanticSimilarityInput): Promise<SemanticSimilarityResult[]> {
@@ -74,17 +77,62 @@ export class SemanticSimilarityTool {
       const searchVector = embeddingResult.result.vector;
       console.log(`[SemanticSimilarityTool] Generated ${searchVector.length}-dimensional vector for "${candidateName}"`);
       
-      // Use nearVector search with UserKnowledgeItem class (EXACT same as HRT)
+      // Use nearVector search with UserKnowledgeItem class
+      // For memory units, we don't filter by status since they don't have status in PostgreSQL
+      // For concepts, we filter by status: 'active' to exclude merged concepts
+      const whereClause = entityTypes.includes('memory_unit') 
+        ? {
+            operator: 'And' as const,
+            operands: [
+              {
+                operator: 'Equal' as const,
+                path: ['userId'],
+                valueString: userId
+              },
+              {
+                operator: 'Equal' as const,
+                path: ['sourceEntityType'],
+                valueString: 'MemoryUnit'
+              }
+            ]
+          }
+        : {
+            operator: 'And' as const,
+            operands: [
+              {
+                operator: 'Equal' as const,
+                path: ['userId'],
+                valueString: userId
+              },
+              {
+                operator: 'Equal' as const,
+                path: ['sourceEntityType'],
+                valueString: 'Concept'
+              },
+              {
+                operator: 'Or' as const,
+                operands: [
+                  {
+                    operator: 'Equal' as const,
+                    path: ['status'],
+                    valueString: 'active'
+                  },
+                  {
+                    operator: 'NotEqual' as const,
+                    path: ['status'],
+                    valueString: 'merged'
+                  }
+                ]
+              }
+            ]
+          };
+
       const result = await this.weaviateClient
         .graphql
         .get()
         .withClassName('UserKnowledgeItem')
         .withFields('externalId sourceEntityType textContent _additional { distance }')
-        .withWhere({
-          operator: 'Equal',
-          path: ['userId'],
-          valueString: userId
-        })
+        .withWhere(whereClause)
         .withNearVector({ vector: searchVector })
         .withLimit(3) // Same as HRT
         .do();
@@ -114,6 +162,7 @@ export class SemanticSimilarityTool {
           });
           
           // Find the MOST similar entity of the target type (no threshold - we want the best match)
+          // Weaviate already filters by status='active', so all results are active
           if (isTargetType && similarity > bestSimilarity) {
             bestEntity = item;
             bestSimilarity = similarity;
@@ -141,6 +190,32 @@ export class SemanticSimilarityTool {
     } catch (error) {
       console.error(`[SemanticSimilarityTool] Error finding semantic match for "${candidateName}":`, error);
       return null;
+    }
+  }
+
+  /**
+   * Check if an entity is active in PostgreSQL (not merged or inactive)
+   * Note: This method is no longer used since Weaviate now filters by status
+   */
+  private async checkEntityStatus(entityId: string, entityType: string, userId: string): Promise<boolean> {
+    try {
+      if (entityType === 'Concept') {
+        const concept = await this.dbService.prisma.concepts.findUnique({
+          where: { concept_id: entityId },
+          select: { status: true }
+        });
+        return concept?.status === 'active';
+      } else if (entityType === 'MemoryUnit') {
+        // Memory units don't have status field, so they're always active
+        return true;
+      } else if (entityType === 'DerivedArtifact') {
+        // Derived artifacts don't have status field, so they're always active
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.warn(`[SemanticSimilarityTool] Error checking entity status for ${entityId}:`, error);
+      return false; // Default to false on error
     }
   }
 }

@@ -201,6 +201,16 @@ export class EmbeddingWorker {
         return 'invalid-entity-id-format';
       }
 
+      // Get entity status from database
+      let entityStatus = 'active'; // Default for memory units and derived artifacts
+      if (data.entityType === 'Concept') {
+        const concept = await this.databaseService.prisma.concepts.findUnique({
+          where: { concept_id: data.entityId },
+          select: { status: true }
+        });
+        entityStatus = concept?.status || 'active';
+      }
+
       // Use unified UserKnowledgeItem class for all entity types
       const result = await this.databaseService.weaviate
         .data
@@ -213,6 +223,7 @@ export class EmbeddingWorker {
           textContent: data.textContent,
           sourceEntityType: data.entityType,
           sourceEntityId: data.entityId, // This should now be a valid UUID
+          status: entityStatus, // Add status field
           createdAt: new Date().toISOString(),
           modelVersion: this.config.embeddingModelVersion!
         })

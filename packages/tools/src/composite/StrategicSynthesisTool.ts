@@ -42,6 +42,10 @@ export const StrategicSynthesisOutputSchema = z.object({
       member_concept_ids: z.array(z.string()),
       theme: z.string(),
       strategic_importance: z.number().min(1).max(10)
+    })),
+    concept_description_synthesis: z.array(z.object({
+      concept_id: z.string(),
+      synthesized_description: z.string()
     }))
   }),
   derived_artifacts: z.array(z.object({
@@ -110,6 +114,15 @@ export interface StrategicSynthesisInput {
       target_id: string;
       relationship_type: string;
       strength: number;
+    }>;
+    conceptsNeedingSynthesis: Array<{
+      id: string;
+      name: string;
+      description: string;
+      category: string;
+      salience: number;
+      created_at: string;
+      merged_into_concept_id?: string;
     }>;
   };
   recentGrowthEvents: Array<{
@@ -231,7 +244,8 @@ export class StrategicSynthesisTool {
           concepts_to_merge: [],
           concepts_to_archive: [],
           new_strategic_relationships: [],
-          community_structures: []
+          community_structures: [],
+          concept_description_synthesis: []
         },
         derived_artifacts: [{
           artifact_type: 'insight',
