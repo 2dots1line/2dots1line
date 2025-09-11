@@ -55,6 +55,57 @@ export interface DashboardData {
   recommendations: GrowthRecommendation[];
 }
 
+// New dynamic dashboard interfaces
+export interface DashboardSectionItem {
+  id: string;
+  title: string;
+  content: string;
+  confidence?: number;
+  actionability?: string;
+  priority?: number;
+  created_at: string;
+  metadata?: any;
+}
+
+export interface DashboardSection {
+  section_type: string;
+  title: string;
+  items: DashboardSectionItem[];
+  total_count: number;
+  last_updated: string;
+}
+
+export interface DynamicDashboardData {
+  user_id: string;
+  cycle_id: string;
+  generated_at: string;
+  sections: {
+    insights: DashboardSection;
+    patterns: DashboardSection;
+    recommendations: DashboardSection;
+    synthesis: DashboardSection;
+    identified_patterns: DashboardSection;
+    emerging_themes: DashboardSection;
+    focus_areas: DashboardSection;
+    blind_spots: DashboardSection;
+    celebration_moments: DashboardSection;
+    reflection_prompts: DashboardSection;
+    exploration_prompts: DashboardSection;
+    goal_setting_prompts: DashboardSection;
+    skill_development_prompts: DashboardSection;
+    creative_expression_prompts: DashboardSection;
+  };
+  cycle_info: {
+    cycle_id: string;
+    cycle_start_date: string;
+    cycle_end_date: string;
+    status: string;
+    processing_duration_ms?: number;
+    artifacts_created: number;
+    prompts_created: number;
+  };
+}
+
 export interface GetDashboardResponse {
   success: boolean;
   data?: DashboardData;
@@ -201,6 +252,137 @@ class DashboardService {
         activeInsights: 0,
         growthEvents: 0,
         daysActive: 0
+      };
+    }
+  }
+
+  // New dynamic dashboard methods
+
+  /**
+   * Get dynamic dashboard data for the most recent cycle
+   */
+  async getDynamicDashboard(): Promise<{ success: boolean; data?: DynamicDashboardData; error?: string }> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/dashboard`, {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error fetching dynamic dashboard:', error);
+      return {
+        success: false,
+        error: 'Failed to fetch dynamic dashboard data'
+      };
+    }
+  }
+
+  /**
+   * Get dynamic dashboard data for a specific cycle
+   */
+  async getDynamicDashboardForCycle(cycleId: string): Promise<{ success: boolean; data?: DynamicDashboardData; error?: string }> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/dashboard/cycle/${cycleId}`, {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error fetching dynamic dashboard for cycle:', error);
+      return {
+        success: false,
+        error: 'Failed to fetch dynamic dashboard data for cycle'
+      };
+    }
+  }
+
+  /**
+   * Get available cycles for the user
+   */
+  async getUserCycles(limit: number = 10): Promise<{ success: boolean; data?: { cycles: any[]; total: number }; error?: string }> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/dashboard/cycles?limit=${limit}`, {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error fetching user cycles:', error);
+      return {
+        success: false,
+        error: 'Failed to fetch user cycles'
+      };
+    }
+  }
+
+  /**
+   * Get cycle statistics for the user
+   */
+  async getUserCycleStats(): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/dashboard/stats`, {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error fetching user cycle stats:', error);
+      return {
+        success: false,
+        error: 'Failed to fetch user cycle statistics'
+      };
+    }
+  }
+
+  /**
+   * Get data for a specific dashboard section
+   */
+  async getDashboardSection(sectionType: string, cycleId?: string): Promise<{ success: boolean; data?: { section: DashboardSection; cycle_info: any }; error?: string }> {
+    try {
+      const url = cycleId 
+        ? `${API_BASE_URL}/api/v1/dashboard/section/${sectionType}?cycleId=${cycleId}`
+        : `${API_BASE_URL}/api/v1/dashboard/section/${sectionType}`;
+        
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error fetching dashboard section:', error);
+      return {
+        success: false,
+        error: 'Failed to fetch dashboard section'
       };
     }
   }

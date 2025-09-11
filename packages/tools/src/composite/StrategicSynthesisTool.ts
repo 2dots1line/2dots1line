@@ -49,7 +49,7 @@ export const StrategicSynthesisOutputSchema = z.object({
     }))
   }),
   derived_artifacts: z.array(z.object({
-    artifact_type: z.enum(['insight', 'pattern', 'recommendation', 'synthesis']),
+    artifact_type: z.enum(['insight', 'pattern', 'recommendation', 'synthesis', 'identified_pattern', 'emerging_theme', 'focus_area', 'blind_spot', 'celebration_moment']),
     title: z.string(),
     content: z.string(),
     confidence_score: z.number().min(0).max(1),
@@ -66,21 +66,7 @@ export const StrategicSynthesisOutputSchema = z.object({
     context_explanation: z.string(),
     timing_suggestion: z.enum(['next_conversation', 'weekly_check_in', 'monthly_review', 'quarterly_planning']),
     priority_level: z.number().min(1).max(10)
-  })),
-  growth_trajectory_updates: z.object({
-    identified_patterns: z.array(z.string()),
-    emerging_themes: z.array(z.string()),
-    recommended_focus_areas: z.array(z.string()),
-    potential_blind_spots: z.array(z.string()),
-    celebration_moments: z.array(z.string())
-  }),
-  cycle_metrics: z.object({
-    knowledge_graph_health: z.number().min(0).max(1),
-    ontology_coherence: z.number().min(0).max(1),
-    growth_momentum: z.number().min(0).max(1),
-    strategic_alignment: z.number().min(0).max(1),
-    insight_generation_rate: z.number().min(0).max(1)
-  })
+  }))
 });
 
 export type StrategicSynthesisOutput = z.infer<typeof StrategicSynthesisOutputSchema>;
@@ -255,21 +241,7 @@ export class StrategicSynthesisTool {
           supporting_evidence: ['System error during analysis'],
           actionability: 'immediate'
         }],
-        proactive_prompts: [],
-        growth_trajectory_updates: {
-          identified_patterns: [],
-          emerging_themes: [],
-          recommended_focus_areas: [],
-          potential_blind_spots: ['Strategic analysis system failure'],
-          celebration_moments: []
-        },
-        cycle_metrics: {
-          knowledge_graph_health: 0.5,
-          ontology_coherence: 0.5,
-          growth_momentum: 0.5,
-          strategic_alignment: 0.5,
-          insight_generation_rate: 0.0
-        }
+        proactive_prompts: []
       };
       
       return fallbackOutput;
@@ -438,26 +410,6 @@ ${responseFormat}`;
       
       if (!fixedData.proactive_prompts) {
         fixedData.proactive_prompts = [];
-      }
-      
-      if (!fixedData.growth_trajectory_updates) {
-        fixedData.growth_trajectory_updates = {
-          identified_patterns: [],
-          emerging_themes: [],
-          recommended_focus_areas: [],
-          potential_blind_spots: [],
-          celebration_moments: []
-        };
-      }
-      
-      if (!fixedData.cycle_metrics) {
-        fixedData.cycle_metrics = {
-          total_concepts_analyzed: 0,
-          total_memory_units_analyzed: 0,
-          total_growth_events_analyzed: 0,
-          optimization_recommendations_count: 0,
-          strategic_relationships_created: 0
-        };
       }
       
       // Fix array items that might be null or undefined

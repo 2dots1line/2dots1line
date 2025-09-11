@@ -69,6 +69,13 @@ export type {
   UpdateProactivePromptData 
 } from './ProactivePromptRepository';
 
+// User Cycles
+export { UserCycleRepository } from './UserCycleRepository';
+export type { 
+  CreateUserCycleData, 
+  UpdateUserCycleData 
+} from './UserCycleRepository';
+
 // Graph Projections
 export { GraphProjectionRepository } from './GraphProjectionRepository';
 export type { 

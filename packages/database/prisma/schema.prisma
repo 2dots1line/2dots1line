@@ -94,6 +94,7 @@ model conversations {
 model derived_artifacts {
   artifact_id            String   @id @default(uuid())
   user_id                String
+  cycle_id               String?  // For dashboard grouping
   artifact_type          String
   title                  String
   created_at             DateTime @default(now())
@@ -102,6 +103,9 @@ model derived_artifacts {
   source_concept_ids     String[]
   source_memory_unit_ids String[]
   users                  users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  
+  @@index([user_id, cycle_id])
+  @@index([artifact_type])
 }
 
 model growth_events {
@@ -177,12 +181,15 @@ model memory_units {
 model proactive_prompts {
   prompt_id    String   @id
   user_id      String
+  cycle_id     String?  // For dashboard grouping
   prompt_text  String
   source_agent String
   status       String   @default("pending")
   created_at   DateTime @default(now())
   metadata     Json?
   users        users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  
+  @@index([user_id, cycle_id])
 }
 
 model user_challenges {
@@ -194,6 +201,43 @@ model user_challenges {
   completion_time       DateTime?
   progress_data         Json?
   users                 users     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+}
+
+model user_cycles {
+  cycle_id              String    @id
+  user_id               String
+  job_id                String?   // BullMQ job ID
+  cycle_start_date      DateTime
+  cycle_end_date        DateTime
+  created_at            DateTime  @default(now())
+  completed_at          DateTime?
+  status                String    @default("pending") // pending, processing, completed, failed
+  cycle_type            String    @default("strategic_analysis")
+  cycle_duration_days   Int       @default(2)
+  trigger_source        String    @default("scheduled")
+  
+  // Processing metrics
+  artifacts_created     Int       @default(0)
+  prompts_created       Int       @default(0)
+  concepts_merged       Int       @default(0)
+  relationships_created Int       @default(0)
+  
+  // Performance & quality
+  processing_duration_ms Int?
+  llm_tokens_used       Int?
+  error_count           Int       @default(0)
+  validation_score      Float?
+  
+  // Dashboard & analytics
+  insights_summary      Json?
+  growth_metrics        Json?
+  dashboard_ready       Boolean   @default(false)
+  
+  users                 users     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  
+  @@index([user_id, created_at])
+  @@index([status])
+  @@index([cycle_start_date, cycle_end_date])
 }
 
 model user_graph_projections {
@@ -292,6 +336,7 @@ model users {
   memory_units                      memory_units[]
   proactive_prompts                 proactive_prompts[]
   user_challenges                   user_challenges[]
+  user_cycles                       user_cycles[]
   user_graph_projections            user_graph_projections[]
   user_sessions                     user_sessions[]
 }
