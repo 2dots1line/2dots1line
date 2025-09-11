@@ -96,7 +96,6 @@ export class PromptBuilder {
     
     // Section 3: Dynamic Context (Variable Cache Hit Rate - Ordered by Stability)
     const section3Data = {
-      knowledge_graph_schema: this.formatComponentContent('knowledge_graph_schema', user.knowledge_graph_schema),
       user_memory_profile: this.formatComponentContent('user_memory_profile', user.memory_profile),
       conversation_summaries: this.formatComponentContent('conversation_summaries', recentSummaries),
       session_context: sessionContext.length > 0 ? this.formatComponentContent('session_context', sessionContext) : null,

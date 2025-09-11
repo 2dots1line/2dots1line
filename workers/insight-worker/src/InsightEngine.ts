@@ -15,10 +15,10 @@ import type {
   CreateUserCycleData
 } from '@2dots1line/database';
 import { StrategicSynthesisTool, StrategicSynthesisOutput, StrategicSynthesisInput } from '@2dots1line/tools';
+import { LLMRetryHandler } from '@2dots1line/core-utils';
 import { Job , Queue } from 'bullmq';
 import { randomUUID } from 'crypto';
 
-import { InsightDataCompiler } from './InsightDataCompiler';
 
 export interface InsightJobData {
   userId: string;
@@ -37,7 +37,6 @@ export class InsightEngine {
   private derivedArtifactRepository: DerivedArtifactRepository;
   private proactivePromptRepository: ProactivePromptRepository;
   private userCycleRepository: UserCycleRepository;
-  private insightDataCompiler: InsightDataCompiler;
   private weaviateService: WeaviateService;
 
   constructor(
@@ -54,7 +53,6 @@ export class InsightEngine {
     this.derivedArtifactRepository = new DerivedArtifactRepository(dbService);
     this.proactivePromptRepository = new ProactivePromptRepository(dbService);
     this.userCycleRepository = new UserCycleRepository(dbService);
-    this.insightDataCompiler = new InsightDataCompiler(dbService, dbService.neo4j);
     this.weaviateService = new WeaviateService(dbService);
   }
 
@@ -90,12 +88,20 @@ export class InsightEngine {
     let newEntities: Array<{ id: string; type: string }> = [];
 
     try {
-      // Phase I: Data Compilation via InsightDataCompiler
+      // Phase I: Data Compilation and Context Gathering
       const { strategicInput } = await this.gatherComprehensiveContext(userId, job.id || 'unknown', cycleDates);
 
-      // Phase II: Strategic Synthesis LLM Call (separate try-catch for LLM-specific errors)
+      // Phase II: Strategic Synthesis LLM Call with retry logic
       try {
-        analysisOutput = await this.strategicSynthesisTool.execute(strategicInput);
+        analysisOutput = await LLMRetryHandler.executeWithRetry(
+          this.strategicSynthesisTool,
+          strategicInput,
+          { 
+            maxAttempts: 3, 
+            baseDelay: 1000,
+            callType: 'strategic'
+          }
+        );
         console.log(`[InsightEngine] Strategic synthesis completed for user ${userId}`);
         console.log(`[InsightEngine] DEBUG: analysisOutput keys:`, Object.keys(analysisOutput || {}));
         console.log(`[InsightEngine] DEBUG: ontology_optimizations:`, analysisOutput?.ontology_optimizations ? 'EXISTS' : 'MISSING');
@@ -108,9 +114,9 @@ export class InsightEngine {
           this.validateLLMResponse(outputString, 'StrategicSynthesisTool');
         }
       } catch (llmError: unknown) {
-        console.error(`[InsightEngine] 🔴 LLM CALL FAILED - This is a retryable error:`);
+        console.error(`[InsightEngine] 🔴 LLM CALL FAILED after all retries:`);
         console.error(`[InsightEngine] LLM Error:`, llmError);
-        throw llmError; // Re-throw LLM errors for retry logic
+        throw llmError; // Re-throw LLM errors - let BullMQ handle as non-retryable
       }
 
       // Phase III: Persistence, Graph Update & State Propagation (separate try-catch for database errors)
@@ -309,12 +315,24 @@ export class InsightEngine {
 
     console.log(`[InsightEngine] Compiling data for cycle from ${cycleDates.cycleStartDate} to ${cycleDates.cycleEndDate}`);
 
-    // Phase I: Compile the three distinct "Input Packages" in parallel
-    const [ingestionSummary, graphAnalysis, strategicInsights] = await Promise.all([
-      this.insightDataCompiler.compileIngestionActivity(userId, cycleDates),
-      this.insightDataCompiler.compileGraphAnalysis(userId),
-      this.insightDataCompiler.compileStrategicInsights(userId, cycleDates)
-    ]);
+    // Get conversation summaries directly from database
+    const conversationSummaries = await this.dbService.prisma.conversations.findMany({
+      where: {
+        user_id: userId,
+        start_time: {
+          gte: cycleDates.cycleStartDate,
+          lte: cycleDates.cycleEndDate
+        }
+      },
+      select: {
+        id: true,
+        title: true,
+        importance_score: true,
+        context_summary: true,
+        start_time: true
+      },
+      orderBy: { importance_score: 'desc' }
+    });
 
     // Build StrategicSynthesisInput with all available data
     const strategicInput: StrategicSynthesisInput = {
@@ -327,26 +345,31 @@ export class InsightEngine {
         // Combine conversation summaries and actual memory units, but label them clearly
         memoryUnits: await (async () => {
           const actualMemoryUnits = await this.getUserMemoryUnits(userId, cycleDates);
-          const conversationSummaries = ingestionSummary.conversationSummaries.map(conv => {
+          const conversationSummariesFormatted = conversationSummaries.map((conv: {
+            id: string;
+            title: string | null;
+            importance_score: number | null;
+            context_summary: string | null;
+            start_time: Date;
+          }) => {
             return {
               id: `conv_${conv.id}`, // Prefix to distinguish from memory units
               title: `[CONVERSATION] ${conv.title || 'Untitled Conversation'}`, // Use actual conversation title
               content: conv.context_summary || 'No summary available', // Clean content
-              importance_score: conv.importance_score,
+              importance_score: conv.importance_score || 0,
               tags: [], // No tags in conversations table - keep empty array for consistency
-              created_at: conv.created_at.toISOString()
+              created_at: conv.start_time.toISOString()
             };
           });
           
-          console.log(`[InsightEngine] Assembling knowledge graph: ${actualMemoryUnits.length} actual memory units + ${conversationSummaries.length} conversation summaries = ${actualMemoryUnits.length + conversationSummaries.length} total items`);
+          console.log(`[InsightEngine] Assembling knowledge graph: ${actualMemoryUnits.length} actual memory units + ${conversationSummariesFormatted.length} conversation summaries = ${actualMemoryUnits.length + conversationSummariesFormatted.length} total items`);
           
           return [
             ...actualMemoryUnits,
-            ...conversationSummaries
+            ...conversationSummariesFormatted
           ];
         })(),
         concepts: await this.getUserConcepts(userId, cycleDates),
-        relationships: await this.getUserRelationships(userId, cycleDates),
         conceptsNeedingSynthesis: await this.getConceptsNeedingSynthesis(userId, cycleDates.cycleStartDate)
       },
       recentGrowthEvents: await (async () => {
@@ -381,7 +404,7 @@ export class InsightEngine {
         preferences: user.memory_profile || {},
         goals: [],
         interests: [],
-        growth_trajectory: user.knowledge_graph_schema || {}
+        growth_trajectory: {}
       },
       workerType: 'insight-worker',
       workerJobId: jobId
@@ -499,75 +522,6 @@ export class InsightEngine {
     }
   }
 
-  /**
-   * Fetch user relationships from Neo4j for strategic synthesis
-   */
-  private async getUserRelationships(userId: string, cycleDates: CycleDates): Promise<Array<{
-    source_id: string;
-    target_id: string;
-    relationship_type: string;
-    strength: number;
-  }>> {
-    try {
-      console.log(`[InsightEngine] Fetching relationships for user ${userId}`);
-      
-      if (!this.dbService.neo4j) {
-        console.log(`[InsightEngine] Neo4j client not available, returning empty relationships array`);
-        return [];
-      }
-
-      const session = this.dbService.neo4j.session();
-      
-      try {
-        // Query for relationships between concepts, memory units, and other entities
-        const cypher = `
-          MATCH (source)-[r:RELATED_TO]->(target)
-          WHERE (source.user_id = $userId OR source.userId = $userId)
-            AND (target.user_id = $userId OR target.userId = $userId)
-            AND r.created_ts >= datetime($startDate)
-            AND r.created_ts <= datetime($endDate)
-          RETURN 
-            CASE 
-              WHEN source.concept_id IS NOT NULL THEN source.concept_id
-              WHEN source.muid IS NOT NULL THEN source.muid
-              ELSE source.id
-            END as source_id,
-            CASE 
-              WHEN target.concept_id IS NOT NULL THEN target.concept_id
-              WHEN target.muid IS NOT NULL THEN target.muid
-              ELSE target.id
-            END as target_id,
-            COALESCE(r.relationship_label, r.type, 'RELATED_TO') as relationship_type,
-            COALESCE(r.weight, r.strength, 0.5) as strength
-          ORDER BY r.created_ts DESC
-          LIMIT 100
-        `;
-        
-        const result = await session.run(cypher, {
-          userId,
-          startDate: cycleDates.cycleStartDate.toISOString(),
-          endDate: cycleDates.cycleEndDate.toISOString()
-        });
-        
-        const relationships = result.records.map(record => ({
-          source_id: record.get('source_id'),
-          target_id: record.get('target_id'),
-          relationship_type: record.get('relationship_type'),
-          strength: record.get('strength').toNumber()
-        }));
-        
-        console.log(`[InsightEngine] Found ${relationships.length} relationships for user ${userId}`);
-        return relationships;
-        
-      } finally {
-        await session.close();
-      }
-
-    } catch (error: unknown) {
-      console.error(`[InsightEngine] Error fetching relationships for user ${userId}:`, error);
-      return [];
-    }
-  }
 
   private async persistStrategicUpdates(
     userId: string,
@@ -702,8 +656,6 @@ export class InsightEngine {
       // CRITICAL FIX: Update user memory profile with strategic insights
       await this.updateUserMemoryProfile(userId, analysisOutput);
 
-      // CRITICAL FIX: Update user knowledge graph schema
-      await this.updateUserKnowledgeGraphSchema(userId, analysisOutput);
 
       // CRITICAL FIX: Update next conversation context package
       await this.updateNextConversationContext(userId, analysisOutput);
@@ -1367,64 +1319,6 @@ export class InsightEngine {
     return communityIds;
   }
 
-  /**
-   * CRITICAL FIX: Update user knowledge graph schema with comprehensive insights
-   */
-  private async updateUserKnowledgeGraphSchema(userId: string, analysisOutput: StrategicSynthesisOutput): Promise<void> {
-    try {
-      const { ontology_optimizations } = analysisOutput;
-      
-      const schemaUpdate = {
-        last_updated: new Date().toISOString(),
-        schema_version: 'v1.1',
-        cycle_timestamp: new Date().toISOString(),
-        ontology_changes: {
-          concepts_merged: ontology_optimizations.concepts_to_merge.map(merge => ({
-            primary_concept_id: merge.primary_concept_id,
-            secondary_concept_ids: merge.secondary_concept_ids,
-            new_concept_name: merge.new_concept_name,
-            new_concept_description: merge.new_concept_description,
-            merge_rationale: merge.merge_rationale
-          })),
-          concepts_archived: ontology_optimizations.concepts_to_archive?.map(archive => ({
-            concept_id: archive.concept_id,
-            archive_rationale: archive.archive_rationale,
-            replacement_concept_id: archive.replacement_concept_id
-          })) || [],
-          new_strategic_relationships: ontology_optimizations.new_strategic_relationships?.map(rel => ({
-            source_id: rel.source_id,
-            target_id: rel.target_id,
-            relationship_type: rel.relationship_type,
-            strength: rel.strength,
-            strategic_value: rel.strategic_value
-          })) || [],
-          community_structures: ontology_optimizations.community_structures?.map(community => ({
-            community_id: community.community_id,
-            theme: community.theme,
-            strategic_importance: community.strategic_importance,
-            member_concept_count: community.member_concept_ids.length
-          })) || []
-        },
-        // CRITICAL FIX: Add strategic insights summary
-        strategic_summary: {
-          total_concepts_merged: ontology_optimizations.concepts_to_merge.length,
-          total_concepts_archived: ontology_optimizations.concepts_to_archive?.length || 0,
-          total_new_relationships: ontology_optimizations.new_strategic_relationships?.length || 0,
-          total_communities: ontology_optimizations.community_structures?.length || 0,
-          cycle_insights: `Processed ${ontology_optimizations.concepts_to_merge.length} concept merges, ${ontology_optimizations.concepts_to_archive?.length || 0} concept archives, and created ${ontology_optimizations.new_strategic_relationships?.length || 0} new strategic relationships`
-        }
-      };
-
-      await this.userRepository.update(userId, {
-        knowledge_graph_schema: schemaUpdate
-      });
-      
-      console.log(`[InsightEngine] Updated comprehensive knowledge graph schema for user ${userId}`);
-    } catch (error: unknown) {
-      console.error('[InsightEngine] Error updating user knowledge graph schema:', error);
-      throw error;
-    }
-  }
 
   /**
    * CRITICAL FIX: Update next conversation context package with forward-looking insights

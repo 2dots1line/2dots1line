@@ -320,7 +320,6 @@ model users {
   last_active_at                    DateTime?
   account_status                    String                   @default("active")
   concepts_created_in_cycle         Int                      @default(0)
-  knowledge_graph_schema            Json?
   last_cycle_started_at             DateTime?
   memory_profile                    Json?
   next_conversation_context_package Json?

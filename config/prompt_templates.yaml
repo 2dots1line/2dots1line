@@ -129,11 +129,6 @@ operational_config_section: |
 dynamic_context_section: |
   === SECTION 3: DYNAMIC CONTEXT ===
   
-  {{#knowledge_graph_schema}}
-  ## 3.1 KNOWLEDGE GRAPH SCHEMA (Highest Cacheability: 85-95%)
-  {{knowledge_graph_schema}}
-  {{/knowledge_graph_schema}}
-  
   {{#user_memory_profile}}
   ## 3.2 USER MEMORY PROFILE (High Cacheability: 80-90%)
   {{user_memory_profile}}
@@ -414,22 +409,6 @@ context_from_last_turn: |
   **Instructions:** Use this context to maintain conversation flow and emotional continuity within the current conversation.
   </context_from_last_turn>
 
-# Template for knowledge graph schema structure
-knowledge_graph_schema_template: |
-  {
-    "prominent_node_types": [],
-    "prominent_relationship_types": [],
-    "universal_concept_types": [
-      "person","organization","location","project","goal","value",
-      "skill","interest","emotion","theme","event_theme","role"
-    ],
-    "universal_relationship_labels": {
-      "RELATED_TO": [
-        "causes","influences","supports","contradicts",
-        "is_analogy_for","is_part_of","leads_to","resolves"
-      ]
-    }
-  }
 
 # NEW: Template for the Ingestion Analyst's persona block
 ingestion_analyst_persona: |
