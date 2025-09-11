@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { ConfigService } from '@2dots1line/config-service';
 import type { TToolInput, TToolOutput } from '@2dots1line/shared-types';
 import { LLMChatTool, type LLMChatInput } from '../ai/LLMChatTool';
+import { LLMRetryHandler } from '@2dots1line/core-utils';
 
 // Zod validation schemas as per V9.6 specification
 // V11.1 FIX: Made schema more flexible to handle LLM response variations
@@ -130,7 +131,15 @@ export class HolisticAnalysisTool {
       };
 
       // Enhanced LLM call with retry logic
-      const llmResult = await this.executeLLMWithRetry(llmInput, 'holistic-analysis');
+      const llmResult = await LLMRetryHandler.executeWithRetry(
+        LLMChatTool,
+        llmInput,
+        { 
+          maxAttempts: 3, 
+          baseDelay: 1000,
+          callType: 'holistic-analysis'
+        }
+      );
       
       console.log(`[HolisticAnalysisTool] LLM response received, length: ${llmResult.result.text.length}`);
       
@@ -282,109 +291,4 @@ ${templates.ingestion_analyst_instructions}`;
     }
   }
 
-  /**
-   * Enhanced LLM execution with automatic retry and fallback model support
-   */
-  private async executeLLMWithRetry(
-    llmInput: any,
-    callType: string
-  ): Promise<any> {
-    let attempts = 0;
-    const maxAttempts = 3; // Try primary model + 2 fallback models
-    
-    while (attempts < maxAttempts) {
-      attempts++;
-      try {
-        console.log(`[HolisticAnalysisTool] ${callType.toUpperCase()} LLM call - Attempt ${attempts}/${maxAttempts}`);
-        
-        const llmResult = await LLMChatTool.execute(llmInput);
-        
-        if (llmResult.status === 'success' && llmResult.result?.text) {
-          console.log(`[HolisticAnalysisTool] ${callType.toUpperCase()} LLM call successful on attempt ${attempts}`);
-          return llmResult;
-        }
-        
-        // Check if this is a retryable error
-        const errorMessage = llmResult.error?.message || 'Unknown error';
-        if (attempts < maxAttempts && this.isRetryableError(errorMessage)) {
-          console.log(`[HolisticAnalysisTool] ${callType.toUpperCase()} LLM call - Retryable error detected: ${errorMessage}`);
-          console.log(`[HolisticAnalysisTool] ${callType.toUpperCase()} LLM call - Attempting to switch to fallback model...`);
-          
-          try {
-            // Force reinitialization to try a different model
-            if (LLMChatTool.forceReinitialize) {
-              LLMChatTool.forceReinitialize();
-              console.log(`[HolisticAnalysisTool] ${callType.toUpperCase()} LLM call - Switched to fallback model`);
-            }
-            
-            // Add exponential backoff delay before retrying
-            const delay = Math.min(1000 * Math.pow(2, attempts - 1), 10000); // Max 10 seconds
-            console.log(`[HolisticAnalysisTool] ${callType.toUpperCase()} LLM call - Waiting ${delay}ms before retry...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            
-            continue; // Try again with the new model
-          } catch (modelSwitchError) {
-            console.error(`[HolisticAnalysisTool] ${callType.toUpperCase()} LLM call - Failed to switch to fallback model:`, modelSwitchError);
-            // Continue with the next attempt
-          }
-        } else {
-          // If not retryable or all attempts exhausted, break out of retry loop
-          console.error(`[HolisticAnalysisTool] ${callType.toUpperCase()} LLM call - Non-retryable error or max attempts reached: ${errorMessage}`);
-          throw new Error(`LLM call failed: ${errorMessage}`);
-        }
-      } catch (error) {
-        console.error(`[HolisticAnalysisTool] ${callType.toUpperCase()} LLM call - Unexpected error on attempt ${attempts}:`, error);
-        
-        if (attempts < maxAttempts && this.isRetryableError(error instanceof Error ? error.message : String(error))) {
-          console.log(`[HolisticAnalysisTool] ${callType.toUpperCase()} LLM call - Retryable error, attempting retry...`);
-          
-          try {
-            // Force reinitialization to try a different model
-            if (LLMChatTool.forceReinitialize) {
-              LLMChatTool.forceReinitialize();
-              console.log(`[HolisticAnalysisTool] ${callType.toUpperCase()} LLM call - Switched to fallback model after unexpected error`);
-            }
-            
-            // Add exponential backoff delay before retrying
-            const delay = Math.min(1000 * Math.pow(2, attempts - 1), 10000);
-            console.log(`[HolisticAnalysisTool] ${callType.toUpperCase()} LLM call - Waiting ${delay}ms before retry...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            
-            continue; // Try again with the new model
-          } catch (modelSwitchError) {
-            console.error(`[HolisticAnalysisTool] ${callType.toUpperCase()} LLM call - Failed to switch to fallback model:`, modelSwitchError);
-          }
-        } else {
-          // If not retryable or all attempts exhausted, re-throw the error
-          throw error;
-        }
-      }
-    }
-
-    // If all attempts fail, throw the last error
-    console.error(`[HolisticAnalysisTool] ${callType.toUpperCase()} LLM call - All ${maxAttempts} attempts failed`);
-    throw new Error(`Failed to get LLM response after ${maxAttempts} attempts. The AI service may be temporarily overloaded. Please try again in a moment.`);
-  }
-
-  /**
-   * Determine if an error is retryable based on the error message
-   */
-  private isRetryableError(errorMessage: string): boolean {
-    const retryablePatterns = [
-      /model is overloaded/i,
-      /service unavailable/i,
-      /rate limit/i,
-      /quota exceeded/i,
-      /temporary/i,
-      /try again later/i,
-      /timeout/i,
-      /network error/i,
-      /connection error/i,
-      /503/i, // Service Unavailable
-      /429/i, // Too Many Requests
-      /500/i  // Internal Server Error
-    ];
-    
-    return retryablePatterns.some(pattern => pattern.test(errorMessage));
-  }
 } 
