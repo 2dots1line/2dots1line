@@ -168,10 +168,7 @@ export class InsightEngine {
       console.error(`[InsightEngine] Job ID: ${job.id}`);
       console.error(`[InsightEngine] Cycle period: ${cycleDates.cycleStartDate.toISOString()} to ${cycleDates.cycleEndDate.toISOString()}`);
       
-      // Classify error type to determine if it's retryable
-      const errorClassification = this.classifyError(error);
-      console.error(`[InsightEngine] Error classification: ${errorClassification.type}`);
-      console.error(`[InsightEngine] Is retryable: ${errorClassification.isRetryable}`);
+      // Log error details for debugging
       
       // Type-safe error logging
       if (error instanceof Error) {
@@ -206,14 +203,10 @@ export class InsightEngine {
         dashboard_ready: false
       });
       
-      // For non-retryable errors, throw a special error that BullMQ won't retry
-      if (!errorClassification.isRetryable) {
-        const nonRetryableError = new Error(`NON_RETRYABLE_ERROR: ${errorClassification.type} - ${error instanceof Error ? error.message : String(error)}`);
-        nonRetryableError.name = 'NonRetryableError';
-        throw nonRetryableError;
-      }
-      
-      throw error;
+      // All errors are non-retryable at BullMQ level since LLM retries are handled by LLMRetryHandler
+      const nonRetryableError = new Error(`NON_RETRYABLE_ERROR: ${error instanceof Error ? error.message : String(error)}`);
+      nonRetryableError.name = 'NonRetryableError';
+      throw nonRetryableError;
     }
   }
 
@@ -229,82 +222,6 @@ export class InsightEngine {
     return { cycleStartDate, cycleEndDate };
   }
 
-  /**
-   * Classify error type to determine if it's retryable
-   * V11.2 FIX: Prevent retrying validation/parsing errors
-   */
-  private classifyError(error: unknown): { type: string; isRetryable: boolean } {
-    if (!error) {
-      return { type: 'Unknown', isRetryable: false };
-    }
-
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    const errorName = error instanceof Error ? error.constructor.name : typeof error;
-
-    // Non-retryable errors (validation, parsing, schema issues, database constraints)
-    const nonRetryablePatterns = [
-      /validation.*failed/i,
-      /parsing.*failed/i,
-      /json.*parse.*error/i,
-      /schema.*error/i,
-      /malformed.*json/i,
-      /invalid.*json/i,
-      /missing.*required.*field/i,
-      /strategic.*synthesis.*error/i,
-      /non.*retryable/i,
-      /validation.*error/i,
-      /parse.*error/i,
-      // Database constraint violations - should NOT retry LLM calls
-      /foreign.*key.*constraint.*violated/i,
-      /constraint.*violated/i,
-      /no.*record.*found.*for.*update/i,
-      /operation.*failed.*because.*it.*depends.*on.*one.*or.*more.*records/i,
-      /concepts_merged_into_concept_id_fkey/i,
-      /database.*constraint/i,
-      /prisma.*constraint/i,
-      /unique.*constraint/i,
-      /check.*constraint/i,
-      /not.*null.*constraint/i
-    ];
-
-    // Retryable errors (API issues, network, rate limits)
-    const retryablePatterns = [
-      /model.*overloaded/i,
-      /service.*unavailable/i,
-      /rate.*limit/i,
-      /quota.*exceeded/i,
-      /temporary/i,
-      /timeout/i,
-      /network.*error/i,
-      /connection.*error/i,
-      /api.*error/i,
-      /503/i,
-      /429/i,
-      /502/i,
-      /504/i
-    ];
-
-    // Check for non-retryable patterns first
-    for (const pattern of nonRetryablePatterns) {
-      if (pattern.test(errorMessage) || pattern.test(errorName)) {
-        // Distinguish between validation/parsing errors and database constraint errors
-        if (/foreign.*key|constraint.*violated|database.*constraint|prisma.*constraint/i.test(errorMessage)) {
-          return { type: 'Database Constraint Error', isRetryable: false };
-        }
-        return { type: 'Validation/Parsing Error', isRetryable: false };
-      }
-    }
-
-    // Check for retryable patterns
-    for (const pattern of retryablePatterns) {
-      if (pattern.test(errorMessage) || pattern.test(errorName)) {
-        return { type: 'API/Network Error', isRetryable: true };
-      }
-    }
-
-    // Default to non-retryable for unknown errors to be safe
-    return { type: 'Unknown Error', isRetryable: false };
-  }
 
   private async gatherComprehensiveContext(userId: string, jobId: string, cycleDates: CycleDates) {
     // Get user information
