@@ -95,12 +95,6 @@ export interface StrategicSynthesisInput {
       created_at: string;
       merged_into_concept_id?: string;
     }>;
-    relationships: Array<{
-      source_id: string;
-      target_id: string;
-      relationship_type: string;
-      strength: number;
-    }>;
     conceptsNeedingSynthesis: Array<{
       id: string;
       name: string;
@@ -161,7 +155,6 @@ export class StrategicSynthesisTool {
     console.log(`[StrategicSynthesisTool] Starting strategic synthesis for cycle ${input.cycleId}`);
     console.log(`[StrategicSynthesisTool] Analyzing ${input.currentKnowledgeGraph.memoryUnits.length} memory units`);
     console.log(`[StrategicSynthesisTool] Analyzing ${input.currentKnowledgeGraph.concepts.length} concepts`);
-    console.log(`[StrategicSynthesisTool] Analyzing ${input.currentKnowledgeGraph.relationships.length} relationships`);
     
     try {
       // Build comprehensive analysis prompt using config templates
@@ -260,7 +253,7 @@ export class StrategicSynthesisTool {
     const strategicInstructions = templates.strategic_synthesis_instructions || '';
     const responseFormat = templates.response_format_block || '';
     
-    console.log(`[StrategicSynthesisTool] Building prompt with ${input.currentKnowledgeGraph.memoryUnits.length} memory units, ${input.currentKnowledgeGraph.concepts.length} concepts, ${input.currentKnowledgeGraph.relationships.length} relationships`);
+    console.log(`[StrategicSynthesisTool] Building prompt with ${input.currentKnowledgeGraph.memoryUnits.length} memory units, ${input.currentKnowledgeGraph.concepts.length} concepts`);
     
     // Replace user name placeholders in templates
     const user_name = input.userName || 'User';
@@ -286,8 +279,6 @@ ${JSON.stringify(input.currentKnowledgeGraph.memoryUnits, null, 2)}
 ### Concepts (${input.currentKnowledgeGraph.concepts.length} total)
 ${JSON.stringify(input.currentKnowledgeGraph.concepts, null, 2)}
 
-### Relationships (${input.currentKnowledgeGraph.relationships.length} total)
-${JSON.stringify(input.currentKnowledgeGraph.relationships, null, 2)}
 
 ## Recent Growth Events (${input.recentGrowthEvents.length} total)
 ${JSON.stringify(input.recentGrowthEvents, null, 2)}

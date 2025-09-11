@@ -89,7 +89,6 @@ export interface HolisticAnalysisInput {
   userName?: string; // User's display name for LLM reference
   fullConversationTranscript: string;
   userMemoryProfile: any; // Can be null for new users
-  knowledgeGraphSchema: any; // Can be null, will use default
   
   // New fields for LLM interaction logging
   workerType?: string;
@@ -183,19 +182,6 @@ export class HolisticAnalysisTool {
     // Load prompt templates from config
     const templates = this.configService.getAllTemplates();
     
-    // Get the knowledge graph schema or use default
-    const knowledgeGraphSchema = input.knowledgeGraphSchema || {
-      "description_for_llm": "The schema below represents the potential structure you can help build. Focus on creating :MemoryUnit and :Concept nodes first.",
-      "prominent_node_types": [],
-      "prominent_relationship_types": [],
-      "example_concept_types": ["person", "organization", "location", "project", "goal", "value", "skill", "interest", "emotion", "theme", "event_theme", "role"],
-      "relationship_label_guidelines": {
-        "description": "Guidelines for generating relationship_description strings for new relationships.",
-        "format": "Should be a concise, human-readable, verb-based phrase in the present tense.",
-        "style": "Be as specific as the context allows. Describe the connection clearly.",
-        "examples": ["is motivated by", "is an obstacle to", "expresses frustration with", "has skill in", "is a core part of", "has symptom"]
-      }
-    };
 
     // Build the master prompt following V9.6 specification structure
     const user_name = input.userName || 'User';
@@ -208,10 +194,6 @@ ${templates.ingestion_analyst_rules}
 <user_memory_profile>
 ${input.userMemoryProfile ? JSON.stringify(input.userMemoryProfile, null, 2) : 'No existing memory profile'}
 </user_memory_profile>
-
-<knowledge_graph_schema>
-${JSON.stringify(knowledgeGraphSchema, null, 2)}
-</knowledge_graph_schema>
 
 <conversation_transcript>
 ${input.fullConversationTranscript}

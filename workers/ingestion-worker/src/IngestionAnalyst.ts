@@ -16,6 +16,7 @@ import type {
 } from '@2dots1line/database';
 import { HolisticAnalysisTool, HolisticAnalysisOutput, SemanticSimilarityTool } from '@2dots1line/tools';
 import type { SemanticSimilarityInput, SemanticSimilarityResult } from '@2dots1line/tools';
+import { LLMRetryHandler } from '@2dots1line/core-utils';
 import { Job , Queue } from 'bullmq';
 
 export interface IngestionJobData {
@@ -73,21 +74,28 @@ export class IngestionAnalyst {
 
     try {
       // Phase I: Data Gathering & Preparation
-      const { fullConversationTranscript, userMemoryProfile, knowledgeGraphSchema, userName } = 
+      const { fullConversationTranscript, userMemoryProfile, userName } = 
         await this.gatherContextData(conversationId, userId);
 
-      // Phase II: The "Single Synthesis" LLM Call
-      const analysisOutput = await this.holisticAnalysisTool.execute({
-        userId,
-        userName,
-        fullConversationTranscript,
-        userMemoryProfile,
-        knowledgeGraphSchema,
-        workerType: 'ingestion-worker',
-        workerJobId: job.id || 'unknown',
-        conversationId,
-        messageId: undefined // Not applicable for conversation-level analysis
-      });
+      // Phase II: The "Single Synthesis" LLM Call with retry logic
+      const analysisOutput = await LLMRetryHandler.executeWithRetry(
+        this.holisticAnalysisTool,
+        {
+          userId,
+          userName,
+          fullConversationTranscript,
+          userMemoryProfile,
+          workerType: 'ingestion-worker',
+          workerJobId: job.id || 'unknown',
+          conversationId,
+          messageId: undefined // Not applicable for conversation-level analysis
+        },
+        { 
+          maxAttempts: 3, 
+          baseDelay: 1000,
+          callType: 'holistic'
+        }
+      );
 
       console.log(`[IngestionAnalyst] Analysis completed with importance score: ${analysisOutput.persistence_payload.conversation_importance_score}`);
 
@@ -147,13 +155,11 @@ export class IngestionAnalyst {
     // Fetch user context
     const user = await this.userRepository.findById(userId);
     const userMemoryProfile = user?.memory_profile || null;
-    const knowledgeGraphSchema = user?.knowledge_graph_schema || null;
     const userName = user?.name || 'User';
 
     return {
       fullConversationTranscript,
       userMemoryProfile,
-      knowledgeGraphSchema,
       userName
     };
   }

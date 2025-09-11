@@ -17,7 +17,6 @@ export interface UserData {
     }>;
   };
   memory_profile?: any;
-  knowledge_graph_schema?: any;
 }
 
 export interface GetUserResponse {

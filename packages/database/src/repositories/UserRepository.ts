@@ -25,7 +25,6 @@ export interface UpdateUserData {
   language_preference?: string;
   preferences?: any;
   memory_profile?: any;
-  knowledge_graph_schema?: any;
   next_conversation_context_package?: any;
   last_cycle_started_at?: Date;
   concepts_created_in_cycle?: number;
@@ -84,12 +83,6 @@ export class UserRepository {
     });
   }
 
-  async updateKnowledgeGraphSchema(userId: string, schema: any): Promise<users> {
-    return this.db.prisma.users.update({
-      where: { user_id: userId },
-      data: { knowledge_graph_schema: schema },
-    });
-  }
 
   async updateNextConversationContext(userId: string, context: any): Promise<users> {
     return this.db.prisma.users.update({
