@@ -17,17 +17,8 @@ export { prisma } from './prisma-client';
 // Re-export Prisma types for convenience
 export * from '@prisma/client';
 
-// Explicitly re-export commonly used Prisma model types
-export type { 
-  users, 
-  conversations, 
-  conversation_messages, 
-  cards,
-  memory_units,
-  concepts,
-  communities,
-  Prisma 
-} from '@prisma/client';
+// Re-export Prisma types (all model types are available via the wildcard export above)
+// Common model types are: users, conversations, conversation_messages, cards, memory_units, concepts, communities, etc.
 
 // Repositories
 export * from './repositories';
@@ -36,6 +27,8 @@ export * from './repositories';
 export { Neo4jService } from './services/Neo4jService';
 export { WeaviateService } from './services/WeaviateService';
 export { InsightQueryLibrary } from './services/InsightQueryLibrary';
+export { DashboardService } from './services/DashboardService';
+export { DashboardConfigService } from './services/DashboardConfigService';
 export { GraphProjectionRepository } from './repositories/GraphProjectionRepository';
 
 // Monitoring utilities

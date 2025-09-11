@@ -6,11 +6,13 @@ import {
   ConceptRepository,
   DerivedArtifactRepository,
   ProactivePromptRepository,
+  UserCycleRepository,
   WeaviateService
 } from '@2dots1line/database';
 import type { 
   CreateDerivedArtifactData,
-  CreateProactivePromptData
+  CreateProactivePromptData,
+  CreateUserCycleData
 } from '@2dots1line/database';
 import { StrategicSynthesisTool, StrategicSynthesisOutput, StrategicSynthesisInput } from '@2dots1line/tools';
 import { Job , Queue } from 'bullmq';
@@ -34,6 +36,7 @@ export class InsightEngine {
   private conceptRepository: ConceptRepository;
   private derivedArtifactRepository: DerivedArtifactRepository;
   private proactivePromptRepository: ProactivePromptRepository;
+  private userCycleRepository: UserCycleRepository;
   private insightDataCompiler: InsightDataCompiler;
   private weaviateService: WeaviateService;
 
@@ -50,6 +53,7 @@ export class InsightEngine {
     this.conceptRepository = new ConceptRepository(dbService);
     this.derivedArtifactRepository = new DerivedArtifactRepository(dbService);
     this.proactivePromptRepository = new ProactivePromptRepository(dbService);
+    this.userCycleRepository = new UserCycleRepository(dbService);
     this.insightDataCompiler = new InsightDataCompiler(dbService, dbService.neo4j);
     this.weaviateService = new WeaviateService(dbService);
   }
@@ -59,9 +63,28 @@ export class InsightEngine {
     
     // Calculate cycle dates based on current time
     const cycleDates = this.calculateCycleDates();
+    const cycleId = `cycle_${userId}_${cycleDates.cycleStartDate.getTime()}`;
 
     console.log(`[InsightEngine] Starting strategic cycle for user ${userId}`);
+    console.log(`[InsightEngine] Cycle ID: ${cycleId}`);
     console.log(`[InsightEngine] Cycle period: ${cycleDates.cycleStartDate.toISOString()} to ${cycleDates.cycleEndDate.toISOString()}`);
+
+    // Create cycle record
+    const cycleData: CreateUserCycleData = {
+      cycle_id: cycleId,
+      user_id: userId,
+      job_id: job.id,
+      cycle_start_date: cycleDates.cycleStartDate,
+      cycle_end_date: cycleDates.cycleEndDate,
+      cycle_type: 'strategic_analysis',
+      cycle_duration_days: 2,
+      trigger_source: 'scheduled'
+    };
+
+    const cycle = await this.userCycleRepository.create(cycleData);
+    console.log(`[InsightEngine] Created cycle record: ${cycle.cycle_id}`);
+
+    const startTime = Date.now();
 
     try {
       // Phase I: Data Compilation via InsightDataCompiler
@@ -82,10 +105,28 @@ export class InsightEngine {
       }
 
       // Phase III: Persistence, Graph Update & State Propagation
-      const newEntities = await this.persistStrategicUpdates(userId, analysisOutput);
+      const newEntities = await this.persistStrategicUpdates(userId, analysisOutput, cycleId);
 
       // Phase IV: Event Publishing for Presentation Layer
       await this.publishCycleArtifacts(userId, newEntities);
+
+      // Update cycle record with completion data
+      const processingDuration = Date.now() - startTime;
+      const artifactsCreated = analysisOutput.derived_artifacts?.length || 0;
+      const promptsCreated = analysisOutput.proactive_prompts?.length || 0;
+      const conceptsMerged = analysisOutput.ontology_optimizations?.concepts_to_merge?.length || 0;
+      const relationshipsCreated = analysisOutput.ontology_optimizations?.new_strategic_relationships?.length || 0;
+
+      await this.userCycleRepository.update(cycleId, {
+        status: 'completed',
+        completed_at: new Date(),
+        artifacts_created: artifactsCreated,
+        prompts_created: promptsCreated,
+        concepts_merged: conceptsMerged,
+        relationships_created: relationshipsCreated,
+        processing_duration_ms: processingDuration,
+        dashboard_ready: true
+      });
 
       console.log(`[InsightEngine] Successfully completed strategic cycle for user ${userId}, created ${newEntities.length} new entities`);
       
@@ -123,6 +164,16 @@ export class InsightEngine {
       }
       
       console.error(`[InsightEngine] ================================================`);
+      
+      // Update cycle record with failure data
+      const processingDuration = Date.now() - startTime;
+      await this.userCycleRepository.update(cycleId, {
+        status: 'failed',
+        completed_at: new Date(),
+        processing_duration_ms: processingDuration,
+        error_count: 1,
+        dashboard_ready: false
+      });
       
       // For non-retryable errors, throw a special error that BullMQ won't retry
       if (!errorClassification.isRetryable) {
@@ -480,7 +531,8 @@ export class InsightEngine {
 
   private async persistStrategicUpdates(
     userId: string,
-    analysisOutput: StrategicSynthesisOutput
+    analysisOutput: StrategicSynthesisOutput,
+    cycleId?: string
   ): Promise<Array<{ id: string; type: string }>> {
     console.log(`[InsightEngine] persistStrategicUpdates called for user ${userId}`);
     console.log(`[InsightEngine] DEBUG: analysisOutput type:`, typeof analysisOutput);
@@ -488,6 +540,9 @@ export class InsightEngine {
 
     const { ontology_optimizations, derived_artifacts, proactive_prompts } = analysisOutput;
     const newEntities: Array<{ id: string; type: string }> = [];
+    
+    // Generate cycle_id if not provided
+    const currentCycleId = cycleId || `cycle_${userId}_${Date.now()}`;
 
     try {
       // Execute Ontology Updates (Neo4j) - Actual concept merging
@@ -559,6 +614,7 @@ export class InsightEngine {
       for (const artifact of derived_artifacts) {
         const artifactData: CreateDerivedArtifactData = {
           user_id: userId,
+          cycle_id: currentCycleId, // ✅ Include cycle_id for dashboard grouping
           artifact_type: artifact.artifact_type,
           title: artifact.title,
           content_narrative: artifact.content,
@@ -582,6 +638,7 @@ export class InsightEngine {
       for (const prompt of proactive_prompts) {
         const promptData: CreateProactivePromptData = {
           user_id: userId,
+          cycle_id: currentCycleId, // ✅ Include cycle_id for dashboard grouping
           prompt_text: prompt.prompt_text,
           source_agent: 'InsightEngine',
           metadata: {
@@ -1026,7 +1083,7 @@ export class InsightEngine {
    */
   private async updateUserMemoryProfile(userId: string, analysisOutput: StrategicSynthesisOutput): Promise<void> {
     try {
-      const { ontology_optimizations, derived_artifacts, proactive_prompts, growth_trajectory_updates, cycle_metrics } = analysisOutput;
+      const { ontology_optimizations, derived_artifacts, proactive_prompts } = analysisOutput;
       
       const memoryProfileUpdate = {
         last_updated: new Date().toISOString(),
@@ -1045,22 +1102,6 @@ export class InsightEngine {
             merged_concepts: merge.secondary_concept_ids,
             rationale: merge.merge_rationale
           }))
-        },
-        // CRITICAL FIX: Add comprehensive growth trajectory data
-        growth_trajectory: {
-          identified_patterns: growth_trajectory_updates?.identified_patterns || [],
-          emerging_themes: growth_trajectory_updates?.emerging_themes || [],
-          recommended_focus_areas: growth_trajectory_updates?.recommended_focus_areas || [],
-          potential_blind_spots: growth_trajectory_updates?.potential_blind_spots || [],
-          celebration_moments: growth_trajectory_updates?.celebration_moments || []
-        },
-        // CRITICAL FIX: Add cycle metrics for tracking progress
-        cycle_metrics: {
-          knowledge_graph_health: cycle_metrics?.knowledge_graph_health || 0,
-          ontology_coherence: cycle_metrics?.ontology_coherence || 0,
-          growth_momentum: cycle_metrics?.growth_momentum || 0,
-          strategic_alignment: cycle_metrics?.strategic_alignment || 0,
-          insight_generation_rate: cycle_metrics?.insight_generation_rate || 0
         },
         // CRITICAL FIX: Add key insights from derived artifacts
         key_insights: derived_artifacts?.map(artifact => ({
@@ -1291,7 +1332,7 @@ export class InsightEngine {
    */
   private async updateUserKnowledgeGraphSchema(userId: string, analysisOutput: StrategicSynthesisOutput): Promise<void> {
     try {
-      const { ontology_optimizations, cycle_metrics } = analysisOutput;
+      const { ontology_optimizations } = analysisOutput;
       
       const schemaUpdate = {
         last_updated: new Date().toISOString(),
@@ -1324,14 +1365,6 @@ export class InsightEngine {
             member_concept_count: community.member_concept_ids.length
           })) || []
         },
-        // CRITICAL FIX: Add comprehensive schema health metrics
-        schema_health: {
-          knowledge_graph_health: cycle_metrics?.knowledge_graph_health || 0,
-          ontology_coherence: cycle_metrics?.ontology_coherence || 0,
-          growth_momentum: cycle_metrics?.growth_momentum || 0,
-          strategic_alignment: cycle_metrics?.strategic_alignment || 0,
-          insight_generation_rate: cycle_metrics?.insight_generation_rate || 0
-        },
         // CRITICAL FIX: Add strategic insights summary
         strategic_summary: {
           total_concepts_merged: ontology_optimizations.concepts_to_merge.length,
@@ -1358,7 +1391,7 @@ export class InsightEngine {
    */
   private async updateNextConversationContext(userId: string, analysisOutput: StrategicSynthesisOutput): Promise<void> {
     try {
-      const { derived_artifacts, proactive_prompts, growth_trajectory_updates, cycle_metrics } = analysisOutput;
+      const { derived_artifacts, proactive_prompts } = analysisOutput;
       
       const nextContextPackage = {
         last_updated: new Date().toISOString(),
@@ -1380,22 +1413,6 @@ export class InsightEngine {
           priority: prompt.priority_level,
           context_explanation: prompt.context_explanation
         })) || [],
-        // CRITICAL FIX: Include growth trajectory insights
-        growth_insights: {
-          patterns: growth_trajectory_updates?.identified_patterns || [],
-          themes: growth_trajectory_updates?.emerging_themes || [],
-          focus_areas: growth_trajectory_updates?.recommended_focus_areas || [],
-          blind_spots: growth_trajectory_updates?.potential_blind_spots || [],
-          celebrations: growth_trajectory_updates?.celebration_moments || []
-        },
-        // CRITICAL FIX: Include cycle health metrics
-        cycle_health: {
-          knowledge_graph_health: cycle_metrics?.knowledge_graph_health || 0,
-          ontology_coherence: cycle_metrics?.ontology_coherence || 0,
-          growth_momentum: cycle_metrics?.growth_momentum || 0,
-          strategic_alignment: cycle_metrics?.strategic_alignment || 0,
-          insight_generation_rate: cycle_metrics?.insight_generation_rate || 0
-        },
         // CRITICAL FIX: Include conversation starter suggestions
         conversation_starters: proactive_prompts
           ?.filter(prompt => prompt.timing_suggestion === 'next_conversation')

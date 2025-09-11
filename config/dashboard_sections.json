@@ -1,0 +1,177 @@
+{
+  "dashboard_sections": {
+    "insights": {
+      "title": "Insights",
+      "icon": "💡",
+      "description": "Key insights discovered from your conversations and activities",
+      "max_items": 3,
+      "priority": 1,
+      "category": "analysis"
+    },
+    "patterns": {
+      "title": "Patterns",
+      "icon": "🔍",
+      "description": "Recurring patterns in your behavior and thinking",
+      "max_items": 2,
+      "priority": 2,
+      "category": "analysis"
+    },
+    "recommendations": {
+      "title": "Recommendations",
+      "icon": "📋",
+      "description": "Actionable recommendations for your growth",
+      "max_items": 2,
+      "priority": 1,
+      "category": "action"
+    },
+    "synthesis": {
+      "title": "Synthesis",
+      "icon": "🧠",
+      "description": "High-level synthesis of your learning journey",
+      "max_items": 2,
+      "priority": 1,
+      "category": "analysis"
+    },
+    "identified_patterns": {
+      "title": "Identified Patterns",
+      "icon": "🎯",
+      "description": "Specific patterns identified in your recent activity",
+      "max_items": 3,
+      "priority": 2,
+      "category": "analysis"
+    },
+    "emerging_themes": {
+      "title": "Emerging Themes",
+      "icon": "🌟",
+      "description": "Themes that are emerging in your personal development",
+      "max_items": 3,
+      "priority": 2,
+      "category": "growth"
+    },
+    "focus_areas": {
+      "title": "Focus Areas",
+      "icon": "🎯",
+      "description": "Areas where you should focus your attention",
+      "max_items": 3,
+      "priority": 1,
+      "category": "action"
+    },
+    "blind_spots": {
+      "title": "Blind Spots",
+      "icon": "⚠️",
+      "description": "Potential blind spots in your awareness",
+      "max_items": 2,
+      "priority": 3,
+      "category": "awareness"
+    },
+    "celebration_moments": {
+      "title": "Celebration Moments",
+      "icon": "🎉",
+      "description": "Moments worth celebrating in your journey",
+      "max_items": 1,
+      "priority": 1,
+      "category": "celebration"
+    },
+    "reflection_prompts": {
+      "title": "Reflection Prompts",
+      "icon": "🤔",
+      "description": "Prompts to encourage deeper reflection",
+      "max_items": 2,
+      "priority": 2,
+      "category": "prompts"
+    },
+    "exploration_prompts": {
+      "title": "Exploration Prompts",
+      "icon": "🔍",
+      "description": "Prompts to encourage exploration of new ideas",
+      "max_items": 2,
+      "priority": 2,
+      "category": "prompts"
+    },
+    "goal_setting_prompts": {
+      "title": "Goal Setting Prompts",
+      "icon": "🎯",
+      "description": "Prompts to help with goal setting and planning",
+      "max_items": 2,
+      "priority": 1,
+      "category": "prompts"
+    },
+    "skill_development_prompts": {
+      "title": "Skill Development Prompts",
+      "icon": "📚",
+      "description": "Prompts focused on skill development and learning",
+      "max_items": 2,
+      "priority": 2,
+      "category": "prompts"
+    },
+    "creative_expression_prompts": {
+      "title": "Creative Expression Prompts",
+      "icon": "🎨",
+      "description": "Prompts to encourage creative expression",
+      "max_items": 2,
+      "priority": 3,
+      "category": "prompts"
+    }
+  },
+  "section_categories": {
+    "analysis": {
+      "title": "Analysis",
+      "color": "blue",
+      "description": "Insights and patterns from your data"
+    },
+    "action": {
+      "title": "Action Items",
+      "color": "green",
+      "description": "Things you can do to improve"
+    },
+    "growth": {
+      "title": "Growth",
+      "color": "purple",
+      "description": "Areas of personal development"
+    },
+    "awareness": {
+      "title": "Awareness",
+      "color": "orange",
+      "description": "Things to be aware of"
+    },
+    "celebration": {
+      "title": "Celebration",
+      "color": "yellow",
+      "description": "Worth celebrating"
+    },
+    "prompts": {
+      "title": "Prompts",
+      "color": "indigo",
+      "description": "Questions to explore"
+    }
+  },
+  "dashboard_layout": {
+    "grid_columns": {
+      "default": 3,
+      "mobile": 1,
+      "tablet": 2
+    },
+    "section_groups": [
+      {
+        "title": "Key Insights",
+        "sections": ["insights", "patterns", "identified_patterns"],
+        "priority": 1
+      },
+      {
+        "title": "Recommendations & Synthesis",
+        "sections": ["recommendations", "synthesis", "emerging_themes"],
+        "priority": 2
+      },
+      {
+        "title": "Focus & Growth",
+        "sections": ["focus_areas", "blind_spots", "celebration_moments"],
+        "priority": 3
+      },
+      {
+        "title": "Proactive Prompts",
+        "sections": ["reflection_prompts", "exploration_prompts", "goal_setting_prompts", "skill_development_prompts", "creative_expression_prompts"],
+        "priority": 4
+      }
+    ]
+  }
+}
