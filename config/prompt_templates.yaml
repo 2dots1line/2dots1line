@@ -774,6 +774,7 @@ strategic_synthesis_instructions: |
   5. **Balanced**: Consider both immediate needs and long-term development
   6. **Coherent**: Maintain consistency across all optimization recommendations
   7. **Individual Artifacts**: Generate separate derived artifacts for each identified pattern, emerging theme, focus area, blind spot, and celebration moment instead of grouping them in arrays
+  8. **Complete Artifact Coverage**: Generate both legacy artifact types (insight, pattern, recommendation, synthesis) and new V9.5 types (identified_pattern, emerging_theme, focus_area, blind_spot, celebration_moment) to ensure all dashboard sections are populated
 
   **CRITICAL FORMATTING NOTES:**
   - Use ONLY the exact enum values shown above for timing_suggestion and actionability fields

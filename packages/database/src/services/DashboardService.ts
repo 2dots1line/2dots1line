@@ -148,6 +148,12 @@ export class DashboardService {
       orderBy: { created_at: 'desc' }
     });
 
+    // DEBUG: Log what we're actually getting from the database
+    console.log(`[DashboardService] DEBUG: Querying artifacts for user ${userId}, cycle ${cycleId}`);
+    console.log(`[DashboardService] DEBUG: Found ${artifacts.length} total artifacts`);
+    console.log(`[DashboardService] DEBUG: Artifact types:`, artifacts.map((a: any) => a.artifact_type));
+    console.log(`[DashboardService] DEBUG: Legacy artifacts:`, artifacts.filter((a: any) => ['insight', 'pattern', 'recommendation', 'synthesis'].includes(a.artifact_type)).map((a: any) => ({ type: a.artifact_type, title: a.title, cycle_id: a.cycle_id })));
+
     // Get all proactive prompts for this cycle
     const prompts = await this.db.prisma.proactive_prompts.findMany({
       where: {
@@ -159,22 +165,22 @@ export class DashboardService {
 
     // Generate sections based on artifact types
     const sections = {
-      insights: this.createSection('insights', artifacts.filter(a => a.artifact_type === 'insight')),
-      patterns: this.createSection('patterns', artifacts.filter(a => a.artifact_type === 'pattern')),
-      recommendations: this.createSection('recommendations', artifacts.filter(a => a.artifact_type === 'recommendation')),
-      synthesis: this.createSection('synthesis', artifacts.filter(a => a.artifact_type === 'synthesis')),
-      identified_patterns: this.createSection('identified_patterns', artifacts.filter(a => a.artifact_type === 'identified_pattern')),
-      emerging_themes: this.createSection('emerging_themes', artifacts.filter(a => a.artifact_type === 'emerging_theme')),
-      focus_areas: this.createSection('focus_areas', artifacts.filter(a => a.artifact_type === 'focus_area')),
-      blind_spots: this.createSection('blind_spots', artifacts.filter(a => a.artifact_type === 'blind_spot')),
-      celebration_moments: this.createSection('celebration_moments', artifacts.filter(a => a.artifact_type === 'celebration_moment')),
+      insights: this.createSection('insights', artifacts.filter((a: any) => a.artifact_type === 'insight')),
+      patterns: this.createSection('patterns', artifacts.filter((a: any) => a.artifact_type === 'pattern')),
+      recommendations: this.createSection('recommendations', artifacts.filter((a: any) => a.artifact_type === 'recommendation')),
+      synthesis: this.createSection('synthesis', artifacts.filter((a: any) => a.artifact_type === 'synthesis')),
+      identified_patterns: this.createSection('identified_patterns', artifacts.filter((a: any) => a.artifact_type === 'identified_pattern')),
+      emerging_themes: this.createSection('emerging_themes', artifacts.filter((a: any) => a.artifact_type === 'emerging_theme')),
+      focus_areas: this.createSection('focus_areas', artifacts.filter((a: any) => a.artifact_type === 'focus_area')),
+      blind_spots: this.createSection('blind_spots', artifacts.filter((a: any) => a.artifact_type === 'blind_spot')),
+      celebration_moments: this.createSection('celebration_moments', artifacts.filter((a: any) => a.artifact_type === 'celebration_moment')),
       
       // Generate sections based on prompt types
-      reflection_prompts: this.createPromptSection('reflection_prompts', prompts.filter(p => (p.metadata as any)?.prompt_type === 'reflection')),
-      exploration_prompts: this.createPromptSection('exploration_prompts', prompts.filter(p => (p.metadata as any)?.prompt_type === 'exploration')),
-      goal_setting_prompts: this.createPromptSection('goal_setting_prompts', prompts.filter(p => (p.metadata as any)?.prompt_type === 'goal_setting')),
-      skill_development_prompts: this.createPromptSection('skill_development_prompts', prompts.filter(p => (p.metadata as any)?.prompt_type === 'skill_development')),
-      creative_expression_prompts: this.createPromptSection('creative_expression_prompts', prompts.filter(p => (p.metadata as any)?.prompt_type === 'creative_expression')),
+      reflection_prompts: this.createPromptSection('reflection_prompts', prompts.filter((p: any) => (p.metadata as any)?.prompt_type === 'reflection')),
+      exploration_prompts: this.createPromptSection('exploration_prompts', prompts.filter((p: any) => (p.metadata as any)?.prompt_type === 'exploration')),
+      goal_setting_prompts: this.createPromptSection('goal_setting_prompts', prompts.filter((p: any) => (p.metadata as any)?.prompt_type === 'goal_setting')),
+      skill_development_prompts: this.createPromptSection('skill_development_prompts', prompts.filter((p: any) => (p.metadata as any)?.prompt_type === 'skill_development')),
+      creative_expression_prompts: this.createPromptSection('creative_expression_prompts', prompts.filter((p: any) => (p.metadata as any)?.prompt_type === 'creative_expression')),
     };
 
     return sections;
