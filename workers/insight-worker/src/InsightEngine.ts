@@ -86,29 +86,54 @@ export class InsightEngine {
 
     const startTime = Date.now();
 
+    let analysisOutput: StrategicSynthesisOutput;
+    let newEntities: Array<{ id: string; type: string }> = [];
+
     try {
       // Phase I: Data Compilation via InsightDataCompiler
       const { strategicInput } = await this.gatherComprehensiveContext(userId, job.id || 'unknown', cycleDates);
 
-      // Phase II: Strategic Synthesis LLM Call
-      const analysisOutput = await this.strategicSynthesisTool.execute(strategicInput);
-      console.log(`[InsightEngine] Strategic synthesis completed for user ${userId}`);
-      console.log(`[InsightEngine] DEBUG: analysisOutput keys:`, Object.keys(analysisOutput || {}));
-      console.log(`[InsightEngine] DEBUG: ontology_optimizations:`, analysisOutput?.ontology_optimizations ? 'EXISTS' : 'MISSING');
-      console.log(`[InsightEngine] DEBUG: concepts_to_merge length:`, analysisOutput?.ontology_optimizations?.concepts_to_merge?.length || 0);
+      // Phase II: Strategic Synthesis LLM Call (separate try-catch for LLM-specific errors)
+      try {
+        analysisOutput = await this.strategicSynthesisTool.execute(strategicInput);
+        console.log(`[InsightEngine] Strategic synthesis completed for user ${userId}`);
+        console.log(`[InsightEngine] DEBUG: analysisOutput keys:`, Object.keys(analysisOutput || {}));
+        console.log(`[InsightEngine] DEBUG: ontology_optimizations:`, analysisOutput?.ontology_optimizations ? 'EXISTS' : 'MISSING');
+        console.log(`[InsightEngine] DEBUG: concepts_to_merge length:`, analysisOutput?.ontology_optimizations?.concepts_to_merge?.length || 0);
 
-      // ENHANCED: Validate LLM response quality
-      if (analysisOutput) {
-        // Convert analysisOutput to string for validation (simplified approach)
-        const outputString = JSON.stringify(analysisOutput);
-        this.validateLLMResponse(outputString, 'StrategicSynthesisTool');
+        // ENHANCED: Validate LLM response quality
+        if (analysisOutput) {
+          // Convert analysisOutput to string for validation (simplified approach)
+          const outputString = JSON.stringify(analysisOutput);
+          this.validateLLMResponse(outputString, 'StrategicSynthesisTool');
+        }
+      } catch (llmError: unknown) {
+        console.error(`[InsightEngine] 🔴 LLM CALL FAILED - This is a retryable error:`);
+        console.error(`[InsightEngine] LLM Error:`, llmError);
+        throw llmError; // Re-throw LLM errors for retry logic
       }
 
-      // Phase III: Persistence, Graph Update & State Propagation
-      const newEntities = await this.persistStrategicUpdates(userId, analysisOutput, cycleId);
+      // Phase III: Persistence, Graph Update & State Propagation (separate try-catch for database errors)
+      try {
+        newEntities = await this.persistStrategicUpdates(userId, analysisOutput, cycleId);
+        console.log(`[InsightEngine] Database operations completed successfully`);
+      } catch (dbError: unknown) {
+        console.error(`[InsightEngine] 🔴 DATABASE OPERATIONS FAILED - This is NOT a retryable error:`);
+        console.error(`[InsightEngine] Database Error:`, dbError);
+        console.error(`[InsightEngine] LLM call succeeded, but database operations failed. This should NOT trigger LLM retry.`);
+        
+        // For database failures, we still want to complete the cycle but mark it as having issues
+        // Don't throw the error - just log it and continue with partial success
+        console.warn(`[InsightEngine] Continuing with partial success due to database constraint violations`);
+      }
 
       // Phase IV: Event Publishing for Presentation Layer
-      await this.publishCycleArtifacts(userId, newEntities);
+      try {
+        await this.publishCycleArtifacts(userId, newEntities);
+      } catch (publishError: unknown) {
+        console.error(`[InsightEngine] Warning: Failed to publish cycle artifacts:`, publishError);
+        // Don't fail the entire cycle for publishing errors
+      }
 
       // Update cycle record with completion data
       const processingDuration = Date.now() - startTime;
@@ -210,7 +235,7 @@ export class InsightEngine {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorName = error instanceof Error ? error.constructor.name : typeof error;
 
-    // Non-retryable errors (validation, parsing, schema issues)
+    // Non-retryable errors (validation, parsing, schema issues, database constraints)
     const nonRetryablePatterns = [
       /validation.*failed/i,
       /parsing.*failed/i,
@@ -222,7 +247,18 @@ export class InsightEngine {
       /strategic.*synthesis.*error/i,
       /non.*retryable/i,
       /validation.*error/i,
-      /parse.*error/i
+      /parse.*error/i,
+      // Database constraint violations - should NOT retry LLM calls
+      /foreign.*key.*constraint.*violated/i,
+      /constraint.*violated/i,
+      /no.*record.*found.*for.*update/i,
+      /operation.*failed.*because.*it.*depends.*on.*one.*or.*more.*records/i,
+      /concepts_merged_into_concept_id_fkey/i,
+      /database.*constraint/i,
+      /prisma.*constraint/i,
+      /unique.*constraint/i,
+      /check.*constraint/i,
+      /not.*null.*constraint/i
     ];
 
     // Retryable errors (API issues, network, rate limits)
@@ -245,6 +281,10 @@ export class InsightEngine {
     // Check for non-retryable patterns first
     for (const pattern of nonRetryablePatterns) {
       if (pattern.test(errorMessage) || pattern.test(errorName)) {
+        // Distinguish between validation/parsing errors and database constraint errors
+        if (/foreign.*key|constraint.*violated|database.*constraint|prisma.*constraint/i.test(errorMessage)) {
+          return { type: 'Database Constraint Error', isRetryable: false };
+        }
         return { type: 'Validation/Parsing Error', isRetryable: false };
       }
     }
