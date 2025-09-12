@@ -656,6 +656,24 @@ export class IngestionAnalyst {
         console.warn(`[IngestionAnalyst] ⚠️ No text content found for ${entity.type} ${entity.id}, skipping embedding`);
       }
     }
+
+    // Publish new_entities_created event for both card and graph generation
+    if (newEntities.length > 0) {
+      const eventPayload = {
+        type: 'new_entities_created',
+        userId,
+        entities: newEntities,
+        source: 'IngestionAnalyst'
+      };
+
+      // Publish to card queue (cards can be created immediately)
+      await this.cardQueue.add('new_entities_created', eventPayload);
+      console.log(`[IngestionAnalyst] Published new_entities_created event to card-queue for ${newEntities.length} entities`);
+
+      // Publish to graph queue (graph projection will wait for embeddings)
+      await this.graphQueue.add('new_entities_created', eventPayload);
+      console.log(`[IngestionAnalyst] Published new_entities_created event to graph-queue for ${newEntities.length} entities`);
+    }
   }
 
   /**
