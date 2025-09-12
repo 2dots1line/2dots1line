@@ -15,7 +15,6 @@ import type {
   CreateUserCycleData
 } from '@2dots1line/database';
 import { StrategicSynthesisTool, StrategicSynthesisOutput, StrategicSynthesisInput } from '@2dots1line/tools';
-import { LLMRetryHandler } from '@2dots1line/core-utils';
 import { Job , Queue } from 'bullmq';
 import { randomUUID } from 'crypto';
 
@@ -91,17 +90,9 @@ export class InsightEngine {
       // Phase I: Data Compilation and Context Gathering
       const { strategicInput } = await this.gatherComprehensiveContext(userId, job.id || 'unknown', cycleDates);
 
-      // Phase II: Strategic Synthesis LLM Call with retry logic
+      // Phase II: Strategic Synthesis (StrategicSynthesisTool handles retries internally)
       try {
-        analysisOutput = await LLMRetryHandler.executeWithRetry(
-          this.strategicSynthesisTool,
-          strategicInput,
-          { 
-            maxAttempts: 3, 
-            baseDelay: 1000,
-            callType: 'strategic'
-          }
-        );
+        analysisOutput = await this.strategicSynthesisTool.execute(strategicInput);
         console.log(`[InsightEngine] Strategic synthesis completed for user ${userId}`);
         console.log(`[InsightEngine] DEBUG: analysisOutput keys:`, Object.keys(analysisOutput || {}));
         console.log(`[InsightEngine] DEBUG: ontology_optimizations:`, analysisOutput?.ontology_optimizations ? 'EXISTS' : 'MISSING');
@@ -114,9 +105,24 @@ export class InsightEngine {
           this.validateLLMResponse(outputString, 'StrategicSynthesisTool');
         }
       } catch (llmError: unknown) {
-        console.error(`[InsightEngine] 🔴 LLM CALL FAILED after all retries:`);
-        console.error(`[InsightEngine] LLM Error:`, llmError);
-        throw llmError; // Re-throw LLM errors - let BullMQ handle as non-retryable
+        console.error(`[InsightEngine] 🔴 STRATEGIC SYNTHESIS FAILED - LLM ERROR:`);
+        console.error(`[InsightEngine] Error type: ${llmError instanceof Error ? llmError.name : 'Unknown'}`);
+        console.error(`[InsightEngine] Error message: ${llmError instanceof Error ? llmError.message : String(llmError)}`);
+        
+        // Check if this is a retryable LLM error that should have been handled by LLMRetryHandler
+        if (llmError instanceof Error) {
+          if (llmError.message.includes('503') || llmError.message.includes('server overload')) {
+            console.error(`[InsightEngine] LLM service overload - this should have been retried by LLMRetryHandler`);
+          } else if (llmError.message.includes('rate limit') || llmError.message.includes('quota')) {
+            console.error(`[InsightEngine] LLM rate limit - this should have been retried by LLMRetryHandler`);
+          } else if (llmError.message.includes('timeout') || llmError.message.includes('network')) {
+            console.error(`[InsightEngine] LLM network error - this should have been retried by LLMRetryHandler`);
+          } else {
+            console.error(`[InsightEngine] Non-retryable LLM error - manual investigation required`);
+          }
+        }
+        
+        throw llmError; // Re-throw errors - BullMQ retries are disabled
       }
 
       // Phase III: Persistence, Graph Update & State Propagation (separate try-catch for database errors)
@@ -124,13 +130,27 @@ export class InsightEngine {
         newEntities = await this.persistStrategicUpdates(userId, analysisOutput, cycleId);
         console.log(`[InsightEngine] Database operations completed successfully`);
       } catch (dbError: unknown) {
-        console.error(`[InsightEngine] 🔴 DATABASE OPERATIONS FAILED - This is NOT a retryable error:`);
-        console.error(`[InsightEngine] Database Error:`, dbError);
-        console.error(`[InsightEngine] LLM call succeeded, but database operations failed. This should NOT trigger LLM retry.`);
+        console.error(`[InsightEngine] 🔴 DATABASE OPERATIONS FAILED - NON-RETRYABLE ERROR:`);
+        console.error(`[InsightEngine] Error type: ${dbError instanceof Error ? dbError.name : 'Unknown'}`);
+        console.error(`[InsightEngine] Error message: ${dbError instanceof Error ? dbError.message : String(dbError)}`);
+        console.error(`[InsightEngine] LLM call succeeded, but database operations failed. This is NOT retryable at BullMQ level.`);
+        
+        // Log specific database error details
+        if (dbError instanceof Error) {
+          if (dbError.message.includes('connection') || dbError.message.includes('timeout')) {
+            console.error(`[InsightEngine] Database connection error - check database service status`);
+          } else if (dbError.message.includes('constraint') || dbError.message.includes('violation')) {
+            console.error(`[InsightEngine] Database constraint violation - data integrity issue`);
+          } else if (dbError.message.includes('permission') || dbError.message.includes('access')) {
+            console.error(`[InsightEngine] Database permission error - check database credentials`);
+          } else {
+            console.error(`[InsightEngine] Unknown database error - manual investigation required`);
+          }
+        }
         
         // For database failures, we still want to complete the cycle but mark it as having issues
         // Don't throw the error - just log it and continue with partial success
-        console.warn(`[InsightEngine] Continuing with partial success due to database constraint violations`);
+        console.warn(`[InsightEngine] Continuing with partial success due to database errors`);
       }
 
       // Phase IV: Event Publishing for Presentation Layer
@@ -203,7 +223,24 @@ export class InsightEngine {
         dashboard_ready: false
       });
       
-      // All errors are non-retryable at BullMQ level since LLM retries are handled by LLMRetryHandler
+      // All errors are non-retryable at BullMQ level - only LLM retries are handled by LLMRetryHandler
+      console.error(`[InsightEngine] 🔴 JOB FAILED - BullMQ retries disabled`);
+      console.error(`[InsightEngine] Error type: ${error instanceof Error ? error.name : 'Unknown'}`);
+      console.error(`[InsightEngine] Error message: ${error instanceof Error ? error.message : String(error)}`);
+      
+      // Log specific error categorization for debugging
+      if (error instanceof Error) {
+        if (error.message.includes('503') || error.message.includes('server overload')) {
+          console.error(`[InsightEngine] LLM service overload - this should have been retried by LLMRetryHandler`);
+        } else if (error.message.includes('database') || error.message.includes('postgres') || error.message.includes('neo4j')) {
+          console.error(`[InsightEngine] Database error - this is NOT retryable at BullMQ level`);
+        } else if (error.message.includes('validation') || error.message.includes('schema')) {
+          console.error(`[InsightEngine] Validation error - this is NOT retryable at BullMQ level`);
+        } else {
+          console.error(`[InsightEngine] Unknown error type - manual investigation required`);
+        }
+      }
+      
       const nonRetryableError = new Error(`NON_RETRYABLE_ERROR: ${error instanceof Error ? error.message : String(error)}`);
       nonRetryableError.name = 'NonRetryableError';
       throw nonRetryableError;
@@ -1481,19 +1518,17 @@ export class InsightEngine {
     const session = this.dbService.neo4j.session();
     
     try {
-      // Create ProactivePrompt node
+      // Create or update ProactivePrompt node (use MERGE to avoid constraint violations)
       const createPromptCypher = `
-        CREATE (p:ProactivePrompt {
-          prompt_id: $promptId,
-          prompt_text: $promptText,
-          source_agent: $sourceAgent,
-          prompt_type: $promptType,
-          timing_suggestion: $timingSuggestion,
-          priority_level: $priorityLevel,
-          userId: $userId,
-          created_at: datetime(),
-          metadata: $metadata
-        })
+        MERGE (p:ProactivePrompt {prompt_id: $promptId})
+        SET p.prompt_text = $promptText,
+            p.source_agent = $sourceAgent,
+            p.prompt_type = $promptType,
+            p.timing_suggestion = $timingSuggestion,
+            p.priority_level = $priorityLevel,
+            p.userId = $userId,
+            p.created_at = datetime(),
+            p.metadata = $metadata
         RETURN p.prompt_id as promptId
       `;
 
@@ -1509,16 +1544,16 @@ export class InsightEngine {
       });
 
       if (promptResult.records.length === 0) {
-        throw new Error(`Failed to create ProactivePrompt node for ${prompt.prompt_id}`);
+        console.warn(`[InsightEngine] Failed to create/update ProactivePrompt node for ${prompt.prompt_id} - continuing without Neo4j sync`);
+        return;
       }
 
-      console.log(`[InsightEngine] Created ProactivePrompt node in Neo4j: ${prompt.prompt_id}`);
-
-      console.log(`[InsightEngine] Successfully created Neo4j ProactivePrompt ${prompt.prompt_id}`);
+      console.log(`[InsightEngine] Created/updated ProactivePrompt node in Neo4j: ${prompt.prompt_id}`);
 
     } catch (error: unknown) {
       console.error(`[InsightEngine] Error creating Neo4j ProactivePrompt ${prompt.prompt_id}:`, error);
-      throw error;
+      // Don't throw error - just log and continue to prevent job failure
+      console.warn(`[InsightEngine] Continuing without Neo4j ProactivePrompt sync for ${prompt.prompt_id}`);
     } finally {
       await session.close();
     }
@@ -1754,10 +1789,9 @@ export class InsightEngine {
               break;
 
             case 'ProactivePrompt':
-              const prompt = await this.proactivePromptRepository.findById(entity.id);
-              if (prompt) {
-                await this.createNeo4jPrompt(prompt);
-              }
+              // ProactivePrompt nodes are already created in persistStrategicUpdates
+              // Skip duplicate creation to avoid constraint violations
+              console.log(`[InsightEngine] ProactivePrompt ${entity.id} already synchronized to Neo4j during persistStrategicUpdates`);
               break;
 
             case 'MergedConcept':

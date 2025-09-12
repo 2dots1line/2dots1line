@@ -14,6 +14,7 @@ import { z } from 'zod';
 import { ConfigService } from '@2dots1line/config-service';
 import type { TToolInput, TToolOutput } from '@2dots1line/shared-types';
 import { LLMChatTool, type LLMChatInput } from '../ai/LLMChatTool';
+import { LLMRetryHandler } from '@2dots1line/core-utils';
 
 // Zod validation schemas for StrategicSynthesisOutput
 export const StrategicSynthesisOutputSchema = z.object({
@@ -176,17 +177,16 @@ export class StrategicSynthesisTool {
         }
       };
       
-      // Direct LLM call (LLMChatTool already has retry logic)
-      const llmResult = await LLMChatTool.execute(llmInput);
-      
-      console.log(`[StrategicSynthesisTool] DEBUG: Full prompt sent to LLM:`, prompt.substring(0, 1000) + '...');
-      console.log(`[StrategicSynthesisTool] DEBUG: LLM response received:`, llmResult.result?.text?.substring(0, 1000) + '...');
-      
-      if (llmResult.status !== 'success' || !llmResult.result?.text) {
-        console.error(`[StrategicSynthesisTool] LLM call failed with status: ${llmResult.status}`);
-        console.error(`[StrategicSynthesisTool] Error details:`, llmResult.error);
-        throw new StrategicSynthesisError(`LLM call failed: ${llmResult.error?.message || 'Unknown error'}`);
-      }
+      // Enhanced LLM call with retry logic (following HolisticAnalysisTool pattern)
+      const llmResult = await LLMRetryHandler.executeWithRetry(
+        LLMChatTool,
+        llmInput,
+        { 
+          maxAttempts: 3, 
+          baseDelay: 1000,
+          callType: 'strategic-synthesis'
+        }
+      );
       
       console.log(`[StrategicSynthesisTool] LLM response received, length: ${llmResult.result.text.length}`);
       

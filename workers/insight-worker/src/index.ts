@@ -112,27 +112,32 @@ async function main() {
     );
 
     // Configure queue-level retry settings for BullMQ v4+
+    // DISABLED: BullMQ retries are disabled - only LLM retries are handled by LLMRetryHandler
     const insightQueue = new Queue('insight', { 
       connection: redisConnection,
       defaultJobOptions: {
-        attempts: 2, // Reduced from 3 to 2 (1 retry + 1 original attempt)
-        backoff: {
-          type: 'exponential',
-          delay: 2000,
-        },
+        attempts: 1, // NO BULLMQ RETRIES - LLM retries handled by LLMRetryHandler only
         removeOnComplete: { count: 10 },
         removeOnFail: { count: 50 },
       }
     });
 
-    // Add error handler to prevent retrying non-retryable errors
+    // Error handler - BullMQ retries are disabled, only LLM retries are handled by LLMRetryHandler
     worker.on('failed', (job, err) => {
-      if (err.message && err.message.includes('NON_RETRYABLE')) {
-        console.log(`[InsightWorker] Job ${job?.id} failed with non-retryable error, not retrying`);
-        // Don't retry non-retryable errors
-        return;
+      console.error(`[InsightWorker] Job ${job?.id} FAILED - BullMQ retries disabled`);
+      console.error(`[InsightWorker] Error type: ${err.name || 'Unknown'}`);
+      console.error(`[InsightWorker] Error message: ${err.message}`);
+      
+      // Log specific error details for debugging
+      if (err.message.includes('503') || err.message.includes('server overload')) {
+        console.error(`[InsightWorker] LLM service overload detected - this should have been retried by LLMRetryHandler`);
+      } else if (err.message.includes('database') || err.message.includes('postgres') || err.message.includes('neo4j')) {
+        console.error(`[InsightWorker] Database error detected - this is NOT retryable at BullMQ level`);
+      } else if (err.message.includes('validation') || err.message.includes('schema')) {
+        console.error(`[InsightWorker] Validation error detected - this is NOT retryable at BullMQ level`);
+      } else {
+        console.error(`[InsightWorker] Unknown error type - manual investigation required`);
       }
-      console.log(`[InsightWorker] Job ${job?.id} failed with retryable error: ${err.message}`);
     });
 
     // DEBUGGING: Verify worker object state
