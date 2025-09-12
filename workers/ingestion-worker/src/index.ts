@@ -118,7 +118,7 @@ async function main() {
     const ingestionQueue = new Queue('ingestion-queue', { 
       connection: redisConnection,
       defaultJobOptions: {
-        attempts: 1, // No retries - LLM retries are handled by LLMChatTool internally
+        attempts: 1, // NO BULLMQ RETRIES - LLM retries handled by LLMRetryHandler only
         removeOnComplete: { count: 10 },
         removeOnFail: { count: 50 },
       }
@@ -130,15 +130,19 @@ async function main() {
     });
 
     worker.on('failed', (job, err) => {
-      if (err.message && err.message.includes('NON_RETRYABLE')) {
-        console.log(`[IngestionWorker] Job ${job?.id} failed with non-retryable error, not retrying`);
-        // Don't retry non-retryable errors
-        return;
-      }
-      console.log(`[IngestionWorker] Job ${job?.id} failed with retryable error: ${err.message}`);
-      if (job) {
-        console.error(`[IngestionWorker] Job data:`, job.data);
-        console.error(`[IngestionWorker] Attempt ${job.attemptsMade} of ${job.opts.attempts || 'unknown'}`);
+      console.error(`[IngestionWorker] Job ${job?.id} FAILED - BullMQ retries disabled`);
+      console.error(`[IngestionWorker] Error type: ${err.name || 'Unknown'}`);
+      console.error(`[IngestionWorker] Error message: ${err.message}`);
+      
+      // Log specific error details for debugging
+      if (err.message.includes('503') || err.message.includes('server overload')) {
+        console.error(`[IngestionWorker] LLM service overload detected - this should have been retried by LLMRetryHandler`);
+      } else if (err.message.includes('database') || err.message.includes('postgres') || err.message.includes('neo4j')) {
+        console.error(`[IngestionWorker] Database error detected - this is NOT retryable at BullMQ level`);
+      } else if (err.message.includes('validation') || err.message.includes('schema')) {
+        console.error(`[IngestionWorker] Validation error detected - this is NOT retryable at BullMQ level`);
+      } else {
+        console.error(`[IngestionWorker] Unknown error type - manual investigation required`);
       }
     });
 

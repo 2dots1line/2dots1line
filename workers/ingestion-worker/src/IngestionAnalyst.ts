@@ -76,7 +76,7 @@ export class IngestionAnalyst {
       const { fullConversationTranscript, userMemoryProfile, userName } = 
         await this.gatherContextData(conversationId, userId);
 
-      // Phase II: The "Single Synthesis" LLM Call (HolisticAnalysisTool has built-in retry logic)
+      // Phase II: The "Single Synthesis" LLM Call (LLMRetryHandler handles LLM retries internally)
       const analysisOutput = await this.holisticAnalysisTool.execute({
         userId,
         userName,
@@ -114,9 +114,24 @@ export class IngestionAnalyst {
           status: 'failed'
         });
         
-      // All errors should be treated as non-retryable at the BullMQ level
-      // LLM retries are handled by LLMChatTool internally
-      // Database/validation errors shouldn't be retried
+      // All errors are non-retryable at BullMQ level - only LLM retries are handled by LLMRetryHandler
+      console.error(`[IngestionAnalyst] 🔴 JOB FAILED - BullMQ retries disabled`);
+      console.error(`[IngestionAnalyst] Error type: ${error instanceof Error ? error.name : 'Unknown'}`);
+      console.error(`[IngestionAnalyst] Error message: ${error instanceof Error ? error.message : String(error)}`);
+      
+      // Log specific error categorization for debugging
+      if (error instanceof Error) {
+        if (error.message.includes('503') || error.message.includes('server overload')) {
+          console.error(`[IngestionAnalyst] LLM service overload - this should have been retried by LLMRetryHandler`);
+        } else if (error.message.includes('database') || error.message.includes('postgres') || error.message.includes('neo4j')) {
+          console.error(`[IngestionAnalyst] Database error - this is NOT retryable at BullMQ level`);
+        } else if (error.message.includes('validation') || error.message.includes('schema')) {
+          console.error(`[IngestionAnalyst] Validation error - this is NOT retryable at BullMQ level`);
+        } else {
+          console.error(`[IngestionAnalyst] Unknown error type - manual investigation required`);
+        }
+      }
+      
       const nonRetryableError = new Error(`NON_RETRYABLE: ${error instanceof Error ? error.message : String(error)}`);
       nonRetryableError.name = 'NonRetryableError';
       throw nonRetryableError;
