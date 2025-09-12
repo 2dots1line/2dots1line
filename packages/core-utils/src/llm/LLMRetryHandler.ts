@@ -61,7 +61,7 @@ export class LLMRetryHandler {
       try {
         console.log(`[LLMRetryHandler] ${callType.toUpperCase()} LLM call - Attempt ${attempts}/${maxAttempts}`);
         
-        const llmResult = await llmTool.execute({ payload: input });
+        const llmResult = await llmTool.execute(input);
         
         if (llmResult.status === 'success' && llmResult.result?.text) {
           console.log(`[LLMRetryHandler] ${callType.toUpperCase()} LLM call successful on attempt ${attempts}`);

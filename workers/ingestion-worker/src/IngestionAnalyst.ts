@@ -16,7 +16,6 @@ import type {
 } from '@2dots1line/database';
 import { HolisticAnalysisTool, HolisticAnalysisOutput, SemanticSimilarityTool } from '@2dots1line/tools';
 import type { SemanticSimilarityInput, SemanticSimilarityResult } from '@2dots1line/tools';
-import { LLMRetryHandler } from '@2dots1line/core-utils';
 import { Job , Queue } from 'bullmq';
 
 export interface IngestionJobData {
@@ -77,25 +76,17 @@ export class IngestionAnalyst {
       const { fullConversationTranscript, userMemoryProfile, userName } = 
         await this.gatherContextData(conversationId, userId);
 
-      // Phase II: The "Single Synthesis" LLM Call with retry logic
-      const analysisOutput = await LLMRetryHandler.executeWithRetry(
-        this.holisticAnalysisTool,
-        {
-          userId,
-          userName,
-          fullConversationTranscript,
-          userMemoryProfile,
-          workerType: 'ingestion-worker',
-          workerJobId: job.id || 'unknown',
-          conversationId,
-          messageId: undefined // Not applicable for conversation-level analysis
-        },
-        { 
-          maxAttempts: 3, 
-          baseDelay: 1000,
-          callType: 'holistic'
-        }
-      );
+      // Phase II: The "Single Synthesis" LLM Call (HolisticAnalysisTool has built-in retry logic)
+      const analysisOutput = await this.holisticAnalysisTool.execute({
+        userId,
+        userName,
+        fullConversationTranscript,
+        userMemoryProfile,
+        workerType: 'ingestion-worker',
+        workerJobId: job.id || 'unknown',
+        conversationId,
+        messageId: undefined // Not applicable for conversation-level analysis
+      });
 
       console.log(`[IngestionAnalyst] Analysis completed with importance score: ${analysisOutput.persistence_payload.conversation_importance_score}`);
 
