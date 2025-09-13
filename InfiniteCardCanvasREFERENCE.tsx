@@ -37,20 +37,6 @@ function seededRandom(seed: number): number {
   return x - Math.floor(x);
 }
 
-// Simplified: map a grid cell to a card using seeded random only (no ordering/anchoring)
-function selectCardForCell(
-  cards: DisplayCard[],
-  col: number,
-  row: number
-): DisplayCard {
-  if (cards.length === 0) {
-    return {} as DisplayCard;
-  }
-  const seed = row * 1000 + col;
-  const cardIndex = Math.floor(Math.abs(seededRandom(seed)) * cards.length) % cards.length;
-  return cards[cardIndex];
-}
-
 export const InfiniteCardCanvas: React.FC<InfiniteCardCanvasProps> = ({
   cards,
   onCardSelect,
@@ -64,20 +50,9 @@ export const InfiniteCardCanvas: React.FC<InfiniteCardCanvasProps> = ({
   const [hasDragged, setHasDragged] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Freeze the card pool during a drag so identities don’t change mid-gesture
-  const cardsSnapshotRef = useRef<DisplayCard[]>(cards);
-  useEffect(() => {
-    if (!dragging) {
-      // When not dragging, keep snapshot updated with the latest cards
-      cardsSnapshotRef.current = cards;
-    }
-  }, [cards, dragging]);
-
-  const activeCards = dragging ? cardsSnapshotRef.current : cards;
-
   // Calculate visible cards based on current offset and viewport size
   const visibleCards = useMemo(() => {
-    if (typeof window === 'undefined' || activeCards.length === 0) return [];
+    if (typeof window === 'undefined' || cards.length === 0) return [];
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     // Calculate bounds
@@ -90,11 +65,13 @@ export const InfiniteCardCanvas: React.FC<InfiniteCardCanvasProps> = ({
     const endCol = Math.ceil(rightBound / CELL_WIDTH);
     const startRow = Math.floor(topBound / CELL_HEIGHT);
     const endRow = Math.ceil(bottomBound / CELL_HEIGHT);
-
     const result = [];
     for (let row = startRow; row <= endRow; row++) {
       for (let col = startCol; col <= endCol; col++) {
-        const card = selectCardForCell(activeCards, col, row);
+        // Seeded random selection from cards array
+        const seed = row * 1000 + col;
+        const cardIndex = Math.floor(Math.abs(seededRandom(seed)) * cards.length) % cards.length;
+        const card = cards[cardIndex];
         result.push({
           ...card,
           x: col * CELL_WIDTH + GRID_PADDING,
@@ -105,24 +82,31 @@ export const InfiniteCardCanvas: React.FC<InfiniteCardCanvasProps> = ({
       }
     }
     return result;
-  }, [offset, activeCards]);
+  }, [offset, cards]);
 
-  // Auto-load more if needed (unchanged)
+  // Check if we need to load more cards when user scrolls to edges
   useEffect(() => {
     if (!onLoadMore || !hasMore || cards.length === 0) return;
+    
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-    const gridWidth = Math.ceil(viewportWidth / CELL_WIDTH) + 4;
-    const gridHeight = Math.ceil(viewportHeight / CELL_HEIGHT) + 4;
+    
+    // Calculate if user is near the edges of the loaded area
+    const gridWidth = Math.ceil(viewportWidth / CELL_WIDTH) + 4; // Buffer
+    const gridHeight = Math.ceil(viewportHeight / CELL_HEIGHT) + 4; // Buffer
+    
+    // Estimate how many cards we have loaded in the grid
     const estimatedLoadedCards = gridWidth * gridHeight;
+    
+    // If we're using more than 80% of available cards, load more
     if (visibleCards.length > estimatedLoadedCards * 0.8) {
+      console.log('InfiniteCardCanvas: Loading more cards, using', visibleCards.length, 'of', cards.length, 'available cards');
       onLoadMore();
     }
   }, [visibleCards.length, cards.length, hasMore, onLoadMore]);
 
   // Mouse drag logic
   function onMouseDown(e: React.MouseEvent) {
-    cardsSnapshotRef.current = cards; // snapshot at the moment drag starts
     setDragging(true);
     setHasDragged(false);
     setStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
@@ -136,10 +120,10 @@ export const InfiniteCardCanvas: React.FC<InfiniteCardCanvasProps> = ({
     setDragging(false);
     setTimeout(() => setHasDragged(false), 100);
   }
-  // Touch support
+
+  // Touch support (optional, can be expanded)
   function onTouchStart(e: React.TouchEvent) {
     if (e.touches.length === 1) {
-      cardsSnapshotRef.current = cards; // snapshot at drag start
       setDragging(true);
       setHasDragged(false);
       setStart({ x: e.touches[0].clientX - offset.x, y: e.touches[0].clientY - offset.y });
@@ -155,14 +139,15 @@ export const InfiniteCardCanvas: React.FC<InfiniteCardCanvasProps> = ({
     setTimeout(() => setHasDragged(false), 100);
   }
 
-  // Stable click handler inside the component
-  const handleTileClick = React.useCallback(
-    (card: DisplayCard) => {
-      if (hasDragged) return;
-      onCardSelect?.(card);
-    },
-    [hasDragged, onCardSelect]
-  );
+  // Add log for offset state changes
+  React.useEffect(() => {
+  }, [offset]);
+
+  // Card click handler
+  function handleCardClick(card: DisplayCard) {
+    if (dragging || hasDragged) return;
+    onCardSelect?.(card);
+  }
 
   return (
     <div
@@ -182,62 +167,52 @@ export const InfiniteCardCanvas: React.FC<InfiniteCardCanvasProps> = ({
         className="infinite-card-container"
         style={{ transform: `translate(${offset.x}px, ${offset.y}px)` }}
       >
-        {visibleCards.map((card) => {
-          // Determine display values with resilient fallbacks
-          const displayTitle =
-            card?.title ||
-            (typeof card?.card_type === 'string' ? card.card_type.replace(/_/g, ' ') : '') ||
-            'Card';
-          const displaySubtitle =
-            card?.subtitle ||
-            (typeof card?.source_entity_type === 'string' ? card.source_entity_type.replace(/_/g, ' ') : '') ||
-            'Item';
-
-          return (
+        {visibleCards.map((card, idx) => (
+          <div
+            key={`${card.card_id || idx}-${card.gridRow}-${card.gridCol}`}
+            className="card-tile"
+            style={{
+              position: 'absolute',
+              left: card.x,
+              top: card.y,
+              width: CARD_SIZE,
+              height: CARD_SIZE,
+              borderRadius: 24,
+              overflow: 'hidden',
+              background: 'transparent',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08)',
+              cursor: 'pointer',
+            }}
+            onClick={() => handleCardClick(card)}
+          >
+            {/* Card background image */}
             <div
-              // Use stable per-cell key so identity never changes during drag
-              key={`cell-${card.gridRow}-${card.gridCol}`}
-              className="card-tile"
+              className="card-background"
               style={{
                 position: 'absolute',
-                left: card.x,
-                top: card.y,
-                width: CARD_SIZE,
-                height: CARD_SIZE,
-                borderRadius: 24,
-                overflow: 'hidden',
-                background: 'transparent',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08)',
-                cursor: 'pointer',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                backgroundImage: card.background_image_url ? `url(${card.background_image_url})` : undefined,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat',
+                zIndex: 1,
+                transition: 'transform 0.4s cubic-bezier(0.4,0,0.2,1)',
               }}
-              onClick={() => handleTileClick(card)}
-            >
-              {/* Background image */}
-              <div
-                className="card-background"
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: '100%',
-                  backgroundImage: card.background_image_url ? `url(${card.background_image_url})` : undefined,
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                  backgroundRepeat: 'no-repeat',
-                }}
-              />
-              {/* Readability overlay */}
-              <div className="card-overlay" />
-              {/* Content */}
-              <div className="card-content">
-                <div className="card-title">{displayTitle}</div>
-                <div className="card-subtitle">{displaySubtitle}</div>
-              </div>
+            />
+            {/* Overlay for text readability */}
+            <div className="card-overlay" />
+            {/* Card content */}
+            <div className="card-content">
+              <h3 className="card-title">{card.title || card.card_type || "Card"}</h3>
+              <p className="card-subtitle">{typeof card.subtitle === 'string' ? card.subtitle : (typeof card.display_data?.preview === 'string' ? card.display_data.preview : " ")}</p>
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
+      {/* Debug info (development only) */}
     </div>
   );
-};
+}; 

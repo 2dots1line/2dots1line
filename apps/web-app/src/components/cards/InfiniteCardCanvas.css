@@ -134,8 +134,8 @@
     0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
-/* Card Background */
-.card-background {
+/* Card Background (scoped) */
+.infinite-card-canvas .card-background {
   position: absolute;
   top: 0;
   left: 0;
@@ -149,8 +149,8 @@
   border-radius: 24px;
 }
 
-/* Card Overlay */
-.card-overlay {
+/* Card Overlay (scoped) */
+.infinite-card-canvas .card-overlay {
   position: absolute;
   top: 0;
   left: 0;
@@ -168,8 +168,8 @@
   border-radius: 24px;
 }
 
-/* Card Content */
-.card-content {
+/* Card Content (scoped) */
+.infinite-card-canvas .card-content {
   position: relative;
   z-index: 3;
   padding: 16px;
@@ -178,8 +178,8 @@
   color: white;
 }
 
-/* Card Title */
-.card-title {
+/* Card Title (scoped) */
+.infinite-card-canvas .card-title {
   font-size: 14px;
   font-weight: 600;
   margin: 0 0 4px 0;
@@ -189,8 +189,8 @@
   transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* Card Subtitle */
-.card-subtitle {
+/* Card Subtitle (scoped) */
+.infinite-card-canvas .card-subtitle {
   font-size: 11px;
   font-weight: 400;
   margin: 0;
@@ -201,7 +201,11 @@
   transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* Hover Effects */
+/* Hover Effects (scoped) */
+.infinite-card-canvas .card-item:hover .card-background { transform: scale(1.03); }
+.infinite-card-canvas .card-item:hover .card-overlay { opacity: 0.75; }
+.infinite-card-canvas .card-item:hover .card-title { transform: translateY(-3px) scale(1.02); }
+.infinite-card-canvas .card-item:hover .card-subtitle { transform: translateY(-2px) scale(1.01); }
 .card-item:hover {
   transform: translateY(-12px) scale(1.08);
   box-shadow: 
@@ -305,4 +309,4 @@
   .card-subtitle {
     font-size: 7px;
   }
-} 
+}

@@ -178,4 +178,53 @@ export class CardController {
       error: { code: 'NOT_IMPLEMENTED', message: 'Endpoint not yet implemented in V11.0 architecture' }
     } as TApiResponse<any>);
   };
-} 
+
+  /**
+   * PUT /api/v1/cards/:cardId/background
+   * Update card background image URL
+   */
+  public updateCardBackground = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+      const cardId = req.params.cardId;
+      const { background_image_url } = req.body as { background_image_url?: string };
+
+      console.log('[PUT /cards/:cardId/background]', {
+        userId,
+        cardId,
+        hasBackgroundUrl: !!background_image_url
+      });
+
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: 'Authorization required' }
+        } as TApiResponse<any>);
+        return;
+      }
+      if (!cardId || !background_image_url) {
+        res.status(400).json({
+          success: false,
+          error: { code: 'BAD_REQUEST', message: 'cardId and background_image_url are required' }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      const updatedCard = await this.cardService.updateCardBackground(cardId, userId, background_image_url);
+
+      res.status(200).json({
+        success: true,
+        data: updatedCard
+      } as TApiResponse<any>);
+    } catch (error: any) {
+      const message = error instanceof Error ? error.message : 'Failed to update card background';
+      const status = message.includes('Forbidden') ? 403 : message.includes('not found') ? 404 : 500;
+
+      console.error('Card controller update background error:', error);
+      res.status(status).json({
+        success: false,
+        error: { code: 'UPDATE_BACKGROUND_FAILED', message }
+      } as TApiResponse<any>);
+    }
+  };
+}

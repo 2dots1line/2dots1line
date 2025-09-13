@@ -69,13 +69,39 @@ export const AdaptiveCardTile: React.FC<AdaptiveCardTileProps> = ({ card: cardPr
       })();
     }, [generatedCover, card?.id, updateCardBackground]);
 
+    // Render any persisted background image from the API
+    const savedCover: string | null =
+      card && typeof card.background_image_url === 'string' && card.background_image_url.length > 0
+        ? card.background_image_url
+        : null;
+
   return (
     <article
       className="cover-tile"
       aria-label={`Card: ${title}`}
       style={decision.bgStyle}
     >
-      <div className="cover-content" style={{ position: 'relative' }}>
+      {/* Make overlay layers explicit so text is always on top */}
+      <div className="cover-content" style={{ position: 'relative', background: 'transparent' }}>
+        {/* Saved cover (from DB) - furthest back */}
+        {savedCover ? (
+          <img
+            src={savedCover}
+            alt={title}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              zIndex: 0,
+              opacity: 0.9,
+              pointerEvents: 'none'
+            }}
+          />
+        ) : null}
+
+        {/* Generated cover (when feature is toggled) - above saved cover, still behind text */}
         {generatedCover ? (
           <img
             src={generatedCover}
@@ -86,14 +112,33 @@ export const AdaptiveCardTile: React.FC<AdaptiveCardTileProps> = ({ card: cardPr
               width: '100%',
               height: '100%',
               objectFit: 'contain',
+              zIndex: 1,
               pointerEvents: 'none'
             }}
           />
         ) : null}
-        <h3 className="cover-title" title={title}>{title}</h3>
-        {desc ? <p className="cover-desc" title={desc}>{desc}</p> : null}
 
-        <div className="cover-chips">
+        {/* Readability overlay on top of image(s), below text */}
+        <div
+          aria-hidden
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 2,
+            background: 'linear-gradient(to bottom, rgba(255,255,255,0.85), rgba(255,255,255,0.75))'
+          }}
+        />
+
+        {/* Title and description - always visible */}
+        <h3 className="cover-title" title={title} style={{ position: 'relative', zIndex: 3 }}>{title}</h3>
+        {desc ? (
+          <p className="cover-desc" title={desc} style={{ position: 'relative', zIndex: 3 }}>
+            {desc}
+          </p>
+        ) : null}
+
+        {/* Chips */}
+        <div className="cover-chips" style={{ position: 'relative', zIndex: 3 }}>
           <span className={`chip ${decision.source === 'generated' ? 'chip-amber' : 'chip-green'}`}>
             {decision.source === 'generated' ? 'Generated' : 'Retrieved'}
           </span>
