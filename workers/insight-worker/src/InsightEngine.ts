@@ -248,8 +248,8 @@ export class InsightEngine {
   }
 
   /**
-   * Calculate cycle dates based on current time
-   * Default: Last 2 days, but can be configured
+   * Calculate cycle dates for strategic analysis
+   * Returns last 2 days by default
    */
   private calculateCycleDates(): CycleDates {
     const now = new Date();
@@ -269,26 +269,23 @@ export class InsightEngine {
 
     console.log(`[InsightEngine] Compiling data for cycle from ${cycleDates.cycleStartDate} to ${cycleDates.cycleEndDate}`);
 
-    // Get conversation summaries directly from database
+    // Get conversation summaries directly from database (pre-filtered by importance)
     const conversationSummaries = await this.dbService.prisma.conversations.findMany({
       where: {
         user_id: userId,
         start_time: {
           gte: cycleDates.cycleStartDate,
           lte: cycleDates.cycleEndDate
-        }
+        },
+        importance_score: { gte: 5 } // Pre-filter for high importance conversations
       },
       select: {
-        id: true,
-        title: true,
-        importance_score: true,
-        context_summary: true,
-        start_time: true
+        context_summary: true
       },
       orderBy: { importance_score: 'desc' }
     });
 
-    // Build StrategicSynthesisInput with all available data
+    // Build StrategicSynthesisInput with simplified data structures
     const strategicInput: StrategicSynthesisInput = {
       userId,
       userName: user.name || 'User',
@@ -296,34 +293,17 @@ export class InsightEngine {
       cycleStartDate: cycleDates.cycleStartDate,
       cycleEndDate: cycleDates.cycleEndDate,
       currentKnowledgeGraph: {
-        // Combine conversation summaries and actual memory units, but label them clearly
-        memoryUnits: await (async () => {
-          const actualMemoryUnits = await this.getUserMemoryUnits(userId, cycleDates);
-          const conversationSummariesFormatted = conversationSummaries.map((conv: {
-            id: string;
-            title: string | null;
-            importance_score: number | null;
-            context_summary: string | null;
-            start_time: Date;
-          }) => {
-            return {
-              id: `conv_${conv.id}`, // Prefix to distinguish from memory units
-              title: `[CONVERSATION] ${conv.title || 'Untitled Conversation'}`, // Use actual conversation title
-              content: conv.context_summary || 'No summary available', // Clean content
-              importance_score: conv.importance_score || 0,
-              tags: [], // No tags in conversations table - keep empty array for consistency
-              created_at: conv.start_time.toISOString()
-            };
-          });
-          
-          console.log(`[InsightEngine] Assembling knowledge graph: ${actualMemoryUnits.length} actual memory units + ${conversationSummariesFormatted.length} conversation summaries = ${actualMemoryUnits.length + conversationSummariesFormatted.length} total items`);
-          
-          return [
-            ...actualMemoryUnits,
-            ...conversationSummariesFormatted
-          ];
-        })(),
+        // Simplified conversations - only context_summary (pre-filtered for high importance)
+        conversations: conversationSummaries
+          .filter(conv => conv.context_summary) // Only include conversations with summaries
+          .map(conv => ({
+            context_summary: conv.context_summary || 'No summary available'
+          })),
+        // Simplified memory units - only id and content
+        memoryUnits: await this.getUserMemoryUnits(userId, cycleDates),
+        // Simplified concepts - only id, name, description
         concepts: await this.getUserConcepts(userId, cycleDates),
+        // Simplified concepts needing synthesis - only id, name, description
         conceptsNeedingSynthesis: await this.getConceptsNeedingSynthesis(userId, cycleDates.cycleStartDate)
       },
       recentGrowthEvents: await (async () => {
@@ -342,15 +322,12 @@ export class InsightEngine {
 
         console.log(`[InsightEngine] Found ${growthEvents.length} growth events within cycle period`);
         
-        // Map to the expected format
+        // Map to simplified format - only id and rationale
         return growthEvents.map((event: any) => {
           const details = event.details as any;
           return {
-            dim_key: details?.dim_key || 'unknown',
-            event_type: 'growth_event',
-            description: details?.rationale || 'Growth event recorded',
-            impact_level: Math.abs(details?.delta || 0),
-            created_at: event.created_at.toISOString()
+            id: event.event_id,
+            rationale: details?.rationale || 'Growth event recorded'
           };
         });
       })(),
@@ -368,25 +345,25 @@ export class InsightEngine {
   }
 
   /**
-   * Fetch user concepts from the database for strategic synthesis
+   * Fetch user concepts for strategic synthesis
+   * Returns: id, name, description (pre-filtered by importance and active status)
    */
   private async getUserConcepts(userId: string, cycleDates: CycleDates): Promise<Array<{
     id: string;
     name: string;
     description: string;
-    category: string;
-    salience: number;
-    created_at: string;
-    merged_into_concept_id?: string;
   }>> {
     try {
       console.log(`[InsightEngine] Fetching concepts for user ${userId}`);
       
-      // Get all active concepts for the user within the cycle period
+      // Get active concepts for the user within the cycle period, excluding already merged ones
+      // Pre-filter by importance (salience) and exclude merged concepts
       const concepts = await this.dbService.prisma.concepts.findMany({
         where: { 
           user_id: userId, 
           status: 'active',
+          merged_into_concept_id: null, // Exclude already merged concepts
+          salience: { gte: 2 }, // Pre-filter for high importance concepts
           created_at: {
             gte: cycleDates.cycleStartDate,
             lte: cycleDates.cycleEndDate
@@ -395,27 +372,19 @@ export class InsightEngine {
         select: {
           concept_id: true,
           name: true,
-          description: true,
-          type: true,
-          salience: true,
-          created_at: true,
-          merged_into_concept_id: true
+          description: true
         },
         orderBy: { salience: 'desc' }
       });
 
-      // Map to the expected interface
+      // Map to simplified interface
       const mappedConcepts = concepts.map((concept: any) => ({
         id: concept.concept_id,
         name: concept.name,
-        description: concept.description || '',
-        category: concept.type,
-        salience: concept.salience || 0,
-        created_at: concept.created_at.toISOString(),
-        merged_into_concept_id: concept.merged_into_concept_id
+        description: concept.description || ''
       }));
 
-      console.log(`[InsightEngine] Retrieved ${mappedConcepts.length} concepts`);
+      console.log(`[InsightEngine] Retrieved ${mappedConcepts.length} new concepts from current cycle`);
       return mappedConcepts;
 
     } catch (error: unknown) {
@@ -425,23 +394,21 @@ export class InsightEngine {
   }
 
   /**
-   * Fetch user memory units from PostgreSQL for strategic synthesis
+   * Fetch user memory units for strategic synthesis
+   * Returns: id, content (pre-filtered by importance)
    */
   private async getUserMemoryUnits(userId: string, cycleDates: CycleDates): Promise<Array<{
     id: string;
-    title: string;
     content: string;
-    importance_score: number;
-    tags: string[];
-    created_at: string;
   }>> {
     try {
       console.log(`[InsightEngine] Fetching memory units for user ${userId}`);
       
-      // Get all memory units for the user within the cycle period
+      // Get memory units for the user within the cycle period, pre-filtered by importance
       const memoryUnits = await this.dbService.prisma.memory_units.findMany({
         where: { 
           user_id: userId,
+          importance_score: { gte: 2 }, // Pre-filter for high importance memory units
           creation_ts: {
             gte: cycleDates.cycleStartDate,
             lte: cycleDates.cycleEndDate
@@ -449,25 +416,18 @@ export class InsightEngine {
         },
         select: {
           muid: true,
-          title: true,
-          content: true,
-          importance_score: true,
-          creation_ts: true
+          content: true
         },
         orderBy: { importance_score: 'desc' }
       });
 
-      // Map to the expected interface
+      // Map to simplified interface
       const mappedMemoryUnits = memoryUnits.map((mu: any) => ({
         id: mu.muid,
-        title: mu.title,
-        content: mu.content,
-        importance_score: mu.importance_score || 0,
-        tags: ['memory_unit'], // Tag to distinguish from conversation summaries
-        created_at: mu.creation_ts.toISOString()
+        content: mu.content
       }));
 
-      console.log(`[InsightEngine] Retrieved ${mappedMemoryUnits.length} memory units`);
+      console.log(`[InsightEngine] Retrieved ${mappedMemoryUnits.length} high-importance memory units (pre-filtered)`);
       return mappedMemoryUnits;
 
     } catch (error: unknown) {
@@ -640,13 +600,13 @@ export class InsightEngine {
   }
 
   /**
-   * Publish embedding jobs for newly created entities
-   * CRITICAL FIX: Only send content entities, not graph relationships
+   * Publish embedding jobs for new entities
+   * Only processes content entities (DerivedArtifact, ProactivePrompt, Community)
    */
   private async publishEmbeddingJobs(userId: string, newEntities: Array<{ id: string; type: string }>) {
     const embeddingJobs = [];
     
-    // CRITICAL FIX: Filter out non-content entities
+    // Filter out non-content entities
     const contentEntities = newEntities.filter(entity => 
       ['DerivedArtifact', 'ProactivePrompt', 'Community'].includes(entity.type)
     );
@@ -695,7 +655,7 @@ export class InsightEngine {
 
   /**
    * Extract text content for embedding based on entity type
-   * ENHANCED: Added content length validation and truncation warnings
+   * Includes content length validation
    */
   private async extractTextContentForEntity(entityId: string, entityType: string): Promise<string | null> {
     try {
@@ -717,17 +677,14 @@ export class InsightEngine {
           break;
           
         case 'MergedConcept':
-          // MergedConcepts are stored in the concepts table, so use concept repository
           const concept = await this.conceptRepository.findById(entityId);
           if (concept) {
-            textContent = concept.name; // Use only name for consistency with IngestionAnalyst
+            textContent = concept.name;
           }
           break;
           
         case 'Community':
-          // For communities, aggregate content from member concepts
           try {
-            // CRITICAL FIX: Generate proper content for embedding and Weaviate compatibility
             const community = await this.dbService.communityRepository.getByIdWithConcepts(entityId);
             if (community) {
               const memberCount = community.concepts?.length || 0;
@@ -746,7 +703,7 @@ export class InsightEngine {
           return null;
       }
 
-      // ENHANCED: Validate content length and provide warnings
+      // Validate content length
       if (textContent) {
         this.validateContentLength(textContent, entityType, entityId);
         return textContent;
@@ -760,8 +717,8 @@ export class InsightEngine {
   }
 
   /**
-   * CRITICAL FIX: Publish cycle artifacts to downstream workers
-   * Only send content entities to card worker, all entities to graph worker
+   * Publish cycle artifacts to downstream workers
+   * Content entities → card worker, all entities → graph worker
    */
   private async publishCycleArtifacts(userId: string, newEntities: Array<{ id: string; type: string }>) {
     if (newEntities.length === 0) {
@@ -770,7 +727,7 @@ export class InsightEngine {
     }
 
     try {
-      // CRITICAL FIX: Filter entities for different workers
+      // Filter entities for different workers
       const contentEntities = newEntities.filter(entity => 
         ['DerivedArtifact', 'ProactivePrompt', 'Community'].includes(entity.type)
       );
@@ -861,7 +818,7 @@ export class InsightEngine {
   }
 
   /**
-   * Execute Neo4j concept merging operations
+   * Execute concept merging in Neo4j
    */
   private async executeConceptMerging(ontologyOptimizations: any): Promise<string[]> {
     if (!this.dbService.neo4j) {
@@ -966,8 +923,8 @@ export class InsightEngine {
   }
 
   /**
-   * CRITICAL FIX: Update PostgreSQL concepts table for merged concepts
-   * Improved error handling to prevent job failures
+   * Update PostgreSQL concepts table for merged concepts
+   * Includes error handling to prevent job failures
    */
   private async updatePostgreSQLConceptsForMerging(conceptsToMerge: any[]): Promise<void> {
     const errors: string[] = [];
@@ -1025,7 +982,7 @@ export class InsightEngine {
   }
 
   /**
-   * CRITICAL FIX: Update user memory profile with comprehensive strategic insights
+   * Update user memory profile with strategic insights
    */
   private async updateUserMemoryProfile(userId: string, analysisOutput: StrategicSynthesisOutput): Promise<void> {
     try {
@@ -1049,7 +1006,7 @@ export class InsightEngine {
             rationale: merge.merge_rationale
           }))
         },
-        // CRITICAL FIX: Add key insights from derived artifacts
+        // Key insights from derived artifacts
         key_insights: derived_artifacts?.map(artifact => ({
           title: artifact.title,
           content: artifact.content,
@@ -1057,7 +1014,7 @@ export class InsightEngine {
           confidence: artifact.confidence_score,
           actionability: artifact.actionability
         })) || [],
-        // CRITICAL FIX: Add proactive guidance
+        // Proactive guidance
         proactive_guidance: proactive_prompts?.map(prompt => ({
           title: prompt.title,
           prompt_text: prompt.prompt_text,
@@ -1079,8 +1036,8 @@ export class InsightEngine {
   }
 
   /**
-   * CRITICAL FIX: Archive concepts as specified by LLM
-   * Improved error handling to prevent job failures
+   * Archive concepts as specified by LLM
+   * Includes error handling to prevent job failures
    */
   private async archiveConcepts(conceptsToArchive: Array<{ concept_id: string; archive_rationale: string; replacement_concept_id?: string | null }>): Promise<void> {
     const errors: string[] = [];
@@ -1118,16 +1075,13 @@ export class InsightEngine {
   }
 
   /**
-   * Get concepts that need description synthesis (those updated within the cycle period)
+   * Get concepts that need description synthesis
+   * Returns concepts updated within the cycle period
    */
   private async getConceptsNeedingSynthesis(userId: string, cycleStartDate?: Date): Promise<Array<{
     id: string;
     name: string;
     description: string;
-    category: string;
-    salience: number;
-    created_at: string;
-    merged_into_concept_id?: string;
   }>> {
     try {
       console.log(`[InsightEngine] Fetching concepts needing synthesis for user ${userId}`);
@@ -1135,7 +1089,8 @@ export class InsightEngine {
       // Build where clause for concepts updated within the cycle period
       const whereClause: any = { 
         user_id: userId, 
-        status: 'active'
+        status: 'active',
+        merged_into_concept_id: null // Exclude already merged concepts
       };
       
       // If cycleStartDate is provided, filter by last_updated_ts
@@ -1153,24 +1108,15 @@ export class InsightEngine {
         select: {
           concept_id: true,
           name: true,
-          description: true,
-          type: true,
-          salience: true,
-          created_at: true,
-          merged_into_concept_id: true
-        },
-        orderBy: { salience: 'desc' }
+          description: true
+        }
       });
 
-      // Map to the expected interface
+      // Map to simplified interface
       const mappedConcepts = concepts.map((concept: any) => ({
         id: concept.concept_id,
         name: concept.name,
-        description: concept.description || '',
-        category: concept.type,
-        salience: concept.salience || 0,
-        created_at: concept.created_at.toISOString(),
-        merged_into_concept_id: concept.merged_into_concept_id
+        description: concept.description || ''
       }));
 
       console.log(`[InsightEngine] Found ${mappedConcepts.length} concepts needing description synthesis`);
@@ -1183,7 +1129,8 @@ export class InsightEngine {
   }
 
   /**
-   * Synthesize concept descriptions with validation and fallback protection
+   * Synthesize concept descriptions
+   * Includes validation and error handling
    */
   private async synthesizeConceptDescriptions(conceptsToSynthesize: Array<{ concept_id: string; synthesized_description: string }>): Promise<void> {
     const errors: string[] = [];
@@ -1226,21 +1173,21 @@ export class InsightEngine {
   }
 
   /**
-   * CRITICAL FIX: Create communities as specified by LLM
+   * Create communities as specified by LLM
    */
   private async createCommunities(userId: string, communityStructures: Array<{ community_id: string; member_concept_ids: string[]; theme: string; strategic_importance: number }>): Promise<string[]> {
     const communityIds: string[] = [];
     
     try {
       for (const community of communityStructures) {
-        // CRITICAL FIX: Generate a proper UUID instead of using the semantic ID from LLM
+        // Generate UUID instead of using semantic ID from LLM
         const generatedCommunityId = randomUUID();
         
         // Create community in PostgreSQL using the repository
         const communityData = {
-          community_id: generatedCommunityId, // Use generated UUID instead of semantic ID
+          community_id: generatedCommunityId,
           user_id: userId,
-          name: community.theme, // Use theme as the community name
+          name: community.theme,
           description: `Strategic importance: ${community.strategic_importance}/10. Members: ${community.member_concept_ids.length} concepts.`,
           created_at: new Date(),
           last_analyzed_ts: new Date()
@@ -1257,7 +1204,7 @@ export class InsightEngine {
           );
         }
 
-        // CRITICAL: Create Community node in Neo4j
+        // Create Community node in Neo4j
         if (this.dbService.neo4j) {
           await this.createNeo4jCommunity(createdCommunity, community.member_concept_ids, generatedCommunityId);
         }
@@ -1275,7 +1222,7 @@ export class InsightEngine {
 
 
   /**
-   * CRITICAL FIX: Update next conversation context package with forward-looking insights
+   * Update next conversation context package with insights
    */
   private async updateNextConversationContext(userId: string, analysisOutput: StrategicSynthesisOutput): Promise<void> {
     try {
@@ -1284,7 +1231,7 @@ export class InsightEngine {
       const nextContextPackage = {
         last_updated: new Date().toISOString(),
         cycle_timestamp: new Date().toISOString(),
-        // CRITICAL FIX: Include key insights for next conversation
+        // Key insights for next conversation
         key_insights: derived_artifacts?.map(artifact => ({
           title: artifact.title,
           content: artifact.content,
@@ -1292,7 +1239,7 @@ export class InsightEngine {
           confidence: artifact.confidence_score,
           actionability: artifact.actionability
         })) || [],
-        // CRITICAL FIX: Include proactive guidance
+        // Proactive guidance
         proactive_guidance: proactive_prompts?.map(prompt => ({
           title: prompt.title,
           prompt_text: prompt.prompt_text,
@@ -1301,7 +1248,7 @@ export class InsightEngine {
           priority: prompt.priority_level,
           context_explanation: prompt.context_explanation
         })) || [],
-        // CRITICAL FIX: Include conversation starter suggestions
+        // Conversation starter suggestions
         conversation_starters: proactive_prompts
           ?.filter(prompt => prompt.timing_suggestion === 'next_conversation')
           ?.map(prompt => ({
@@ -1324,11 +1271,11 @@ export class InsightEngine {
   }
 
   // ============================================================================
-  // CRITICAL FIX: Missing Neo4j Synchronization Methods
+  // Neo4j Synchronization Methods
   // ============================================================================
 
   /**
-   * CRITICAL FIX: Create Community node in Neo4j with member concept relationships
+   * Create Community node in Neo4j with member concept relationships
    */
   private async createNeo4jCommunity(community: any, memberConceptIds: string[], generatedCommunityId: string): Promise<void> {
     if (!this.dbService.neo4j) {
@@ -1404,7 +1351,7 @@ export class InsightEngine {
   }
 
   /**
-   * CRITICAL FIX: Create DerivedArtifact node in Neo4j
+   * Create DerivedArtifact node in Neo4j
    */
   private async createNeo4jArtifact(artifact: any): Promise<void> {
     if (!this.dbService.neo4j) {
@@ -1507,7 +1454,7 @@ export class InsightEngine {
   }
 
   /**
-   * CRITICAL FIX: Create ProactivePrompt node in Neo4j
+   * Create ProactivePrompt node in Neo4j
    */
   private async createNeo4jPrompt(prompt: any): Promise<void> {
     if (!this.dbService.neo4j) {
@@ -1560,7 +1507,7 @@ export class InsightEngine {
   }
 
   /**
-   * CRITICAL FIX: Update concept status in Neo4j (archived/merged)
+   * Update concept status in Neo4j (archived/merged)
    */
   private async updateNeo4jConceptStatus(conceptId: string, status: string, metadata?: any): Promise<void> {
     if (!this.dbService.neo4j) {
@@ -1637,7 +1584,7 @@ export class InsightEngine {
   }
 
   /**
-   * CRITICAL FIX: Handle concept merging in Neo4j graph
+   * Handle concept merging in Neo4j graph
    */
   private async updateNeo4jMergedConcepts(merge: any): Promise<void> {
     if (!this.dbService.neo4j) {
@@ -1762,7 +1709,7 @@ export class InsightEngine {
   }
 
   /**
-   * CRITICAL FIX: Synchronize all Neo4j entities after PostgreSQL creation
+   * Synchronize all Neo4j entities after PostgreSQL creation
    */
   private async synchronizeNeo4jEntities(userId: string, newEntities: Array<{ id: string; type: string }>): Promise<void> {
     if (!this.dbService.neo4j) {
@@ -1822,7 +1769,7 @@ export class InsightEngine {
   }
 
   /**
-   * ENHANCED: Validate content length and provide warnings for potential truncation
+   * Validate content length and provide warnings for potential truncation
    */
   private validateContentLength(content: string, fieldName: string, entityId: string): void {
     const contentLength = content.length;
@@ -1848,7 +1795,7 @@ export class InsightEngine {
   }
 
   /**
-   * ENHANCED: Validate LLM response quality and length
+   * Validate LLM response quality and length
    */
   private validateLLMResponse(response: string, toolName: string): void {
     const responseLength = response.length;

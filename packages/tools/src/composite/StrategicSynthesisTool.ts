@@ -79,39 +79,27 @@ export interface StrategicSynthesisInput {
   cycleStartDate: Date;
   cycleEndDate: Date;
   currentKnowledgeGraph: {
+    conversations: Array<{
+      context_summary: string;
+    }>;
     memoryUnits: Array<{
       id: string;
-      title: string;
       content: string;
-      importance_score: number;
-      tags: string[];
-      created_at: string;
     }>;
     concepts: Array<{
       id: string;
       name: string;
       description: string;
-      category: string;
-      salience: number;
-      created_at: string;
-      merged_into_concept_id?: string;
     }>;
     conceptsNeedingSynthesis: Array<{
       id: string;
       name: string;
       description: string;
-      category: string;
-      salience: number;
-      created_at: string;
-      merged_into_concept_id?: string;
     }>;
   };
   recentGrowthEvents: Array<{
-    dim_key: string;
-    event_type: string;
-    description: string;
-    impact_level: number;
-    created_at: string;
+    id: string;
+    rationale: string;
   }>;
   userProfile: {
     preferences: any;
@@ -253,14 +241,14 @@ export class StrategicSynthesisTool {
     const strategicInstructions = templates.strategic_synthesis_instructions || '';
     const responseFormat = templates.response_format_block || '';
     
-    console.log(`[StrategicSynthesisTool] Building prompt with ${input.currentKnowledgeGraph.memoryUnits.length} memory units, ${input.currentKnowledgeGraph.concepts.length} concepts`);
+    console.log(`[StrategicSynthesisTool] Building prompt with ${input.currentKnowledgeGraph.conversations.length} conversations, ${input.currentKnowledgeGraph.memoryUnits.length} memory units, ${input.currentKnowledgeGraph.concepts.length} concepts`);
     
     // Replace user name placeholders in templates
     const user_name = input.userName || 'User';
     const strategicPersonaWithUserName = strategicPersona.replace(/\{\{user_name\}\}/g, user_name);
     const strategicInstructionsWithUserName = strategicInstructions.replace(/\{\{user_name\}\}/g, user_name);
     
-    // Build the master prompt using all available data
+    // Build the master prompt using simplified data
     const masterPrompt = `${strategicPersonaWithUserName}
 
 ## Analysis Context
@@ -270,17 +258,24 @@ export class StrategicSynthesisTool {
 - **Cycle Period**: ${input.cycleStartDate.toISOString()} to ${input.cycleEndDate.toISOString()}
 
 ## Current Knowledge Graph State
-### Memory Units and Conversation Summaries (${input.currentKnowledgeGraph.memoryUnits.length} total)
-**Note**: This section contains:
-- **Memory Units** (tagged with 'memory_unit'): Actual extracted memories from conversations
-- **Conversation Summaries** (tagged with 'conversation_summary'): Context summaries with proper titles from the conversations table
+### Recent Conversations (${input.currentKnowledgeGraph.conversations.length} total)
+**Note**: These are pre-filtered high-importance conversations from the analysis period.
+${JSON.stringify(input.currentKnowledgeGraph.conversations, null, 2)}
+
+### Memory Units (${input.currentKnowledgeGraph.memoryUnits.length} total)
+**Note**: These are pre-filtered high-importance memory units from the analysis period.
 ${JSON.stringify(input.currentKnowledgeGraph.memoryUnits, null, 2)}
 
 ### Concepts (${input.currentKnowledgeGraph.concepts.length} total)
+**Note**: These are pre-filtered active concepts (excluding already merged ones) from the analysis period.
 ${JSON.stringify(input.currentKnowledgeGraph.concepts, null, 2)}
 
+### Concepts Needing Synthesis (${input.currentKnowledgeGraph.conceptsNeedingSynthesis.length} total)
+**Note**: These concepts have been identified as needing description synthesis.
+${JSON.stringify(input.currentKnowledgeGraph.conceptsNeedingSynthesis, null, 2)}
 
 ## Recent Growth Events (${input.recentGrowthEvents.length} total)
+**Note**: These are pre-filtered recent growth events from the analysis period.
 ${JSON.stringify(input.recentGrowthEvents, null, 2)}
 
 ## User Profile
