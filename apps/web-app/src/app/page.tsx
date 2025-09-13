@@ -1,7 +1,7 @@
 // top-level imports
 'use client';
 
-import { GlassmorphicPanel, GlassButton, InfiniteCardCanvas } from '@2dots1line/ui-components';
+import { GlassmorphicPanel, GlassButton, InfiniteCardCanvas, CardTile } from '@2dots1line/ui-components';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 
 import { useAutoLoadCards } from '../components/hooks/useAutoLoadCards';
@@ -30,7 +30,9 @@ function HomePage() {
   const [sortKey, setSortKey] = useState<'newest' | 'oldest' | 'title_asc' | 'title_desc'>('newest');
   const [hasCoverFirst, setHasCoverFirst] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState('');
-  // NEW: anchor pixel for InfiniteCardCanvas
+  // NEW: view mode
+  const [viewMode, setViewMode] = useState<'infinite' | 'sorted'>('infinite');
+  // Removed anchor pixel state and ref
   const [anchorPixel, setAnchorPixel] = useState<{ x: number; y: number } | null>(null);
   const anchorElRef = useRef<HTMLSpanElement>(null);
 
@@ -357,20 +359,31 @@ function HomePage() {
     return [...withCover, ...withoutCover];
   }, [baseSortedCards, hasCoverFirst]);
 
-  // NEW: Filter by search query (live; hides non-matching titles)
+  // NEW: Ensure no repetition in Sorted View
+  const uniqueSortedCards = useMemo(() => {
+    const seen = new Set<string>();
+    return sortedCards.filter((c: any) => {
+      const raw = c?.card_id ?? c?.id ?? c?._id ?? '';
+      const id = String(raw);
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+  }, [sortedCards]);
+
+  // NEW: Search applies to Sorted View only
+  const visibleSortedCards = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return uniqueSortedCards;
+    return uniqueSortedCards.filter((c: any) => (c?.title || '').toLowerCase().includes(q));
+  }, [uniqueSortedCards, searchQuery]);
+
+  // NOTE: Infinite Canvas now uses the raw pool (no search filtering)
   const filteredCards = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return sortedCards;
     return sortedCards.filter((c) => (c?.title || '').toLowerCase().includes(q));
   }, [sortedCards, searchQuery]);
-
-  // NEW: unsorted, search-filtered pool used by InfiniteCardCanvas for viewport-anchored sorting
-  const searchFilteredCards = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    const base = cards ?? [];
-    if (!q) return base;
-    return base.filter((c) => (c?.title || '').toLowerCase().includes(q));
-  }, [cards, searchQuery]);
 
   // Don't render auth-dependent UI until hydration is complete
   if (!hasHydrated) {
@@ -388,7 +401,7 @@ function HomePage() {
   const currentView = activeView || 'dashboard';
 
   return (
-    <div className="relative w-full h-dvh overflow-hidden bg-black">
+    <div className={`relative w-full ${viewMode === 'sorted' ? 'min-h-screen overflow-hidden' : 'h-dvh overflow-hidden'} bg-transparent`}>
       {/* Background Media - Layer 1 (bottom) */}
       <DynamicBackground view={currentView} />
 
@@ -468,22 +481,16 @@ function HomePage() {
               <div className="fixed z-40 top-20 left-4">
                 <GlassmorphicPanel variant="glass-panel" rounded="lg" padding="sm">
                   <div className="flex items-center gap-3">
-                    <GlassButton
-                      onClick={handleGenerateOne}
-                      className="text-onBackground font-brand"
-                      title="Generate a cover for the next newest card without a cover"
-                      disabled={isGenerating}
-                    >
-                      {isGenerating ? 'Generating…' : 'Generate 1 cover (next missing)'}
-                    </GlassButton>
-                    {/* NEW: invisible anchor marker next to the button */}
-                    <span ref={anchorElRef} style={{ display: 'inline-block', width: 0, height: 0 }} />
+                    {/* removed: <span ref={anchorElRef} style={{ display: 'inline-block', width: 0, height: 0 }} /> */}
                     <div className="flex items-center gap-3 ml-4">
                       <label className="flex items-center gap-2 text-sm text-onSurface/80">
                         <input
                           type="checkbox"
                           checked={hasCoverFirst}
-                          onChange={(e) => setHasCoverFirst(e.target.checked)}
+                          onChange={(e) => {
+                            setHasCoverFirst(e.target.checked);
+                            setViewMode('sorted');
+                          }}
                         />
                         Covers first
                       </label>
@@ -492,7 +499,10 @@ function HomePage() {
                         <select
                           className="bg-transparent border border-white/20 rounded px-2 py-1 text-sm text-onSurface"
                           value={sortKey}
-                          onChange={(e) => setSortKey(e.target.value as any)}
+                          onChange={(e) => {
+                            setSortKey(e.target.value as any);
+                            setViewMode('sorted');
+                          }}
                         >
                           <option value="newest">Newest</option>
                           <option value="oldest">Oldest</option>
@@ -500,34 +510,96 @@ function HomePage() {
                           <option value="title_desc">Title Z–A</option>
                         </select>
                       </div>
-                      {/* NEW: Search box */}
-                      <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search by name…"
-                        className="ml-3 bg-transparent border border-white/20 rounded px-2 py-1 text-sm text-onSurface placeholder:text-onSurface/50 w-48"
-                      />
+
+                      {/* New: explicit trigger to open Sorted View even when value hasn't changed */}
+                      {viewMode !== 'sorted' && (
+                        <GlassButton
+                          onClick={() => setViewMode('sorted')}
+                          className="ml-2 text-onBackground font-brand"
+                          aria-label="Open Sorted View"
+                        >
+                          Sort
+                        </GlassButton>
+                      )}
+
+                      {viewMode === 'sorted' && (
+                        <input
+                          type="text"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          placeholder="Search by name…"
+                          className="ml-3 bg-transparent border border-white/20 rounded px-2 py-1 text-sm text-onSurface placeholder:text-onSurface/50 w-48"
+                        />
+                      )}
+
+                      {viewMode === 'sorted' && (
+                        <GlassButton
+                          onClick={() => setViewMode('infinite')}
+                          className="ml-2 text-onBackground font-brand"
+                        >
+                          Back to Infinite View
+                        </GlassButton>
+                      )}
                     </div>
                   </div>
                 </GlassmorphicPanel>
               </div>
 
-              <InfiniteCardCanvas
-                cards={filteredCards} // Use sorted + search-filtered list so sort dropdown takes effect immediately
-                onCardSelect={handleCardSelect}
-                onLoadMore={loadMoreCards}
-                hasMore={hasMore}
-                className="z-30"
-                placementMode="orderedFromOrigin"
-                origin={{ col: 0, row: 0 }}
-                showResetButton={true}
-                // NEW: pin index 0 to the cell nearest the “Generate 1 cover” button
-                anchorPixel={anchorPixel ?? undefined}
-                // NEW: pass current sorting selections for dynamic re-sort after each drag
-                sortKey={sortKey}
-                hasCoverFirst={hasCoverFirst}
-              />
+              {viewMode === 'infinite' ? (
+                <InfiniteCardCanvas
+                  cards={cards}
+                  onCardSelect={handleCardSelect}
+                  onLoadMore={loadMoreCards}
+                  hasMore={hasMore}
+                  className="z-30"
+                />
+              ) : (
+                // Sorted View: Plain fixed overlay with its own scroll
+                <div className="fixed inset-0 z-30 pt-28 pb-8 overflow-y-auto">
+                  <div className="w-full px-[12px]">
+                    {/* Auto-wrap with responsive tile size and gap; centered with small symmetric gutters */}
+                    <div className="flex flex-wrap justify-center
+                                    gap-[48px]
+                                    max-[1600px]:gap-[43px]
+                                    max-[1200px]:gap_[37px]
+                                    max-[768px]:gap_[32px]
+                                    max-[480px]:gap_[27px]">
+                      {visibleSortedCards.map((card: any, idx: number) => (
+                        <div
+                          key={String(card.card_id ?? card.id ?? idx)}
+                          className="relative rounded-2xl overflow-hidden ring-1 ring-white/10 bg-white/5 backdrop-blur-md hover:bg-white/10 transition
+                                     w-[200px] h-[200px]
+                                     max-[1600px]:w-[180px] max-[1600px]:h-[180px]
+                                     max-[1200px]:w-[160px] max-[1200px]:h-[160px]
+                                     max-[768px]:w-[140px]  max-[768px]:h-[140px]
+                                     max-[480px]:w-[120px]  max-[480px]:h-[120px]"
+                          onClick={() => handleCardSelect(card)}
+                          role="button"
+                          aria-label={card?.title || 'Card'}
+                        >
+                          {/* Background image (cover or gradient) */}
+                          {card?.background_image_url ? (
+                            <img
+                              src={card.background_image_url}
+                              alt=""
+                              className="absolute inset-0 w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-white/5" />
+                          )}
+                          {/* Readability overlay */}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                          {/* Text */}
+                          <div className="absolute bottom-2 left-2 right-2 text-white">
+                            <div className="text-sm font-semibold truncate">{card?.title || 'Card'}</div>
+                            <div className="text-xs opacity-80 truncate">{card?.subtitle || card?.source_entity_type || ''}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </>

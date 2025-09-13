@@ -3,11 +3,14 @@
  * V11.0 - Unified data source for both cards and nodes
  */
 
-import React from 'react';
-import { X, RefreshCw, AlertCircle } from 'lucide-react';
+// EnhancedCardModal component - consolidated imports (keep only this block at the top)
+import React, { useState } from 'react';
+import { X, RefreshCw, AlertCircle, Wand2 } from 'lucide-react';
 import { NodeDetailsDisplay } from '../cosmos/NodeDetailsDisplay';
 import { useEntityDetails } from '../../hooks/cosmos/useEntityDetails';
-import { DisplayCard } from '@2dots1line/shared-types';
+import type { DisplayCard } from '@2dots1line/shared-types';
+import { useCardStore } from '../../stores/CardStore';
+import { cardService } from '../../services/cardService';
 
 interface EnhancedCardModalProps {
   card: DisplayCard;
@@ -15,15 +18,52 @@ interface EnhancedCardModalProps {
   onClose: () => void;
 }
 
-export const EnhancedCardModal: React.FC<EnhancedCardModalProps> = ({ 
-  card, 
-  isOpen, 
-  onClose 
+export const EnhancedCardModal: React.FC<EnhancedCardModalProps> = ({
+  card,
+  isOpen,
+  onClose,
 }) => {
   const { entityDetails, isLoading, error, refetch } = useEntityDetails(card);
+  const [isGeneratingCover, setIsGeneratingCover] = useState(false);
+  const { updateCardBackground } = useCardStore();
 
   const handleRefresh = async () => {
     await refetch();
+  };
+
+  const handleGenerateCover = async () => {
+    if (!card?.card_id || isGeneratingCover) return;
+    try {
+      setIsGeneratingCover(true);
+      const motif =
+        (entityDetails?.title && String(entityDetails.title)) ||
+        (card.title && String(card.title)) ||
+        'cover';
+
+      const resp = await fetch(`/api/cards/${card.card_id}/generate-cover`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ motif }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data?.image_url) {
+        console.error('Failed to generate cover:', data);
+        return;
+      }
+
+      const imageUrl: string = data.image_url;
+
+      // Persist to backend (Postgres) and update local store immediately
+      await cardService.updateCardBackground({
+        card_id: card.card_id,
+        background_image_url: imageUrl,
+      });
+      updateCardBackground(card.card_id, imageUrl);
+    } catch (e) {
+      console.error('Error generating/persisting cover:', e);
+    } finally {
+      setIsGeneratingCover(false);
+    }
   };
 
   if (!isOpen || !card) {
@@ -32,14 +72,23 @@ export const EnhancedCardModal: React.FC<EnhancedCardModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
+      {/* Fullscreen background image from card cover */}
+      {card.background_image_url && (
+        <div
+          aria-hidden
+          className="absolute inset-0 z-0 bg-center bg-cover"
+          style={{ backgroundImage: `url(${card.background_image_url})` }}
+        />
+      )}
+
+      {/* Backdrop overlay above the image */}
       <div 
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm z-10"
         onClick={onClose}
       />
       
       {/* Modal Content */}
-      <div className="relative w-full max-w-4xl max-h-[90vh] bg-black/80 backdrop-blur-md rounded-2xl border border-white/20 overflow-hidden">
+      <div className="relative z-20 w-full max-w-4xl max-h-[90vh] bg-black/80 backdrop-blur-md rounded-2xl border border-white/20 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-white/20">
           <div className="flex items-center gap-3">
@@ -55,6 +104,18 @@ export const EnhancedCardModal: React.FC<EnhancedCardModalProps> = ({
           </div>
           
           <div className="flex items-center gap-2">
+            <button
+              onClick={handleGenerateCover}
+              disabled={isGeneratingCover}
+              className="p-2 hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50"
+              title="Generate cover"
+            >
+              {isGeneratingCover ? (
+                <RefreshCw size={16} className="animate-spin text-white/70" />
+              ) : (
+                <Wand2 size={18} className="text-white/70" />
+              )}
+            </button>
             <button
               onClick={handleRefresh}
               disabled={isLoading}
@@ -163,4 +224,4 @@ export const EnhancedCardModal: React.FC<EnhancedCardModalProps> = ({
       </div>
     </div>
   );
-}; 
+};

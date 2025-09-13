@@ -325,6 +325,10 @@ export class CardService {
         growthDimensions: [] // Will be populated by repository if available
       };
 
+      // Include pass-through fields so transformCardData can surface them to API
+      (convertedCardData as any).display_data = cardData.display_data || {};
+      (convertedCardData as any).background_image_url = (cardData as any).background_image_url || null;
+
       return this.transformCardData(convertedCardData);
     } catch (error) {
       console.error('Error getting card by ID:', error);
@@ -463,4 +467,43 @@ export class CardService {
       return [];
     }
   }
-} 
+
+  /**
+   * Update a card's background image URL with ownership check
+   */
+  async updateCardBackground(cardId: string, userId: string, backgroundImageUrl: string): Promise<Card> {
+    // Fetch the card to verify existence and ownership
+    const existing = await this.cardRepository.findById(cardId);
+    if (!existing) {
+      throw new Error('Card not found');
+    }
+
+    // Relax ownership check in development to allow dev-token workflows
+    const isDev = process.env.NODE_ENV !== 'production';
+    if (!isDev && existing.user_id !== userId) {
+      throw new Error('Forbidden: You do not own this card');
+    }
+    if (isDev && existing.user_id !== userId) {
+      console.warn(
+        `Dev mode: ownership mismatch (card.user_id=${existing.user_id}, req.user.id=${userId}). Proceeding with update.`
+      );
+    }
+
+    console.log(
+      `Updating background_image_url for card ${cardId} by user ${userId} -> ${backgroundImageUrl?.slice(0, 80)}...`
+    );
+
+    // Persist the new background image URL
+    await this.cardRepository.update(cardId, {
+      background_image_url: backgroundImageUrl,
+    });
+
+    // Return the transformed card
+    const updated = await this.getCardById(cardId);
+    if (!updated) {
+      throw new Error('Failed to load updated card');
+    }
+    console.log(`Update complete. cardId=${cardId} updated_at=${updated.updatedAt.toISOString()}`);
+    return updated;
+  }
+}

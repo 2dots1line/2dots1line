@@ -21,6 +21,7 @@ export interface UpdateCardData {
   is_favorited?: boolean;
   display_data?: any;
   is_synced?: boolean;
+  background_image_url?: string | null;
 }
 
 export interface CardData {
@@ -124,7 +125,10 @@ export class CardRepository {
   async update(cardId: string, data: UpdateCardData): Promise<cards> {
     return this.db.prisma.cards.update({
       where: { card_id: cardId },
-      data,
+      data: {
+        ...data,
+        updated_at: new Date(),
+      },
     });
   }
 
@@ -336,4 +340,4 @@ export class CardRepository {
         return { created_at: sortOrder };
     }
   }
-} 
+}
