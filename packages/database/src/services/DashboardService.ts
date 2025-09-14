@@ -183,6 +183,20 @@ export class DashboardService {
       orderBy: { created_at: 'desc' }
     });
 
+    // Get growth events for this user (not filtered by cycle since growth events are longitudinal)
+    const growthEvents = await this.db.prisma.growth_events.findMany({
+      where: {
+        user_id: userId
+      },
+      orderBy: { created_at: 'desc' }
+    });
+
+    console.log(`[DashboardService] DEBUG: Found ${growthEvents.length} growth events for user ${userId}`);
+    console.log(`[DashboardService] DEBUG: Growth events by source:`, growthEvents.reduce((acc: Record<string, number>, event: any) => {
+      acc[event.source] = (acc[event.source] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>));
+
     // Get recent cards for the magazine tab
     const recentCards = await this.db.prisma.cards.findMany({
       where: {
@@ -207,7 +221,7 @@ export class DashboardService {
         if (sectionKey === 'recent_cards') {
           return [sectionKey, this.createCardSection(sectionKey, recentCards)];
         } else if (sectionKey === 'growth_dimensions') {
-          return [sectionKey, this.createGrowthDimensionsSection(sectionKey, artifacts, prompts)];
+          return [sectionKey, this.createGrowthDimensionsSection(sectionKey, growthEvents)];
         } else if (sectionKey.startsWith('growth_')) {
           // Growth-specific sections
           const artifactType = sectionKey.replace('growth_', '');
@@ -388,51 +402,97 @@ export class DashboardService {
   /**
    * Create a section for growth dimensions
    */
-  private createGrowthDimensionsSection(sectionType: string, artifacts: any[], prompts: any[]): DashboardSectionData {
+  private createGrowthDimensionsSection(sectionType: string, growthEvents: any[]): DashboardSectionData {
     const dimensions = [
-      { key: 'self_know', name: 'Self Knowledge' },
-      { key: 'self_act', name: 'Self Action' },
-      { key: 'self_show', name: 'Self Expression' },
-      { key: 'world_know', name: 'World Knowledge' },
-      { key: 'world_act', name: 'World Action' },
-      { key: 'world_show', name: 'World Expression' }
+      { key: 'know_self', name: 'Self Knowledge', icon: '🧠' },
+      { key: 'act_self', name: 'Self Action', icon: '⚡' },
+      { key: 'show_self', name: 'Self Expression', icon: '💬' },
+      { key: 'know_world', name: 'World Knowledge', icon: '🌍' },
+      { key: 'act_world', name: 'World Action', icon: '🌱' },
+      { key: 'show_world', name: 'World Expression', icon: '🎭' }
     ];
 
-    const items = dimensions.map(dimension => {
-      // Find insights related to this dimension
-      const dimensionInsights = artifacts.filter(artifact => 
-        artifact.artifact_type === 'insight' && 
-        (artifact.content?.toLowerCase().includes(dimension.key.replace('_', ' ')) ||
-         artifact.title?.toLowerCase().includes(dimension.key.replace('_', ' ')))
-      );
+    // Create table structure with rows and columns
+    const tableData = {
+      layout: {
+        type: 'table',
+        columns: [
+          {
+            key: 'whats_new',
+            title: 'What\'s New',
+            icon: '🆕',
+            description: 'Recent growth events from IngestionAnalyst'
+          },
+          {
+            key: 'whats_next',
+            title: 'What\'s Next', 
+            icon: '🔮',
+            description: 'Strategic recommendations from InsightWorker'
+          }
+        ],
+        rows: dimensions.map(dimension => {
+          // Get "What's New" events (IngestionAnalyst - observant tracker)
+          const whatsNewEvents = growthEvents.filter(event => 
+            event.dimension_key === dimension.key && 
+            event.source === 'IngestionAnalyst'
+          ).slice(0, 3); // Show up to 3 recent events
 
-      // Find focus areas related to this dimension
-      const dimensionFocusAreas = artifacts.filter(artifact => 
-        artifact.artifact_type === 'focus_area' && 
-        (artifact.content?.toLowerCase().includes(dimension.key.replace('_', ' ')) ||
-         artifact.title?.toLowerCase().includes(dimension.key.replace('_', ' ')))
-      );
+          // Get "What's Next" events (InsightWorker - strategic adviser)
+          const whatsNextEvents = growthEvents.filter(event => 
+            event.dimension_key === dimension.key && 
+            event.source === 'InsightWorker'
+          ).slice(0, 3); // Show up to 3 recent events
 
-      return {
-        id: `dimension_${dimension.key}`,
-        title: dimension.name,
-        content: `Growth insights and focus areas for ${dimension.name}`,
-        created_at: new Date().toISOString(),
-        metadata: {
-          dimension_key: dimension.key,
-          insights_count: dimensionInsights.length,
-          focus_areas_count: dimensionFocusAreas.length,
-          recent_insight: dimensionInsights[0]?.title || null,
-          recent_focus_area: dimensionFocusAreas[0]?.title || null
-        }
-      };
-    });
+          return {
+            key: dimension.key,
+            title: dimension.name,
+            icon: dimension.icon,
+            cells: {
+              whats_new: {
+                events: whatsNewEvents.map(event => ({
+                  event_id: event.event_id,
+                  rationale: event.rationale,
+                  delta_value: event.delta_value,
+                  created_at: event.created_at,
+                  related_concepts: event.related_concepts,
+                  related_memory_units: event.related_memory_units
+                })),
+                count: whatsNewEvents.length,
+                display_text: whatsNewEvents.length > 0 
+                  ? whatsNewEvents.map(event => `• ${event.rationale}`).join('\n')
+                  : 'No recent growth events'
+              },
+              whats_next: {
+                events: whatsNextEvents.map(event => ({
+                  event_id: event.event_id,
+                  rationale: event.rationale,
+                  delta_value: event.delta_value,
+                  created_at: event.created_at,
+                  related_concepts: event.related_concepts,
+                  related_memory_units: event.related_memory_units
+                })),
+                count: whatsNextEvents.length,
+                display_text: whatsNextEvents.length > 0 
+                  ? whatsNextEvents.map(event => `• ${event.rationale}`).join('\n')
+                  : 'No strategic recommendations'
+              }
+            }
+          };
+        })
+      }
+    };
 
     return {
       section_type: sectionType,
       title: this.getSectionTitle(sectionType),
-      items: items.slice(0, this.getMaxItemsForSection(sectionType)),
-      total_count: items.length,
+      items: [{
+        id: 'growth_dimensions_table',
+        title: 'Growth Dimensions Table',
+        content: 'Growth trajectory across self and world dimensions',
+        created_at: new Date().toISOString(),
+        metadata: tableData
+      }], // Single table item containing the full table structure
+      total_count: dimensions.length,
       last_updated: new Date().toISOString()
     };
   }

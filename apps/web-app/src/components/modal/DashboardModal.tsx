@@ -18,7 +18,11 @@ import {
   Clock,
   Zap,
   Eye,
-  Compass
+  Compass,
+  Sprout,
+  User,
+  Plus,
+  Sparkles
 } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { dashboardService, type GrowthDimension, type Insight, type RecentActivity, type DynamicDashboardData, type DashboardSection } from '../../services/dashboardService';
@@ -40,7 +44,7 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
   const [recentCards, setRecentCards] = useState<any[]>([]);
   const [dashboardConfig, setDashboardConfig] = useState<any>(null);
   const [sectionGroups, setSectionGroups] = useState<string[]>([]);
-  const [activeTab, setActiveTab] = useState<'overview' | 'growth' | 'insights' | 'activity' | 'dynamic' | 'magazine' | 'insights-reflections' | 'growth-trajectory'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'growth' | 'insights' | 'activity' | 'dynamic' | 'opening' | 'insights-reflections' | 'growth-trajectory'>('overview');
 
   // Icon mapping for growth dimensions
   const dimensionIcons: Record<string, React.ComponentType<any>> = {
@@ -104,13 +108,14 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
       if (configResponse.success && configResponse.data) {
         console.log('🔧 Dashboard config loaded:', configResponse.data);
         console.log('🔧 Dashboard sections:', configResponse.data.dashboard_sections);
-        setDashboardConfig(configResponse.data.dashboard_sections);
+        console.log('🔧 Dashboard layout tabs:', configResponse.data.dashboard_layout?.tabs);
+        setDashboardConfig(configResponse.data);
         
-        // Extract section groups for Dynamic Insights tab
-        const sectionGroups = configResponse.data.dashboard_layout?.section_groups || [];
-        const dynamicInsightsSections = sectionGroups
-          .flatMap(group => group.sections)
-          .filter(section => section); // Remove any undefined values
+        // Extract section groups for Dynamic Insights tab from new tab-specific structure
+        const dynamicInsightsTab = configResponse.data.dashboard_layout?.tabs?.dynamic_insights;
+        const dynamicInsightsSections = dynamicInsightsTab?.section_groups
+          ?.flatMap((group: any) => group.sections)
+          .filter((section: any) => section) || [];
         setSectionGroups(dynamicInsightsSections);
         console.log('🔧 Dynamic Insights sections:', dynamicInsightsSections);
       } else {
@@ -172,15 +177,56 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
       '🌟': Star,
       '⚠️': Eye,
       '🎨': Star,
-      '📚': BookOpen
+      '📚': BookOpen,
+      '⚡': Zap,
+      '💬': MessageCircle,
+      '🌍': Globe,
+      '🌱': Sprout,
+      '🎭': User,
+      '🆕': Plus,
+      '🔮': Sparkles
     };
     return iconMap[emoji] || Lightbulb;
   };
 
+  // Get sections for a specific tab from configuration
+  const getTabSections = (tabKey: string) => {
+    if (!dashboardConfig) return [];
+    
+    const tabConfig = dashboardConfig.dashboard_layout?.tabs?.[tabKey];
+    if (!tabConfig?.section_groups) return [];
+    
+    return tabConfig.section_groups
+      .flatMap((group: any) => group.sections)
+      .filter((section: any) => section);
+  };
+
+  // Get section groups for a specific tab from configuration
+  const getTabSectionGroups = (tabKey: string) => {
+    if (!dashboardConfig) {
+      console.log(`[DashboardModal] DEBUG: No dashboardConfig for tab ${tabKey}`);
+      return [];
+    }
+    
+    const tabConfig = dashboardConfig.dashboard_layout?.tabs?.[tabKey];
+    if (!tabConfig?.section_groups) {
+      console.log(`[DashboardModal] DEBUG: No section_groups for tab ${tabKey}`, { tabConfig, dashboardLayout: dashboardConfig.dashboard_layout });
+      return [];
+    }
+    
+    console.log(`[DashboardModal] DEBUG: Found ${tabConfig.section_groups.length} section groups for tab ${tabKey}`, tabConfig.section_groups);
+    return tabConfig.section_groups.sort((a: any, b: any) => a.priority - b.priority);
+  };
+
+
   // Render any section dynamically based on configuration
   const renderSection = (sectionKey: string, sectionData: any) => {
-    const config = dashboardConfig?.[sectionKey];
+    const config = dashboardConfig?.dashboard_sections?.[sectionKey];
     if (!config || !dashboardConfig) return null;
+    
+    // Hide sections with no data
+    if (!sectionData.items || sectionData.items.length === 0) return null;
+    
     
     const IconComponent = getIconComponent(config.icon);
     
@@ -261,14 +307,14 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
             {/* Tab Navigation */}
             <div className="flex gap-2 mb-6 flex-wrap">
               {[
-                { key: 'overview', label: 'Overview', icon: Compass },
-                { key: 'magazine', label: 'Magazine', icon: BookOpen },
-                { key: 'insights-reflections', label: 'Insights & Reflections', icon: Lightbulb },
+                { key: 'opening', label: 'Opening', icon: BookOpen },
+                { key: 'dynamic', label: 'Dynamic Insights', icon: Brain },
                 { key: 'growth-trajectory', label: 'Growth Trajectory', icon: TrendingUp },
-                { key: 'growth', label: 'Growth Dimensions', icon: Target },
-                { key: 'insights', label: 'Legacy Insights', icon: Star },
                 { key: 'activity', label: 'Activity', icon: Activity },
-                { key: 'dynamic', label: 'Dynamic Insights', icon: Brain }
+                { key: 'overview', label: 'Overview', icon: Compass },
+                { key: 'insights-reflections', label: 'Insights & Reflections', icon: Lightbulb },
+                { key: 'growth', label: 'Growth Dimensions', icon: Target },
+                { key: 'insights', label: 'Legacy Insights', icon: Star }
               ].map((tab) => {
                 const IconComponent = tab.icon;
                 return (
@@ -609,27 +655,37 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                       </div>
                     </GlassmorphicPanel>
 
-                    {/* DYNAMIC SECTIONS - Configuration-driven */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      {dashboardConfig && sectionGroups.length > 0 ? (
-                        Object.entries(dynamicDashboardData.sections)
-                          .filter(([sectionKey]) => sectionGroups.includes(sectionKey))
-                          .sort(([a], [b]) => {
-                            const priorityA = dashboardConfig?.[a]?.priority || 999;
-                            const priorityB = dashboardConfig?.[b]?.priority || 999;
-                            return priorityA - priorityB;
-                          })
-                          .map(([sectionKey, sectionData]) => (
-                            <div key={sectionKey} className="space-y-4">
-                              {renderSection(sectionKey, sectionData)}
+                    {/* DYNAMIC SECTIONS - Configuration-driven with section groups */}
+                    {dashboardConfig && getTabSectionGroups('dynamic_insights').length > 0 ? (
+                      <div className="space-y-8">
+                        {getTabSectionGroups('dynamic_insights').map((group: any) => (
+                          <div key={group.title}>
+                            <h4 className="text-lg font-semibold text-white/90 mb-4 flex items-center gap-2">
+                              <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                              {group.title}
+                            </h4>
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                              {Object.entries(dynamicDashboardData.sections)
+                                .filter(([sectionKey]) => group.sections.includes(sectionKey))
+                                .sort(([a]: [string, any], [b]: [string, any]) => {
+                                  const priorityA = dashboardConfig?.dashboard_sections?.[a]?.priority || 999;
+                                  const priorityB = dashboardConfig?.dashboard_sections?.[b]?.priority || 999;
+                                  return priorityA - priorityB;
+                                })
+                                .map(([sectionKey, sectionData]: [string, any]) => (
+                                  <div key={sectionKey} className="space-y-4">
+                                    {renderSection(sectionKey, sectionData)}
+                                  </div>
+                                ))}
                             </div>
-                          ))
-                      ) : (
-                        <div className="col-span-2 text-center py-8">
-                          <div className="text-white/60">Loading configuration...</div>
-                        </div>
-                      )}
-                    </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="col-span-2 text-center py-8">
+                        <div className="text-white/60">Loading configuration...</div>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <GlassmorphicPanel
@@ -650,8 +706,8 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
               </div>
             )}
 
-            {/* Magazine Tab */}
-            {activeTab === 'magazine' && (
+            {/* Opening Tab */}
+            {activeTab === 'opening' && (
               <div className="space-y-6">
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                   {/* Opening Words - 75% of page */}
@@ -709,8 +765,8 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                 <div className="space-y-6 h-full overflow-y-auto custom-scrollbar">
                   {(() => {
                     const cards = dynamicDashboardData?.sections?.recent_cards?.items || [];
-                    console.log('🎨 Magazine tab rendering - cards from sections:', cards);
-                    console.log('🎨 Magazine tab rendering - cards.length:', cards.length);
+                    console.log('🎨 Opening tab rendering - cards from sections:', cards);
+                    console.log('🎨 Opening tab rendering - cards.length:', cards.length);
                     return cards.length > 0 ? (
                       cards.map((card, index) => {
                         console.log(`🎨 Rendering card ${index}:`, card);
@@ -944,116 +1000,98 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
             {/* Growth Trajectory Tab */}
             {activeTab === 'growth-trajectory' && (
               <div className="space-y-6">
-                <GlassmorphicPanel
-                  variant="glass-panel"
-                  rounded="lg"
-                  padding="md"
-                  className="hover:bg-white/15 transition-all duration-200"
-                >
-                  <div className="flex items-center gap-3 mb-6">
-                    <TrendingUp size={24} className="text-white/80 stroke-current" strokeWidth={1.5} />
-                    <h3 className="text-2xl font-semibold text-white/90">Growth Trajectory</h3>
+                {isLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="text-white/60">Loading growth trajectory...</div>
                   </div>
-                  
-                  {/* Growth Dimensions Table */}
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-white/20">
-                          <th className="text-left py-3 px-4 text-white/80 font-medium">Dimension</th>
-                          <th className="text-center py-3 px-4 text-white/80 font-medium">What's New</th>
-                          <th className="text-center py-3 px-4 text-white/80 font-medium">What's Next</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-white/10">
-                        {[
-                          { key: 'self_know', name: 'Self Knowledge', icon: Brain },
-                          { key: 'self_act', name: 'Self Action', icon: Target },
-                          { key: 'self_show', name: 'Self Expression', icon: Heart },
-                          { key: 'world_know', name: 'World Knowledge', icon: BookOpen },
-                          { key: 'world_act', name: 'World Action', icon: Globe },
-                          { key: 'world_show', name: 'World Expression', icon: MessageCircle }
-                        ].map((dimension) => {
-                          const IconComponent = dimension.icon;
-                          return (
-                            <tr key={dimension.key} className="hover:bg-white/5 transition-colors">
-                              <td className="py-4 px-4">
-                                <div className="flex items-center gap-3">
-                                  <IconComponent size={20} className="text-white/70 stroke-current" strokeWidth={1.5} />
-                                  <span className="text-white/90 font-medium">{dimension.name}</span>
-                                </div>
-                              </td>
-                              <td className="py-4 px-4 text-center">
-                                <div className="text-sm text-white/70">
-                                  {(() => {
-                                    // Get insights related to this dimension from dynamic dashboard data
-                                    const dimensionInsights = dynamicDashboardData?.sections?.insights?.items?.filter(item => 
-                                      item.content?.toLowerCase().includes(dimension.key.replace('_', ' ')) ||
-                                      item.title?.toLowerCase().includes(dimension.key.replace('_', ' '))
-                                    ).slice(0, 1);
-                                    
-                                    if (dimensionInsights && dimensionInsights.length > 0) {
-                                      const insight = dimensionInsights[0];
-                                      return (
-                                        <div className="bg-white/10 rounded-lg p-3 mb-2">
-                                          <div className="text-xs text-white/60 mb-1">Recent Insight</div>
-                                          <div className="text-sm text-white/90 line-clamp-2">
-                                            {insight.title}
-                                          </div>
-                                          <div className="text-xs text-white/50 mt-1">
-                                            {new Date(insight.created_at).toLocaleDateString()}
-                                          </div>
+                ) : (
+                  <div className="space-y-6">
+                    {(() => {
+                      const sectionData = dynamicDashboardData?.sections?.growth_dimensions;
+                      if (!sectionData || sectionData.items?.[0]?.metadata?.layout?.type !== 'table') {
+                        return <div className="text-white/60">No growth dimensions data available</div>;
+                      }
+                      
+                      const tableData = sectionData.items[0].metadata;
+                      const config = dashboardConfig?.dashboard_sections?.growth_dimensions;
+                      
+                      return (
+                        <GlassmorphicPanel
+                          variant="glass-panel"
+                          rounded="lg"
+                          padding="md"
+                          className="hover:bg-white/15 transition-all duration-200"
+                        >
+                          <div className="flex items-center gap-3 mb-6">
+                            <TrendingUp size={24} className="text-white/80 stroke-current" strokeWidth={1.5} />
+                            <h3 className="text-2xl font-semibold text-white/90">Growth Trajectory</h3>
+                            <span className="text-sm text-white/60">({sectionData.total_count})</span>
+                          </div>
+                          
+                          {/* Dynamic Table Layout */}
+                          <div className="overflow-x-auto">
+                            <table className="w-full">
+                              <thead>
+                                <tr className="border-b border-white/20">
+                                  <th className="text-left py-3 px-4 text-white/80 font-medium">Dimension</th>
+                                  {tableData.layout.columns.map((column: any) => (
+                                    <th key={column.key} className="text-center py-3 px-4 text-white/80 font-medium">
+                                      <div className="flex items-center justify-center gap-2">
+                                        <TrendingUp size={16} className="text-white/70" />
+                                        <span>{column.title}</span>
+                                      </div>
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-white/10">
+                                {tableData.layout.rows.map((row: any) => {
+                                  const RowIconComponent = getIconComponent(row.icon);
+                                  return (
+                                    <tr key={row.key} className="hover:bg-white/5 transition-colors">
+                                      <td className="py-4 px-4">
+                                        <div className="flex items-center gap-3">
+                                          <RowIconComponent size={20} className="text-white/70 stroke-current" strokeWidth={1.5} />
+                                          <span className="text-white/90 font-medium">{row.title}</span>
                                         </div>
-                                      );
-                                    } else {
-                                      return (
-                                        <div className="bg-white/5 rounded-lg p-3 mb-2">
-                                          <div className="text-xs text-white/40">No recent insights</div>
-                                        </div>
-                                      );
-                                    }
-                                  })()}
-                                </div>
-                              </td>
-                              <td className="py-4 px-4 text-center">
-                                <div className="text-sm text-white/70">
-                                  {(() => {
-                                    // Get focus areas for this dimension from dynamic dashboard data
-                                    const focusAreas = dynamicDashboardData?.sections?.focus_areas?.items?.filter(item => 
-                                      item.content?.toLowerCase().includes(dimension.key.replace('_', ' ')) ||
-                                      item.title?.toLowerCase().includes(dimension.key.replace('_', ' '))
-                                    ).slice(0, 1);
-                                    
-                                    if (focusAreas && focusAreas.length > 0) {
-                                      const focus = focusAreas[0];
-                                      return (
-                                        <div className="bg-white/10 rounded-lg p-3 mb-2">
-                                          <div className="text-xs text-white/60 mb-1">Focus Area</div>
-                                          <div className="text-sm text-white/90 line-clamp-2">
-                                            {focus.title}
-                                          </div>
-                                          <div className="text-xs text-white/50 mt-1">
-                                            {new Date(focus.created_at).toLocaleDateString()}
-                                          </div>
-                                        </div>
-                                      );
-                                    } else {
-                                      return (
-                                        <div className="bg-white/5 rounded-lg p-3 mb-2">
-                                          <div className="text-xs text-white/40">No focus areas</div>
-                                        </div>
-                                      );
-                                    }
-                                  })()}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                                      </td>
+                                      {tableData.layout.columns.map((column: any) => {
+                                        const ColumnIconComponent = getIconComponent(column.icon);
+                                        return (
+                                          <td key={column.key} className="py-4 px-4">
+                                            <div className="text-sm text-white/70">
+                                              {row.cells[column.key].count > 0 ? (
+                                                <div className="space-y-2">
+                                                  {row.cells[column.key].events.slice(0, 2).map((event: any) => (
+                                                    <div key={event.event_id} className="bg-white/10 rounded-lg p-3">
+                                                      <div className="text-sm text-white/90">
+                                                        {event.rationale}
+                                                      </div>
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              ) : (
+                                                <div className="bg-white/5 rounded-lg p-3">
+                                                  <div className="text-xs text-white/40">
+                                                    {column.key === 'whats_new' ? 'No recent growth events' : 'No strategic recommendations'}
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </div>
+                                          </td>
+                                        );
+                                      })}
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </GlassmorphicPanel>
+                      );
+                    })()}
                   </div>
-                </GlassmorphicPanel>
+                )}
               </div>
             )}
           </div>

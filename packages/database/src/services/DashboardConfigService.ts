@@ -21,17 +21,23 @@ export interface SectionCategory {
   description: string;
 }
 
+export interface TabConfig {
+  title: string;
+  icon: string;
+  section_groups: Array<{
+    title: string;
+    sections: string[];
+    priority: number;
+  }>;
+}
+
 export interface DashboardLayout {
   grid_columns: {
     default: number;
     mobile: number;
     tablet: number;
   };
-  section_groups: Array<{
-    title: string;
-    sections: string[];
-    priority: number;
-  }>;
+  tabs: Record<string, TabConfig>;
 }
 
 export interface DashboardConfig {
@@ -119,11 +125,29 @@ export class DashboardConfigService {
   }
 
   /**
-   * Get section groups for layout
+   * Get section groups for a specific tab
    */
-  async getSectionGroups(): Promise<Array<{ title: string; sections: string[]; priority: number }>> {
+  async getTabSectionGroups(tabKey: string): Promise<Array<{ title: string; sections: string[]; priority: number }>> {
     const config = await this.loadConfig();
-    return config.dashboard_layout.section_groups.sort((a, b) => a.priority - b.priority);
+    const tab = config.dashboard_layout.tabs[tabKey];
+    if (!tab) return [];
+    return tab.section_groups.sort((a, b) => a.priority - b.priority);
+  }
+
+  /**
+   * Get all available tabs
+   */
+  async getAvailableTabs(): Promise<string[]> {
+    const config = await this.loadConfig();
+    return Object.keys(config.dashboard_layout.tabs);
+  }
+
+  /**
+   * Get tab configuration
+   */
+  async getTabConfig(tabKey: string): Promise<TabConfig | null> {
+    const config = await this.loadConfig();
+    return config.dashboard_layout.tabs[tabKey] || null;
   }
 
   /**
