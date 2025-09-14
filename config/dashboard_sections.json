@@ -126,7 +126,56 @@
       "description": "Growth trajectory across self and world dimensions",
       "max_items": 6,
       "priority": 1,
-      "category": "growth"
+      "category": "growth",
+      "layout": {
+        "type": "table",
+        "columns": [
+          {
+            "key": "whats_new",
+            "title": "What's New",
+            "icon": "🆕",
+            "description": "Recent growth events from IngestionAnalyst"
+          },
+          {
+            "key": "whats_next", 
+            "title": "What's Next",
+            "icon": "🔮",
+            "description": "Strategic recommendations from InsightWorker"
+          }
+        ],
+        "rows": [
+          {
+            "key": "know_self",
+            "title": "Self Knowledge",
+            "icon": "🧠"
+          },
+          {
+            "key": "act_self", 
+            "title": "Self Action",
+            "icon": "⚡"
+          },
+          {
+            "key": "show_self",
+            "title": "Self Expression", 
+            "icon": "💬"
+          },
+          {
+            "key": "know_world",
+            "title": "World Knowledge",
+            "icon": "🌍"
+          },
+          {
+            "key": "act_world",
+            "title": "World Action",
+            "icon": "🌱"
+          },
+          {
+            "key": "show_world",
+            "title": "World Expression",
+            "icon": "🎭"
+          }
+        ]
+      }
     },
     "growth_insights": {
       "title": "Growth Insights",
@@ -143,6 +192,14 @@
       "max_items": 3,
       "priority": 1,
       "category": "growth"
+    },
+    "opening_words": {
+      "title": "Opening Words",
+      "icon": "📝",
+      "description": "Editor's note style opening words for the magazine view",
+      "max_items": 1,
+      "priority": 1,
+      "category": "content"
     }
   },
   "section_categories": {
@@ -188,27 +245,76 @@
       "mobile": 1,
       "tablet": 2
     },
-    "section_groups": [
-      {
-        "title": "Key Insights",
-        "sections": ["insights", "patterns", "identified_patterns"],
-        "priority": 1
+    "tabs": {
+      "opening": {
+        "title": "Opening",
+        "icon": "📖",
+        "section_groups": [
+          {
+            "title": "Opening Words",
+            "sections": ["opening_words"],
+            "priority": 1
+          },
+          {
+            "title": "Recent Cards",
+            "sections": ["recent_cards"],
+            "priority": 2
+          }
+        ]
       },
-      {
-        "title": "Recommendations & Synthesis",
-        "sections": ["recommendations", "synthesis", "emerging_themes"],
-        "priority": 2
+      "dynamic_insights": {
+        "title": "Dynamic Insights",
+        "icon": "🧠",
+        "section_groups": [
+          {
+            "title": "Key Insights",
+            "sections": ["insights", "patterns", "identified_patterns"],
+            "priority": 1
+          },
+          {
+            "title": "Recommendations & Synthesis",
+            "sections": ["recommendations", "synthesis", "emerging_themes"],
+            "priority": 2
+          },
+          {
+            "title": "Focus & Growth",
+            "sections": ["focus_areas", "blind_spots", "celebration_moments"],
+            "priority": 3
+          },
+          {
+            "title": "Proactive Prompts",
+            "sections": ["reflection_prompts", "exploration_prompts", "goal_setting_prompts", "skill_development_prompts", "creative_expression_prompts"],
+            "priority": 4
+          }
+        ]
       },
-      {
-        "title": "Focus & Growth",
-        "sections": ["focus_areas", "blind_spots", "celebration_moments"],
-        "priority": 3
+      "growth_trajectory": {
+        "title": "Growth Trajectory",
+        "icon": "📈",
+        "section_groups": [
+          {
+            "title": "Growth Dimensions",
+            "sections": ["growth_dimensions"],
+            "priority": 1
+          },
+          {
+            "title": "Growth Insights",
+            "sections": ["growth_insights", "growth_focus_areas"],
+            "priority": 2
+          }
+        ]
       },
-      {
-        "title": "Proactive Prompts",
-        "sections": ["reflection_prompts", "exploration_prompts", "goal_setting_prompts", "skill_development_prompts", "creative_expression_prompts"],
-        "priority": 4
+      "activity": {
+        "title": "Activity",
+        "icon": "📊",
+        "section_groups": [
+          {
+            "title": "Recent Activity",
+            "sections": ["recent_cards", "insights", "recommendations"],
+            "priority": 1
+          }
+        ]
       }
-    ]
+    }
   }
 }
