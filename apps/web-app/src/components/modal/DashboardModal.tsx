@@ -787,7 +787,7 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                         
                         return (
                           <div 
-                            key={card.id} 
+                            key={card.id || `card-${index}`} 
                             className="relative w-48 h-48 mx-auto rounded-2xl overflow-hidden cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-2xl"
                             style={{
                               backgroundImage,
