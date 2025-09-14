@@ -94,6 +94,10 @@ export interface DynamicDashboardData {
     goal_setting_prompts: DashboardSection;
     skill_development_prompts: DashboardSection;
     creative_expression_prompts: DashboardSection;
+    recent_cards: DashboardSection;
+    growth_dimensions: DashboardSection;
+    growth_insights: DashboardSection;
+    growth_focus_areas: DashboardSection;
   };
   cycle_info: {
     cycle_id: string;
@@ -354,6 +358,162 @@ class DashboardService {
       return {
         success: false,
         error: 'Failed to fetch user cycle statistics'
+      };
+    }
+  }
+
+  /**
+   * Get recent cards for the magazine tab
+   */
+  async getRecentCards(limit: number = 5): Promise<{ success: boolean; data?: any[]; error?: string }> {
+    console.log('🚀 getRecentCards called with limit:', limit);
+    try {
+      // Fetch concept cards
+      const conceptResponse = await fetch(`${API_BASE_URL}/api/v1/cards?limit=${Math.ceil(limit/2)}&sort_by=created_at&sort_order=desc&card_type=concept`, {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      });
+      
+      // Fetch memory unit cards
+      const memoryUnitResponse = await fetch(`${API_BASE_URL}/api/v1/cards?limit=${Math.ceil(limit/2)}&sort_by=created_at&sort_order=desc&card_type=memoryunit`, {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      });
+      
+      if (!conceptResponse.ok || !memoryUnitResponse.ok) {
+        throw new Error(`HTTP error: concept=${conceptResponse.status}, memoryunit=${memoryUnitResponse.status}`);
+      }
+
+      const conceptData = await conceptResponse.json();
+      const memoryUnitData = await memoryUnitResponse.json();
+      
+      // Combine and limit results
+      const allCards = [
+        ...(conceptData.success && conceptData.data?.cards ? conceptData.data.cards : []),
+        ...(memoryUnitData.success && memoryUnitData.data?.cards ? memoryUnitData.data.cards : [])
+      ].slice(0, limit);
+      
+      console.log('getRecentCards - concept cards:', conceptData.data?.cards?.length || 0);
+      console.log('getRecentCards - memory unit cards:', memoryUnitData.data?.cards?.length || 0);
+      console.log('getRecentCards - combined cards:', allCards.length);
+      console.log('getRecentCards - card types:', allCards.map(c => c.type));
+      
+      return {
+        success: true,
+        data: allCards
+      };
+    } catch (error) {
+      console.error('Error fetching recent cards:', error);
+      return {
+        success: false,
+        error: `Failed to fetch recent cards: ${error instanceof Error ? error.message : 'Unknown error'}`
+      };
+    }
+  }
+
+  /**
+   * Get growth events for the growth trajectory tab
+   */
+  async getGrowthEvents(limit: number = 10): Promise<{ success: boolean; data?: any[]; error?: string }> {
+    try {
+      // Use existing dashboard endpoint since growth-events endpoint doesn't exist
+      const response = await fetch(`${API_BASE_URL}/api/v1/dashboard`, {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.success && data.data) {
+        // Check if growth_events exist in the data
+        const growthEvents = data.data.growth_events || [];
+        return {
+          success: true,
+          data: growthEvents.slice(0, limit)
+        };
+      } else {
+        return {
+          success: true,
+          data: []
+        };
+      }
+    } catch (error) {
+      console.error('Error fetching growth events:', error);
+      return {
+        success: false,
+        error: 'Failed to fetch growth events'
+      };
+    }
+  }
+
+  /**
+   * Get growth trajectory data with recent events and next steps
+   */
+  async getGrowthTrajectoryData(): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      // Use existing dashboard endpoint since growth-trajectory endpoint doesn't exist
+      const response = await fetch(`${API_BASE_URL}/api/v1/dashboard`, {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.success && data.data) {
+        return {
+          success: true,
+          data: {
+            growth_events: data.data.growth_events || [],
+            recommendations: data.data.sections?.recommendations || []
+          }
+        };
+      } else {
+        return {
+          success: true,
+          data: {
+            growth_events: [],
+            recommendations: []
+          }
+        };
+      }
+    } catch (error) {
+      console.error('Error fetching growth trajectory data:', error);
+      return {
+        success: false,
+        error: 'Failed to fetch growth trajectory data'
+      };
+    }
+  }
+
+  /**
+   * Get dashboard configuration
+   */
+  async getDashboardConfig(): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/dashboard/config`, {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error fetching dashboard config:', error);
+      return {
+        success: false,
+        error: 'Failed to fetch dashboard config'
       };
     }
   }

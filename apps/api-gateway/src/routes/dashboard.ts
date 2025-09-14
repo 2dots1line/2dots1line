@@ -57,4 +57,12 @@ router.get('/section/:sectionType', async (req, res) => {
   await dashboardController.getDashboardSection(req, res);
 });
 
+/**
+ * GET /api/v1/dashboard/config
+ * Get dashboard configuration
+ */
+router.get('/config', async (req, res) => {
+  await dashboardController.getDashboardConfig(req, res);
+});
+
 export default router;

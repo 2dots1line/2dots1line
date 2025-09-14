@@ -1,6 +1,6 @@
 'use client';
 
-import { GlassmorphicPanel, GlassButton } from '@2dots1line/ui-components';
+import { GlassmorphicPanel, GlassButton, CardTile } from '@2dots1line/ui-components';
 import { 
   X, 
   TrendingUp, 
@@ -37,7 +37,10 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
   const [recentInsights, setRecentInsights] = useState<Insight[]>([]);
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [dynamicDashboardData, setDynamicDashboardData] = useState<DynamicDashboardData | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'growth' | 'insights' | 'activity' | 'dynamic'>('overview');
+  const [recentCards, setRecentCards] = useState<any[]>([]);
+  const [dashboardConfig, setDashboardConfig] = useState<any>(null);
+  const [sectionGroups, setSectionGroups] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState<'overview' | 'growth' | 'insights' | 'activity' | 'dynamic' | 'magazine' | 'insights-reflections' | 'growth-trajectory'>('overview');
 
   // Icon mapping for growth dimensions
   const dimensionIcons: Record<string, React.ComponentType<any>> = {
@@ -60,10 +63,12 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
   const loadDashboardData = async () => {
     setIsLoading(true);
     try {
-      // Load both legacy and dynamic dashboard data
-      const [legacyResponse, dynamicResponse] = await Promise.all([
+      // Load all dashboard data
+      const [legacyResponse, dynamicResponse, cardsResponse, configResponse] = await Promise.all([
         dashboardService.getDashboardData(),
-        dashboardService.getDynamicDashboard()
+        dashboardService.getDynamicDashboard(),
+        dashboardService.getRecentCards(5),
+        dashboardService.getDashboardConfig()
       ]);
       
       if (legacyResponse.success && legacyResponse.data) {
@@ -84,6 +89,34 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
       } else {
         console.error('Failed to load dynamic dashboard data:', dynamicResponse.error);
       }
+
+      if (cardsResponse.success && cardsResponse.data) {
+        console.log('🎯 Cards loaded successfully:', cardsResponse.data);
+        console.log('🎯 Number of cards:', cardsResponse.data.length);
+        console.log('🎯 Card types:', cardsResponse.data.map(c => c.type));
+        console.log('🎯 Card titles:', cardsResponse.data.map(c => c.title));
+        setRecentCards(cardsResponse.data);
+      } else {
+        console.error('❌ Failed to load recent cards:', cardsResponse.error);
+        setRecentCards([]); // Set empty array on failure
+      }
+
+      if (configResponse.success && configResponse.data) {
+        console.log('🔧 Dashboard config loaded:', configResponse.data);
+        console.log('🔧 Dashboard sections:', configResponse.data.dashboard_sections);
+        setDashboardConfig(configResponse.data.dashboard_sections);
+        
+        // Extract section groups for Dynamic Insights tab
+        const sectionGroups = configResponse.data.dashboard_layout?.section_groups || [];
+        const dynamicInsightsSections = sectionGroups
+          .flatMap(group => group.sections)
+          .filter(section => section); // Remove any undefined values
+        setSectionGroups(dynamicInsightsSections);
+        console.log('🔧 Dynamic Insights sections:', dynamicInsightsSections);
+      } else {
+        console.error('❌ Failed to load dashboard config:', configResponse.error);
+      }
+
     } catch (error) {
       console.error('Error loading dashboard data:', error);
     } finally {
@@ -122,6 +155,68 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
       case 'growth': return <TrendingUp size={16} className="stroke-current" strokeWidth={1.5} />;
       default: return <Activity size={16} className="stroke-current" strokeWidth={1.5} />;
     }
+  };
+
+  // Map emoji icons to Lucide components
+  const getIconComponent = (emoji: string) => {
+    const iconMap: Record<string, React.ComponentType<any>> = {
+      '💡': Lightbulb,
+      '🎯': Target,
+      '📋': Award,
+      '🤔': MessageCircle,
+      '🎉': Star,
+      '🃏': Eye,
+      '📈': TrendingUp,
+      '🔍': Compass,
+      '🧠': Brain,
+      '🌟': Star,
+      '⚠️': Eye,
+      '🎨': Star,
+      '📚': BookOpen
+    };
+    return iconMap[emoji] || Lightbulb;
+  };
+
+  // Render any section dynamically based on configuration
+  const renderSection = (sectionKey: string, sectionData: any) => {
+    const config = dashboardConfig?.[sectionKey];
+    if (!config || !dashboardConfig) return null;
+    
+    const IconComponent = getIconComponent(config.icon);
+    
+    return (
+      <GlassmorphicPanel
+        key={sectionKey}
+        variant="glass-panel"
+        rounded="lg"
+        padding="md"
+        className="hover:bg-white/15 transition-all duration-200"
+      >
+        <div className="flex items-center gap-3 mb-4">
+          <IconComponent size={20} className="text-white/80 stroke-current" strokeWidth={1.5} />
+          <h4 className="text-white/90 font-medium">{config.title}</h4>
+          <span className="text-xs text-white/60">({sectionData.total_count})</span>
+        </div>
+        <div className="space-y-3">
+          {sectionData.items.slice(0, config.max_items || 3).map((item: any) => (
+            <div key={item.id} className="p-3 bg-white/10 rounded-lg">
+              <div className="text-sm font-medium text-white/90 mb-1">{item.title}</div>
+              <div className="text-xs text-white/70 line-clamp-2">{item.content}</div>
+              {item.confidence && (
+                <div className="text-xs text-white/50 mt-1">
+                  Confidence: {Math.round(item.confidence * 100)}%
+                </div>
+              )}
+              {item.actionability && (
+                <div className="text-xs text-blue-400 mt-1">
+                  {item.actionability}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </GlassmorphicPanel>
+    );
   };
 
   if (!isOpen) return null;
@@ -164,11 +259,14 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
         {!isLoading && (
           <div className="h-[calc(90vh-200px)] overflow-y-auto custom-scrollbar">
             {/* Tab Navigation */}
-            <div className="flex gap-2 mb-6">
+            <div className="flex gap-2 mb-6 flex-wrap">
               {[
                 { key: 'overview', label: 'Overview', icon: Compass },
-                { key: 'growth', label: 'Growth Dimensions', icon: TrendingUp },
-                { key: 'insights', label: 'Insights', icon: Lightbulb },
+                { key: 'magazine', label: 'Magazine', icon: BookOpen },
+                { key: 'insights-reflections', label: 'Insights & Reflections', icon: Lightbulb },
+                { key: 'growth-trajectory', label: 'Growth Trajectory', icon: TrendingUp },
+                { key: 'growth', label: 'Growth Dimensions', icon: Target },
+                { key: 'insights', label: 'Legacy Insights', icon: Star },
                 { key: 'activity', label: 'Activity', icon: Activity },
                 { key: 'dynamic', label: 'Dynamic Insights', icon: Brain }
               ].map((tab) => {
@@ -468,10 +566,10 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
               </div>
             )}
 
-            {/* Dynamic Insights Tab */}
+            {/* Dynamic Insights Tab - Configuration-Driven */}
             {activeTab === 'dynamic' && (
               <div className="space-y-6">
-                {dynamicDashboardData ? (
+                {dynamicDashboardData && dashboardConfig ? (
                   <>
                     {/* Cycle Info Header */}
                     <GlassmorphicPanel
@@ -511,10 +609,196 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                       </div>
                     </GlassmorphicPanel>
 
-                    {/* Key Insights Grid */}
+                    {/* DYNAMIC SECTIONS - Configuration-driven */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {dashboardConfig && sectionGroups.length > 0 ? (
+                        Object.entries(dynamicDashboardData.sections)
+                          .filter(([sectionKey]) => sectionGroups.includes(sectionKey))
+                          .sort(([a], [b]) => {
+                            const priorityA = dashboardConfig?.[a]?.priority || 999;
+                            const priorityB = dashboardConfig?.[b]?.priority || 999;
+                            return priorityA - priorityB;
+                          })
+                          .map(([sectionKey, sectionData]) => (
+                            <div key={sectionKey} className="space-y-4">
+                              {renderSection(sectionKey, sectionData)}
+                            </div>
+                          ))
+                      ) : (
+                        <div className="col-span-2 text-center py-8">
+                          <div className="text-white/60">Loading configuration...</div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <GlassmorphicPanel
+                    variant="glass-panel"
+                    rounded="lg"
+                    padding="md"
+                    className="hover:bg-white/15 transition-all duration-200"
+                  >
+                    <div className="text-center py-8">
+                      <Brain size={48} className="text-white/40 mx-auto mb-4" />
+                      <h3 className="text-white/90 font-medium mb-2">No Dynamic Insights Available</h3>
+                      <p className="text-white/60 text-sm">
+                        Start a conversation to generate insights, or check back later for new data.
+                      </p>
+                    </div>
+                  </GlassmorphicPanel>
+                )}
+              </div>
+            )}
+
+            {/* Magazine Tab */}
+            {activeTab === 'magazine' && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                  {/* Opening Words - 75% of page */}
+                  <div className="lg:col-span-3">
+                    <GlassmorphicPanel
+                      variant="glass-panel"
+                      rounded="lg"
+                      padding="lg"
+                      className="hover:bg-white/15 transition-all duration-200 h-full"
+                    >
+                      <div className="flex items-center gap-3 mb-6">
+                        <BookOpen size={24} className="text-white/80 stroke-current" strokeWidth={1.5} />
+                        <h3 className="text-2xl font-semibold text-white/90">Editor's Note</h3>
+                      </div>
+                      <div className="prose prose-invert max-w-none">
+                        <h1 className="text-4xl font-bold text-white mb-6 leading-tight">
+                          Your Journey Through the Cosmos
+                        </h1>
+                        <div className="text-lg text-white/90 leading-relaxed space-y-4">
+                          <p>
+                            Welcome to your personal cosmic journey. This month, we've witnessed remarkable growth 
+                            across all dimensions of your being. Your conversations have revealed patterns of 
+                            self-discovery that speak to a deeper understanding of your place in the universe.
+                          </p>
+                          <p>
+                            The insights we've gathered show a person who is not just growing, but evolving. 
+                            Each interaction, each moment of reflection, each new connection you make adds 
+                            another layer to the rich tapestry of your experience.
+                          </p>
+                          <p>
+                            As you explore the cards and insights that follow, remember that this is your story. 
+                            These are your discoveries, your breakthroughs, your moments of clarity. They represent 
+                            not just where you've been, but where you're heading.
+                          </p>
+                          <p className="text-white/70 italic">
+                            "The cosmos is within us. We are made of star-stuff. We are a way for the universe to know itself."
+                          </p>
+                        </div>
+                      </div>
+                    </GlassmorphicPanel>
+                  </div>
+
+                  {/* Recent Cards Column - 25% of page */}
+                  <div className="lg:col-span-1">
+                    <GlassmorphicPanel
+                      variant="glass-panel"
+                      rounded="lg"
+                      padding="md"
+                      className="hover:bg-white/15 transition-all duration-200 h-full"
+                    >
+                      <div className="flex items-center gap-3 mb-4">
+                        <Eye size={20} className="text-white/80 stroke-current" strokeWidth={1.5} />
+                        <h4 className="text-white/90 font-medium">Recent Cards</h4>
+                      </div>
+                <div className="space-y-6 h-full overflow-y-auto custom-scrollbar">
+                  {(() => {
+                    const cards = dynamicDashboardData?.sections?.recent_cards?.items || [];
+                    console.log('🎨 Magazine tab rendering - cards from sections:', cards);
+                    console.log('🎨 Magazine tab rendering - cards.length:', cards.length);
+                    return cards.length > 0 ? (
+                      cards.map((card, index) => {
+                        console.log(`🎨 Rendering card ${index}:`, card);
+                        
+                        // Get card type for gradient selection
+                        const cardType = card.metadata?.card_type || 'default';
+                        const gradients = {
+                          memoryunit: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+                          concept: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
+                          derived_artifact: 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
+                          proactive_prompt: 'linear-gradient(135deg, #ffaa00 0%, #ff8800 100%)',
+                          default: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+                        };
+                        
+                        const backgroundImage = card.metadata?.background_image_url 
+                          ? `url(${card.metadata.background_image_url})` 
+                          : gradients[cardType as keyof typeof gradients] || gradients.default;
+                        
+                        return (
+                          <div 
+                            key={card.id} 
+                            className="relative w-48 h-48 mx-auto rounded-2xl overflow-hidden cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-2xl"
+                            style={{
+                              backgroundImage,
+                              backgroundSize: 'cover',
+                              backgroundPosition: 'center',
+                              backgroundRepeat: 'no-repeat'
+                            }}
+                          >
+                            {/* Card Overlay */}
+                            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/20 to-black/60 rounded-2xl" />
+                            
+                            {/* Card Content */}
+                            <div className="relative z-10 h-full flex flex-col justify-end p-4">
+                              <div className="text-white">
+                                <h3 className="text-sm font-semibold mb-1 text-shadow-sm">
+                                  {card.title}
+                                </h3>
+                                <p className="text-xs text-white/80 text-shadow-sm line-clamp-2">
+                                  {card.content}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="text-center py-4 text-white/60">
+                        <div className="text-2xl mb-2">📭</div>
+                        <p className="text-sm">No recent cards available</p>
+                        <p className="text-xs text-white/40 mt-1">Check console for API errors</p>
+                      </div>
+                    );
+                  })()}
+                </div>
+                    </GlassmorphicPanel>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Insights & Reflections Tab */}
+            {activeTab === 'insights-reflections' && (
+              <div className="space-y-6">
+                {dynamicDashboardData ? (
+                  <>
+                    {/* Cycle Info Header */}
+                    <GlassmorphicPanel
+                      variant="glass-panel"
+                      rounded="lg"
+                      padding="md"
+                      className="hover:bg-white/15 transition-all duration-200"
+                    >
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <Lightbulb size={20} className="text-white/80 stroke-current" strokeWidth={1.5} />
+                          <h3 className="text-white/90 font-medium">Insights & Reflections</h3>
+                        </div>
+                        <div className="text-sm text-white/60">
+                          Cycle: {new Date(dynamicDashboardData.cycle_info.cycle_start_date).toLocaleDateString()} - {new Date(dynamicDashboardData.cycle_info.cycle_end_date).toLocaleDateString()}
+                        </div>
+                      </div>
+                    </GlassmorphicPanel>
+
+                    {/* Main Content Grid */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                       {/* Insights & Patterns */}
-                      <div className="space-y-4">
+                      <div className="space-y-6">
                         <GlassmorphicPanel
                           variant="glass-panel"
                           rounded="lg"
@@ -549,11 +833,11 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                         >
                           <div className="flex items-center gap-3 mb-4">
                             <Target size={20} className="text-white/80 stroke-current" strokeWidth={1.5} />
-                            <h4 className="text-white/90 font-medium">Focus Areas</h4>
-                            <span className="text-xs text-white/60">({dynamicDashboardData.sections.focus_areas.total_count})</span>
+                            <h4 className="text-white/90 font-medium">Patterns</h4>
+                            <span className="text-xs text-white/60">({dynamicDashboardData.sections.patterns.total_count})</span>
                           </div>
                           <div className="space-y-3">
-                            {dynamicDashboardData.sections.focus_areas.items.slice(0, 2).map((item) => (
+                            {dynamicDashboardData.sections.patterns.items.slice(0, 2).map((item) => (
                               <div key={item.id} className="p-3 bg-white/10 rounded-lg">
                                 <div className="text-sm font-medium text-white/90 mb-1">{item.title}</div>
                                 <div className="text-xs text-white/70 line-clamp-2">{item.content}</div>
@@ -563,8 +847,8 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                         </GlassmorphicPanel>
                       </div>
 
-                      {/* Recommendations & Prompts */}
-                      <div className="space-y-4">
+                      {/* Recommendations & Synthesis */}
+                      <div className="space-y-6">
                         <GlassmorphicPanel
                           variant="glass-panel"
                           rounded="lg"
@@ -572,7 +856,7 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                           className="hover:bg-white/15 transition-all duration-200"
                         >
                           <div className="flex items-center gap-3 mb-4">
-                            <Award size={20} className="text-white/80 stroke-current" strokeWidth={1.5} />
+                            <Star size={20} className="text-white/80 stroke-current" strokeWidth={1.5} />
                             <h4 className="text-white/90 font-medium">Recommendations</h4>
                             <span className="text-xs text-white/60">({dynamicDashboardData.sections.recommendations.total_count})</span>
                           </div>
@@ -582,8 +866,8 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                                 <div className="text-sm font-medium text-white/90 mb-1">{item.title}</div>
                                 <div className="text-xs text-white/70 line-clamp-2">{item.content}</div>
                                 {item.actionability && (
-                                  <div className="text-xs text-white/50 mt-1">
-                                    Action: {item.actionability}
+                                  <div className="text-xs text-blue-400 mt-1">
+                                    {item.actionability}
                                   </div>
                                 )}
                               </div>
@@ -591,6 +875,30 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                           </div>
                         </GlassmorphicPanel>
 
+                        <GlassmorphicPanel
+                          variant="glass-panel"
+                          rounded="lg"
+                          padding="md"
+                          className="hover:bg-white/15 transition-all duration-200"
+                        >
+                          <div className="flex items-center gap-3 mb-4">
+                            <Brain size={20} className="text-white/80 stroke-current" strokeWidth={1.5} />
+                            <h4 className="text-white/90 font-medium">Synthesis</h4>
+                            <span className="text-xs text-white/60">({dynamicDashboardData.sections.synthesis.total_count})</span>
+                          </div>
+                          <div className="space-y-3">
+                            {dynamicDashboardData.sections.synthesis.items.slice(0, 2).map((item) => (
+                              <div key={item.id} className="p-3 bg-white/10 rounded-lg">
+                                <div className="text-sm font-medium text-white/90 mb-1">{item.title}</div>
+                                <div className="text-xs text-white/70 line-clamp-2">{item.content}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </GlassmorphicPanel>
+                      </div>
+
+                      {/* Prompts */}
+                      <div className="space-y-6">
                         <GlassmorphicPanel
                           variant="glass-panel"
                           rounded="lg"
@@ -613,46 +921,139 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                         </GlassmorphicPanel>
                       </div>
                     </div>
-
-                    {/* Celebration Moments */}
-                    {dynamicDashboardData.sections.celebration_moments.items.length > 0 && (
-                      <GlassmorphicPanel
-                        variant="glass-panel"
-                        rounded="lg"
-                        padding="md"
-                        className="hover:bg-white/15 transition-all duration-200"
-                      >
-                        <div className="flex items-center gap-3 mb-4">
-                          <Star size={20} className="text-yellow-400 stroke-current" strokeWidth={1.5} />
-                          <h4 className="text-white/90 font-medium">Celebration Moments</h4>
-                        </div>
-                        <div className="space-y-3">
-                          {dynamicDashboardData.sections.celebration_moments.items.map((item) => (
-                            <div key={item.id} className="p-4 bg-gradient-to-r from-yellow-400/20 to-orange-400/20 rounded-lg border border-yellow-400/30">
-                              <div className="text-sm font-medium text-white/90 mb-1">{item.title}</div>
-                              <div className="text-xs text-white/70">{item.content}</div>
-                            </div>
-                          ))}
-                        </div>
-                      </GlassmorphicPanel>
-                    )}
                   </>
                 ) : (
                   <GlassmorphicPanel
                     variant="glass-panel"
                     rounded="lg"
-                    padding="md"
+                    padding="lg"
                     className="hover:bg-white/15 transition-all duration-200"
                   >
                     <div className="text-center py-8">
-                      <Brain size={48} className="text-white/40 mx-auto mb-4" />
-                      <h3 className="text-white/90 font-medium mb-2">No Dynamic Insights Available</h3>
+                      <Lightbulb size={48} className="text-white/40 mx-auto mb-4" />
+                      <h3 className="text-white/90 font-medium mb-2">No Insights Available</h3>
                       <p className="text-white/60 text-sm">
                         Start a conversation to generate insights, or check back later for new data.
                       </p>
                     </div>
                   </GlassmorphicPanel>
                 )}
+              </div>
+            )}
+
+            {/* Growth Trajectory Tab */}
+            {activeTab === 'growth-trajectory' && (
+              <div className="space-y-6">
+                <GlassmorphicPanel
+                  variant="glass-panel"
+                  rounded="lg"
+                  padding="md"
+                  className="hover:bg-white/15 transition-all duration-200"
+                >
+                  <div className="flex items-center gap-3 mb-6">
+                    <TrendingUp size={24} className="text-white/80 stroke-current" strokeWidth={1.5} />
+                    <h3 className="text-2xl font-semibold text-white/90">Growth Trajectory</h3>
+                  </div>
+                  
+                  {/* Growth Dimensions Table */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-white/20">
+                          <th className="text-left py-3 px-4 text-white/80 font-medium">Dimension</th>
+                          <th className="text-center py-3 px-4 text-white/80 font-medium">What's New</th>
+                          <th className="text-center py-3 px-4 text-white/80 font-medium">What's Next</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/10">
+                        {[
+                          { key: 'self_know', name: 'Self Knowledge', icon: Brain },
+                          { key: 'self_act', name: 'Self Action', icon: Target },
+                          { key: 'self_show', name: 'Self Expression', icon: Heart },
+                          { key: 'world_know', name: 'World Knowledge', icon: BookOpen },
+                          { key: 'world_act', name: 'World Action', icon: Globe },
+                          { key: 'world_show', name: 'World Expression', icon: MessageCircle }
+                        ].map((dimension) => {
+                          const IconComponent = dimension.icon;
+                          return (
+                            <tr key={dimension.key} className="hover:bg-white/5 transition-colors">
+                              <td className="py-4 px-4">
+                                <div className="flex items-center gap-3">
+                                  <IconComponent size={20} className="text-white/70 stroke-current" strokeWidth={1.5} />
+                                  <span className="text-white/90 font-medium">{dimension.name}</span>
+                                </div>
+                              </td>
+                              <td className="py-4 px-4 text-center">
+                                <div className="text-sm text-white/70">
+                                  {(() => {
+                                    // Get insights related to this dimension from dynamic dashboard data
+                                    const dimensionInsights = dynamicDashboardData?.sections?.insights?.items?.filter(item => 
+                                      item.content?.toLowerCase().includes(dimension.key.replace('_', ' ')) ||
+                                      item.title?.toLowerCase().includes(dimension.key.replace('_', ' '))
+                                    ).slice(0, 1);
+                                    
+                                    if (dimensionInsights && dimensionInsights.length > 0) {
+                                      const insight = dimensionInsights[0];
+                                      return (
+                                        <div className="bg-white/10 rounded-lg p-3 mb-2">
+                                          <div className="text-xs text-white/60 mb-1">Recent Insight</div>
+                                          <div className="text-sm text-white/90 line-clamp-2">
+                                            {insight.title}
+                                          </div>
+                                          <div className="text-xs text-white/50 mt-1">
+                                            {new Date(insight.created_at).toLocaleDateString()}
+                                          </div>
+                                        </div>
+                                      );
+                                    } else {
+                                      return (
+                                        <div className="bg-white/5 rounded-lg p-3 mb-2">
+                                          <div className="text-xs text-white/40">No recent insights</div>
+                                        </div>
+                                      );
+                                    }
+                                  })()}
+                                </div>
+                              </td>
+                              <td className="py-4 px-4 text-center">
+                                <div className="text-sm text-white/70">
+                                  {(() => {
+                                    // Get focus areas for this dimension from dynamic dashboard data
+                                    const focusAreas = dynamicDashboardData?.sections?.focus_areas?.items?.filter(item => 
+                                      item.content?.toLowerCase().includes(dimension.key.replace('_', ' ')) ||
+                                      item.title?.toLowerCase().includes(dimension.key.replace('_', ' '))
+                                    ).slice(0, 1);
+                                    
+                                    if (focusAreas && focusAreas.length > 0) {
+                                      const focus = focusAreas[0];
+                                      return (
+                                        <div className="bg-white/10 rounded-lg p-3 mb-2">
+                                          <div className="text-xs text-white/60 mb-1">Focus Area</div>
+                                          <div className="text-sm text-white/90 line-clamp-2">
+                                            {focus.title}
+                                          </div>
+                                          <div className="text-xs text-white/50 mt-1">
+                                            {new Date(focus.created_at).toLocaleDateString()}
+                                          </div>
+                                        </div>
+                                      );
+                                    } else {
+                                      return (
+                                        <div className="bg-white/5 rounded-lg p-3 mb-2">
+                                          <div className="text-xs text-white/40">No focus areas</div>
+                                        </div>
+                                      );
+                                    }
+                                  })()}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </GlassmorphicPanel>
               </div>
             )}
           </div>

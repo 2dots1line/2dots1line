@@ -309,8 +309,8 @@ export class InsightEngine {
       currentKnowledgeGraph: {
         // Simplified conversations - only context_summary (pre-filtered for high importance)
         conversations: conversationSummaries
-          .filter(conv => conv.context_summary) // Only include conversations with summaries
-          .map(conv => ({
+          .filter((conv: { context_summary: string | null }) => conv.context_summary) // Only include conversations with summaries
+          .map((conv: { context_summary: string | null }) => ({
             context_summary: conv.context_summary || 'No summary available'
           })),
         // Simplified memory units - only id and content
