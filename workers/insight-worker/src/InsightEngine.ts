@@ -7,7 +7,8 @@ import {
   DerivedArtifactRepository,
   ProactivePromptRepository,
   UserCycleRepository,
-  WeaviateService
+  WeaviateService,
+  CommunityRepository
 } from '@2dots1line/database';
 import type { 
   CreateDerivedArtifactData,
@@ -15,6 +16,7 @@ import type {
   CreateUserCycleData
 } from '@2dots1line/database';
 import { StrategicSynthesisTool, StrategicSynthesisOutput, StrategicSynthesisInput } from '@2dots1line/tools';
+import { ConceptMerger, ConceptArchiver, CommunityCreator } from '@2dots1line/ontology-core';
 import { Job , Queue } from 'bullmq';
 import { randomUUID } from 'crypto';
 
@@ -37,6 +39,12 @@ export class InsightEngine {
   private proactivePromptRepository: ProactivePromptRepository;
   private userCycleRepository: UserCycleRepository;
   private weaviateService: WeaviateService;
+  private communityRepository: CommunityRepository;
+  
+  // Shared ontology components
+  private conceptMerger: ConceptMerger;
+  private conceptArchiver: ConceptArchiver;
+  private communityCreator: CommunityCreator;
 
   constructor(
     private strategicSynthesisTool: StrategicSynthesisTool,
@@ -53,6 +61,12 @@ export class InsightEngine {
     this.proactivePromptRepository = new ProactivePromptRepository(dbService);
     this.userCycleRepository = new UserCycleRepository(dbService);
     this.weaviateService = new WeaviateService(dbService);
+    this.communityRepository = new CommunityRepository(dbService);
+    
+    // Initialize shared ontology components
+    this.conceptMerger = new ConceptMerger(this.conceptRepository, dbService, this.weaviateService);
+    this.conceptArchiver = new ConceptArchiver(this.conceptRepository, this.weaviateService);
+    this.communityCreator = new CommunityCreator(this.communityRepository, dbService);
   }
 
   async processUserCycle(job: Job<InsightJobData>): Promise<void> {
@@ -323,13 +337,10 @@ export class InsightEngine {
         console.log(`[InsightEngine] Found ${growthEvents.length} growth events within cycle period`);
         
         // Map to simplified format - only id and rationale
-        return growthEvents.map((event: any) => {
-          const details = event.details as any;
-          return {
-            id: event.event_id,
-            rationale: details?.rationale || 'Growth event recorded'
-          };
-        });
+        return growthEvents.map((event: any) => ({
+          id: event.event_id,
+          rationale: event.rationale
+        }));
       })(),
       userProfile: {
         preferences: user.memory_profile || {},
@@ -363,7 +374,7 @@ export class InsightEngine {
           user_id: userId, 
           status: 'active',
           merged_into_concept_id: null, // Exclude already merged concepts
-          salience: { gte: 2 }, // Pre-filter for high importance concepts
+          salience: { gte: 0.3 }, // Pre-filter for high importance concepts
           created_at: {
             gte: cycleDates.cycleStartDate,
             lte: cycleDates.cycleEndDate
@@ -409,7 +420,7 @@ export class InsightEngine {
         where: { 
           user_id: userId,
           importance_score: { gte: 2 }, // Pre-filter for high importance memory units
-          creation_ts: {
+          last_modified_ts: {
             gte: cycleDates.cycleStartDate,
             lte: cycleDates.cycleEndDate
           }
@@ -453,55 +464,29 @@ export class InsightEngine {
     const currentCycleId = cycleId || `cycle_${userId}_${Date.now()}`;
 
     try {
-      // Execute Ontology Updates (Neo4j) - Actual concept merging
-      if (this.dbService.neo4j && ontology_optimizations.concepts_to_merge.length > 0) {
-        const mergedConceptIds = await this.executeConceptMerging(ontology_optimizations);
-        newEntities.push(...mergedConceptIds.map(id => ({ id, type: 'MergedConcept' })));
-        console.log(`[InsightEngine] Merged ${ontology_optimizations.concepts_to_merge.length} concepts successfully in Neo4j`);
-      } else if (ontology_optimizations.concepts_to_merge.length > 0) {
-        console.log(`[InsightEngine] Neo4j client not available, proceeding with PostgreSQL-only concept merging`);
-        // Still create entities for tracking even without Neo4j
-        newEntities.push(...ontology_optimizations.concepts_to_merge.map(merge => ({ 
-          id: merge.primary_concept_id, 
-          type: 'MergedConcept' 
-        })));
-      }
-
-      // CRITICAL FIX: Update PostgreSQL concepts table for merged concepts
+      // Execute Ontology Updates - Concept merging (PostgreSQL + Neo4j)
       if (ontology_optimizations.concepts_to_merge.length > 0) {
-        await this.updatePostgreSQLConceptsForMerging(ontology_optimizations.concepts_to_merge);
+        const mergedConceptIds = await this.executeConceptMerging(ontology_optimizations.concepts_to_merge);
+        newEntities.push(...mergedConceptIds.map(id => ({ id, type: 'MergedConcept' })));
         console.log(`[InsightEngine] Updated PostgreSQL concepts for ${ontology_optimizations.concepts_to_merge.length} merges`);
         
-        // CRITICAL FIX: Update Neo4j for concept merging
         if (this.dbService.neo4j) {
-          for (const merge of ontology_optimizations.concepts_to_merge) {
-            await this.updateNeo4jMergedConcepts(merge);
-          }
-          console.log(`[InsightEngine] Updated Neo4j for ${ontology_optimizations.concepts_to_merge.length} concept merges`);
+          console.log(`[InsightEngine] Merged ${ontology_optimizations.concepts_to_merge.length} concepts successfully in Neo4j`);
+        } else {
+          console.log(`[InsightEngine] Neo4j client not available, PostgreSQL-only concept merging completed`);
         }
       }
 
       // CRITICAL FIX: Archive concepts as specified by LLM
       if (ontology_optimizations.concepts_to_archive.length > 0) {
-        await this.archiveConcepts(ontology_optimizations.concepts_to_archive);
+        await this.conceptArchiver.executeConceptArchives(ontology_optimizations.concepts_to_archive);
         console.log(`[InsightEngine] Archived ${ontology_optimizations.concepts_to_archive.length} concepts`);
-        
-        // CRITICAL FIX: Update Neo4j concept status for archived concepts
-        if (this.dbService.neo4j) {
-          for (const archive of ontology_optimizations.concepts_to_archive) {
-            await this.updateNeo4jConceptStatus(archive.concept_id, 'archived', {
-              archive_rationale: archive.archive_rationale,
-              replacement_concept_id: archive.replacement_concept_id
-            });
-          }
-          console.log(`[InsightEngine] Updated Neo4j status for ${ontology_optimizations.concepts_to_archive.length} archived concepts`);
-        }
       }
 
       // CRITICAL FIX: Create communities as specified by LLM
       if (ontology_optimizations.community_structures.length > 0) {
-        const communityIds = await this.createCommunities(userId, ontology_optimizations.community_structures);
-        newEntities.push(...communityIds.map(id => ({ id, type: 'Community' })));
+        const communityIds = await this.communityCreator.executeCommunityCreations(ontology_optimizations.community_structures, userId);
+        newEntities.push(...communityIds.map((id: string) => ({ id, type: 'Community' })));
         console.log(`[InsightEngine] Created ${ontology_optimizations.community_structures.length} communities`);
       }
 
@@ -818,9 +803,36 @@ export class InsightEngine {
   }
 
   /**
-   * Execute concept merging in Neo4j
+   * Execute concept merging using shared components
    */
-  private async executeConceptMerging(ontologyOptimizations: any): Promise<string[]> {
+  private async executeConceptMerging(conceptsToMerge: any[]): Promise<string[]> {
+    const mergedConceptIds: string[] = [];
+    
+    for (const merge of conceptsToMerge) {
+      try {
+        // Use the shared ConceptMerger component
+        await this.conceptMerger.executeConceptMerge(merge);
+        
+        // Update Neo4j if available
+        if (this.dbService.neo4j) {
+          await this.conceptMerger.updateNeo4jMergedConcepts(merge);
+        }
+        
+        mergedConceptIds.push(merge.primary_concept_id);
+        console.log(`[InsightEngine] Successfully merged concept ${merge.primary_concept_id}`);
+      } catch (error: unknown) {
+        console.error(`[InsightEngine] Error merging concept ${merge.primary_concept_id}:`, error);
+        // Continue with other merges
+      }
+    }
+    
+    return mergedConceptIds;
+  }
+
+  /**
+   * Execute concept merging in Neo4j (legacy method - now uses shared components)
+   */
+  private async executeConceptMergingLegacy(ontologyOptimizations: any): Promise<string[]> {
     if (!this.dbService.neo4j) {
       console.warn('[InsightEngine] Neo4j client not available, skipping concept merging');
       return [];
@@ -922,64 +934,6 @@ export class InsightEngine {
     }
   }
 
-  /**
-   * Update PostgreSQL concepts table for merged concepts
-   * Includes error handling to prevent job failures
-   */
-  private async updatePostgreSQLConceptsForMerging(conceptsToMerge: any[]): Promise<void> {
-    const errors: string[] = [];
-    
-    for (const merge of conceptsToMerge) {
-      try {
-        // Update secondary concepts to mark them as merged
-        for (const secondaryId of merge.secondary_concept_ids) {
-          try {
-            await this.conceptRepository.update(secondaryId, {
-              status: 'merged',
-              merged_into_concept_id: merge.primary_concept_id
-            });
-            console.log(`[InsightEngine] Marked concept ${secondaryId} as merged into ${merge.primary_concept_id}`);
-            
-            // Sync status to Weaviate
-            try {
-              await this.weaviateService.updateConceptStatus(secondaryId, 'merged');
-            } catch (weaviateError) {
-              console.warn(`[InsightEngine] Failed to sync concept ${secondaryId} status to Weaviate:`, weaviateError);
-            }
-          } catch (updateError) {
-            const errorMsg = `Failed to update secondary concept ${secondaryId}: ${updateError instanceof Error ? updateError.message : 'Unknown error'}`;
-            console.error(`[InsightEngine] ${errorMsg}`);
-            errors.push(errorMsg);
-            // Continue with other concepts instead of failing the entire job
-          }
-        }
-
-        // Update primary concept with new name and description
-        try {
-          await this.conceptRepository.update(merge.primary_concept_id, {
-            name: merge.new_concept_name,
-            description: merge.new_concept_description
-          });
-          console.log(`[InsightEngine] Updated primary concept ${merge.primary_concept_id} with new name: ${merge.new_concept_name}`);
-        } catch (updateError) {
-          const errorMsg = `Failed to update primary concept ${merge.primary_concept_id}: ${updateError instanceof Error ? updateError.message : 'Unknown error'}`;
-          console.error(`[InsightEngine] ${errorMsg}`);
-          errors.push(errorMsg);
-        }
-      } catch (error: unknown) {
-        const errorMsg = `Failed to process merge for primary concept ${merge.primary_concept_id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
-        console.error(`[InsightEngine] ${errorMsg}`);
-        errors.push(errorMsg);
-      }
-    }
-    
-    // Log summary of any errors but don't fail the job
-    if (errors.length > 0) {
-      console.warn(`[InsightEngine] Completed concept merging with ${errors.length} errors:`, errors);
-    } else {
-      console.log(`[InsightEngine] Successfully completed all concept merging updates`);
-    }
-  }
 
   /**
    * Update user memory profile with strategic insights
@@ -991,13 +945,9 @@ export class InsightEngine {
       const memoryProfileUpdate = {
         last_updated: new Date().toISOString(),
         strategic_insights: {
-          ontology_optimizations: {
-            concepts_merged: ontology_optimizations.concepts_to_merge.length,
-            new_relationships: ontology_optimizations.new_strategic_relationships.length,
-            cycle_timestamp: new Date().toISOString()
-          },
           derived_artifacts: derived_artifacts.length,
-          proactive_prompts: proactive_prompts.length
+          proactive_prompts: proactive_prompts.length,
+          cycle_timestamp: new Date().toISOString()
         },
         growth_patterns: {
           concept_consolidation: ontology_optimizations.concepts_to_merge.map(merge => ({
@@ -1035,44 +985,6 @@ export class InsightEngine {
     }
   }
 
-  /**
-   * Archive concepts as specified by LLM
-   * Includes error handling to prevent job failures
-   */
-  private async archiveConcepts(conceptsToArchive: Array<{ concept_id: string; archive_rationale: string; replacement_concept_id?: string | null }>): Promise<void> {
-    const errors: string[] = [];
-    
-    for (const archive of conceptsToArchive) {
-      try {
-        // Update concept status to archived
-        await this.conceptRepository.update(archive.concept_id, {
-          status: 'archived',
-          // Store archive rationale in description or metadata if available
-          description: `ARCHIVED: ${archive.archive_rationale}${archive.replacement_concept_id ? ` (Replaced by: ${archive.replacement_concept_id})` : ''}`
-        });
-        console.log(`[InsightEngine] Archived concept ${archive.concept_id} with rationale: ${archive.archive_rationale}`);
-        
-        // Sync status to Weaviate
-        try {
-          await this.weaviateService.updateConceptStatus(archive.concept_id, 'archived');
-        } catch (weaviateError) {
-          console.warn(`[InsightEngine] Failed to sync concept ${archive.concept_id} status to Weaviate:`, weaviateError);
-        }
-      } catch (error: unknown) {
-        const errorMsg = `Failed to archive concept ${archive.concept_id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
-        console.error(`[InsightEngine] ${errorMsg}`);
-        errors.push(errorMsg);
-        // Continue with other concepts instead of failing the entire job
-      }
-    }
-    
-    // Log summary of any errors but don't fail the job
-    if (errors.length > 0) {
-      console.warn(`[InsightEngine] Completed concept archiving with ${errors.length} errors:`, errors);
-    } else {
-      console.log(`[InsightEngine] Successfully completed all concept archiving`);
-    }
-  }
 
   /**
    * Get concepts that need description synthesis
@@ -1093,10 +1005,15 @@ export class InsightEngine {
         merged_into_concept_id: null // Exclude already merged concepts
       };
       
-      // If cycleStartDate is provided, filter by last_updated_ts
+      // If cycleStartDate is provided, filter by last_updated_ts within cycle period
+      // and ensure last_updated_ts > created_at (concept was updated after creation)
       if (cycleStartDate) {
         whereClause.last_updated_ts = {
-          gte: cycleStartDate
+          gte: cycleStartDate,
+          lte: new Date() // Use current time as end of cycle period
+        };
+        whereClause.created_at = {
+          lt: cycleStartDate // Ensure concept was created before the cycle period
         };
       } else {
         // Fallback to text search if no date provided (for backward compatibility)
@@ -1172,53 +1089,6 @@ export class InsightEngine {
     }
   }
 
-  /**
-   * Create communities as specified by LLM
-   */
-  private async createCommunities(userId: string, communityStructures: Array<{ community_id: string; member_concept_ids: string[]; theme: string; strategic_importance: number }>): Promise<string[]> {
-    const communityIds: string[] = [];
-    
-    try {
-      for (const community of communityStructures) {
-        // Generate UUID instead of using semantic ID from LLM
-        const generatedCommunityId = randomUUID();
-        
-        // Create community in PostgreSQL using the repository
-        const communityData = {
-          community_id: generatedCommunityId,
-          user_id: userId,
-          name: community.theme,
-          description: `Strategic importance: ${community.strategic_importance}/10. Members: ${community.member_concept_ids.length} concepts.`,
-          created_at: new Date(),
-          last_analyzed_ts: new Date()
-        };
-
-        // Actually create the community in the database
-        const createdCommunity = await this.dbService.communityRepository.create(communityData);
-        
-        // Assign concepts to this community
-        if (community.member_concept_ids.length > 0) {
-          await this.dbService.communityRepository.assignConceptsToCommunity(
-            createdCommunity.community_id, 
-            community.member_concept_ids
-          );
-        }
-
-        // Create Community node in Neo4j
-        if (this.dbService.neo4j) {
-          await this.createNeo4jCommunity(createdCommunity, community.member_concept_ids, generatedCommunityId);
-        }
-
-        console.log(`[InsightEngine] Created community: ${community.theme} with ID ${generatedCommunityId} and ${community.member_concept_ids.length} members`);
-        communityIds.push(createdCommunity.community_id);
-      }
-    } catch (error: unknown) {
-      console.error('[InsightEngine] Error creating communities:', error);
-      throw error;
-    }
-    
-    return communityIds;
-  }
 
 
   /**
