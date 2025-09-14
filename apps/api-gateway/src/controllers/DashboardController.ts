@@ -209,4 +209,25 @@ export class DashboardController {
       });
     }
   }
+
+  /**
+   * GET /api/v1/dashboard/config
+   * Get dashboard configuration
+   */
+  async getDashboardConfig(req: Request, res: Response): Promise<void> {
+    try {
+      const config = await this.dashboardService.getDashboardConfig();
+      
+      res.json({
+        success: true,
+        data: config
+      });
+    } catch (error) {
+      console.error('[DashboardController] Error getting dashboard config:', error);
+      res.status(500).json({ 
+        error: 'Internal server error',
+        message: 'Failed to retrieve dashboard configuration'
+      });
+    }
+  }
 }

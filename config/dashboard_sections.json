@@ -111,6 +111,38 @@
       "max_items": 2,
       "priority": 3,
       "category": "prompts"
+    },
+    "recent_cards": {
+      "title": "Recent Cards",
+      "icon": "🃏",
+      "description": "Most recently generated concept and memory unit cards",
+      "max_items": 5,
+      "priority": 1,
+      "category": "content"
+    },
+    "growth_dimensions": {
+      "title": "Growth Dimensions",
+      "icon": "📈",
+      "description": "Growth trajectory across self and world dimensions",
+      "max_items": 6,
+      "priority": 1,
+      "category": "growth"
+    },
+    "growth_insights": {
+      "title": "Growth Insights",
+      "icon": "🔍",
+      "description": "Insights related to personal growth and development",
+      "max_items": 3,
+      "priority": 1,
+      "category": "growth"
+    },
+    "growth_focus_areas": {
+      "title": "Growth Focus Areas",
+      "icon": "🎯",
+      "description": "Areas to focus on for continued growth",
+      "max_items": 3,
+      "priority": 1,
+      "category": "growth"
     }
   },
   "section_categories": {
@@ -143,6 +175,11 @@
       "title": "Prompts",
       "color": "indigo",
       "description": "Questions to explore"
+    },
+    "content": {
+      "title": "Content",
+      "color": "purple",
+      "description": "Generated content and artifacts"
     }
   },
   "dashboard_layout": {

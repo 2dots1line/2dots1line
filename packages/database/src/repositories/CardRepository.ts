@@ -25,7 +25,7 @@ export interface UpdateCardData {
 
 export interface CardData {
   id: string;
-  type: 'memory_unit' | 'concept' | 'derived_artifact';
+  type: 'memory_unit' | 'concept' | 'derived_artifact' | 'memoryunit' | 'growthevent' | 'proactiveprompt' | 'community';
   title: string;
   preview: string;
   evolutionState: string;
@@ -38,7 +38,7 @@ export interface CardData {
 }
 
 export interface CardFilters {
-  cardType?: 'memory_unit' | 'concept' | 'derived_artifact';
+  cardType?: 'memory_unit' | 'concept' | 'derived_artifact' | 'memoryunit' | 'growthevent' | 'proactiveprompt' | 'community';
   evolutionState?: string;
   limit?: number;
   offset?: number;
@@ -228,7 +228,7 @@ export class CardRepository {
       }
       return {
         id: card.card_id,
-        type: card.card_type as 'memory_unit' | 'concept' | 'derived_artifact',
+        type: card.card_type as 'memory_unit' | 'concept' | 'derived_artifact' | 'memoryunit' | 'growthevent' | 'proactiveprompt' | 'community',
         title: displayData.title || displayData.name || '',
         preview: displayData.preview || displayData.previewText || displayData.description || '',
         evolutionState: 'seed', // Simplified - should calculate based on business logic
