@@ -406,27 +406,30 @@ export class DialogueAgent {
     });
     
     const llmToolInput = {
-      userId: input.userId,
-      sessionId: input.conversationId,
-      workerType: 'dialogue-service',
-      workerJobId: `dialogue-${Date.now()}`,
-      conversationId: input.conversationId,
-      messageId: `msg-${Date.now()}`,
-      sourceEntityId: input.conversationId,
-      systemPrompt: promptOutput.systemPrompt,        // ✅ Background context only
-      userMessage: promptOutput.userPrompt,           // ✅ Current turn context  
-      history: formattedHistory, // ✅ Properly formatted history
-      memoryContextBlock: augmentedMemoryContext?.relevant_memories?.join('\n') || '',
-      temperature: 0.3, // ✅ Lower for consistent formatting
-      maxTokens: 50000
+      payload: {
+        userId: input.userId,
+        sessionId: input.conversationId,
+        workerType: 'dialogue-service',
+        workerJobId: `dialogue-${Date.now()}`,
+        conversationId: input.conversationId,
+        messageId: `msg-${Date.now()}`,
+        sourceEntityId: input.conversationId,
+        systemPrompt: promptOutput.systemPrompt,        // ✅ Background context only
+        userMessage: promptOutput.userPrompt,           // ✅ Current turn context  
+        history: formattedHistory, // ✅ Properly formatted history
+        memoryContextBlock: augmentedMemoryContext?.relevant_memories?.join('\n') || '',
+        temperature: 0.3, // ✅ Lower for consistent formatting
+        maxTokens: 50000
+      },
+      request_id: `dialogue-${Date.now()}-${callType}`
     };
 
     console.log(`[DialogueAgent] V11.0 - ${callType.toUpperCase()} LLM call - LLM input prepared:`, {
-      systemPromptLength: llmToolInput.systemPrompt.length,
-      userMessageLength: llmToolInput.userMessage.length,
-      historyCount: llmToolInput.history.length,
-      hasMemoryContext: !!llmToolInput.memoryContextBlock,
-      memoryContextLength: llmToolInput.memoryContextBlock?.length || 0
+      systemPromptLength: llmToolInput.payload.systemPrompt.length,
+      userMessageLength: llmToolInput.payload.userMessage.length,
+      historyCount: llmToolInput.payload.history.length,
+      hasMemoryContext: !!llmToolInput.payload.memoryContextBlock,
+      memoryContextLength: llmToolInput.payload.memoryContextBlock?.length || 0
     });
 
     // Enhanced LLM call with retry logic
