@@ -546,6 +546,31 @@ class DashboardService {
       };
     }
   }
+
+  /**
+   * Get proactive greeting from the most recent processed conversation
+   */
+  async getProactiveGreeting(): Promise<{ success: boolean; data?: { greeting: string | null; conversationTitle?: string; updatedAt?: string; message?: string }; error?: string }> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/dashboard/greeting`, {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error fetching proactive greeting:', error);
+      return {
+        success: false,
+        error: 'Failed to fetch proactive greeting'
+      };
+    }
+  }
 }
 
 export const dashboardService = new DashboardService();

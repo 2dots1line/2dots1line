@@ -59,7 +59,15 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
     };
   } | null>(null);
   const [activeTab, setActiveTab] = useState<'opening' | 'dynamic' | 'growth-trajectory' | 'activity'>('opening');
+  const [proactiveGreeting, setProactiveGreeting] = useState<string | null>(null);
 
+  // Tab name mapping
+  const tabNames: Record<string, string> = {
+    'opening': 'Opening',
+    'dynamic': 'Dynamic Insights',
+    'growth-trajectory': 'Growth Trajectory',
+    'activity': 'Activity'
+  };
 
   // Mock data will be replaced by API calls
 
@@ -73,10 +81,11 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
     setIsLoading(true);
     try {
       // Load all dashboard data
-      const [legacyResponse, dynamicResponse, configResponse] = await Promise.all([
+      const [legacyResponse, dynamicResponse, configResponse, greetingResponse] = await Promise.all([
         dashboardService.getDashboardData(),
         dashboardService.getDynamicDashboard(),
-        dashboardService.getDashboardConfig()
+        dashboardService.getDashboardConfig(),
+        dashboardService.getProactiveGreeting()
       ]);
       
       if (legacyResponse.success && legacyResponse.data) {
@@ -103,6 +112,13 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
         setDashboardConfig(configResponse.data);
       } else {
         console.error('❌ Failed to load dashboard config:', configResponse.error);
+      }
+
+      if (greetingResponse.success && greetingResponse.data) {
+        setProactiveGreeting(greetingResponse.data.greeting);
+        console.log('👋 Proactive greeting loaded:', greetingResponse.data.greeting);
+      } else {
+        console.error('❌ Failed to load proactive greeting:', greetingResponse.error);
       }
 
     } catch (error) {
@@ -246,10 +262,10 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-white font-brand">Dashboard</h1>
-                          <p className="text-white/70 text-sm">
-                {getGreeting()}, {userData?.name || 'there'}! Here&apos;s your growth journey.
-              </p>
+            <h1 className="text-2xl font-bold text-white font-brand">{tabNames[activeTab]}</h1>
+            <p className="text-white/70 text-sm">
+              {proactiveGreeting || `${getGreeting()}, ${userData?.name || 'there'}! Here's your growth journey.`}
+            </p>
           </div>
           <GlassButton
             onClick={onClose}

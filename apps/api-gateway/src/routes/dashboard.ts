@@ -65,4 +65,12 @@ router.get('/config', async (req, res) => {
   await dashboardController.getDashboardConfig(req, res);
 });
 
+/**
+ * GET /api/v1/dashboard/greeting
+ * Get proactive greeting from the most recent processed conversation
+ */
+router.get('/greeting', async (req, res) => {
+  await dashboardController.getProactiveGreeting(req, res);
+});
+
 export default router;

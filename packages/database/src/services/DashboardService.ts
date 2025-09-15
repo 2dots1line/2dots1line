@@ -378,17 +378,57 @@ export class DashboardService {
    * Create a section for cards
    */
   private createCardSection(sectionType: string, cards: any[]): DashboardSectionData {
-    const items = cards.map(card => ({
-      id: card.id,
-      title: card.title || card.display_data?.title || 'Untitled Card',
-      content: card.description || card.display_data?.description || card.subtitle || '',
-      created_at: card.created_at,
-      metadata: {
-        card_type: card.card_type,
-        background_image_url: card.background_image_url,
-        display_data: card.display_data
+    const items = cards.map(card => {
+      // Apply the same title generation logic as CardService
+      let title = card.title;
+      
+      // Fallback logic for different card types when title is empty
+      if (!title) {
+        switch (card.card_type) {
+          case 'concept':
+            title = card.display_data?.name || 
+                   card.display_data?.description || 
+                   card.display_data?.concept_id || 
+                   `Concept: ${card.card_id}`;
+            break;
+          case 'proactive_prompt':
+            title = card.display_data?.prompt_text || 
+                   card.display_data?.prompt_id || 
+                   `Proactive Prompt: ${card.card_id}`;
+            break;
+          case 'derived_artifact':
+            title = card.display_data?.title || 
+                   card.display_data?.artifact_type || 
+                   card.display_data?.artifact_id || 
+                   `Derived Artifact: ${card.card_id}`;
+            break;
+          case 'community':
+            title = card.display_data?.name || 
+                   card.display_data?.community_id || 
+                   `Community: ${card.card_id}`;
+            break;
+          case 'memoryunit':
+            title = card.display_data?.title || 
+                   card.display_data?.memory_id || 
+                   `Memory Unit: ${card.card_id}`;
+            break;
+          default:
+            title = `${card.card_type.charAt(0).toUpperCase() + card.card_type.slice(1)}: ${card.card_id}`;
+        }
       }
-    }));
+
+      return {
+        id: card.card_id,
+        title: title,
+        content: card.description || card.display_data?.description || card.subtitle || '',
+        created_at: card.created_at,
+        metadata: {
+          card_type: card.card_type,
+          background_image_url: card.background_image_url,
+          display_data: card.display_data
+        }
+      };
+    });
 
     return {
       section_type: sectionType,
