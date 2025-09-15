@@ -4,7 +4,7 @@
  */
 
 import { Request, Response } from 'express';
-import { DashboardService } from '@2dots1line/database';
+import { DashboardService, ConversationRepository } from '@2dots1line/database';
 import { DatabaseService } from '@2dots1line/database';
 
 export class DashboardController {
@@ -227,6 +227,50 @@ export class DashboardController {
       res.status(500).json({ 
         error: 'Internal server error',
         message: 'Failed to retrieve dashboard configuration'
+      });
+    }
+  }
+
+  /**
+   * GET /api/v1/dashboard/greeting
+   * Get proactive greeting from the most recent processed conversation
+   */
+  async getProactiveGreeting(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      
+      if (!userId) {
+        res.status(401).json({ error: 'User not authenticated' });
+        return;
+      }
+
+      const conversationRepository = new ConversationRepository(this.dbService);
+      const recentConversation = await conversationRepository.getMostRecentProcessedConversationWithContext(userId);
+      
+      if (!recentConversation || !recentConversation.proactive_greeting) {
+        res.json({
+          success: true,
+          data: {
+            greeting: null,
+            message: 'No proactive greeting available'
+          }
+        });
+        return;
+      }
+
+      res.json({
+        success: true,
+        data: {
+          greeting: recentConversation.proactive_greeting,
+          conversationTitle: recentConversation.title,
+          updatedAt: recentConversation.updated_at
+        }
+      });
+    } catch (error) {
+      console.error('[DashboardController] Error getting proactive greeting:', error);
+      res.status(500).json({ 
+        error: 'Internal server error',
+        message: 'Failed to retrieve proactive greeting'
       });
     }
   }
