@@ -81,6 +81,9 @@ model conversations {
   source_card_id        String?
   status                String                  @default("active")
   session_id            String?                 // NEW FIELD: Links conversation to session
+  proactive_greeting    String?                 // NEW FIELD: Proactive greeting for next conversation
+  forward_looking_context Json?                 // NEW FIELD: Full forward-looking context from ingestion
+  updated_at            DateTime                @default(now()) @updatedAt
   conversation_messages conversation_messages[]
   cards                 cards?                  @relation(fields: [source_card_id], references: [card_id])
   users                 users                   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
@@ -89,6 +92,8 @@ model conversations {
 
   @@index([user_id, status])
   @@index([session_id])                        // NEW INDEX
+  @@index([user_id, updated_at(sort: Desc)])   // NEW INDEX: For finding most recent conversation
+  @@index([status, updated_at(sort: Desc)])    // NEW INDEX: For finding processed conversations
 }
 
 model derived_artifacts {
