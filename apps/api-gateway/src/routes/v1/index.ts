@@ -46,6 +46,7 @@ v1Router.post('/conversations/messages', authMiddleware, conversationController.
 v1Router.post('/conversations/upload', authMiddleware, uploadSingle, handleUploadError, conversationController.uploadFile);
 v1Router.post('/conversations/new-chat', authMiddleware, conversationController.startNewChat);
 v1Router.post('/conversations/:conversationId/end', authMiddleware, conversationController.endConversation);
+v1Router.get('/conversations/proactive-greeting/:userId', authMiddleware, conversationController.getProactiveGreeting.bind(conversationController));
 v1Router.get('/conversations', authMiddleware, conversationController.getConversationHistory);
 v1Router.get('/conversations/:conversationId', authMiddleware, conversationController.getConversation);
 

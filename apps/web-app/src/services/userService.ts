@@ -70,16 +70,29 @@ class UserService {
   }
 
   /**
-   * Get proactive greeting for the user
+   * Get proactive greeting for the user from the most recent processed conversation
    */
   async getProactiveGreeting(userId: string): Promise<string | null> {
     try {
-      const response = await this.getUserData(userId);
-      
-      const proactiveGreeting = response.data?.next_conversation_context_package?.proactive_greeting;
+      const response = await fetch(`${API_BASE_URL}/api/v1/conversations/proactive-greeting/${userId}`, {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        // If no greeting found, return null (not an error)
+        if (response.status === 404) {
+          return null;
+        }
+        throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const proactiveGreeting = data.data?.proactive_greeting;
       
       // Return the greeting only if it exists and is not empty (after trimming whitespace)
-      if (response.success && proactiveGreeting && proactiveGreeting.trim().length > 0) {
+      if (data.success && proactiveGreeting && proactiveGreeting.trim().length > 0) {
         return proactiveGreeting.trim();
       }
       

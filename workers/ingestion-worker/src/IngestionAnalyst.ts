@@ -193,16 +193,13 @@ export class IngestionAnalyst {
     if (persistence_payload.conversation_importance_score < 1) {
       console.log(`🔍 [IngestionAnalyst] DEBUG: Importance score ${persistence_payload.conversation_importance_score} below threshold, skipping entity creation`);
       
-      // Update conversation only
+      // Update conversation with context fields
       await this.conversationRepository.update(conversationId, {
         context_summary: persistence_payload.conversation_summary,
         importance_score: persistence_payload.conversation_importance_score,
-        status: 'processed'
-      });
-
-      // Update user's next conversation context
-      await this.userRepository.update(userId, {
-        next_conversation_context_package: forward_looking_context
+        status: 'processed',
+        proactive_greeting: forward_looking_context.proactive_greeting,
+        forward_looking_context: forward_looking_context
       });
       
       return [];
@@ -398,9 +395,10 @@ export class IngestionAnalyst {
         await neo4jSession.close();
       }
 
-      // Update user's next conversation context
-      await this.userRepository.update(userId, {
-        next_conversation_context_package: forward_looking_context
+      // Update conversation with context fields
+      await this.conversationRepository.update(conversationId, {
+        proactive_greeting: forward_looking_context.proactive_greeting,
+        forward_looking_context: forward_looking_context
       });
 
       return newEntities;

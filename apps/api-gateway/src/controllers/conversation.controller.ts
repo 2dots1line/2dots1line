@@ -7,7 +7,7 @@ import { NextFunction, Request, Response } from 'express';
 import type { TApiResponse } from '@2dots1line/shared-types';
 import { DialogueAgent } from '@2dots1line/dialogue-service';
 import { ConversationRepository, SessionRepository, SessionWithConversations, MediaRepository } from '@2dots1line/database';
-import type { user_sessions } from '@2dots1line/database';
+// import type { user_sessions } from '@2dots1line/database';
 import { REDIS_CONVERSATION_TIMEOUT_PREFIX } from '@2dots1line/core-utils';
 import { z } from 'zod';
 import { createHash } from 'crypto';
@@ -125,7 +125,7 @@ export class ConversationController {
       }
 
       // STEP 1: Determine session and conversation based on your correct vision
-      let session: user_sessions | null;
+      let session: any | null;
       let conversation: any = null;
 
       if (conversation_id) {
@@ -1005,9 +1005,9 @@ export class ConversationController {
         success: true,
         data: {
           sessions: sessions.map(session => ({
-            session_id: session.session_id,
-            created_at: session.created_at,
-            last_active_at: session.last_active_at,
+            session_id: (session as any).session_id,
+            created_at: (session as any).created_at,
+            last_active_at: (session as any).last_active_at,
             most_recent_conversation_title: (session as any).conversations?.[0]?.title || 'New Chat',
             conversation_count: (session as any).conversations?.length || 0,
             conversations: (session as any).conversations || []
@@ -1066,5 +1066,56 @@ export class ConversationController {
     }
     
     return 'unknown';
+  }
+
+
+  /**
+   * Get proactive greeting for a user from the most recent processed conversation
+   */
+  async getProactiveGreeting(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const { userId } = req.params;
+
+    if (!userId) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'MISSING_USER_ID',
+          message: 'User ID is required'
+        }
+      } as TApiResponse<any>);
+      return;
+    }
+
+    try {
+      const recentConversation = await this.conversationRepository.getMostRecentProcessedConversationWithContext(userId);
+
+      if (!recentConversation || !recentConversation.proactive_greeting) {
+        res.status(404).json({
+          success: false,
+          error: {
+            code: 'NO_PROACTIVE_GREETING',
+            message: 'No proactive greeting found for this user'
+          }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        data: {
+          proactive_greeting: recentConversation.proactive_greeting
+        }
+      } as TApiResponse<any>);
+
+    } catch (error) {
+      console.error('Error fetching proactive greeting:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Internal server error'
+        }
+      } as TApiResponse<any>);
+    }
   }
 } 
