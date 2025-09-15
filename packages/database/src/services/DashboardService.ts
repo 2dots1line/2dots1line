@@ -209,6 +209,22 @@ export class DashboardService {
       take: 5
     });
 
+    // Get the most recent opening artifact (regardless of cycle)
+    const openingArtifact = await this.db.prisma.derived_artifacts.findFirst({
+      where: {
+        user_id: userId,
+        artifact_type: 'opening'
+      },
+      orderBy: { created_at: 'desc' }
+    });
+
+    console.log(`[DashboardService] DEBUG: Found opening artifact:`, openingArtifact ? {
+      id: openingArtifact.artifact_id,
+      title: openingArtifact.title,
+      cycle_id: openingArtifact.cycle_id,
+      created_at: openingArtifact.created_at
+    } : 'None');
+
     // Generate sections dynamically based on configuration
     const sections: any = {};
     
@@ -220,6 +236,8 @@ export class DashboardService {
         // Map section types to data sources
         if (sectionKey === 'recent_cards') {
           return [sectionKey, this.createCardSection(sectionKey, recentCards)];
+        } else if (sectionKey === 'opening_words') {
+          return [sectionKey, this.createOpeningWordsSection(sectionKey, openingArtifact)];
         } else if (sectionKey === 'growth_dimensions') {
           return [sectionKey, this.createGrowthDimensionsSection(sectionKey, growthEvents)];
         } else if (sectionKey.startsWith('growth_')) {
@@ -340,6 +358,7 @@ export class DashboardService {
       skill_development_prompts: 'Skill Development Prompts',
       creative_expression_prompts: 'Creative Expression Prompts',
       recent_cards: 'Recent Cards',
+      opening_words: 'Opening Words',
       growth_dimensions: 'Growth Dimensions',
       growth_insights: 'Growth Insights',
       growth_focus_areas: 'Growth Focus Areas'
@@ -367,6 +386,7 @@ export class DashboardService {
       skill_development_prompts: 2,
       creative_expression_prompts: 2,
       recent_cards: 5,
+      opening_words: 1,
       growth_dimensions: 6,
       growth_insights: 3,
       growth_focus_areas: 3
@@ -436,6 +456,41 @@ export class DashboardService {
       items: items.slice(0, this.getMaxItemsForSection(sectionType)),
       total_count: items.length,
       last_updated: items.length > 0 ? items[0].created_at : new Date().toISOString()
+    };
+  }
+
+  /**
+   * Create a section for opening words
+   */
+  private createOpeningWordsSection(sectionType: string, openingArtifact: any): DashboardSectionData {
+    if (!openingArtifact) {
+      return {
+        section_type: sectionType,
+        title: this.getSectionTitle(sectionType),
+        items: [],
+        total_count: 0,
+        last_updated: new Date().toISOString()
+      };
+    }
+
+    const item = {
+      id: openingArtifact.artifact_id,
+      title: openingArtifact.title,
+      content: openingArtifact.content_narrative || '',
+      created_at: openingArtifact.created_at.toISOString(),
+      metadata: {
+        artifact_type: openingArtifact.artifact_type,
+        cycle_id: openingArtifact.cycle_id,
+        content_data: openingArtifact.content_data
+      }
+    };
+
+    return {
+      section_type: sectionType,
+      title: this.getSectionTitle(sectionType),
+      items: [item],
+      total_count: 1,
+      last_updated: item.created_at
     };
   }
 

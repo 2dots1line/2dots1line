@@ -468,29 +468,51 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                         <h3 className="text-2xl font-semibold text-white/90">Editor&apos;s Note</h3>
                       </div>
                       <div className="prose prose-invert max-w-none">
-                        <h1 className="text-4xl font-bold text-white mb-6 leading-tight">
-                          Your Journey Through the Cosmos
-                        </h1>
-                        <div className="text-lg text-white/90 leading-relaxed space-y-4">
-                          <p>
-                            Welcome to your personal cosmic journey. This month, we&apos;ve witnessed remarkable growth 
-                            across all dimensions of your being. Your conversations have revealed patterns of 
-                            self-discovery that speak to a deeper understanding of your place in the universe.
-                          </p>
-                          <p>
-                            The insights we&apos;ve gathered show a person who is not just growing, but evolving. 
-                            Each interaction, each moment of reflection, each new connection you make adds 
-                            another layer to the rich tapestry of your experience.
-                          </p>
-                          <p>
-                            As you explore the cards and insights that follow, remember that this is your story. 
-                            These are your discoveries, your breakthroughs, your moments of clarity. They represent 
-                            not just where you&apos;ve been, but where you&apos;re heading.
-                          </p>
-                          <p className="text-white/70 italic">
-                            &ldquo;The cosmos is within us. We are made of star-stuff. We are a way for the universe to know itself.&rdquo;
-                          </p>
-                        </div>
+                        {(() => {
+                          const openingWords = dynamicDashboardData?.sections?.opening_words?.items?.[0];
+                          
+                          if (openingWords) {
+                            return (
+                              <>
+                                <h1 className="text-4xl font-bold text-white mb-6 leading-tight">
+                                  {openingWords.title}
+                                </h1>
+                                <div className="text-lg text-white/90 leading-relaxed space-y-4">
+                                  <p>{openingWords.content}</p>
+                                </div>
+                              </>
+                            );
+                          } else {
+                            // Fallback to hardcoded content if no opening words exist
+                            return (
+                              <>
+                                <h1 className="text-4xl font-bold text-white mb-6 leading-tight">
+                                  Your Journey Through the Cosmos
+                                </h1>
+                                <div className="text-lg text-white/90 leading-relaxed space-y-4">
+                                  <p>
+                                    Welcome to your personal cosmic journey. This month, we&apos;ve witnessed remarkable growth 
+                                    across all dimensions of your being. Your conversations have revealed patterns of 
+                                    self-discovery that speak to a deeper understanding of your place in the universe.
+                                  </p>
+                                  <p>
+                                    The insights we&apos;ve gathered show a person who is not just growing, but evolving. 
+                                    Each interaction, each moment of reflection, each new connection you make adds 
+                                    another layer to the rich tapestry of your experience.
+                                  </p>
+                                  <p>
+                                    As you explore the cards and insights that follow, remember that this is your story. 
+                                    These are your discoveries, your breakthroughs, your moments of clarity. They represent 
+                                    not just where you&apos;ve been, but where you&apos;re heading.
+                                  </p>
+                                  <p className="text-white/70 italic">
+                                    &ldquo;The cosmos is within us. We are made of star-stuff. We are a way for the universe to know itself.&rdquo;
+                                  </p>
+                                </div>
+                              </>
+                            );
+                          }
+                        })()}
                       </div>
                     </GlassmorphicPanel>
                   </div>

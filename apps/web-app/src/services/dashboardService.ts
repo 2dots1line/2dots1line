@@ -95,6 +95,7 @@ export interface DynamicDashboardData {
     skill_development_prompts: DashboardSection;
     creative_expression_prompts: DashboardSection;
     recent_cards: DashboardSection;
+    opening_words: DashboardSection;
     growth_dimensions: DashboardSection;
     growth_insights: DashboardSection;
     growth_focus_areas: DashboardSection;
