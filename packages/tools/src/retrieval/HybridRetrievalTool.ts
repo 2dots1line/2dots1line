@@ -164,8 +164,7 @@ export class HybridRetrievalTool {
       // Simple filtering and deduplication
       const processed = keyPhrases
         .filter(phrase => phrase && phrase.trim().length > 0)
-        .map(phrase => phrase.trim().substring(0, 100))
-        .slice(0, 5);
+        .map(phrase => phrase.trim().substring(0, 100));
       
       const deduplicated = [...new Set(processed)];
       
@@ -181,7 +180,7 @@ export class HybridRetrievalTool {
         error: error instanceof Error ? error : new Error(String(error)),
         impact: 'degraded'
       });
-      return keyPhrases.slice(0, 5);
+      return keyPhrases.filter(phrase => phrase && phrase.trim().length > 0);
     }
   }
 

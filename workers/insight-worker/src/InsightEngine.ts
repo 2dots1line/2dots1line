@@ -329,76 +329,137 @@ export class InsightEngine {
           id: event.event_id,
           rationale: event.rationale
         }));
-      })(),
-      userProfile: {
-        preferences: user.memory_profile || {},
-        goals: [],
-        interests: [],
-        growth_trajectory: {}
-      }
+      })()
     };
 
-    // NEW: Retrieve strategic context using HRT with personalized key phrases
-    const hrtContext = await this.retrieveStrategicContext(userId, cycleDates, knowledgeGraph);
+    // Get previous cycle key phrases for continuity
+    const previousKeyPhrases = await this.getPreviousKeyPhrases(userId);
+
+    // Use HRT to retrieve strategic context based on previous key phrases
+    const hrtContext = await this.retrieveStrategicContextWithPreviousKeyPhrases(userId, previousKeyPhrases);
 
     // Build StrategicSynthesisInput with simplified data structures
     const strategicInput: StrategicSynthesisInput = {
+      // Core identification
       userId,
       userName: user.name || 'User',
       cycleId: `cycle-${userId}-${Date.now()}`,
       cycleStartDate: cycleDates.cycleStartDate,
       cycleEndDate: cycleDates.cycleEndDate,
+      
+      // Current cycle data
       currentKnowledgeGraph: {
-        // Use the knowledgeGraph data we already built
         conversations: knowledgeGraph.conversations,
         memoryUnits: knowledgeGraph.memoryUnits,
         concepts: knowledgeGraph.concepts,
-        // Simplified concepts needing synthesis - only id, name, description
-        conceptsNeedingSynthesis: await this.getConceptsNeedingSynthesis(userId, cycleDates.cycleStartDate),
-        // NEW: Add HRT-retrieved strategic context
-        strategicContext: hrtContext
+        conceptsNeedingSynthesis: await this.getConceptsNeedingSynthesis(userId, cycleDates.cycleStartDate)
       },
+      
+      // Growth events (recent cycle activity)
       recentGrowthEvents: knowledgeGraph.recentGrowthEvents,
-      userProfile: knowledgeGraph.userProfile,
+      
+      // HRT-retrieved strategic context (historical data)
+      strategicContext: hrtContext,
+      
+      // Previous cycle continuity
+      previousKeyPhrases: previousKeyPhrases,
+      
+      // System metadata
       workerType: 'insight-worker',
       workerJobId: jobId
     };
 
-    return { strategicInput, hrtContext };
+    return { strategicInput };
+  }
+
+
+
+  /**
+   * Get previous cycle key phrases for continuity
+   * Returns: Array of key phrase categories with their phrases
+   */
+  private async getPreviousKeyPhrases(userId: string): Promise<Array<{
+    category: string;
+    phrases: string[];
+  }>> {
+    try {
+      const user = await this.userRepository.findById(userId);
+      if (!user || !user.key_phrases || !Array.isArray(user.key_phrases)) {
+        console.log(`[InsightEngine] No previous key phrases found for user ${userId}`);
+        return [];
+      }
+
+      // Convert flat array to categorized format
+      // Previous format was just a flat array, so we'll create a simple structure
+      const phrases = user.key_phrases as string[];
+      const categories = [
+        'values_and_goals',
+        'emotional_drivers', 
+        'important_relationships',
+        'growth_patterns',
+        'knowledge_domains',
+        'life_context',
+        'hidden_connections'
+      ];
+
+      const result = [];
+      const phrasesPerCategory = Math.floor(phrases.length / categories.length);
+      
+      for (let i = 0; i < categories.length; i++) {
+        const startIdx = i * phrasesPerCategory;
+        const endIdx = i === categories.length - 1 ? phrases.length : (i + 1) * phrasesPerCategory;
+        const categoryPhrases = phrases.slice(startIdx, endIdx);
+        
+        if (categoryPhrases.length > 0) {
+          result.push({
+            category: categories[i],
+            phrases: categoryPhrases
+          });
+        }
+      }
+
+      console.log(`[InsightEngine] Retrieved ${result.length} key phrase categories for user ${userId}`);
+      return result;
+      
+    } catch (error) {
+      console.error(`[InsightEngine] Error retrieving previous key phrases:`, error);
+      return [];
+    }
   }
 
   /**
-   * Retrieve strategic context using HRT with key phrase-based retrieval
-   * NEW: Enables insight worker to leverage additional HRT-retrieved context
+   * Retrieve strategic context using HRT with previous cycle's key phrases
+   * This provides additional context for the LLM to generate better key phrases
    */
-  private async retrieveStrategicContext(userId: string, cycleDates: CycleDates, knowledgeGraph: any): Promise<ExtendedAugmentedMemoryContext> {
-    console.log(`[InsightEngine] Starting strategic context retrieval for user ${userId}`);
-    
+  private async retrieveStrategicContextWithPreviousKeyPhrases(
+    userId: string, 
+    previousKeyPhrases: Array<{ category: string; phrases: string[] }>
+  ): Promise<ExtendedAugmentedMemoryContext> {
     try {
-      // Load key phrases from user's memory profile or generate new ones
-      const keyPhrases = await this.loadStrategicKeyPhrases(userId, knowledgeGraph);
+      // Flatten previous key phrases for HRT
+      const allPreviousPhrases = previousKeyPhrases.flatMap(cat => cat.phrases);
       
-      if (keyPhrases.length === 0) {
-        console.warn(`[InsightEngine] No key phrases available, skipping HRT retrieval`);
+      if (allPreviousPhrases.length === 0) {
+        console.log(`[InsightEngine] No previous key phrases available for HRT retrieval`);
         return {
           retrievedMemoryUnits: [],
           retrievedConcepts: [],
           retrievedArtifacts: [],
-          retrievalSummary: 'No key phrases available for retrieval'
+          retrievalSummary: 'No previous key phrases available for retrieval'
         };
       }
 
-      console.log(`[InsightEngine] Using ${keyPhrases.length} personalized key phrases for strategic context retrieval:`, keyPhrases.slice(0, 5));
+      console.log(`[InsightEngine] Using ${allPreviousPhrases.length} previous key phrases for HRT retrieval:`, allPreviousPhrases.slice(0, 5));
       
-      // Execute HRT with strategic key phrases
+      // Execute HRT with previous cycle's key phrases
       const hrtContext = await this.hybridRetrievalTool.execute({
-        keyPhrasesForRetrieval: keyPhrases,
+        keyPhrasesForRetrieval: allPreviousPhrases,
         userId: userId,
-        retrievalScenario: 'trend_analysis', // Use trend analysis scenario for comprehensive insights
+        retrievalScenario: 'trend_analysis', // Use trend analysis for comprehensive insights
         maxResults: 60 // Higher limit for comprehensive analysis
       });
       
-      console.log(`[InsightEngine] Strategic context retrieved:`, {
+      console.log(`[InsightEngine] HRT context retrieved:`, {
         memoryUnits: hrtContext.retrievedMemoryUnits?.length || 0,
         concepts: hrtContext.retrievedConcepts?.length || 0,
         artifacts: hrtContext.retrievedArtifacts?.length || 0,
@@ -408,7 +469,7 @@ export class InsightEngine {
       return hrtContext;
       
     } catch (error) {
-      console.error(`[InsightEngine] Error retrieving strategic context for user ${userId}:`, error);
+      console.error(`[InsightEngine] Error retrieving strategic context with previous key phrases:`, error);
       
       // Return empty context on error to prevent system failure
       return {
@@ -421,176 +482,39 @@ export class InsightEngine {
   }
 
   /**
-   * Generate user-specific key phrases using LLM analysis
-   * NEW: Creates personalized key phrases based on user's knowledge graph
+   * Save key phrases from LLM output to user's key_phrases field
+   * Converts categorized format to flat array for storage
    */
-  private async generateUserKeyPhrases(userId: string, knowledgeGraph: any): Promise<string[]> {
+  private async saveKeyPhrasesFromLLMOutput(userId: string, keyPhrases: {
+    values_and_goals: string[];
+    emotional_drivers: string[];
+    important_relationships: string[];
+    growth_patterns: string[];
+    knowledge_domains: string[];
+    life_context: string[];
+    hidden_connections: string[];
+  }): Promise<void> {
     try {
-      console.log(`[InsightEngine] Generating personalized key phrases for user ${userId}`);
-      
-      // Load key phrase generation template
-      const templates = this.configService.getAllTemplates();
-      const keyPhraseTemplate = templates.insight_engine_key_phrase_generation || '';
-      
-      if (!keyPhraseTemplate) {
-        console.warn(`[InsightEngine] Key phrase generation template not found, using fallback`);
-        return this.getFallbackKeyPhrases();
-      }
-      
-      // Get user information
-      const user = await this.userRepository.findById(userId);
-      const userName = user?.name || 'User';
-      
-      // Replace user name in template
-      const templateWithUserName = keyPhraseTemplate.replace(/\{\{user_name\}\}/g, userName);
-      
-      // Build comprehensive prompt with user's knowledge graph
-      const prompt = `${templateWithUserName}
+      // Flatten all key phrases into a single array
+      const allPhrases = [
+        ...keyPhrases.values_and_goals,
+        ...keyPhrases.emotional_drivers,
+        ...keyPhrases.important_relationships,
+        ...keyPhrases.growth_patterns,
+        ...keyPhrases.knowledge_domains,
+        ...keyPhrases.life_context,
+        ...keyPhrases.hidden_connections
+      ];
 
-## User's Knowledge Graph Analysis
-**User ID**: ${userId}
-**User Name**: ${userName}
-**Analysis Timestamp**: ${new Date().toISOString()}
-
-### Recent Conversations (${knowledgeGraph.conversations?.length || 0})
-${JSON.stringify(knowledgeGraph.conversations?.slice(0, 10) || [], null, 2)}
-
-### Memory Units (${knowledgeGraph.memoryUnits?.length || 0})
-${JSON.stringify(knowledgeGraph.memoryUnits?.slice(0, 15) || [], null, 2)}
-
-### Concepts (${knowledgeGraph.concepts?.length || 0})
-${JSON.stringify(knowledgeGraph.concepts?.slice(0, 20) || [], null, 2)}
-
-### Recent Growth Events (${knowledgeGraph.recentGrowthEvents?.length || 0})
-${JSON.stringify(knowledgeGraph.recentGrowthEvents?.slice(0, 10) || [], null, 2)}
-
-### User Profile
-${JSON.stringify(knowledgeGraph.userProfile || {}, null, 2)}
-
-Analyze this knowledge graph and generate strategic key phrases that will enable comprehensive understanding of ${userName}'s life, values, and growth patterns.`;
-
-      // Call LLM to generate key phrases
-      const llmInput = {
-        payload: {
-          userId: userId,
-          sessionId: `key-phrase-generation-${Date.now()}`,
-          workerType: 'insight-worker',
-          workerJobId: 'key-phrase-generation',
-          sourceEntityId: userId,
-          systemPrompt: "You are the InsightEngine component generating strategic key phrases. Follow the instructions precisely and return valid JSON without any markers or additional text.",
-          history: [],
-          userMessage: prompt,
-          temperature: 0.3, // Lower temperature for more consistent key phrase generation
-          maxTokens: 2000
-        }
-      };
-      
-      const llmResult = await LLMRetryHandler.executeWithRetry(
-        LLMChatTool,
-        llmInput,
-        { 
-          maxAttempts: 2, 
-          baseDelay: 1000,
-          callType: 'key-phrase-generation'
-        }
-      );
-      
-      // Parse the LLM response
-      const keyPhraseResponse = this.parseKeyPhraseResponse(llmResult.result.text);
-      
-      // Flatten all key phrases from all categories
-      const allPhrases = Object.values(keyPhraseResponse.key_phrases || {}).flat() as string[];
-      
-      console.log(`[InsightEngine] Generated ${allPhrases.length} personalized key phrases for user ${userId}`);
-      console.log(`[InsightEngine] Key phrase categories: ${Object.keys(keyPhraseResponse.key_phrases || {}).join(', ')}`);
-      
-      return allPhrases;
-      
-    } catch (error) {
-      console.error(`[InsightEngine] Error generating personalized key phrases for user ${userId}:`, error);
-      
-      // Return fallback key phrases on error
-      return this.getFallbackKeyPhrases();
-    }
-  }
-
-  /**
-   * Parse LLM response for key phrase generation
-   */
-  private parseKeyPhraseResponse(llmResponse: string): any {
-    try {
-      // Try direct JSON parsing first
-      const parsed = JSON.parse(llmResponse.trim());
-      return parsed;
-    } catch (error) {
-      // Try JSON extraction if direct parsing fails
-      const firstBrace = llmResponse.indexOf('{');
-      const lastBrace = llmResponse.lastIndexOf('}');
-      
-      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-        const jsonString = llmResponse.substring(firstBrace, lastBrace + 1).trim();
-        return JSON.parse(jsonString);
-      }
-      
-      throw new Error(`Failed to parse key phrase response: ${llmResponse.substring(0, 200)}...`);
-    }
-  }
-
-  /**
-   * Get fallback key phrases when generation fails
-   */
-  private getFallbackKeyPhrases(): string[] {
-    return [
-      'personal development',
-      'learning patterns', 
-      'growth trends',
-      'strategic insights',
-      'behavioral patterns',
-      'life goals',
-      'relationships',
-      'career development',
-      'creative expression',
-      'well-being practices'
-    ];
-  }
-
-  /**
-   * Generate fresh key phrases for each insight worker run
-   * ULTRA-SIMPLE: Always generates new key phrases, stores as simple array
-   */
-  private async loadStrategicKeyPhrases(userId: string, knowledgeGraph: any): Promise<string[]> {
-    try {
-      // Always generate fresh key phrases for each insight worker run
-      console.log(`[InsightEngine] Generating fresh key phrases for user ${userId}`);
-      const newKeyPhrases = await this.generateUserKeyPhrases(userId, knowledgeGraph);
-      
-      // Save the new key phrases as simple array
-      await this.saveKeyPhrasesToDedicatedField(userId, newKeyPhrases);
-      
-      return newKeyPhrases;
-      
-    } catch (error) {
-      console.error(`[InsightEngine] Error generating strategic key phrases:`, error);
-      
-      // Return fallback key phrases on error
-      return this.getFallbackKeyPhrases();
-    }
-  }
-
-  /**
-   * Save generated key phrases to dedicated field
-   * ULTRA-SIMPLE: Just store the key phrases array directly
-   */
-  private async saveKeyPhrasesToDedicatedField(userId: string, keyPhrases: string[]): Promise<void> {
-    try {
       await this.userRepository.update(userId, {
-        key_phrases: keyPhrases
+        key_phrases: allPhrases
       });
-      
-      console.log(`[InsightEngine] Saved ${keyPhrases.length} key phrases to user ${userId}'s key_phrases field`);
+
+      console.log(`[InsightEngine] Saved ${allPhrases.length} key phrases from LLM output for user ${userId}`);
+      console.log(`[InsightEngine] Key phrase categories: ${Object.keys(keyPhrases).join(', ')}`);
       
     } catch (error) {
-      console.error(`[InsightEngine] Error saving key phrases:`, error);
+      console.error(`[InsightEngine] Error saving key phrases from LLM output:`, error);
       // Don't throw error - this is not critical for the main process
     }
   }
@@ -751,7 +675,6 @@ Analyze this knowledge graph and generate strategic key phrases that will enable
           artifact_type: artifact.artifact_type,
           title: artifact.title,
           content_narrative: artifact.content,
-          content_data: artifact.content_data || null, // ✅ Include structured data
           source_concept_ids: artifact.source_concept_ids || [], // ✅ Include source concepts
           source_memory_unit_ids: artifact.source_memory_unit_ids || [] // ✅ Include source memory units
         };
@@ -790,6 +713,11 @@ Analyze this knowledge graph and generate strategic key phrases that will enable
         }
         
         console.log(`[InsightEngine] Created proactive prompt: ${createdPrompt.prompt_id} - ${prompt.title}`);
+      }
+
+      // Save key phrases from LLM output
+      if (analysisOutput.key_phrases) {
+        await this.saveKeyPhrasesFromLLMOutput(userId, analysisOutput.key_phrases);
       }
 
       // CRITICAL FIX: Update user memory profile with strategic insights

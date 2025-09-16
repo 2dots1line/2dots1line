@@ -53,7 +53,6 @@ export const StrategicSynthesisOutputSchema = z.object({
     confidence_score: z.number().min(0).max(1),
     supporting_evidence: z.array(z.string()),
     actionability: z.enum(['immediate', 'short_term', 'long_term', 'aspirational']),
-    content_data: z.record(z.any()).optional(),
     source_concept_ids: z.array(z.string()).optional(),
     source_memory_unit_ids: z.array(z.string()).optional()
   })),
@@ -64,17 +63,29 @@ export const StrategicSynthesisOutputSchema = z.object({
     context_explanation: z.string(),
     timing_suggestion: z.enum(['next_conversation', 'weekly_check_in', 'monthly_review', 'quarterly_planning']),
     priority_level: z.number().min(1).max(10)
-  }))
+  })),
+  key_phrases: z.object({
+    values_and_goals: z.array(z.string()),
+    emotional_drivers: z.array(z.string()),
+    important_relationships: z.array(z.string()),
+    growth_patterns: z.array(z.string()),
+    knowledge_domains: z.array(z.string()),
+    life_context: z.array(z.string()),
+    hidden_connections: z.array(z.string())
+  })
 });
 
 export type StrategicSynthesisOutput = z.infer<typeof StrategicSynthesisOutputSchema>;
 
 export interface StrategicSynthesisInput {
+  // Core identification
   userId: string;
   userName?: string;
   cycleId: string;
   cycleStartDate: Date;
   cycleEndDate: Date;
+  
+  // Current cycle data
   currentKnowledgeGraph: {
     conversations: Array<{
       context_summary: string;
@@ -93,42 +104,45 @@ export interface StrategicSynthesisInput {
       name: string;
       description: string;
     }>;
-    // HRT-retrieved strategic context
-    strategicContext?: {
-      retrievedMemoryUnits?: Array<{
-        id: string;
-        title: string;
-        content: string;
-        finalScore: number;
-      }>;
-      retrievedConcepts?: Array<{
-        id: string;
-        name: string;
-        description: string;
-        finalScore: number;
-      }>;
-      retrievedArtifacts?: Array<{
-        id: string;
-        title: string;
-        content: string;
-        type: string;
-        finalScore: number;
-      }>;
-      retrievalSummary?: string;
-    };
   };
+  
+  // Growth events (recent cycle activity)
   recentGrowthEvents: Array<{
     id: string;
     rationale: string;
   }>;
-  userProfile: {
-    preferences: any;
-    goals: string[];
-    interests: string[];
-    growth_trajectory: any;
+  
+  // HRT-retrieved strategic context (historical data)
+  strategicContext?: {
+    retrievedMemoryUnits?: Array<{
+      id: string;
+      title: string;
+      content: string;
+      finalScore: number;
+    }>;
+    retrievedConcepts?: Array<{
+      id: string;
+      name: string;
+      description: string;
+      finalScore: number;
+    }>;
+    retrievedArtifacts?: Array<{
+      id: string;
+      title: string;
+      content: string;
+      type: string;
+      finalScore: number;
+    }>;
+    retrievalSummary?: string;
   };
   
-  // LLM interaction logging
+  // Previous cycle continuity
+  previousKeyPhrases?: Array<{
+    category: string;
+    phrases: string[];
+  }>;
+  
+  // System metadata
   workerType?: string;
   workerJobId?: string;
 }
@@ -165,85 +179,46 @@ export class StrategicSynthesisTool {
     console.log(`[StrategicSynthesisTool] Analyzing ${input.currentKnowledgeGraph.memoryUnits.length} memory units`);
     console.log(`[StrategicSynthesisTool] Analyzing ${input.currentKnowledgeGraph.concepts.length} concepts`);
     
-    try {
-      // Build analysis prompt
-      const prompt = await this.buildStrategicAnalysisPrompt(input);
-      
-      // Prepare LLM input
-      const llmInput: LLMChatInput = {
-        payload: {
-          userId: input.userId,
-          sessionId: `strategic-synthesis-${input.cycleId}`,
-          workerType: input.workerType || 'insight-worker',
-          workerJobId: input.workerJobId,
-          sourceEntityId: input.cycleId,
-          systemPrompt: "You are the InsightEngine component performing strategic cyclical analysis. Follow the instructions precisely and return valid JSON without any markers or additional text.",
-          history: [],
-          userMessage: prompt,
-          temperature: 0.4,
-          maxTokens: 50000
-        }
-      };
-      
-      // Call LLM with retry logic
-      const llmResult = await LLMRetryHandler.executeWithRetry(
-        LLMChatTool,
-        llmInput,
-        { 
-          callType: 'strategic-synthesis'
-        }
-      );
-      
-      console.log(`[StrategicSynthesisTool] LLM response received, length: ${llmResult.result.text.length}`);
-      
-      // Parse and validate response
-      const synthesisResult = this.validateAndParseOutput(llmResult.result.text);
-      
-      console.log('[StrategicSynthesisTool] Strategic synthesis completed successfully');
-      console.log(`[StrategicSynthesisTool] Generated ${synthesisResult.ontology_optimizations.concepts_to_merge.length} concept merges`);
-      console.log(`[StrategicSynthesisTool] Generated ${synthesisResult.derived_artifacts.length} derived artifacts`);
-      console.log(`[StrategicSynthesisTool] Generated ${synthesisResult.proactive_prompts.length} proactive prompts`);
-      
-      return synthesisResult;
-      
-    } catch (error) {
-      console.error(`[StrategicSynthesisTool] Strategic synthesis failed for cycle ${input.cycleId}:`, error);
-      
-      // Handle parsing vs LLM errors
-      if (error instanceof StrategicSynthesisJSONParseError || error instanceof StrategicSynthesisValidationError) {
-        console.error(`[StrategicSynthesisTool] CRITICAL: Parsing/validation failed. This indicates the LLM response format is incorrect.`);
-        console.error(`[StrategicSynthesisTool] Raw LLM response: ${error instanceof StrategicSynthesisJSONParseError ? error.rawResponse.substring(0, 1000) : 'N/A'}...`);
-        console.error(`[StrategicSynthesisTool] This error should be investigated as it prevents downstream processing.`);
-        
-        // Throw parsing errors as they indicate system issues
-        throw error;
+    // Build analysis prompt
+    const prompt = await this.buildStrategicAnalysisPrompt(input);
+    
+    // Prepare LLM input
+    const llmInput: LLMChatInput = {
+      payload: {
+        userId: input.userId,
+        sessionId: `strategic-synthesis-${input.cycleId}`,
+        workerType: input.workerType || 'insight-worker',
+        workerJobId: input.workerJobId,
+        sourceEntityId: input.cycleId,
+        systemPrompt: "You are the InsightEngine component performing strategic cyclical analysis. Follow the instructions precisely and return valid JSON without any markers or additional text.",
+        history: [],
+        userMessage: prompt,
+        temperature: 0.4,
+        maxTokens: 50000
       }
-      
-      // Return fallback for other errors
-      console.log(`[StrategicSynthesisTool] Returning fallback output for non-parsing error`);
-      
-      // Return minimal valid response
-      const fallbackOutput: StrategicSynthesisOutput = {
-        ontology_optimizations: {
-          concepts_to_merge: [],
-          concepts_to_archive: [],
-          new_strategic_relationships: [],
-          community_structures: [],
-          concept_description_synthesis: []
-        },
-        derived_artifacts: [{
-          artifact_type: 'insight',
-          title: 'Analysis Failed - Manual Review Required',
-          content: 'Strategic synthesis encountered an error and requires manual review.',
-          confidence_score: 0.1,
-          supporting_evidence: ['System error during analysis'],
-          actionability: 'immediate'
-        }],
-        proactive_prompts: []
-      };
-      
-      return fallbackOutput;
-    }
+    };
+    
+    // Call LLM with retry logic - LLMRetryHandler handles LLM service failures
+    const llmResult = await LLMRetryHandler.executeWithRetry(
+      LLMChatTool,
+      llmInput,
+      { 
+        callType: 'strategic-synthesis'
+      }
+    );
+    
+    console.log(`[StrategicSynthesisTool] LLM response received, length: ${llmResult.result.text.length}`);
+    
+    // If we get here, LLM service succeeded - work with whatever response we got
+    // No fallback responses - work with the actual LLM response
+    const synthesisResult = this.validateAndParseOutput(llmResult.result.text);
+    
+    console.log('[StrategicSynthesisTool] Strategic synthesis completed successfully');
+    console.log(`[StrategicSynthesisTool] Generated ${synthesisResult.ontology_optimizations.concepts_to_merge.length} concept merges`);
+    console.log(`[StrategicSynthesisTool] Generated ${synthesisResult.derived_artifacts.length} derived artifacts`);
+    console.log(`[StrategicSynthesisTool] Generated ${synthesisResult.proactive_prompts.length} proactive prompts`);
+    
+    return synthesisResult;
   }
 
   /**
@@ -256,6 +231,7 @@ export class StrategicSynthesisTool {
     // Get templates
     const coreIdentity = templates.insight_worker_core_identity;
     const operationalConfig = templates.insight_worker_operational_config;
+    const dynamicContext = templates.insight_worker_dynamic_context;
     const currentAnalysis = templates.insight_worker_current_analysis;
     
     // Consolidate entities
@@ -269,34 +245,124 @@ export class StrategicSynthesisTool {
     const operationalConfigWithUserName = operationalConfig.replace(/\{\{user_name\}\}/g, user_name);
     const currentAnalysisWithUserName = currentAnalysis.replace(/\{\{user_name\}\}/g, user_name);
 
+    // Build dynamic context data
+    const dynamicContextData = {
+      analysis_context: {
+        user_name: user_name,
+        cycle_id: input.cycleId,
+        analysis_timestamp: new Date().toISOString(),
+        cycle_period: `${input.cycleStartDate.toISOString()} to ${input.cycleEndDate.toISOString()}`
+      },
+      consolidated_knowledge_graph: {
+        concepts: consolidatedEntities.concepts,
+        memory_units: consolidatedEntities.memoryUnits,
+        concepts_needing_synthesis: input.currentKnowledgeGraph.conceptsNeedingSynthesis,
+        recent_growth_events: input.recentGrowthEvents,
+        previous_key_phrases: input.previousKeyPhrases || []
+      },
+      recent_conversations: {
+        conversations: input.currentKnowledgeGraph.conversations.map(conv => ({
+          title: conv.context_summary || 'Untitled Conversation',
+          importance_score: 7,
+          summary: conv.context_summary || 'No summary available'
+        }))
+      }
+    };
+
+    // Process dynamic context template
+    const dynamicContextProcessed = this.buildDynamicContextSimple(dynamicContextData);
+
     // Build prompt
     const masterPrompt = `${coreIdentityWithUserName}
 
 ${operationalConfigWithUserName}
 
-## Analysis Context
-- **User**: ${user_name}
-- **Cycle ID**: ${input.cycleId}
-- **Analysis Timestamp**: ${new Date().toISOString()}
-- **Cycle Period**: ${input.cycleStartDate.toISOString()} to ${input.cycleEndDate.toISOString()}
-
-## Consolidated Knowledge Graph
-### Concepts (${consolidatedEntities.concepts.length} total)
-${consolidatedEntities.concepts.map(c => `- **${c.name}** (${c.id}): ${c.description}`).join('\n')}
-
-### Memory Units (${consolidatedEntities.memoryUnits.length} total)
-${consolidatedEntities.memoryUnits.map(mu => `- **${mu.id}**: ${mu.content}`).join('\n')}
-
-### Concepts Needing Description Synthesis (${input.currentKnowledgeGraph.conceptsNeedingSynthesis.length} total)
-${input.currentKnowledgeGraph.conceptsNeedingSynthesis.map(c => `- **${c.name}** (${c.id}): ${c.description}`).join('\n')}
-
-## Recent Conversations (${input.currentKnowledgeGraph.conversations.length} total)
-${input.currentKnowledgeGraph.conversations.map(conv => `- **${conv.context_summary || 'Untitled Conversation'}** (7/10): ${conv.context_summary || 'No summary available'}`).join('\n')}
+${dynamicContextProcessed}
 
 ${currentAnalysisWithUserName}`;
 
     console.log(`[StrategicSynthesisTool] Final prompt length: ${masterPrompt.length} characters`);
     return masterPrompt;
+  }
+
+  /**
+   * Process Mustache template with data
+   */
+  private processMustacheTemplate(template: string, data: any): string {
+    let result = template;
+    
+    // Process sections with arrays and objects (supports underscore-separated names)
+    result = result.replace(/\{\{#([^}]+)\}\}([\s\S]*?)\{\{\/\1\}\}/g, (match, sectionName, content) => {
+      const sectionData = this.getNestedValue(data, sectionName);
+      if (!sectionData) return '';
+      
+      if (Array.isArray(sectionData)) {
+        return sectionData.map(item => {
+          let itemContent = content;
+          // Replace item properties
+          Object.keys(item).forEach(key => {
+            const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+            itemContent = itemContent.replace(regex, this.formatValue(item[key]) || '');
+          });
+          return itemContent;
+        }).join('');
+      } else {
+        // For objects, process the content with the object as context
+        let processedContent = content;
+        Object.keys(sectionData).forEach(key => {
+          const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+          processedContent = processedContent.replace(regex, this.formatValue(sectionData[key]) || '');
+        });
+        return processedContent;
+      }
+    });
+    
+    // Process remaining variables (including object properties like .length)
+    result = this.processVariables(result, data);
+    
+    return result;
+  }
+
+  /**
+   * Get nested value from object using dot notation or underscore notation
+   */
+  private getNestedValue(obj: any, path: string): any {
+    // Handle both dot notation (nested.properties) and underscore notation (section_names)
+    const keys = path.includes('.') ? path.split('.') : [path];
+    return keys.reduce((current, key) => current?.[key], obj);
+  }
+
+  /**
+   * Process simple variables and object properties in template
+   */
+  private processVariables(template: string, data: any): string {
+    let result = template;
+    
+    // Process all variables in the template
+    const variableRegex = /\{\{([^}]+)\}\}/g;
+    let match;
+    
+    while ((match = variableRegex.exec(result)) !== null) {
+      const fullMatch = match[0]; // {{variable}}
+      const variablePath = match[1]; // variable
+      
+      const value = this.getNestedValue(data, variablePath);
+      const formattedValue = this.formatValue(value) || '';
+      
+      result = result.replace(fullMatch, formattedValue);
+    }
+    
+    return result;
+  }
+
+  /**
+   * Format value for template replacement
+   */
+  private formatValue(value: any): string {
+    if (value === null || value === undefined) return '';
+    if (Array.isArray(value)) return value.length.toString();
+    if (typeof value === 'object') return JSON.stringify(value);
+    return String(value);
   }
 
   /**
@@ -310,7 +376,7 @@ ${currentAnalysisWithUserName}`;
     const allConcepts = [
       ...input.currentKnowledgeGraph.concepts,
       // Normalize HRT concepts
-      ...(input.currentKnowledgeGraph.strategicContext?.retrievedConcepts?.map(concept => ({
+      ...(input.strategicContext?.retrievedConcepts?.map((concept: any) => ({
         id: concept.id,
         name: concept.name,
         description: concept.description
@@ -324,7 +390,7 @@ ${currentAnalysisWithUserName}`;
     const allMemoryUnits = [
       ...input.currentKnowledgeGraph.memoryUnits,
       // Normalize HRT memory units
-      ...(input.currentKnowledgeGraph.strategicContext?.retrievedMemoryUnits?.map(mu => ({
+      ...(input.strategicContext?.retrievedMemoryUnits?.map((mu: any) => ({
         id: mu.id,
         content: mu.content
         // Drop title and finalScore fields
@@ -378,8 +444,55 @@ ${currentAnalysisWithUserName}`;
   }
 
   /**
+   * Build dynamic context using simple string interpolation (surgical fix for template processing)
+   */
+  private buildDynamicContextSimple(data: any): string {
+    const { analysis_context, consolidated_knowledge_graph, recent_conversations } = data;
+    
+    return `=== SECTION 3: DYNAMIC CONTEXT ===
+
+## 3.1 ANALYSIS CONTEXT (High Cacheability: 80-90%)
+User: ${analysis_context.user_name}
+Cycle ID: ${analysis_context.cycle_id}
+Analysis Timestamp: ${analysis_context.analysis_timestamp}
+Cycle Period: ${analysis_context.cycle_period}
+
+## 3.2 CONSOLIDATED KNOWLEDGE GRAPH (Medium Cacheability: 50-70%)
+### Concepts (${consolidated_knowledge_graph.concepts.length} total)
+${consolidated_knowledge_graph.concepts.map((concept: any) => 
+  `- **${concept.name}** (${concept.id}): ${concept.description}`
+).join('\n')}
+
+### Memory Units (${consolidated_knowledge_graph.memory_units.length} total)
+${consolidated_knowledge_graph.memory_units.map((mu: any) => 
+  `- **${mu.id}**: ${mu.content}`
+).join('\n')}
+
+### Concepts Needing Synthesis (${consolidated_knowledge_graph.concepts_needing_synthesis.length} total)
+${consolidated_knowledge_graph.concepts_needing_synthesis.map((concept: any) => 
+  `- **${concept.name}** (${concept.id}): ${concept.description}`
+).join('\n')}
+
+### Recent Growth Events (${consolidated_knowledge_graph.recent_growth_events.length} total)
+${consolidated_knowledge_graph.recent_growth_events.map((event: any) => 
+  `- **${event.id}**: ${event.rationale}`
+).join('\n')}
+
+### Previous Cycle Key Phrases (${consolidated_knowledge_graph.previous_key_phrases.length} total)
+${consolidated_knowledge_graph.previous_key_phrases.map((kp: any) => 
+  `- **${kp.category}**: ${kp.phrases.join(', ')}`
+).join('\n')}
+
+## 3.3 RECENT CONVERSATIONS (Low Cacheability: 10-30%)
+${recent_conversations.conversations.map((conv: any) => 
+  `- **${conv.title}** (${conv.importance_score}/10): ${conv.summary}`
+).join('\n')}`;
+  }
+
+  /**
    * Parse and validate LLM output with resilient error handling
-   * Designed to work with whatever the LLM sends back, only failing on critical issues
+   * Works with whatever the LLM sends back, only failing on critical issues
+   * Never hides LLM response failures - works with actual response
    */
   private validateAndParseOutput(llmJsonResponse: string): StrategicSynthesisOutput {
     console.log(`[StrategicSynthesisTool] Processing LLM response (${llmJsonResponse.length} chars)`);
@@ -387,7 +500,7 @@ ${currentAnalysisWithUserName}`;
     // Extract JSON from response (handles extra text, markdown, etc.)
     const jsonData = this.extractJSONFromResponse(llmJsonResponse);
     
-    // Validate with smart error recovery
+    // Validate with smart error recovery - work with actual LLM response
     return this.validateWithRecovery(jsonData);
   }
 
@@ -413,7 +526,8 @@ ${currentAnalysisWithUserName}`;
   }
 
   /**
-   * Validate data with smart error recovery - only fail on critical issues
+   * Validate data with smart error recovery - work with actual LLM response
+   * Only applies minor fixes for formatting issues, never hides LLM response content
    */
   private validateWithRecovery(data: any): StrategicSynthesisOutput {
     try {
@@ -421,18 +535,19 @@ ${currentAnalysisWithUserName}`;
       return StrategicSynthesisOutputSchema.parse(data);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        console.warn(`[StrategicSynthesisTool] Validation issues detected, attempting recovery...`);
+        console.warn(`[StrategicSynthesisTool] Validation issues detected, attempting minor fixes...`);
         
-        // Apply smart fixes for common LLM response issues
-        const fixedData = this.applySmartFixes(data, error.errors);
+        // Apply only minor fixes for common formatting issues
+        const fixedData = this.applyMinorFixes(data, error.errors);
         
         try {
           const result = StrategicSynthesisOutputSchema.parse(fixedData);
-          console.log(`[StrategicSynthesisTool] Recovery successful`);
+          console.log(`[StrategicSynthesisTool] Minor fixes successful`);
           return result;
         } catch (recoveryError) {
-          console.error(`[StrategicSynthesisTool] Recovery failed, falling back to minimal valid response`);
-          return this.createMinimalValidResponse(data);
+          console.error(`[StrategicSynthesisTool] Minor fixes failed - LLM response has critical issues`);
+          console.error(`[StrategicSynthesisTool] This indicates a problem with the LLM response format that needs investigation`);
+          throw new StrategicSynthesisValidationError('LLM response format is critically invalid', error.errors);
         }
       }
       throw new StrategicSynthesisError('Unexpected validation error', error as Error);
@@ -440,85 +555,56 @@ ${currentAnalysisWithUserName}`;
   }
 
   /**
-   * Apply smart fixes for common LLM response issues
+   * Apply minor fixes for common LLM response formatting issues
+   * Only fixes minor formatting problems, never adds content
    */
-  private applySmartFixes(data: any, errors: z.ZodIssue[]): any {
+  private applyMinorFixes(data: any, errors: z.ZodIssue[]): any {
     const fixed = JSON.parse(JSON.stringify(data));
     
-    // Ensure required top-level structure exists
-    if (!fixed.ontology_optimizations) {
-      fixed.ontology_optimizations = {};
-    }
-    if (!fixed.derived_artifacts) {
-      fixed.derived_artifacts = [];
-    }
-    if (!fixed.proactive_prompts) {
-      fixed.proactive_prompts = [];
-    }
-    
-    // Ensure ontology_optimizations has all required arrays
-    const requiredOntologyFields = [
-      'concepts_to_merge', 'concepts_to_archive', 'new_strategic_relationships',
-      'community_structures', 'concept_description_synthesis'
-    ];
-    
-    for (const field of requiredOntologyFields) {
-      if (!fixed.ontology_optimizations[field]) {
-        fixed.ontology_optimizations[field] = [];
-      }
-    }
-    
-    // Clean up arrays (remove null/undefined items)
-    const arrayFields = [
-      'derived_artifacts', 'proactive_prompts',
-      ...requiredOntologyFields.map(field => `ontology_optimizations.${field}`)
-    ];
-    
-    for (const field of arrayFields) {
-      const path = field.split('.');
-      let current = fixed;
-      for (let i = 0; i < path.length - 1; i++) {
-        current = current[path[i]];
-      }
-      const arrayField = path[path.length - 1];
-      
-      if (Array.isArray(current[arrayField])) {
-        current[arrayField] = current[arrayField].filter((item: any) => item != null);
-      }
-    }
+    // Only fix minor formatting issues - don't add missing content
+    this.cleanupArrays(fixed);
     
     return fixed;
   }
 
+
   /**
-   * Create minimal valid response when all else fails
+   * Clean up arrays by removing null/undefined items
    */
-  private createMinimalValidResponse(originalData: any): StrategicSynthesisOutput {
-    console.log(`[StrategicSynthesisTool] Creating minimal valid response from:`, {
-      hasOntology: !!originalData?.ontology_optimizations,
-      hasArtifacts: !!originalData?.derived_artifacts,
-      hasPrompts: !!originalData?.proactive_prompts
-    });
+  private cleanupArrays(data: any): void {
+    const arrayFields = [
+      'derived_artifacts', 'proactive_prompts',
+      'ontology_optimizations.concepts_to_merge',
+      'ontology_optimizations.concepts_to_archive',
+      'ontology_optimizations.new_strategic_relationships',
+      'ontology_optimizations.community_structures',
+      'ontology_optimizations.concept_description_synthesis'
+    ];
     
-    return {
-      ontology_optimizations: {
-        concepts_to_merge: originalData?.ontology_optimizations?.concepts_to_merge || [],
-        concepts_to_archive: originalData?.ontology_optimizations?.concepts_to_archive || [],
-        new_strategic_relationships: originalData?.ontology_optimizations?.new_strategic_relationships || [],
-        community_structures: originalData?.ontology_optimizations?.community_structures || [],
-        concept_description_synthesis: originalData?.ontology_optimizations?.concept_description_synthesis || []
-      },
-      derived_artifacts: originalData?.derived_artifacts || [{
-        artifact_type: 'insight',
-        title: 'Analysis Completed',
-        content: 'Strategic synthesis completed with available data.',
-        confidence_score: 0.5,
-        supporting_evidence: ['System recovery'],
-        actionability: 'immediate'
-      }],
-      proactive_prompts: originalData?.proactive_prompts || []
-    };
+    for (const field of arrayFields) {
+      this.filterArrayField(data, field);
+    }
   }
+
+  /**
+   * Filter null/undefined items from a specific array field
+   */
+  private filterArrayField(data: any, fieldPath: string): void {
+    const path = fieldPath.split('.');
+    let current = data;
+    
+    // Navigate to the parent object
+    for (let i = 0; i < path.length - 1; i++) {
+      if (!current[path[i]]) return; // Field doesn't exist
+      current = current[path[i]];
+    }
+    
+    const arrayField = path[path.length - 1];
+    if (Array.isArray(current[arrayField])) {
+      current[arrayField] = current[arrayField].filter((item: any) => item != null);
+    }
+  }
+
 
 
 

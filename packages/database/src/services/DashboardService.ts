@@ -298,11 +298,13 @@ export class DashboardService {
       id: artifact.artifact_id,
       title: artifact.title,
       content: artifact.content_narrative || '',
-      confidence: artifact.content_data?.confidence_score,
-      actionability: artifact.content_data?.actionability,
-      priority: artifact.content_data?.priority_level,
       created_at: artifact.created_at.toISOString(),
-      metadata: artifact.content_data
+      metadata: {
+        artifact_type: artifact.artifact_type,
+        cycle_id: artifact.cycle_id,
+        source_concept_ids: artifact.source_concept_ids,
+        source_memory_unit_ids: artifact.source_memory_unit_ids
+      }
     }));
 
     return {
@@ -481,7 +483,8 @@ export class DashboardService {
       metadata: {
         artifact_type: openingArtifact.artifact_type,
         cycle_id: openingArtifact.cycle_id,
-        content_data: openingArtifact.content_data
+        source_concept_ids: openingArtifact.source_concept_ids,
+        source_memory_unit_ids: openingArtifact.source_memory_unit_ids
       }
     };
 
