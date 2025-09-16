@@ -13,7 +13,6 @@ export interface CreateDerivedArtifactData {
   artifact_type: string;
   title: string;
   content_narrative?: string;
-  content_data?: any;
   source_memory_unit_ids?: string[];
   source_concept_ids?: string[];
 }
@@ -21,7 +20,6 @@ export interface CreateDerivedArtifactData {
 export interface UpdateDerivedArtifactData {
   title?: string;
   content_narrative?: string;
-  content_data?: any;
 }
 
 export class DerivedArtifactRepository {
@@ -36,7 +34,6 @@ export class DerivedArtifactRepository {
         artifact_type: data.artifact_type,
         title: data.title,
         content_narrative: data.content_narrative ?? null,
-        content_data: data.content_data ?? null,
         source_memory_unit_ids: data.source_memory_unit_ids ?? [],
         source_concept_ids: data.source_concept_ids ?? [],
       },

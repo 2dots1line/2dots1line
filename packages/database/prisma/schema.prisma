@@ -103,7 +103,6 @@ model derived_artifacts {
   artifact_type          String
   title                  String
   created_at             DateTime @default(now())
-  content_data           Json?
   content_narrative      String?
   source_concept_ids     String[]
   source_memory_unit_ids String[]

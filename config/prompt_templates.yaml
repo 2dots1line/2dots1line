@@ -721,46 +721,101 @@ insight_worker_core_identity: |
 insight_worker_operational_config: |
   === SECTION 2: OPERATIONAL CONFIGURATION ===
   
-  **ANALYSIS FOCUS AREAS:**
-  1. **Ontology Optimization**: Merge redundant concepts, archive outdated ones, create strategic relationships
-  2. **Pattern Recognition**: Detect emerging themes, growth patterns, and knowledge clusters
-  3. **Insight Generation**: Synthesize high-value insights and actionable recommendations
-  4. **Proactive Engagement**: Generate contextual prompts for future conversations
-  5. **Growth Trajectory**: Assess {{user_name}}'s development and recommend strategic focus areas
-  6. **Concept Description Synthesis**: Process pre-filtered concepts with timestamped descriptions
+  **OUTPUT STRUCTURE MAPPING:**
+  Your analysis must produce exactly 4 main outputs:
+  1. **ontology_optimizations** - Knowledge graph structure improvements
+  2. **derived_artifacts** - High-value insights and recommendations  
+  3. **proactive_prompts** - Future engagement strategies
+  4. **key_phrases** - Strategic search terms for next cycle
 
-  **CONCEPT DESCRIPTION SYNTHESIS:**
-  Process concepts in `conceptsNeedingSynthesis` array to create crisp, accurate definitions:
-  1. Remove timestamps and duplicate information from descriptions
-  2. Merge related information naturally into coherent sentences  
-  3. Preserve all important details while eliminating redundancy
-  4. Create lasting, meaningful definitions that enhance future retrieval
-  5. Maintain accuracy and relevance to the user's context
-
-  **STRATEGIC RELATIONSHIP CREATION:**
-  Create strategic relationships between ALL entity types (Concept, MemoryUnit, GrowthEvent, DerivedArtifact, Community, ProactivePrompt) based on cyclical analysis.
+  **STEP 1: ONTOLOGY OPTIMIZATION (ontology_optimizations)**
   
-  **RELATIONSHIP EXAMPLES:**
-  * Concept → MemoryUnit: "Leadership" → "mem_team_management_success" (when concepts are exemplified by specific memories)
-  * MemoryUnit → DerivedArtifact: "mem_learning_journey" → "artifact_skill_development_insights" (when memories generate insights)
-  * GrowthEvent → Concept: "growth_confidence_building" → "Self-Confidence" (when growth events develop concepts)
-  * Concept → Community: "Teamwork" → "community_work_collaboration" (when concepts define communities)
-  
-  **RULES:**
-  1. Create strategic relationships that reveal hidden patterns across entity types
-  2. Focus on connections that support growth trajectory and knowledge optimization and facilitates effective retrieval of connected entities
-  3. Use exact entity IDs and meaningful relationship descriptions
-  4. Prioritize relationships that enhance retrieval and insight generation
+  **1.1 Concept Merging (concepts_to_merge)**
+  - Identify redundant concepts with overlapping meanings
+  - Select strongest concept as primary, merge others
+  - Create consolidated name and enhanced description
+  - Provide clear rationale for each merge decision
 
-  **STRATEGIC GUIDELINES:**
-  1. **Quality Focus**: Prioritize high-impact optimizations over numerous small changes
-  2. **User-Centric**: All recommendations should align with {{user_name}}'s goals and growth trajectory
-  3. **Evidence-Based**: Ground all insights in actual knowledge graph data
-  4. **Actionable**: Ensure derived artifacts provide clear next steps
-  5. **Balanced**: Consider both immediate needs and long-term development
-  6. **Coherent**: Maintain consistency across all optimization recommendations
-  7. **Individual Artifacts**: Generate separate derived artifacts for each identified pattern, emerging theme, focus area, blind spot, and celebration moment instead of grouping them in arrays
-  8. **Complete Artifact Coverage**: Generate both legacy artifact types (insight, pattern, recommendation, synthesis) and new V9.5 types (identified_pattern, emerging_theme, focus_area, blind_spot, celebration_moment) to ensure all dashboard sections are populated
+  **1.2 Concept Archiving (concepts_to_archive)**
+  - Find outdated or irrelevant concepts
+  - Suggest replacement concepts when applicable
+  - Explain why concept is no longer valuable
+
+  **1.3 Strategic Relationships (new_strategic_relationships)**
+  - Create connections between ALL entity types (Concept, MemoryUnit, GrowthEvent, DerivedArtifact, Community, ProactivePrompt)
+  - Use relationship types: STRATEGIC_ALIGNMENT, GROWTH_CATALYST, KNOWLEDGE_BRIDGE, SYNERGY_POTENTIAL
+  - Focus on connections that reveal hidden patterns and enhance retrieval
+  - **Growth Event Analysis**: Use the Recent Growth Events data to identify patterns and create relationships with concepts and memory units
+
+  **1.4 Community Structures (community_structures)**
+  - Group related concepts into thematic communities
+  - Assign strategic importance scores (1-10)
+  - Create meaningful overarching themes
+
+  **1.5 Concept Description Synthesis (concept_description_synthesis)**
+  - Process concepts in `conceptsNeedingSynthesis` array
+  - Remove timestamps and duplicate information
+  - Create crisp, accurate, lasting definitions
+  - Preserve important details while eliminating redundancy
+
+  **STEP 2: INSIGHT GENERATION (derived_artifacts)**
+  
+  **2.1 Artifact Types Required:**
+  - **Legacy types**: insight, pattern, recommendation, synthesis
+  - **V9.5 types**: identified_pattern, emerging_theme, focus_area, blind_spot, celebration_moment
+  
+  **2.2 Quality Standards:**
+  - Evidence-based: Ground all insights in actual knowledge graph data
+  - Actionable: Provide clear next steps
+  - User-centric: Align with {{user_name}}'s goals and growth trajectory
+  - Individual: Generate separate artifacts for each pattern/theme (no arrays)
+  
+  **2.3 Source Entity Mapping:**
+  - **source_concept_ids**: List specific concept IDs that support this artifact
+  - **source_memory_unit_ids**: List specific memory unit IDs that support this artifact
+  - Use exact entity IDs from the provided knowledge graph data
+  - These fields enable proper database relationships and retrieval
+
+  **STEP 3: PROACTIVE ENGAGEMENT (proactive_prompts)**
+  
+  **3.1 Prompt Types:**
+  - reflection, exploration, goal_setting, skill_development, creative_expression
+  
+  **3.2 Timing Suggestions:**
+  - next_conversation, weekly_check_in, monthly_review, quarterly_planning
+  
+  **3.3 Priority Levels:**
+  - Assign 1-10 based on strategic importance and urgency
+
+  **STEP 4: KEY PHRASE GENERATION (key_phrases)**
+  
+  **4.1 Strategic Context:**
+  - Generate key phrases based on GLOBAL context (all cycles + current cycle)
+  - Use previous cycle's key phrases as input for continuity
+  - Focus on what makes {{user_name}} unique and interesting
+  
+  **4.2 Key Phrase Categories (3 phrases each = 21 total):**
+  - **values_and_goals**: What drives {{user_name}}? Core values, aspirations, life goals
+  - **emotional_drivers**: What makes {{user_name}} happy, sad, excited, concerned, hopeful?
+  - **important_relationships**: Key people in {{user_name}}'s life (family, friends, mentors, colleagues)
+  - **growth_patterns**: How {{user_name}} learns and grows, development patterns, breakthrough moments
+  - **knowledge_domains**: {{user_name}}'s areas of expertise, interests, learning pursuits
+  - **life_context**: Current life circumstances, challenges, opportunities
+  - **hidden_connections**: Surprising or interesting patterns from {{user_name}}'s knowledge graph
+  
+  **4.3 Quality Standards:**
+  - Specific to {{user_name}}'s actual context, not generic
+  - Concrete, searchable terms that will retrieve relevant entities
+  - Balance personal and professional aspects
+  - Include both current patterns and historical context
+  - Enable comprehensive understanding for next cycle
+
+  **STRATEGIC PRINCIPLES:**
+  - **Quality over Quantity**: Prioritize high-impact optimizations
+  - **Evidence-Based**: All insights must be grounded in data
+  - **Coherent**: Maintain consistency across all recommendations
+  - **Complete Coverage**: Ensure all dashboard sections are populated
+  - **Global Context**: Key phrases based on full user journey, not just current cycle
 
 # SECTION 3: DYNAMIC CONTEXT (Variable Cache Hit Rate: 10-95%)
 insight_worker_dynamic_context: |
@@ -790,6 +845,16 @@ insight_worker_dynamic_context: |
   {{#concepts_needing_synthesis}}
   - **{{name}}** ({{id}}): {{description}}
   {{/concepts_needing_synthesis}}
+
+  ### Recent Growth Events ({{recent_growth_events.length}} total)
+  {{#recent_growth_events}}
+  - **{{id}}**: {{rationale}}
+  {{/recent_growth_events}}
+
+  ### Previous Cycle Key Phrases ({{previous_key_phrases.length}} total)
+  {{#previous_key_phrases}}
+  - **{{category}}**: {{phrases}}
+  {{/previous_key_phrases}}
   {{/consolidated_knowledge_graph}}
 
   {{#recent_conversations}}
@@ -865,7 +930,9 @@ insight_worker_current_analysis: |
         "content": "<detailed_content>",
         "confidence_score": <number 0-1>,
         "supporting_evidence": ["<evidence_1>", "<evidence_2>"],
-        "actionability": "immediate" | "short_term" | "long_term" | "aspirational"
+        "actionability": "immediate" | "short_term" | "long_term" | "aspirational",
+        "source_concept_ids": ["<concept_id_1>", "<concept_id_2>"],
+        "source_memory_unit_ids": ["<memory_unit_id_1>", "<memory_unit_id_2>"]
       }
     ],
     "proactive_prompts": [
@@ -877,7 +944,16 @@ insight_worker_current_analysis: |
         "timing_suggestion": "next_conversation" | "weekly_check_in" | "monthly_review" | "quarterly_planning",
         "priority_level": <number 1-10>
       }
-    ]
+    ],
+    "key_phrases": {
+      "values_and_goals": ["<phrase1>", "<phrase2>", "<phrase3>"],
+      "emotional_drivers": ["<phrase1>", "<phrase2>", "<phrase3>"],
+      "important_relationships": ["<phrase1>", "<phrase2>", "<phrase3>"],
+      "growth_patterns": ["<phrase1>", "<phrase2>", "<phrase3>"],
+      "knowledge_domains": ["<phrase1>", "<phrase2>", "<phrase3>"],
+      "life_context": ["<phrase1>", "<phrase2>", "<phrase3>"],
+      "hidden_connections": ["<phrase1>", "<phrase2>", "<phrase3>"]
+    }
   }
   ```
 
