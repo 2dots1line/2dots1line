@@ -96,6 +96,29 @@ export interface StrategicSynthesisInput {
       name: string;
       description: string;
     }>;
+    // NEW: HRT-retrieved strategic context
+    strategicContext?: {
+      retrievedMemoryUnits?: Array<{
+        id: string;
+        title: string;
+        content: string;
+        finalScore: number;
+      }>;
+      retrievedConcepts?: Array<{
+        id: string;
+        name: string;
+        description: string;
+        finalScore: number;
+      }>;
+      retrievedArtifacts?: Array<{
+        id: string;
+        title: string;
+        content: string;
+        type: string;
+        finalScore: number;
+      }>;
+      retrievalSummary?: string;
+    };
   };
   recentGrowthEvents: Array<{
     id: string;
@@ -165,13 +188,11 @@ export class StrategicSynthesisTool {
         }
       };
       
-      // Enhanced LLM call with retry logic (following HolisticAnalysisTool pattern)
+      // Enhanced LLM call with retry logic
       const llmResult = await LLMRetryHandler.executeWithRetry(
         LLMChatTool,
         llmInput,
         { 
-          maxAttempts: 3, 
-          baseDelay: 1000,
           callType: 'strategic-synthesis'
         }
       );
@@ -248,6 +269,40 @@ export class StrategicSynthesisTool {
     const strategicPersonaWithUserName = strategicPersona.replace(/\{\{user_name\}\}/g, user_name);
     const strategicInstructionsWithUserName = strategicInstructions.replace(/\{\{user_name\}\}/g, user_name);
     
+    // NEW: Add strategic context section from HRT retrieval
+    const strategicContextSection = input.currentKnowledgeGraph.strategicContext ? `
+## Strategic Context from Key Phrase Retrieval
+**Note**: This context was retrieved using strategic key phrases to provide broader, more relevant context beyond the current cycle.
+
+### Retrieved Memory Units (${input.currentKnowledgeGraph.strategicContext.retrievedMemoryUnits?.length || 0})
+${JSON.stringify(input.currentKnowledgeGraph.strategicContext.retrievedMemoryUnits?.map(mu => ({
+  id: mu.id,
+  title: mu.title,
+  content: mu.content?.substring(0, 200) + '...',
+  relevance_score: mu.finalScore
+})) || [], null, 2)}
+
+### Retrieved Concepts (${input.currentKnowledgeGraph.strategicContext.retrievedConcepts?.length || 0})
+${JSON.stringify(input.currentKnowledgeGraph.strategicContext.retrievedConcepts?.map(concept => ({
+  id: concept.id,
+  name: concept.name,
+  description: concept.description,
+  relevance_score: concept.finalScore
+})) || [], null, 2)}
+
+### Retrieved Artifacts (${input.currentKnowledgeGraph.strategicContext.retrievedArtifacts?.length || 0})
+${JSON.stringify(input.currentKnowledgeGraph.strategicContext.retrievedArtifacts?.map(artifact => ({
+  id: artifact.id,
+  title: artifact.title,
+  content: artifact.content?.substring(0, 200) + '...',
+  type: artifact.type,
+  relevance_score: artifact.finalScore
+})) || [], null, 2)}
+
+### Retrieval Summary
+${input.currentKnowledgeGraph.strategicContext.retrievalSummary || 'No retrieval summary available'}
+` : '';
+
     // Build the master prompt using simplified data
     const masterPrompt = `${strategicPersonaWithUserName}
 
@@ -256,6 +311,8 @@ export class StrategicSynthesisTool {
 - **Cycle ID**: ${input.cycleId}
 - **Analysis Timestamp**: ${new Date().toISOString()}
 - **Cycle Period**: ${input.cycleStartDate.toISOString()} to ${input.cycleEndDate.toISOString()}
+
+${strategicContextSection}
 
 ## Current Knowledge Graph State
 ### Recent Conversations (${input.currentKnowledgeGraph.conversations.length} total)

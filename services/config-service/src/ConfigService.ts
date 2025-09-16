@@ -57,7 +57,7 @@ export class ConfigService {
     
     try {
       const yamlFiles = ['CoreIdentity.yaml', 'prompt_templates.yaml'];
-      const jsonFiles = ['card_templates.json', 'card_eligibility_rules.json', 'cypher_templates.json'];
+      const jsonFiles = ['card_templates.json', 'card_eligibility_rules.json', 'cypher_templates.json', 'insight_worker_key_phrases.json', 'insight_worker_scenarios.json'];
 
              // Load YAML files
        for (const fileName of yamlFiles) {

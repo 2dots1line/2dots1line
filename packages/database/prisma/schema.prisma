@@ -328,6 +328,7 @@ model users {
   last_cycle_started_at             DateTime?
   memory_profile                    Json?
   next_conversation_context_package Json?
+  key_phrases                       Json?
   cards                             cards[]
   communities                       communities[]
   concepts                          concepts[]

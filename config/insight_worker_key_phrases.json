@@ -1,0 +1,129 @@
+{
+  "version": "1.0",
+  "description": "Key phrases and retrieval scenarios for insight worker strategic analysis",
+  "strategic_focus_areas": {
+    "knowledge_gaps": [
+      "learning objectives",
+      "skill development", 
+      "knowledge acquisition",
+      "educational goals",
+      "study patterns",
+      "competency gaps",
+      "learning curve",
+      "mastery progression"
+    ],
+    "growth_patterns": [
+      "personal development",
+      "career advancement", 
+      "life changes",
+      "achievement patterns",
+      "progress indicators",
+      "milestone achievements",
+      "breakthrough moments",
+      "transformation periods"
+    ],
+    "relationship_dynamics": [
+      "social connections",
+      "collaboration",
+      "mentorship",
+      "team dynamics", 
+      "communication patterns",
+      "leadership development",
+      "peer relationships",
+      "professional networks"
+    ],
+    "creative_expression": [
+      "artistic pursuits",
+      "creative projects",
+      "innovation",
+      "problem solving",
+      "design thinking",
+      "creative breakthroughs",
+      "artistic evolution",
+      "creative blocks"
+    ],
+    "wellbeing_insights": [
+      "health patterns",
+      "stress management",
+      "work-life balance",
+      "emotional growth",
+      "mindfulness practices",
+      "energy levels",
+      "mood patterns",
+      "wellness trends"
+    ],
+    "trend_analysis": [
+      "emerging patterns",
+      "behavioral trends",
+      "habit formation",
+      "routine changes",
+      "preference shifts",
+      "interest evolution",
+      "activity patterns",
+      "engagement trends"
+    ],
+    "strategic_insights": [
+      "decision patterns",
+      "goal alignment",
+      "priority shifts",
+      "value changes",
+      "strategic thinking",
+      "long-term planning",
+      "risk assessment",
+      "opportunity recognition"
+    ]
+  },
+  "retrieval_scenarios": {
+    "conceptual": {
+      "description": "Concept-relationship focused retrieval for semantic analysis",
+      "key_phrases": ["knowledge_gaps", "growth_patterns", "strategic_insights"],
+      "max_phrases_per_area": 2,
+      "max_results": 40,
+      "use_for": "general strategic analysis"
+    },
+    "trend_analysis": {
+      "description": "Temporal pattern analysis for trend synthesis",
+      "key_phrases": ["trend_analysis", "growth_patterns", "wellbeing_insights"],
+      "max_phrases_per_area": 3,
+      "max_results": 60,
+      "use_for": "trend identification and synthesis"
+    },
+    "comprehensive": {
+      "description": "Multi-scenario retrieval for comprehensive analysis",
+      "key_phrases": ["all_areas"],
+      "max_phrases_per_area": 1,
+      "max_results": 80,
+      "use_for": "full strategic cycle analysis"
+    },
+    "focused": {
+      "description": "Targeted retrieval for specific focus areas",
+      "key_phrases": ["knowledge_gaps", "creative_expression"],
+      "max_phrases_per_area": 2,
+      "max_results": 30,
+      "use_for": "focused analysis on specific domains"
+    }
+  },
+  "retrieval_parameters": {
+    "default_scenario": "trend_analysis",
+    "similarity_threshold": 0.2,
+    "include_artifacts": true,
+    "include_memory_units": true,
+    "include_concepts": true,
+    "include_communities": true,
+    "time_range_days": 90,
+    "min_relevance_score": 0.15
+  },
+  "context_prioritization": {
+    "recent_content_weight": 0.3,
+    "semantic_relevance_weight": 0.4,
+    "strategic_importance_weight": 0.3,
+    "trend_relevance_boost": 0.1
+  },
+  "trend_synthesis": {
+    "enabled": true,
+    "min_entities_for_trend": 5,
+    "time_window_days": 30,
+    "pattern_detection_threshold": 0.7,
+    "trend_confidence_threshold": 0.6
+  }
+}

@@ -5,7 +5,7 @@
 
 import { ConfigService } from '@2dots1line/config-service';
 import { DatabaseService } from '@2dots1line/database';
-import { StrategicSynthesisTool } from '@2dots1line/tools';
+import { StrategicSynthesisTool, HybridRetrievalTool } from '@2dots1line/tools';
 import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
 import { Worker, Queue } from 'bullmq';
 import { Redis } from 'ioredis';
@@ -32,6 +32,10 @@ async function main() {
     // 2. Directly instantiate the StrategicSynthesisTool
     const strategicSynthesisTool = new StrategicSynthesisTool(configService);
     console.log('[InsightWorker] StrategicSynthesisTool instantiated');
+
+    // 2.1. Instantiate the HybridRetrievalTool
+    const hybridRetrievalTool = new HybridRetrievalTool(dbService, configService);
+    console.log('[InsightWorker] HybridRetrievalTool instantiated');
 
     // 3. Create dedicated Redis connection for BullMQ to prevent connection pool exhaustion
     const redisUrl = environmentLoader.get('REDIS_URL');
@@ -78,6 +82,8 @@ async function main() {
     // 4. Instantiate the InsightEngine with its dependencies
     const insightEngine = new InsightEngine(
       strategicSynthesisTool,
+      hybridRetrievalTool,
+      configService,
       dbService,
       cardQueue,
       graphQueue,
