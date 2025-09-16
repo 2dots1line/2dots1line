@@ -144,8 +144,8 @@ export class ConfigService {
       throw new Error('Prompt templates not loaded');
     }
     
-    // Handle both structures: templates.templates and templates
-    return templates.templates || templates;
+    // YAML file has flat structure with template names as direct keys
+    return templates;
   }
 
   public getCardTemplates(): any {
