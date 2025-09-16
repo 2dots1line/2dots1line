@@ -23,6 +23,35 @@ export class ConceptMerger {
     const errors: string[] = [];
     
     try {
+      // Validate that primary concept exists before attempting merge
+      const primaryConcept = await this.conceptRepository.findByIdUnfiltered(merge.primary_concept_id);
+      if (!primaryConcept) {
+        const errorMsg = `Primary concept ${merge.primary_concept_id} does not exist. Cannot proceed with merge.`;
+        console.error(`[ConceptMerger] ${errorMsg}`);
+        errors.push(errorMsg);
+        console.warn(`[ConceptMerger] Completed concept merging with ${errors.length} errors:`, errors);
+        return; // Exit early if primary concept doesn't exist
+      }
+
+      // Validate that all secondary concepts exist
+      const missingSecondaryConcepts: string[] = [];
+      for (const secondaryId of merge.secondary_concept_ids) {
+        const secondaryConcept = await this.conceptRepository.findByIdUnfiltered(secondaryId);
+        if (!secondaryConcept) {
+          missingSecondaryConcepts.push(secondaryId);
+        }
+      }
+
+      if (missingSecondaryConcepts.length > 0) {
+        const errorMsg = `Secondary concepts do not exist: ${missingSecondaryConcepts.join(', ')}. Skipping merge.`;
+        console.error(`[ConceptMerger] ${errorMsg}`);
+        errors.push(errorMsg);
+        console.warn(`[ConceptMerger] Completed concept merging with ${errors.length} errors:`, errors);
+        return; // Exit early if any secondary concepts don't exist
+      }
+
+      console.log(`[ConceptMerger] Validated all concepts exist. Proceeding with merge of ${merge.secondary_concept_ids.length} concepts into ${merge.primary_concept_id}`);
+
       // Update secondary concepts to mark them as merged
       for (const secondaryId of merge.secondary_concept_ids) {
         try {
@@ -84,6 +113,17 @@ export class ConceptMerger {
     const session = this.dbService.neo4j.session();
     
     try {
+      // First verify that the primary concept exists in Neo4j
+      const checkPrimaryCypher = `MATCH (c:Concept {id: $primaryId}) RETURN c.id as conceptId`;
+      const primaryCheckResult = await session.run(checkPrimaryCypher, {
+        primaryId: merge.primary_concept_id
+      });
+
+      if (primaryCheckResult.records.length === 0) {
+        console.warn(`[ConceptMerger] Primary concept ${merge.primary_concept_id} not found in Neo4j. Skipping Neo4j merge update.`);
+        return;
+      }
+
       // Update the primary concept with new properties
       const updatePrimaryCypher = `
         MATCH (c:Concept {id: $primaryId})
@@ -94,15 +134,31 @@ export class ConceptMerger {
         RETURN c.id as conceptId
       `;
 
-      await session.run(updatePrimaryCypher, {
+      const updateResult = await session.run(updatePrimaryCypher, {
         primaryId: merge.primary_concept_id,
         newName: merge.new_concept_name,
         newDescription: merge.new_concept_description,
         mergeCount: merge.secondary_concept_ids.length
       });
 
+      if (updateResult.records.length === 0) {
+        console.warn(`[ConceptMerger] Failed to update primary concept ${merge.primary_concept_id} in Neo4j. Concept may not exist.`);
+        return;
+      }
+
       // Update secondary concepts to mark them as merged
       for (const secondaryId of merge.secondary_concept_ids) {
+        // First check if the secondary concept exists in Neo4j
+        const checkSecondaryCypher = `MATCH (c:Concept {id: $secondaryId}) RETURN c.id as conceptId`;
+        const secondaryCheckResult = await session.run(checkSecondaryCypher, {
+          secondaryId
+        });
+
+        if (secondaryCheckResult.records.length === 0) {
+          console.warn(`[ConceptMerger] Secondary concept ${secondaryId} not found in Neo4j. Skipping.`);
+          continue;
+        }
+
         const updateSecondaryCypher = `
           MATCH (c:Concept {id: $secondaryId})
           SET c.status = 'merged',
@@ -111,10 +167,14 @@ export class ConceptMerger {
           RETURN c.id as conceptId
         `;
 
-        await session.run(updateSecondaryCypher, {
+        const updateResult = await session.run(updateSecondaryCypher, {
           secondaryId,
           primaryId: merge.primary_concept_id
         });
+
+        if (updateResult.records.length === 0) {
+          console.warn(`[ConceptMerger] Failed to update secondary concept ${secondaryId} in Neo4j.`);
+        }
       }
 
       // Redirect all relationships from secondary concepts to primary concept

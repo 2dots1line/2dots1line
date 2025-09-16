@@ -874,6 +874,12 @@ insight_worker_current_analysis: |
   2. **NO text** (explanation, markdown, code fences, headings, apologies, etc.) is allowed before or after the JSON.
   3. Put *all* internal reasoning inside the "thought_process" field if present.
   4. If you break any rule above, the system will fail to process your response.
+  
+  **CRITICAL CONCEPT ID RULES:**
+  ⚠️  CONCEPT ID RULES — READ CAREFULLY ⚠️
+  1. **ONLY use concept IDs from the input data above**. Never generate new IDs.
+  2. Copy the exact `id` field from the concepts listed in the input data.
+  3. If a concept isn't in the input data, don't include it in your recommendations.
 
   **OUTPUT FORMAT:**
   Return ONLY the JSON object, no markers, no extra text.
@@ -885,8 +891,8 @@ insight_worker_current_analysis: |
     "ontology_optimizations": {
       "concepts_to_merge": [
         {
-          "primary_concept_id": "<strongest_concept_id>",
-          "secondary_concept_ids": ["<concept_id_1>", "<concept_id_2>"],
+          "primary_concept_id": "<actual_concept_id_from_input>",
+          "secondary_concept_ids": ["<actual_concept_id_1>", "<actual_concept_id_2>"],
           "merge_rationale": "<why_these_should_be_merged>",
           "new_concept_name": "<consolidated_name>",
           "new_concept_description": "<enhanced_description>"
@@ -894,9 +900,9 @@ insight_worker_current_analysis: |
       ],
       "concepts_to_archive": [
         {
-          "concept_id": "<concept_id>",
+          "concept_id": "<actual_concept_id_from_input>",
           "archive_rationale": "<why_no_longer_relevant>",
-          "replacement_concept_id": "<optional_replacement>"
+          "replacement_concept_id": "<actual_concept_id_or_null>"
         }
       ],
       "new_strategic_relationships": [
@@ -910,16 +916,16 @@ insight_worker_current_analysis: |
       ],
       "community_structures": [
         {
-          "community_id": "<generated_community_id>",
-          "member_concept_ids": ["<concept_id_1>", "<concept_id_2>"],
+          "community_id": "<generate_new_uuid_if_creating_new_community>",
+          "member_concept_ids": ["<actual_concept_id_1>", "<actual_concept_id_2>"],
           "theme": "<overarching_theme>",
-          "strategic_importance": <number 1-10>
+          "strategic_importance": <number_between_1_and_10>
         }
       ],
       "concept_description_synthesis": [
         {
-          "concept_id": "<concept_id>",
-          "synthesized_description": "<clean, polished description without timestamps>"
+          "concept_id": "<actual_concept_id_from_input>",
+          "synthesized_description": "<clean_polished_description_without_timestamps>"
         }
       ]
     },
@@ -928,7 +934,7 @@ insight_worker_current_analysis: |
         "artifact_type": "insight" | "pattern" | "recommendation" | "synthesis" | "identified_pattern" | "emerging_theme" | "focus_area" | "blind_spot" | "celebration_moment",
         "title": "<artifact_title>",
         "content": "<detailed_content>",
-        "confidence_score": <number 0-1>,
+        "confidence_score": <number_between_0_and_1>,
         "supporting_evidence": ["<evidence_1>", "<evidence_2>"],
         "actionability": "immediate" | "short_term" | "long_term" | "aspirational",
         "source_concept_ids": ["<concept_id_1>", "<concept_id_2>"],
