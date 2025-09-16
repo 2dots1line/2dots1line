@@ -17,6 +17,38 @@
       "description": "Concept-relationship focused retrieval",
       "cypher_template": "conceptual",
       "max_candidates": 40
+    },
+    "trend_analysis": {
+      "description": "Temporal pattern analysis for trend synthesis",
+      "cypher_template": "trend_analysis",
+      "max_candidates": 60,
+      "time_window_days": 90
+    },
+    "pattern_detection": {
+      "description": "Finds entities with similar patterns or characteristics",
+      "cypher_template": "pattern_detection",
+      "max_candidates": 40
+    },
+    "strategic_relationships": {
+      "description": "Finds entities with strategic or high-value relationships",
+      "cypher_template": "strategic_relationships",
+      "max_candidates": 25
+    },
+    "community_analysis": {
+      "description": "Finds entities within communities or clusters",
+      "cypher_template": "community_analysis",
+      "max_candidates": 35
+    },
+    "temporal_evolution": {
+      "description": "Finds entities showing evolution or change over time",
+      "cypher_template": "temporal_evolution",
+      "max_candidates": 30,
+      "time_window_days": 180
+    },
+    "influence_network": {
+      "description": "Finds entities that influence or are influenced by seed entities",
+      "cypher_template": "influence_network",
+      "max_candidates": 20
     }
   },
   "stage_configurations": {

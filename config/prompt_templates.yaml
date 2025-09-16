@@ -626,7 +626,74 @@ strategic_synthesis_persona: |
     </persona>
   </system_identity>
 
-# NEW: Template for the InsightEngine's strategic synthesis instructions
+# NEW: Template for InsightEngine's key phrase generation
+insight_engine_key_phrase_generation: |
+  <instructions>
+  Your task: Analyze {{user_name}}'s knowledge graph and generate strategic key phrases that will enable comprehensive understanding of their life, values, and growth patterns.
+
+  **STRATEGIC KEY PHRASE GENERATION GOALS:**
+  Generate key phrases that enable the insight worker to answer these 5 critical questions:
+
+  1. **What are {{user_name}}'s values, goals, interests? What moves them (making them happy, sad, excited, concerned, hopeful, etc.)?**
+  2. **Who are the important people in {{user_name}}'s life, now or from the past?**
+  3. **What would I (the agent) like to know about {{user_name}} in order to best help them live their best life?**
+  4. **How can I leverage my (agent's) world knowledge to complement {{user_name}}'s own to inspire and inform them?**
+  5. **What are some hidden patterns and connections that I have the luxury to explore (random sampling a few entities from {{user_name}}'s knowledge graph) and form an interesting narrative?**
+
+  **KEY PHRASE CATEGORIES:**
+  Generate key phrases across these strategic focus areas:
+
+  **values_and_goals**: What drives {{user_name}}? What are their core values, aspirations, and life goals?
+  **emotional_drivers**: What makes {{user_name}} happy, sad, excited, concerned, hopeful? What triggers their emotions?
+  **important_relationships**: Who are the key people in {{user_name}}'s life? Family, friends, mentors, colleagues, romantic partners?
+  **growth_patterns**: How does {{user_name}} learn and grow? What are their development patterns and breakthrough moments?
+  **knowledge_domains**: What are {{user_name}}'s areas of expertise, interests, and learning pursuits?
+  **life_context**: What are {{user_name}}'s current life circumstances, challenges, and opportunities?
+  **hidden_connections**: What surprising or interesting patterns emerge from {{user_name}}'s knowledge graph?
+
+  **OUTPUT FORMAT:**
+  Return ONLY a JSON object with this exact structure:
+
+  ```json
+  {
+    "key_phrases": {
+      "values_and_goals": ["phrase1", "phrase2", "phrase3"],
+      "emotional_drivers": ["phrase1", "phrase2", "phrase3"],
+      "important_relationships": ["phrase1", "phrase2", "phrase3"],
+      "growth_patterns": ["phrase1", "phrase2", "phrase3"],
+      "knowledge_domains": ["phrase1", "phrase2", "phrase3"],
+      "life_context": ["phrase1", "phrase2", "phrase3"],
+      "hidden_connections": ["phrase1", "phrase2", "phrase3"]
+    },
+    "generation_metadata": {
+      "total_phrases": 21,
+      "generation_timestamp": "2025-01-15T10:30:00.000Z",
+      "focus_areas_covered": 7,
+      "confidence_score": 0.85
+    }
+  }
+  ```
+
+  **GUIDELINES:**
+  - Generate 3 key phrases per category (21 total)
+  - Make phrases specific to {{user_name}}'s actual context, not generic
+  - Use concrete, searchable terms that will retrieve relevant entities
+  - Focus on what makes {{user_name}} unique and interesting
+  - Include both current patterns and historical context
+  - Balance personal and professional aspects of their life
+  - Ensure phrases will help answer the 5 strategic questions above
+
+  **EXAMPLES OF GOOD KEY PHRASES:**
+  - "entrepreneurship journey" (not just "business")
+  - "mentorship with Dr. Smith" (not just "mentorship")
+  - "creative writing breakthrough" (not just "writing")
+  - "family dynamics with daughter" (not just "family")
+  - "AI research interests" (not just "technology")
+
+  Remember: Output ONLY the JSON object, no markers, no additional text.
+  </instructions>
+
+# Template for the InsightEngine's strategic synthesis instructions
 strategic_synthesis_instructions: |
   <instructions>
   Your task: Perform comprehensive strategic analysis of {{user_name}}'s knowledge graph to optimize ontologies, identify patterns, and generate proactive insights for continuous growth acceleration.

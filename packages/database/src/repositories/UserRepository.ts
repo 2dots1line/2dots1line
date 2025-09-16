@@ -26,6 +26,7 @@ export interface UpdateUserData {
   preferences?: any;
   memory_profile?: any;
   next_conversation_context_package?: any;
+  key_phrases?: any;
   last_cycle_started_at?: Date;
   concepts_created_in_cycle?: number;
 }
