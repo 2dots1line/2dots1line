@@ -274,4 +274,31 @@ export class DashboardController {
       });
     }
   }
+
+  /**
+   * GET /api/v1/dashboard/metrics
+   * Get user-specific metrics from PostgreSQL database
+   */
+  async getUserMetrics(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ error: 'User not authenticated' });
+        return;
+      }
+
+      const metrics = await this.dashboardService.getUserMetrics(userId);
+      
+      res.json({
+        success: true,
+        data: metrics
+      });
+    } catch (error) {
+      console.error('[DashboardController] Error getting user metrics:', error);
+      res.status(500).json({ 
+        error: 'Internal server error',
+        message: 'Failed to retrieve user metrics'
+      });
+    }
+  }
 }
