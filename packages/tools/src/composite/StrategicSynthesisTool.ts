@@ -47,7 +47,7 @@ export const StrategicSynthesisOutputSchema = z.object({
     }))
   }),
   derived_artifacts: z.array(z.object({
-    artifact_type: z.enum(['insight', 'pattern', 'recommendation', 'synthesis', 'identified_pattern', 'emerging_theme', 'focus_area', 'blind_spot', 'celebration_moment']),
+    artifact_type: z.enum(['opening', 'insight', 'pattern', 'recommendation', 'synthesis', 'identified_pattern', 'emerging_theme', 'focus_area', 'blind_spot', 'celebration_moment']),
     title: z.string(),
     content: z.string(),
     confidence_score: z.number().min(0).max(1),
@@ -63,6 +63,15 @@ export const StrategicSynthesisOutputSchema = z.object({
     context_explanation: z.string(),
     timing_suggestion: z.enum(['next_conversation', 'weekly_check_in', 'monthly_review', 'quarterly_planning']),
     priority_level: z.number().min(1).max(10)
+  })),
+  growth_events: z.array(z.object({
+    dimension_key: z.enum(['know_self', 'act_self', 'show_self', 'know_world', 'act_world', 'show_world']),
+    delta_value: z.number().min(-5.0).max(5.0),
+    rationale: z.string(),
+    source_concept_ids: z.array(z.string()).optional(),
+    source_memory_unit_ids: z.array(z.string()).optional(),
+    confidence_score: z.number().min(0).max(1),
+    actionability: z.enum(['immediate', 'short_term', 'long_term', 'aspirational'])
   })),
   key_phrases: z.object({
     values_and_goals: z.array(z.string()),

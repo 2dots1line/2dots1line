@@ -8,12 +8,14 @@ import {
   ProactivePromptRepository,
   UserCycleRepository,
   WeaviateService,
-  CommunityRepository
+  CommunityRepository,
+  GrowthEventRepository
 } from '@2dots1line/database';
 import type { 
   CreateDerivedArtifactData,
   CreateProactivePromptData,
-  CreateUserCycleData
+  CreateUserCycleData,
+  CreateGrowthEventData
 } from '@2dots1line/database';
 import { StrategicSynthesisTool, StrategicSynthesisOutput, StrategicSynthesisInput, HybridRetrievalTool, LLMChatTool } from '@2dots1line/tools';
 import { ConceptMerger, ConceptArchiver, CommunityCreator } from '@2dots1line/ontology-core';
@@ -43,6 +45,7 @@ export class InsightEngine {
   private userCycleRepository: UserCycleRepository;
   private weaviateService: WeaviateService;
   private communityRepository: CommunityRepository;
+  private growthEventRepository: GrowthEventRepository;
   
   // Shared ontology components
   private conceptMerger: ConceptMerger;
@@ -67,6 +70,7 @@ export class InsightEngine {
     this.userCycleRepository = new UserCycleRepository(dbService);
     this.weaviateService = new WeaviateService(dbService);
     this.communityRepository = new CommunityRepository(dbService);
+    this.growthEventRepository = new GrowthEventRepository(dbService);
     
     // Initialize shared ontology components
     this.conceptMerger = new ConceptMerger(this.conceptRepository, dbService, this.weaviateService);
@@ -713,6 +717,31 @@ export class InsightEngine {
         }
         
         console.log(`[InsightEngine] Created proactive prompt: ${createdPrompt.prompt_id} - ${prompt.title}`);
+      }
+
+      // Create strategic growth events from LLM output
+      if (analysisOutput.growth_events && analysisOutput.growth_events.length > 0) {
+        for (const growthEvent of analysisOutput.growth_events) {
+          const growthData: CreateGrowthEventData = {
+            user_id: userId,
+            related_memory_units: growthEvent.source_memory_unit_ids || [],
+            related_concepts: growthEvent.source_concept_ids || [],
+            growth_dimensions: [], // Empty array as per IngestionAnalyst pattern
+            source: 'InsightWorker', // Critical: This makes it appear in "What's Next"
+            details: {
+              confidence_score: growthEvent.confidence_score,
+              actionability: growthEvent.actionability,
+              cycle_id: currentCycleId
+            },
+            dimension_key: growthEvent.dimension_key,
+            delta_value: growthEvent.delta_value,
+            rationale: growthEvent.rationale
+          };
+
+          const createdGrowthEvent = await this.growthEventRepository.create(growthData);
+          newEntities.push({ id: createdGrowthEvent.event_id, type: 'GrowthEvent' });
+        }
+        console.log(`[InsightEngine] Created ${analysisOutput.growth_events.length} strategic growth events`);
       }
 
       // Save key phrases from LLM output

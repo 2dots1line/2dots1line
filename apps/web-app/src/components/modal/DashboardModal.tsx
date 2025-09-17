@@ -628,18 +628,29 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                           
                           {/* Dynamic Table Layout */}
                           <div className="overflow-x-auto">
-                            <table className="w-full">
+                            <table className="w-full table-fixed">
                               <thead>
                                 <tr className="border-b border-white/20">
-                                  <th className="text-left py-3 px-4 text-white/80 font-medium">Dimension</th>
-                                  {tableData.layout.columns.map((column: any) => (
-                                    <th key={column.key} className="text-center py-3 px-4 text-white/80 font-medium">
-                                      <div className="flex items-center justify-center gap-2">
-                                        <TrendingUp size={16} className="text-white/70" />
-                                        <span>{column.title}</span>
-                                      </div>
-                                    </th>
-                                  ))}
+                                  <th className="w-1/5 text-left py-3 px-3 text-white/80 font-medium">Dimension</th>
+                                  {tableData.layout.columns.map((column: any) => {
+                                    // Use different icons for different column types
+                                    const getColumnIcon = (columnKey: string) => {
+                                      if (columnKey === 'whats_new') return Clock;
+                                      if (columnKey === 'whats_next') return Target;
+                                      return TrendingUp; // fallback
+                                    };
+                                    
+                                    const ColumnIconComponent = getColumnIcon(column.key);
+                                    
+                                    return (
+                                      <th key={column.key} className="w-2/5 text-center py-3 px-4 text-white/80 font-medium">
+                                        <div className="flex items-center justify-center gap-2">
+                                          <ColumnIconComponent size={16} className="text-white/70" />
+                                          <span>{column.title}</span>
+                                        </div>
+                                      </th>
+                                    );
+                                  })}
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-white/10">
@@ -647,15 +658,15 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                                   const RowIconComponent = getIconComponent(row.icon);
                                   return (
                                     <tr key={row.key} className="hover:bg-white/5 transition-colors">
-                                      <td className="py-4 px-4">
-                                        <div className="flex items-center gap-3">
-                                          <RowIconComponent size={20} className="text-white/70 stroke-current" strokeWidth={1.5} />
-                                          <span className="text-white/90 font-medium">{row.title}</span>
+                                      <td className="w-1/5 py-4 px-3">
+                                        <div className="flex items-center gap-2">
+                                          <RowIconComponent size={18} className="text-white/70 stroke-current" strokeWidth={1.5} />
+                                          <span className="text-white/90 font-medium break-words">{row.title}</span>
                                         </div>
                                       </td>
                                       {tableData.layout.columns.map((column: any) => {
                                         return (
-                                          <td key={column.key} className="py-4 px-4">
+                                          <td key={column.key} className="w-2/5 py-4 px-4 align-top">
                                             <div className="text-sm text-white/70">
                                               {row.cells[column.key].count > 0 ? (
                                                 <div className="space-y-2">
