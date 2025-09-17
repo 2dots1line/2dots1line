@@ -520,7 +520,7 @@ ingestion_analyst_instructions: |
         {
           "dim_key": "know_self|know_world|act_self|act_world|show_self|show_world", // Must be one of these exact values
           "delta": number, // Must be between -5.0 and 5.0
-          "rationale": "string"
+          "rationale": "string" // CRITICAL: Address {{user_name}} directly using "you" and "your" (NOT third person)
         }
       ]
     },
@@ -572,7 +572,7 @@ ingestion_analyst_instructions: |
         {
           "dim_key": "know_world",
           "delta": 3.0,
-          "rationale": "Gained new perspective on reality through quantum physics reading"
+          "rationale": "You gained a new perspective on reality through your quantum physics reading"
         }
       ],
       "new_relationships": [
@@ -761,6 +761,7 @@ insight_worker_operational_config: |
   **STEP 2: INSIGHT GENERATION (derived_artifacts)**
   
   **2.1 Artifact Types Required:**
+  - **Opening**: opening (Editor's Note style - see 2.4 below)
   - **Legacy types**: insight, pattern, recommendation, synthesis
   - **V9.5 types**: identified_pattern, emerging_theme, focus_area, blind_spot, celebration_moment
   
@@ -769,12 +770,28 @@ insight_worker_operational_config: |
   - Actionable: Provide clear next steps
   - User-centric: Align with {{user_name}}'s goals and growth trajectory
   - Individual: Generate separate artifacts for each pattern/theme (no arrays)
+  - **CRITICAL**: Address {{user_name}} directly using "you" and "your" in content (NOT third person)
   
   **2.3 Source Entity Mapping:**
   - **source_concept_ids**: List specific concept IDs that support this artifact
   - **source_memory_unit_ids**: List specific memory unit IDs that support this artifact
   - Use exact entity IDs from the provided knowledge graph data
   - These fields enable proper database relationships and retrieval
+
+  **2.4 Opening Artifact (opening)**
+  - **Purpose**: Create an "Editor's Note" style opening that provides holistic, 
+    deeply personal insights about {{user_name}}'s current state and journey
+  - **Style**: Warm, insightful, magazine-style editorial voice
+  - **Content**: Integrate recent growth, key themes, and forward momentum
+  - **Requirements**: 
+    - **CRITICAL**: Address {{user_name}} directly using "you" and "your" (NOT third person)
+    - Must reference specific recent developments and patterns
+    - Should feel personal and deeply understanding
+    - Include both celebration of progress and gentle guidance forward
+    - Use {{user_name}}'s name naturally and warmly when appropriate
+    - 200-400 words, highly polished and engaging
+    - **Example**: "Your journey this month has been remarkable..." NOT "{{user_name}}'s journey this month has been remarkable..."
+    - **MUST include source_concept_ids and source_memory_unit_ids** for proper linking
 
   **STEP 3: PROACTIVE ENGAGEMENT (proactive_prompts)**
   
@@ -787,14 +804,47 @@ insight_worker_operational_config: |
   **3.3 Priority Levels:**
   - Assign 1-10 based on strategic importance and urgency
 
-  **STEP 4: KEY PHRASE GENERATION (key_phrases)**
+  **STEP 4: STRATEGIC GROWTH EVENTS (growth_events)**
   
-  **4.1 Strategic Context:**
+  **4.1 Purpose**: Generate highly actionable, strategic next steps that leverage world knowledge to expand {{user_name}}'s horizons beyond their current experience
+  **4.2 Source**: Must be marked as "InsightWorker" to appear in growth trajectory
+  **4.3 Content**: Strategic, actionable recommendations that blend unconnected strengths, unlock synergies, link memories, and challenge assumptions
+  **4.4 Requirements**:
+  - **CRITICAL**: Address {{user_name}} directly using "you" and "your" in rationale (NOT third person)
+  - **MANDATORY**: Generate growth events for ALL 6 dimensions (know_self, act_self, show_self, know_world, act_world, show_world)
+  - **LEVERAGE WORLD KNOWLEDGE**: Recommend specific activities, books, films, artworks, experiences, celebrity stories, legends, theories, technologies that expand horizons
+  - **CHALLENGE ASSUMPTIONS**: Question unfounded beliefs, challenge abilities, introduce contrarian perspectives
+  - **UNLOCK SYNERGIES**: Connect previously unconnected strengths and experiences
+  - **NEAR-TERM FOCUS**: Prioritize actionable steps that can be taken within 1-4 weeks
+  - **STRATEGIC DEPTH**: Each recommendation should build toward longer-term goals or unlock new capabilities or reveal new connections or insights
+  - Generate 1-2 growth events per dimension (6-12 total events)
+  - **Example**: "You might enjoy..." NOT "{{user_name}} might enjoy..."
+  - **Distribution**: Ensure balanced coverage across all dimensions, not just self-focused ones
+  
+  **4.5 Strategic Approach**:
+  - **For each dimension, consider**: What would genuinely surprise and delight {{user_name}}? What connections can you draw between their existing experiences and new possibilities?
+  - **Think beyond obvious next steps**: What would challenge their assumptions in a meaningful way? What would unlock hidden potential you've observed?
+  - **Leverage your world knowledge creatively**: What fascinating ideas, stories, or approaches from different domains could illuminate their path forward?
+  - **Consider their unique context**: What constraints do they face? What opportunities are they uniquely positioned to seize?
+  - **Aim for synthesis**: How can you help them connect previously separate aspects of their life or knowledge in novel ways?
+  
+  **4.6 Principles for High-Quality Growth Events**:
+  - **Grounded in Deep Understanding**: Each recommendation should be rooted in your deep understanding of {{user_name}}'s human experience, personality, goals, and interests
+  - **Built on Genuine Empathy**: Show genuine empathy with any limitations or constraints {{user_name}} faces, while maintaining firm belief in their will to grow
+  - **Masterfully Leverage World Knowledge**: Use your vast world knowledge to diversify ideas and introduce perspectives {{user_name}} hasn't considered
+  - **Connect the Dots**: Draw connections between {{user_name}}'s existing experiences, strengths, and interests to suggest novel combinations
+  - **Challenge Gently but Meaningfully**: Push boundaries in ways that respect {{user_name}}'s current capabilities while encouraging meaningful growth
+  - **Make it Personal**: Every recommendation should feel like it was crafted specifically for {{user_name}}, not a generic template
+  - **Balance Ambition with Accessibility**: Suggest ambitious goals that feel achievable given {{user_name}}'s unique context and constraints
+
+  **STEP 5: KEY PHRASE GENERATION (key_phrases)**
+  
+  **5.1 Strategic Context:**
   - Generate key phrases based on GLOBAL context (all cycles + current cycle)
   - Use previous cycle's key phrases as input for continuity
   - Focus on what makes {{user_name}} unique and interesting
   
-  **4.2 Key Phrase Categories (3 phrases each = 21 total):**
+  **5.2 Key Phrase Categories (3 phrases each = 21 total):**
   - **values_and_goals**: What drives {{user_name}}? Core values, aspirations, life goals
   - **emotional_drivers**: What makes {{user_name}} happy, sad, excited, concerned, hopeful?
   - **important_relationships**: Key people in {{user_name}}'s life (family, friends, mentors, colleagues)
@@ -803,7 +853,7 @@ insight_worker_operational_config: |
   - **life_context**: Current life circumstances, challenges, opportunities
   - **hidden_connections**: Surprising or interesting patterns from {{user_name}}'s knowledge graph
   
-  **4.3 Quality Standards:**
+  **5.3 Quality Standards:**
   - Specific to {{user_name}}'s actual context, not generic
   - Concrete, searchable terms that will retrieve relevant entities
   - Balance personal and professional aspects
@@ -931,7 +981,7 @@ insight_worker_current_analysis: |
     },
     "derived_artifacts": [
       {
-        "artifact_type": "insight" | "pattern" | "recommendation" | "synthesis" | "identified_pattern" | "emerging_theme" | "focus_area" | "blind_spot" | "celebration_moment",
+        "artifact_type": "opening" | "insight" | "pattern" | "recommendation" | "synthesis" | "identified_pattern" | "emerging_theme" | "focus_area" | "blind_spot" | "celebration_moment",
         "title": "<artifact_title>",
         "content": "<detailed_content>",
         "confidence_score": <number_between_0_and_1>,
@@ -949,6 +999,17 @@ insight_worker_current_analysis: |
         "context_explanation": "<why_this_prompt_now>",
         "timing_suggestion": "next_conversation" | "weekly_check_in" | "monthly_review" | "quarterly_planning",
         "priority_level": <number 1-10>
+      }
+    ],
+    "growth_events": [
+      {
+        "dimension_key": "know_self" | "act_self" | "show_self" | "know_world" | "act_world" | "show_world",
+        "delta_value": <number_between_-5.0_and_5.0>,
+        "rationale": "<strategic_recommendation_content>",
+        "source_concept_ids": ["<concept_id_1>", "<concept_id_2>"],
+        "source_memory_unit_ids": ["<memory_unit_id_1>", "<memory_unit_id_2>"],
+        "confidence_score": <number_between_0_and_1>,
+        "actionability": "immediate" | "short_term" | "long_term" | "aspirational"
       }
     ],
     "key_phrases": {
