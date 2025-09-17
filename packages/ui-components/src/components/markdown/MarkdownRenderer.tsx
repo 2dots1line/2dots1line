@@ -42,14 +42,34 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
 
 /**
  * Format markdown content to HTML based on legacy chat.js formatting
- * Supports: bold, italic, lists (nested), line breaks
+ * Supports: bold, italic, lists (nested), paragraphs, line breaks
  */
 function formatMarkdownContent(text: string): string {
   if (!text) return '';
 
   let formattedText = text;
 
-  // Phase 1: Basic Replacements
+  // Phase 1: Split text into paragraphs and process each one
+  const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+  
+  if (paragraphs.length === 0) return '';
+  
+  // If we have multiple paragraphs, wrap each in <p> tags
+  if (paragraphs.length > 1) {
+    formattedText = paragraphs.map(p => `<p>${p.trim()}</p>`).join('');
+  } else {
+    // Single paragraph - check if it contains lists
+    const trimmedText = paragraphs[0].trim();
+    if (trimmedText.includes('- ') || trimmedText.includes('* ') || /^\d+\.\s/.test(trimmedText)) {
+      // Contains lists, don't wrap in p tags
+      formattedText = trimmedText;
+    } else {
+      // Regular text, wrap in p tag
+      formattedText = `<p>${trimmedText}</p>`;
+    }
+  }
+  
+  // Convert remaining single line breaks to <br>
   formattedText = formattedText.replace(/\n/g, '<br>');
   formattedText = formattedText.replace(/"message-list">/g, '');
 
@@ -69,6 +89,10 @@ function formatMarkdownContent(text: string): string {
   formattedText = formattedText.replace(/<br><br>/g, '<br>');
   formattedText = formattedText.replace(/<\/ul><br>/g, '</ul>');
   formattedText = formattedText.replace(/<\/ol><br>/g, '</ol>');
+  
+  // Clean up empty paragraphs
+  formattedText = formattedText.replace(/<p><\/p>/g, '');
+  formattedText = formattedText.replace(/<p>\s*<\/p>/g, '');
 
   return formattedText;
 }

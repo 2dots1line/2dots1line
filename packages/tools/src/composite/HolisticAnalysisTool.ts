@@ -44,7 +44,9 @@ export const HolisticAnalysisOutputSchema = z.object({
     detected_growth_events: z.array(z.object({
       dim_key: z.enum(['know_self', 'know_world', 'act_self', 'act_world', 'show_self', 'show_world']),
       delta: z.number().min(-5.0).max(5.0), // V11.1 FIX: Increased range to prevent validation failures
-      rationale: z.string().min(1) // Removed max limit to allow high-quality LLM responses
+      rationale: z.string().min(1), // Removed max limit to allow high-quality LLM responses
+      source_concept_ids: z.array(z.string()).optional().default([]), // Specific concepts that support this growth event
+      source_memory_unit_ids: z.array(z.string()).optional().default([]) // Specific memory units that support this growth event
     })), // Remove array size limit to allow flexible LLM responses
   }),
   

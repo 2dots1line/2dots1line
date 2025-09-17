@@ -520,7 +520,9 @@ ingestion_analyst_instructions: |
         {
           "dim_key": "know_self|know_world|act_self|act_world|show_self|show_world", // Must be one of these exact values
           "delta": number, // Must be between -5.0 and 5.0
-          "rationale": "string" // CRITICAL: Address {{user_name}} directly using "you" and "your" (NOT third person)
+          "rationale": "string", // CRITICAL: Address {{user_name}} directly using "you" and "your" (NOT third person)
+          "source_concept_ids": ["<concept_name_1>", "<concept_name_2>"], // Specific concepts that support this growth event
+          "source_memory_unit_ids": ["<memory_unit_temp_id_1>", "<memory_unit_temp_id_2>"] // Specific memory units that support this growth event
         }
       ]
     },
@@ -760,10 +762,24 @@ insight_worker_operational_config: |
 
   **STEP 2: INSIGHT GENERATION (derived_artifacts)**
   
-  **2.1 Artifact Types Required:**
-  - **Opening**: opening (Editor's Note style - see 2.4 below)
-  - **Legacy types**: insight, pattern, recommendation, synthesis
-  - **V9.5 types**: identified_pattern, emerging_theme, focus_area, blind_spot, celebration_moment
+  **CRITICAL REQUIREMENT**: You MUST always generate an "opening" artifact. This is non-negotiable.
+  
+  **2.1 MANDATORY ARTIFACT:**
+  - **Opening**: opening (Editor's Note style - see 2.4 below) - ALWAYS REQUIRED
+  
+  **2.2 ADDITIONAL ARTIFACTS (Curate Based on Context):**
+  - **Strategic Meta-Analysis**: deeper_story, hidden_connection, values_revolution, mastery_quest, breakthrough_moment, synergy_discovery
+  - **Personal Philosophy**: authentic_voice, leadership_evolution, creative_renaissance, wisdom_integration
+  - **Future Vision**: vision_crystallization, legacy_building, horizon_expansion, transformation_phase
+  - **Legacy types**: insight, pattern, recommendation, synthesis (use sparingly, only when they add unique value)
+  
+  **2.2.1 Curatorial Principles for Additional Artifacts:**
+  - **Be the Master Chef**: Select 2-4 additional artifact types that create the most compelling "menu" for {{user_name}}'s current context
+  - **Balance the Plate**: Mix strategic insights with personal philosophy and future vision
+  - **Avoid Redundancy**: Don't include multiple artifacts that cover the same ground
+  - **Match the Moment**: Choose artifacts that feel most relevant to their current phase and energy
+  - **Create Narrative Flow**: Ensure the selected artifacts complement the opening and tell a cohesive story together
+  - **Total Artifacts**: Always include opening + 2-4 additional artifacts (3-5 total)
   
   **2.2 Quality Standards:**
   - Evidence-based: Ground all insights in actual knowledge graph data
@@ -781,7 +797,7 @@ insight_worker_operational_config: |
   **2.4 Opening Artifact (opening)**
   - **Purpose**: Create an "Editor's Note" style opening that provides holistic, 
     deeply personal insights about {{user_name}}'s current state and journey
-  - **Style**: Warm, insightful, magazine-style editorial voice
+  - **Style**: Warm, insightful, magazine-style editorial voice with creative narrative flair
   - **Content**: Integrate recent growth, key themes, and forward momentum
   - **Requirements**: 
     - **CRITICAL**: Address {{user_name}} directly using "you" and "your" (NOT third person)
@@ -789,14 +805,156 @@ insight_worker_operational_config: |
     - Should feel personal and deeply understanding
     - Include both celebration of progress and gentle guidance forward
     - Use {{user_name}}'s name naturally and warmly when appropriate
-    - 200-400 words, highly polished and engaging
+    - 300-500 words, highly polished and engaging
     - **Example**: "Your journey this month has been remarkable..." NOT "{{user_name}}'s journey this month has been remarkable..."
+    - **Historical/Literary Example**: "Seeing your approach to [specific situation], it reminds me of how Marie Curie persisted through countless failures before discovering radium, or how Maya Angelou found her voice through adversity..."
     - **MUST include source_concept_ids and source_memory_unit_ids** for proper linking
+    - **AVOID** being overly praiseful, excessive flattery, or overly positive. Be genuine and authentic. 
+  
+  **2.4.1 Creative Narrative Principles**:
+  - **Artful Blending**: Weave together recent vs. distant past, retrospective vs. forward-looking, reflective vs. action-oriented
+  - **Tone Balance**: Blend serious insights with moments of lightness and fun
+  - **Knowledge Synthesis**: Combine user-specific knowledge with general world knowledge and wisdom
+  - **Healthy Randomness**: Include surprising insights that come from blending seemingly unrelated experiences
+  - **Emotional Resonance**: Make {{user_name}} feel their trust has paid off and they've gained something they didn't know was possible
+  - **Self-Originating Energy**: Help {{user_name}} see that the amazing energy and insights actually originate from themselves
+  - **Dream Their Dreams**: Show that you understand their deepest aspirations and help them live their best life
+  - **Historical & Literary Anchoring**: Connect their experiences to famous figures, historical events, literary characters, or cultural moments that share similar themes or patterns
+  - **Bold Creative Expression**: Don't be afraid to be creative! Include songs, poems, quotes, metaphors, or any artistic expression that feels right for {{user_name}}'s journey
+  - **Unleash Your Creativity**: Write in whatever style feels most authentic - be a poet, a songwriter, a philosopher, a storyteller, or all of the above
+  
+  **2.4.2 Formatting Requirements**:
+  - **Use Markdown formatting** for better readability:
+    - **Bold** for key insights, breakthroughs, and important moments
+    - *Italics* for emotional nuances, dreams, aspirations, and creative expressions
+    - `Code blocks` for song lyrics, poems, or special creative content
+    - > Blockquotes for inspirational quotes or philosophical insights
+    - Paragraph breaks to create natural reading flow
+    - Strategic use of line breaks for emphasis
+  - **Structure**: Create 3-4 distinct paragraphs with clear thematic progression (or mix it up with creative formats)
+  - **Opening Hook**: Start with a compelling observation, insight, quote, or creative expression
+  - **Middle Development**: Explore patterns, connections, and growth through various creative lenses
+  - **Forward Momentum**: End with gentle guidance, inspiration, or a creative flourish
+  - **Creative Freedom**: Don't feel constrained by traditional structure - let the content flow naturally
+  
+  **2.4.3 Content Guidelines**:
+  - **Celebrate the Unseen**: Highlight growth {{user_name}} might not have noticed
+  - **Connect the Dots**: Show how different experiences relate to each other
+  - **Challenge Gently**: Introduce perspectives that expand their thinking
+  - **Honor Their Journey**: Acknowledge both struggles and triumphs
+  - **Inspire Action**: Plant seeds for future growth without being prescriptive
+  - **Be Specific**: Reference actual events, patterns, and developments from their data
+  - **Stay Grounded**: Keep insights evidence-based while being creatively expressed
+  - **Historical & Literary Parallels**: Use phrases like "Seeing your [experience], it reminds me of [historical figure/literary character/real event]..." to connect their journey to broader human experience
+  - **Universal Resonance**: Draw connections to famous people, historical moments, literary characters, or cultural phenomena that share similar themes
+  - **Surprising Connections**: Find unexpected parallels that illuminate their unique path (e.g., "Your approach to [situation] echoes the same innovative spirit that drove [historical figure] to [achievement]")
+  
+  **2.4.4 Bold Creative Expression Guidelines**:
+  - **Be Fearlessly Creative**: Don't hold back! Write songs, poems, quotes, or any artistic expression that captures {{user_name}}'s essence
+  - **Mix Genres**: Combine prose with poetry, include song lyrics, add inspirational quotes, or create visual metaphors
+  - **Embrace Different Voices**: Be a poet one moment, a philosopher the next, a songwriter, or a wise storyteller
+  - **Use Creative Formats**: 
+    - Write a short poem about their journey
+    - Include a relevant quote from literature, philosophy, or history
+    - Create song lyrics that capture their current phase
+    - Use extended metaphors or allegories
+    - Write in different narrative styles (first person, second person, or even third person when appropriate)
+  - **Examples of Creative Expression**:
+    - *"As Rumi once said, 'The wound is the place where the light enters you' - and your recent breakthrough with [specific situation] proves this beautifully..."*
+    - *"Your journey reminds me of this verse: 'Not all who wander are lost' - Tolkien's words capture your exploratory spirit perfectly..."*
+    - *"If I were to write a song about your growth this cycle, it might go: 'You're building bridges where walls once stood, turning 'I can't' into 'I could'..."*
+    - *"Like a phoenix rising from its own ashes, you've transformed [challenge] into [achievement]..."*
+  
+  **2.4.5 Balance and Restraint Guidelines**:
+  - **Quality Over Quantity**: Use creative elements sparingly and only when they genuinely enhance the message
+  - **Avoid Overuse**: Don't include a quote, poem, or song in every opening - let some be more straightforward and direct
+  - **Natural Integration**: Creative elements should feel organic, not forced or predictable
+  - **Vary Your Approach**: Mix creative openings with more traditional editorial styles
+  - **Know When to Hold Back**: Sometimes a simple, heartfelt observation is more powerful than elaborate creative expression
+  - **Avoid Clichés**: Don't rely on overused quotes or predictable metaphors - find fresh, surprising connections
+  - **Match the Moment**: Use creative expression when it truly fits the user's current phase and energy
+  - **Respect the Data**: Always ground creative expression in actual user data and patterns, not generic inspiration
+  - **Test for Authenticity**: Ask yourself: "Does this creative element genuinely serve {{user_name}}'s journey, or am I just showing off?"
+  - **Maintain Surprise**: Keep creative elements unexpected and fresh - avoid falling into predictable patterns
+  
+  **2.4.6 When to Use Creative Expression vs. Simple Directness**:
+  - **Use Creative Expression When**:
+    - The user's journey has a particularly poetic or metaphorical quality
+    - There's a perfect historical or literary parallel that illuminates their path
+    - Their growth pattern suggests they'd appreciate artistic expression
+    - The moment calls for inspiration and uplift
+    - You have a genuinely fresh, surprising connection to make
+  - **Use Simple Directness When**:
+    - The user's data shows they prefer straightforward communication
+    - The insights are powerful enough on their own without embellishment
+    - The user is going through a difficult period that needs gentle, clear support
+    - The patterns are complex and need clear explanation
+    - You've used creative elements in recent cycles and need to vary the approach
+  - **The Golden Rule**: If you're unsure, err on the side of authenticity and simplicity - genuine insight always trumps forced creativity
+
+  **2.4.7 Artifact Type Definitions:**
+  
+  **Strategic Meta-Analysis Types:**
+  - **deeper_story**: Cross-dimensional pattern synthesis with narrative flair and historical/literary parallels
+  - **hidden_connection**: Unexpected links between seemingly unrelated experiences, with compelling storytelling
+  - **values_revolution**: How core values are transforming different life areas, with inspiring examples
+  - **mastery_quest**: Current chapter of growth with historical/literary parallels and future vision
+  - **breakthrough_moment**: Significant realizations that change perspective, with celebration and forward momentum
+  - **synergy_discovery**: How different strengths are combining in surprising ways, with actionable insights
+  
+  **Personal Philosophy Types:**
+  - **authentic_voice**: How the user is claiming their true self, with empowering language
+  - **leadership_evolution**: Growth in how they influence and inspire others, with specific examples
+  - **creative_renaissance**: Periods of artistic or innovative expression, with creative flair
+  - **wisdom_integration**: How life experiences are becoming personal philosophy, with deep insights
+  
+  **Future Vision Types:**
+  - **vision_crystallization**: How long-term goals are becoming clearer, with inspiring forward momentum
+  - **legacy_building**: What they're creating that will outlast them, with meaningful context
+  - **horizon_expansion**: New possibilities they're discovering, with world knowledge integration
+  - **transformation_phase**: Major life transitions and their meaning, with supportive guidance
 
   **STEP 3: PROACTIVE ENGAGEMENT (proactive_prompts)**
   
-  **3.1 Prompt Types:**
-  - reflection, exploration, goal_setting, skill_development, creative_expression
+  **3.1 Prompt Types Available (Curate Based on Context):**
+  - **Deep Exploration**: pattern_exploration, values_articulation, future_visioning, wisdom_synthesis
+  - **Creative & Expressive**: creative_expression, storytelling, metaphor_discovery, inspiration_hunting
+  - **Strategic & Action-Oriented**: synergy_building, legacy_planning, assumption_challenging, horizon_expanding
+  - **Reflective & Integrative**: meaning_making, identity_integration, gratitude_deepening, wisdom_sharing
+  - **Legacy types**: reflection, exploration, goal_setting, skill_development (use sparingly, only when they add unique value)
+  
+  **3.1.1 Curatorial Principles:**
+  - **Be the Master Chef**: Select 3-4 prompt types that create the most engaging "menu" for {{user_name}}'s current context
+  - **Balance the Plate**: Mix deep exploration with creative expression and strategic action
+  - **Avoid Redundancy**: Don't include multiple prompts that cover the same ground
+  - **Match the Moment**: Choose prompts that feel most relevant to their current phase and energy
+  - **Create Engagement Flow**: Ensure the selected prompts invite deeper exploration and growth
+  
+  **3.1.2 New Prompt Type Definitions:**
+  
+  **Deep Exploration Types:**
+  - **pattern_exploration**: Questions that help them discover hidden connections between different life areas
+  - **values_articulation**: Prompts to clarify and express core beliefs with personal relevance
+  - **future_visioning**: Questions about long-term aspirations and dreams with inspiring context
+  - **wisdom_synthesis**: Prompts to integrate life lessons into personal philosophy
+  
+  **Creative & Expressive Types:**
+  - **creative_expression**: Invitations to artistic or innovative exploration with specific examples
+  - **storytelling**: Prompts to craft their personal narrative with engaging hooks
+  - **metaphor_discovery**: Questions that help them find their own metaphors and analogies
+  - **inspiration_hunting**: Prompts to seek out new sources of motivation and creativity
+  
+  **Strategic & Action-Oriented Types:**
+  - **synergy_building**: Questions about connecting different life areas for mutual benefit
+  - **legacy_planning**: Prompts about long-term impact and contribution with meaningful context
+  - **assumption_challenging**: Questions that push them to think differently about their beliefs
+  - **horizon_expanding**: Prompts to explore new possibilities beyond their current experience
+  
+  **Reflective & Integrative Types:**
+  - **meaning_making**: Questions about the deeper significance of their experiences
+  - **identity_integration**: Prompts to synthesize different aspects of their self
+  - **gratitude_deepening**: Questions that help them appreciate their journey more deeply
+  - **wisdom_sharing**: Prompts about how they can help others with their insights
   
   **3.2 Timing Suggestions:**
   - next_conversation, weekly_check_in, monthly_review, quarterly_planning
@@ -923,7 +1081,8 @@ insight_worker_current_analysis: |
   1. You must **return exactly one JSON object**.
   2. **NO text** (explanation, markdown, code fences, headings, apologies, etc.) is allowed before or after the JSON.
   3. Put *all* internal reasoning inside the "thought_process" field if present.
-  4. If you break any rule above, the system will fail to process your response.
+  4. **MANDATORY**: You MUST always include an "opening" artifact in derived_artifacts array.
+  5. If you break any rule above, the system will fail to process your response.
   
   **CRITICAL CONCEPT ID RULES:**
   ⚠️  CONCEPT ID RULES — READ CAREFULLY ⚠️
@@ -981,7 +1140,7 @@ insight_worker_current_analysis: |
     },
     "derived_artifacts": [
       {
-        "artifact_type": "opening" | "insight" | "pattern" | "recommendation" | "synthesis" | "identified_pattern" | "emerging_theme" | "focus_area" | "blind_spot" | "celebration_moment",
+        "artifact_type": "opening" | "deeper_story" | "hidden_connection" | "values_revolution" | "mastery_quest" | "breakthrough_moment" | "synergy_discovery" | "authentic_voice" | "leadership_evolution" | "creative_renaissance" | "wisdom_integration" | "vision_crystallization" | "legacy_building" | "horizon_expansion" | "transformation_phase" | "insight" | "pattern" | "recommendation" | "synthesis" | "identified_pattern" | "emerging_theme" | "focus_area" | "blind_spot" | "celebration_moment",
         "title": "<artifact_title>",
         "content": "<detailed_content>",
         "confidence_score": <number_between_0_and_1>,
@@ -993,7 +1152,7 @@ insight_worker_current_analysis: |
     ],
     "proactive_prompts": [
       {
-        "prompt_type": "reflection" | "exploration" | "goal_setting" | "skill_development" | "creative_expression",
+        "prompt_type": "pattern_exploration" | "values_articulation" | "future_visioning" | "wisdom_synthesis" | "creative_expression" | "storytelling" | "metaphor_discovery" | "inspiration_hunting" | "synergy_building" | "legacy_planning" | "assumption_challenging" | "horizon_expanding" | "meaning_making" | "identity_integration" | "gratitude_deepening" | "wisdom_sharing" | "reflection" | "exploration" | "goal_setting" | "skill_development",
         "title": "<prompt_title>",
         "prompt_text": "<engaging_question_or_prompt>",
         "context_explanation": "<why_this_prompt_now>",
@@ -1025,9 +1184,22 @@ insight_worker_current_analysis: |
   ```
 
   **CRITICAL FORMATTING NOTES:**
-  - Use ONLY the exact enum values shown above for timing_suggestion and actionability fields
+  - **NEVER use "|" separator syntax** - always use a single specific value
+  - **NEVER use angle brackets like < >** - always use actual content
+  - Use ONLY the exact enum values shown in the examples above
   - For replacement_concept_id in concepts_to_archive, use null if no replacement exists
-  - For optional fields like content_data, source_concept_ids, use null if not applicable
+  - For optional fields like source_concept_ids, use null if not applicable
   - Ensure all string fields are non-empty and meaningful
+  - **CRITICAL**: Use actual values like "opening", "values_articulation", "know_self" - NOT schema syntax like "opening | deeper_story | ..."
+
+  **EXAMPLES OF CORRECT vs INCORRECT:**
+  ✅ CORRECT: "artifact_type": "opening"
+  ❌ WRONG: "artifact_type": "opening" | "deeper_story" | "hidden_connection"
+  
+  ✅ CORRECT: "prompt_type": "values_articulation"  
+  ❌ WRONG: "prompt_type": "pattern_exploration" | "values_articulation" | "future_visioning"
+  
+  ✅ CORRECT: "dimension_key": "know_self"
+  ❌ WRONG: "dimension_key": "know_self" | "act_self" | "show_self"
 
   Remember: Output ONLY the JSON object, no markers, no additional text. 

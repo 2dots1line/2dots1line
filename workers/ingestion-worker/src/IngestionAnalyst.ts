@@ -365,23 +365,23 @@ export class IngestionAnalyst {
         // Process growth events (unchanged - always created as new)
         if (persistence_payload.detected_growth_events && persistence_payload.detected_growth_events.length > 0) {
           for (const growthEvent of persistence_payload.detected_growth_events) {
-          const growthData: CreateGrowthEventData = {
-            user_id: userId,
-              related_memory_units: [],
-              related_concepts: [],
+            const growthData: CreateGrowthEventData = {
+              user_id: userId,
+              related_memory_units: growthEvent.source_memory_unit_ids || [],
+              related_concepts: growthEvent.source_concept_ids || [],
               growth_dimensions: [],
-            source: 'IngestionAnalyst',
-            details: {
-              entity_id: conversationId,
-              entity_type: 'conversation'
-            },
-            dimension_key: growthEvent.dim_key,
-            delta_value: growthEvent.delta,
-            rationale: growthEvent.rationale
-          };
+              source: 'IngestionAnalyst',
+              details: {
+                entity_id: conversationId,
+                entity_type: 'conversation'
+              },
+              dimension_key: growthEvent.dim_key,
+              delta_value: growthEvent.delta,
+              rationale: growthEvent.rationale
+            };
 
-          const createdGrowthEvent = await this.growthEventRepository.create(growthData);
-          newEntities.push({ id: createdGrowthEvent.event_id, type: 'GrowthEvent' });
+            const createdGrowthEvent = await this.growthEventRepository.create(growthData);
+            newEntities.push({ id: createdGrowthEvent.event_id, type: 'GrowthEvent' });
           }
         }
 
