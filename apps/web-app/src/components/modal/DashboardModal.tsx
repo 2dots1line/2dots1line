@@ -1,6 +1,6 @@
 'use client';
 
-import { GlassmorphicPanel, GlassButton } from '@2dots1line/ui-components';
+import { GlassmorphicPanel, GlassButton, MarkdownRenderer } from '@2dots1line/ui-components';
 import { 
   X, 
   TrendingUp, 
@@ -220,7 +220,7 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
         variant="glass-panel"
         rounded="lg"
         padding="md"
-        className="hover:bg-white/15 transition-all duration-200"
+        className="hover:bg-white/15 transition-all duration-200 h-fit"
       >
         <div className="flex items-center gap-3 mb-4">
           <IconComponent size={20} className="text-white/80 stroke-current" strokeWidth={1.5} />
@@ -230,15 +230,15 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
         <div className="space-y-3">
           {sectionData.items.slice(0, config.max_items || 3).map((item) => (
             <div key={item.id} className="p-3 bg-white/10 rounded-lg">
-              <div className="text-sm font-medium text-white/90 mb-1">{item.title}</div>
-              <div className="text-xs text-white/70 line-clamp-2">{item.content}</div>
+              <div className="text-sm font-medium text-white/90 mb-2">{item.title}</div>
+              <div className="text-xs text-white/70 leading-relaxed whitespace-pre-wrap">{item.content}</div>
               {item.confidence && (
-                <div className="text-xs text-white/50 mt-1">
+                <div className="text-xs text-white/50 mt-2">
                   Confidence: {Math.round(item.confidence * 100)}%
                 </div>
               )}
               {item.actionability && (
-                <div className="text-xs text-blue-400 mt-1">
+                <div className="text-xs text-blue-400 mt-2">
                   {item.actionability}
                 </div>
               )}
@@ -400,35 +400,33 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                       </div>
                     </GlassmorphicPanel>
 
-                    {/* DYNAMIC SECTIONS - Configuration-driven with section groups */}
-                    {dashboardConfig && getTabSectionGroups('dynamic_insights').length > 0 ? (
-                      <div className="space-y-8">
-                        {getTabSectionGroups('dynamic_insights').map((group: any) => (
-                          <div key={group.title}>
-                            <h4 className="text-lg font-semibold text-white/90 mb-4 flex items-center gap-2">
-                              <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                              {group.title}
-                            </h4>
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                              {Object.entries(dynamicDashboardData.sections)
-                                .filter(([sectionKey]) => group.sections.includes(sectionKey))
-                                .sort(([a]: [string, any], [b]: [string, any]) => {
-                                  const priorityA = dashboardConfig?.dashboard_sections?.[a]?.priority || 999;
-                                  const priorityB = dashboardConfig?.dashboard_sections?.[b]?.priority || 999;
-                                  return priorityA - priorityB;
-                                })
-                                .map(([sectionKey, sectionData]: [string, any]) => (
-                                  <div key={sectionKey} className="space-y-4">
-                                    {renderSection(sectionKey, sectionData)}
-                                  </div>
-                                ))}
+                    {/* DYNAMIC SECTIONS - Show all available sections directly */}
+                    {dashboardConfig && dynamicDashboardData?.sections ? (
+                      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                        {Object.entries(dynamicDashboardData.sections)
+                          .filter(([sectionKey, sectionData]) => 
+                            sectionData && 
+                            sectionData.items && 
+                            sectionData.items.length > 0 &&
+                            // Exclude growth_dimensions, opening_words, and recent_cards as they belong to other tabs
+                            sectionKey !== 'growth_dimensions' &&
+                            sectionKey !== 'opening_words' &&
+                            sectionKey !== 'recent_cards'
+                          )
+                          .sort(([a]: [string, any], [b]: [string, any]) => {
+                            const priorityA = dashboardConfig?.dashboard_sections?.[a]?.priority || 999;
+                            const priorityB = dashboardConfig?.dashboard_sections?.[b]?.priority || 999;
+                            return priorityA - priorityB;
+                          })
+                          .map(([sectionKey, sectionData]: [string, any]) => (
+                            <div key={sectionKey} className="h-fit">
+                              {renderSection(sectionKey, sectionData)}
                             </div>
-                          </div>
-                        ))}
+                          ))}
                       </div>
                     ) : (
                       <div className="col-span-2 text-center py-8">
-                        <div className="text-white/60">Loading configuration...</div>
+                        <div className="text-white/60">Loading insights...</div>
                       </div>
                     )}
                   </>
@@ -477,8 +475,12 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                                 <h1 className="text-4xl font-bold text-white mb-6 leading-tight">
                                   {openingWords.title}
                                 </h1>
-                                <div className="text-lg text-white/90 leading-relaxed space-y-4">
-                                  <p>{openingWords.content}</p>
+                                <div className="text-lg text-white/90 leading-relaxed">
+                                  <MarkdownRenderer 
+                                    content={openingWords.content} 
+                                    variant="dashboard"
+                                    className="prose prose-invert max-w-none"
+                                  />
                                 </div>
                               </>
                             );
@@ -489,7 +491,7 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                                 <h1 className="text-4xl font-bold text-white mb-6 leading-tight">
                                   Your Journey Through the Cosmos
                                 </h1>
-                                <div className="text-lg text-white/90 leading-relaxed space-y-4">
+                                <div className="text-lg text-white/90 leading-relaxed">
                                   <p>
                                     Welcome to your personal cosmic journey. This month, we&apos;ve witnessed remarkable growth 
                                     across all dimensions of your being. Your conversations have revealed patterns of 

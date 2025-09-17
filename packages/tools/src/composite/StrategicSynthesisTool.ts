@@ -47,7 +47,7 @@ export const StrategicSynthesisOutputSchema = z.object({
     }))
   }),
   derived_artifacts: z.array(z.object({
-    artifact_type: z.enum(['opening', 'insight', 'pattern', 'recommendation', 'synthesis', 'identified_pattern', 'emerging_theme', 'focus_area', 'blind_spot', 'celebration_moment']),
+    artifact_type: z.enum(['opening', 'deeper_story', 'hidden_connection', 'values_revolution', 'mastery_quest', 'breakthrough_moment', 'synergy_discovery', 'authentic_voice', 'leadership_evolution', 'creative_renaissance', 'wisdom_integration', 'vision_crystallization', 'legacy_building', 'horizon_expansion', 'transformation_phase', 'insight', 'pattern', 'recommendation', 'synthesis', 'identified_pattern', 'emerging_theme', 'focus_area', 'blind_spot', 'celebration_moment']),
     title: z.string(),
     content: z.string(),
     confidence_score: z.number().min(0).max(1),
@@ -57,7 +57,7 @@ export const StrategicSynthesisOutputSchema = z.object({
     source_memory_unit_ids: z.array(z.string()).optional()
   })),
   proactive_prompts: z.array(z.object({
-    prompt_type: z.enum(['reflection', 'exploration', 'goal_setting', 'skill_development', 'creative_expression']),
+    prompt_type: z.enum(['pattern_exploration', 'values_articulation', 'future_visioning', 'wisdom_synthesis', 'creative_expression', 'storytelling', 'metaphor_discovery', 'inspiration_hunting', 'synergy_building', 'legacy_planning', 'assumption_challenging', 'horizon_expanding', 'meaning_making', 'identity_integration', 'gratitude_deepening', 'wisdom_sharing', 'reflection', 'exploration', 'goal_setting', 'skill_development']),
     title: z.string(),
     prompt_text: z.string(),
     context_explanation: z.string(),
@@ -510,8 +510,45 @@ ${recent_conversations.conversations.map((conv: any) =>
     // Extract JSON from response (handles extra text, markdown, etc.)
     const jsonData = this.extractJSONFromResponse(llmJsonResponse);
     
+    // Check if LLM returned schema template instead of actual data
+    this.detectSchemaResponse(jsonData);
+    
     // Validate with smart error recovery - work with actual LLM response
     return this.validateWithRecovery(jsonData);
+  }
+
+  /**
+   * Detect if LLM returned schema template instead of actual data
+   */
+  private detectSchemaResponse(data: any): void {
+    if (!data || typeof data !== 'object') return;
+    
+    // Check for schema syntax patterns
+    const schemaPatterns = [
+      /\|/g,  // Pipe separators like "opening" | "deeper_story"
+      /<[^>]+>/g,  // Angle brackets like <artifact_title>
+      /<number_between_[^>]+>/g,  // Number placeholders
+      /<string>/g,  // String placeholders
+    ];
+    
+    const dataString = JSON.stringify(data);
+    const foundPatterns = schemaPatterns.filter(pattern => pattern.test(dataString));
+    
+    if (foundPatterns.length > 0) {
+      console.error(`[StrategicSynthesisTool] 🚨 SCHEMA DETECTION: LLM returned schema template instead of actual data!`);
+      console.error(`[StrategicSynthesisTool] Found schema patterns: ${foundPatterns.length}`);
+      console.error(`[StrategicSynthesisTool] This indicates a prompt engineering issue - LLM is confused by schema examples`);
+      
+      // Throw a specific error that can be caught and handled
+      throw new StrategicSynthesisValidationError(
+        'LLM response format is critically invalid - returned schema template instead of actual data. This indicates a prompt engineering issue where the LLM is confused by schema examples in the prompt.',
+        [{ 
+          code: 'schema_template_detected', 
+          message: 'LLM returned schema template instead of actual data',
+          data: dataString 
+        }]
+      );
+    }
   }
 
   /**

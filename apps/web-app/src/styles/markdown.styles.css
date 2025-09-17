@@ -11,6 +11,15 @@
   line-height: 1.6;
 }
 
+.markdown-content p {
+  margin: 0 0 1.5rem 0;
+  line-height: 1.7;
+}
+
+.markdown-content p:last-child {
+  margin-bottom: 0;
+}
+
 .markdown-content strong {
   font-weight: 600;
   color: inherit;
@@ -95,6 +104,16 @@
   line-height: 1.4;
 }
 
+.markdown-dashboard p {
+  margin: 0 0 1.75rem 0;
+  line-height: 1.8;
+  text-align: justify;
+}
+
+.markdown-dashboard p:last-child {
+  margin-bottom: 0;
+}
+
 .markdown-dashboard .message-list {
   margin: 0.5rem 0;
   padding-left: 1.25rem;
@@ -107,6 +126,15 @@
 /* Compact modifier - reduces spacing */
 .markdown-compact {
   line-height: 1.4;
+}
+
+.markdown-compact p {
+  margin: 0 0 1rem 0;
+  line-height: 1.5;
+}
+
+.markdown-compact p:last-child {
+  margin-bottom: 0;
 }
 
 .markdown-compact .message-list {

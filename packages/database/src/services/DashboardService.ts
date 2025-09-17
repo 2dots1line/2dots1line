@@ -259,6 +259,8 @@ export class DashboardService {
                              sectionKey === 'focus_areas' ? 'focus_area' :
                              sectionKey === 'blind_spots' ? 'blind_spot' :
                              sectionKey === 'celebration_moments' ? 'celebration_moment' :
+                             sectionKey === 'opening_words' ? 'opening' :
+                             // New artifact types - direct mapping (no transformation needed)
                              sectionKey;
           
           return [sectionKey, await this.createSection(sectionKey, artifacts.filter((a: any) => a.artifact_type === artifactType))];
