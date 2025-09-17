@@ -549,6 +549,31 @@ class DashboardService {
   }
 
   /**
+   * Get user-specific metrics from PostgreSQL database
+   */
+  async getUserMetrics(): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/dashboard/metrics`, {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error fetching user metrics:', error);
+      return {
+        success: false,
+        error: 'Failed to fetch user metrics'
+      };
+    }
+  }
+
+  /**
    * Get proactive greeting from the most recent processed conversation
    */
   async getProactiveGreeting(): Promise<{ success: boolean; data?: { greeting: string | null; conversationTitle?: string; updatedAt?: string; message?: string }; error?: string }> {

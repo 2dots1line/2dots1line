@@ -60,6 +60,18 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
   } | null>(null);
   const [activeTab, setActiveTab] = useState<'opening' | 'dynamic' | 'growth-trajectory' | 'activity'>('opening');
   const [proactiveGreeting, setProactiveGreeting] = useState<string | null>(null);
+  const [userMetrics, setUserMetrics] = useState<{
+    memory_units_count: number;
+    concepts_count: number;
+    growth_events_count: number;
+    cards_count: number;
+    latest_cycle_date_range: {
+      start_date: string | null;
+      end_date: string | null;
+    };
+    total_artifacts: number;
+    total_prompts: number;
+  } | null>(null);
 
   // Tab name mapping
   const tabNames: Record<string, string> = {
@@ -81,11 +93,12 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
     setIsLoading(true);
     try {
       // Load all dashboard data
-      const [legacyResponse, dynamicResponse, configResponse, greetingResponse] = await Promise.all([
+      const [legacyResponse, dynamicResponse, configResponse, greetingResponse, metricsResponse] = await Promise.all([
         dashboardService.getDashboardData(),
         dashboardService.getDynamicDashboard(),
         dashboardService.getDashboardConfig(),
-        dashboardService.getProactiveGreeting()
+        dashboardService.getProactiveGreeting(),
+        dashboardService.getUserMetrics()
       ]);
       
       if (legacyResponse.success && legacyResponse.data) {
@@ -119,6 +132,13 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
         console.log('👋 Proactive greeting loaded:', greetingResponse.data.greeting);
       } else {
         console.error('❌ Failed to load proactive greeting:', greetingResponse.error);
+      }
+
+      if (metricsResponse.success && metricsResponse.data) {
+        setUserMetrics(metricsResponse.data);
+        console.log('📊 User metrics loaded:', metricsResponse.data);
+      } else {
+        console.error('❌ Failed to load user metrics:', metricsResponse.error);
       }
 
     } catch (error) {
@@ -362,7 +382,7 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
               <div className="space-y-6">
                 {dynamicDashboardData && dashboardConfig ? (
                   <>
-                    {/* Cycle Info Header */}
+                    {/* User Metrics Header */}
                     <GlassmorphicPanel
                       variant="glass-panel"
                       rounded="lg"
@@ -374,28 +394,28 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                           <Brain size={20} className="text-white/80 stroke-current" strokeWidth={1.5} />
                           <h3 className="text-white/90 font-medium">Dynamic Insights</h3>
                         </div>
-                        <div className="text-sm text-white/60">
-                          Cycle: {new Date(dynamicDashboardData.cycle_info.cycle_start_date).toLocaleDateString()} - {new Date(dynamicDashboardData.cycle_info.cycle_end_date).toLocaleDateString()}
-                        </div>
+                        {userMetrics?.latest_cycle_date_range?.start_date && (
+                          <div className="text-sm text-white/60">
+                            Latest Cycle: {new Date(userMetrics.latest_cycle_date_range.start_date).toLocaleDateString()} - {userMetrics.latest_cycle_date_range.end_date ? new Date(userMetrics.latest_cycle_date_range.end_date).toLocaleDateString() : 'Ongoing'}
+                          </div>
+                        )}
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                         <div>
-                          <div className="text-2xl font-bold text-white">{dynamicDashboardData.cycle_info.artifacts_created}</div>
-                          <div className="text-xs text-white/60">Artifacts</div>
+                          <div className="text-2xl font-bold text-white">{userMetrics?.memory_units_count || 0}</div>
+                          <div className="text-xs text-white/60">Memory Units</div>
                         </div>
                         <div>
-                          <div className="text-2xl font-bold text-white">{dynamicDashboardData.cycle_info.prompts_created}</div>
-                          <div className="text-xs text-white/60">Prompts</div>
+                          <div className="text-2xl font-bold text-white">{userMetrics?.concepts_count || 0}</div>
+                          <div className="text-xs text-white/60">Concepts</div>
                         </div>
                         <div>
-                          <div className="text-2xl font-bold text-white">{dynamicDashboardData.cycle_info.status}</div>
-                          <div className="text-xs text-white/60">Status</div>
+                          <div className="text-2xl font-bold text-white">{userMetrics?.growth_events_count || 0}</div>
+                          <div className="text-xs text-white/60">Growth Events</div>
                         </div>
                         <div>
-                          <div className="text-2xl font-bold text-white">
-                            {dynamicDashboardData.cycle_info.processing_duration_ms ? Math.round(dynamicDashboardData.cycle_info.processing_duration_ms / 1000) : 'N/A'}s
-                          </div>
-                          <div className="text-xs text-white/60">Processing</div>
+                          <div className="text-2xl font-bold text-white">{userMetrics?.cards_count || 0}</div>
+                          <div className="text-xs text-white/60">Cards</div>
                         </div>
                       </div>
                     </GlassmorphicPanel>

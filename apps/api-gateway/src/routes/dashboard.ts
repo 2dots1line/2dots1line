@@ -73,4 +73,12 @@ router.get('/greeting', async (req, res) => {
   await dashboardController.getProactiveGreeting(req, res);
 });
 
+/**
+ * GET /api/v1/dashboard/metrics
+ * Get user-specific metrics from PostgreSQL database
+ */
+router.get('/metrics', async (req, res) => {
+  await dashboardController.getUserMetrics(req, res);
+});
+
 export default router;

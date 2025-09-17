@@ -612,4 +612,89 @@ export class DashboardService {
     const userCycleRepo = new UserCycleRepository(this.db);
     return userCycleRepo.getCycleStats(userId);
   }
+
+  /**
+   * Get user-specific metrics from PostgreSQL database
+   */
+  async getUserMetrics(userId: string): Promise<{
+    memory_units_count: number;
+    concepts_count: number;
+    growth_events_count: number;
+    cards_count: number;
+    latest_cycle_date_range: {
+      start_date: string | null;
+      end_date: string | null;
+    };
+    total_artifacts: number;
+    total_prompts: number;
+  }> {
+    try {
+      // Get counts from various tables
+      const [
+        memoryUnitsCount,
+        conceptsCount,
+        growthEventsCount,
+        cardsCount,
+        artifactsCount,
+        promptsCount,
+        latestCycle
+      ] = await Promise.all([
+        // Memory units count
+        this.db.prisma.memory_units.count({
+          where: { user_id: userId }
+        }),
+        
+        // Concepts count
+        this.db.prisma.concepts.count({
+          where: { user_id: userId }
+        }),
+        
+        // Growth events count
+        this.db.prisma.growth_events.count({
+          where: { user_id: userId }
+        }),
+        
+        // Cards count
+        this.db.prisma.cards.count({
+          where: { user_id: userId }
+        }),
+        
+        // Total artifacts count
+        this.db.prisma.derived_artifacts.count({
+          where: { user_id: userId }
+        }),
+        
+        // Total prompts count
+        this.db.prisma.proactive_prompts.count({
+          where: { user_id: userId }
+        }),
+        
+        // Latest cycle date range
+        this.db.prisma.user_cycles.findFirst({
+          where: { user_id: userId },
+          orderBy: { cycle_start_date: 'desc' },
+          select: {
+            cycle_start_date: true,
+            cycle_end_date: true
+          }
+        })
+      ]);
+
+      return {
+        memory_units_count: memoryUnitsCount,
+        concepts_count: conceptsCount,
+        growth_events_count: growthEventsCount,
+        cards_count: cardsCount,
+        latest_cycle_date_range: {
+          start_date: latestCycle?.cycle_start_date?.toISOString() || null,
+          end_date: latestCycle?.cycle_end_date?.toISOString() || null
+        },
+        total_artifacts: artifactsCount,
+        total_prompts: promptsCount
+      };
+    } catch (error) {
+      console.error(`[DashboardService] Error getting user metrics for user ${userId}:`, error);
+      throw error;
+    }
+  }
 }
