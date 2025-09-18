@@ -1,0 +1,531 @@
+{
+  "dashboard_sections": {
+    "insights": {
+      "title": "Insights",
+      "icon": "💡",
+      "description": "Key insights discovered from your conversations and activities",
+      "max_items": 3,
+      "priority": 1,
+      "category": "analysis"
+    },
+    "patterns": {
+      "title": "Patterns",
+      "icon": "🔍",
+      "description": "Recurring patterns in your behavior and thinking",
+      "max_items": 2,
+      "priority": 2,
+      "category": "analysis"
+    },
+    "recommendations": {
+      "title": "Recommendations",
+      "icon": "📋",
+      "description": "Actionable recommendations for your growth",
+      "max_items": 2,
+      "priority": 1,
+      "category": "action"
+    },
+    "synthesis": {
+      "title": "Synthesis",
+      "icon": "🧠",
+      "description": "High-level synthesis of your learning journey",
+      "max_items": 2,
+      "priority": 1,
+      "category": "analysis"
+    },
+    "identified_patterns": {
+      "title": "Identified Patterns",
+      "icon": "🎯",
+      "description": "Specific patterns identified in your recent activity",
+      "max_items": 3,
+      "priority": 2,
+      "category": "analysis"
+    },
+    "emerging_themes": {
+      "title": "Emerging Themes",
+      "icon": "🌟",
+      "description": "Themes that are emerging in your personal development",
+      "max_items": 3,
+      "priority": 2,
+      "category": "growth"
+    },
+    "focus_areas": {
+      "title": "Focus Areas",
+      "icon": "🎯",
+      "description": "Areas where you should focus your attention",
+      "max_items": 3,
+      "priority": 1,
+      "category": "action"
+    },
+    "blind_spots": {
+      "title": "Blind Spots",
+      "icon": "⚠️",
+      "description": "Potential blind spots in your awareness",
+      "max_items": 2,
+      "priority": 3,
+      "category": "awareness"
+    },
+    "celebration_moments": {
+      "title": "Celebration Moments",
+      "icon": "🎉",
+      "description": "Moments worth celebrating in your journey",
+      "max_items": 1,
+      "priority": 1,
+      "category": "celebration"
+    },
+    "reflection_prompts": {
+      "title": "Reflection Prompts",
+      "icon": "🤔",
+      "description": "Prompts to encourage deeper reflection",
+      "max_items": 2,
+      "priority": 2,
+      "category": "prompts"
+    },
+    "exploration_prompts": {
+      "title": "Exploration Prompts",
+      "icon": "🔍",
+      "description": "Prompts to encourage exploration of new ideas",
+      "max_items": 2,
+      "priority": 2,
+      "category": "prompts"
+    },
+    "goal_setting_prompts": {
+      "title": "Goal Setting Prompts",
+      "icon": "🎯",
+      "description": "Prompts to help with goal setting and planning",
+      "max_items": 2,
+      "priority": 1,
+      "category": "prompts"
+    },
+    "skill_development_prompts": {
+      "title": "Skill Development Prompts",
+      "icon": "📚",
+      "description": "Prompts focused on skill development and learning",
+      "max_items": 2,
+      "priority": 2,
+      "category": "prompts"
+    },
+    "creative_expression_prompts": {
+      "title": "Creative Expression Prompts",
+      "icon": "🎨",
+      "description": "Prompts to encourage creative expression",
+      "max_items": 2,
+      "priority": 3,
+      "category": "prompts"
+    },
+    "pattern_exploration_prompts": {
+      "title": "Pattern Exploration",
+      "icon": "🔍",
+      "description": "Questions that help discover hidden connections",
+      "max_items": 2,
+      "priority": 1,
+      "category": "prompts"
+    },
+    "values_articulation_prompts": {
+      "title": "Values Articulation",
+      "icon": "💎",
+      "description": "Prompts to clarify and express core beliefs",
+      "max_items": 2,
+      "priority": 1,
+      "category": "prompts"
+    },
+    "future_visioning_prompts": {
+      "title": "Future Visioning",
+      "icon": "🔮",
+      "description": "Questions about long-term aspirations and dreams",
+      "max_items": 2,
+      "priority": 1,
+      "category": "prompts"
+    },
+    "wisdom_synthesis_prompts": {
+      "title": "Wisdom Synthesis",
+      "icon": "🧘",
+      "description": "Prompts to integrate life lessons into personal philosophy",
+      "max_items": 2,
+      "priority": 2,
+      "category": "prompts"
+    },
+    "storytelling_prompts": {
+      "title": "Storytelling",
+      "icon": "📚",
+      "description": "Prompts to craft your personal narrative",
+      "max_items": 2,
+      "priority": 2,
+      "category": "prompts"
+    },
+    "metaphor_discovery_prompts": {
+      "title": "Metaphor Discovery",
+      "icon": "🎭",
+      "description": "Questions that help find your own metaphors",
+      "max_items": 2,
+      "priority": 2,
+      "category": "prompts"
+    },
+    "inspiration_hunting_prompts": {
+      "title": "Inspiration Hunting",
+      "icon": "🎯",
+      "description": "Prompts to seek out new sources of motivation",
+      "max_items": 2,
+      "priority": 2,
+      "category": "prompts"
+    },
+    "synergy_building_prompts": {
+      "title": "Synergy Building",
+      "icon": "🔗",
+      "description": "Questions about connecting different life areas",
+      "max_items": 2,
+      "priority": 1,
+      "category": "prompts"
+    },
+    "legacy_planning_prompts": {
+      "title": "Legacy Planning",
+      "icon": "🏛️",
+      "description": "Prompts about long-term impact and contribution",
+      "max_items": 2,
+      "priority": 2,
+      "category": "prompts"
+    },
+    "assumption_challenging_prompts": {
+      "title": "Assumption Challenging",
+      "icon": "🤔",
+      "description": "Questions that push you to think differently",
+      "max_items": 2,
+      "priority": 2,
+      "category": "prompts"
+    },
+    "horizon_expanding_prompts": {
+      "title": "Horizon Expanding",
+      "icon": "🌅",
+      "description": "Prompts to explore new possibilities",
+      "max_items": 2,
+      "priority": 2,
+      "category": "prompts"
+    },
+    "meaning_making_prompts": {
+      "title": "Meaning Making",
+      "icon": "💭",
+      "description": "Questions about the deeper significance of experiences",
+      "max_items": 2,
+      "priority": 2,
+      "category": "prompts"
+    },
+    "identity_integration_prompts": {
+      "title": "Identity Integration",
+      "icon": "🧩",
+      "description": "Prompts to synthesize different aspects of self",
+      "max_items": 2,
+      "priority": 2,
+      "category": "prompts"
+    },
+    "gratitude_deepening_prompts": {
+      "title": "Gratitude Deepening",
+      "icon": "🙏",
+      "description": "Questions that help appreciate your journey more deeply",
+      "max_items": 2,
+      "priority": 2,
+      "category": "prompts"
+    },
+    "wisdom_sharing_prompts": {
+      "title": "Wisdom Sharing",
+      "icon": "🤝",
+      "description": "Prompts about how you can help others with your insights",
+      "max_items": 2,
+      "priority": 2,
+      "category": "prompts"
+    },
+    "recent_cards": {
+      "title": "Recent Cards",
+      "icon": "🃏",
+      "description": "Most recently generated concept and memory unit cards",
+      "max_items": 5,
+      "priority": 1,
+      "category": "content"
+    },
+    "growth_dimensions": {
+      "title": "Growth Dimensions",
+      "icon": "📈",
+      "description": "Growth trajectory across self and world dimensions",
+      "max_items": 6,
+      "priority": 1,
+      "category": "growth",
+      "layout": {
+        "type": "table",
+        "columns": [
+          {
+            "key": "whats_new",
+            "title": "What's New",
+            "icon": "🆕",
+            "description": "Recent growth events from IngestionAnalyst"
+          },
+          {
+            "key": "whats_next", 
+            "title": "What's Next",
+            "icon": "🔮",
+            "description": "Strategic recommendations from InsightWorker"
+          }
+        ],
+        "rows": [
+          {
+            "key": "know_self",
+            "title": "Self Knowledge",
+            "icon": "🧠"
+          },
+          {
+            "key": "act_self", 
+            "title": "Self Action",
+            "icon": "⚡"
+          },
+          {
+            "key": "show_self",
+            "title": "Self Expression", 
+            "icon": "💬"
+          },
+          {
+            "key": "know_world",
+            "title": "World Knowledge",
+            "icon": "🌍"
+          },
+          {
+            "key": "act_world",
+            "title": "World Action",
+            "icon": "🌱"
+          },
+          {
+            "key": "show_world",
+            "title": "World Expression",
+            "icon": "🎭"
+          }
+        ]
+      }
+    },
+    "growth_insights": {
+      "title": "Growth Insights",
+      "icon": "🔍",
+      "description": "Insights related to personal growth and development",
+      "max_items": 3,
+      "priority": 1,
+      "category": "growth"
+    },
+    "growth_focus_areas": {
+      "title": "Growth Focus Areas",
+      "icon": "🎯",
+      "description": "Areas to focus on for continued growth",
+      "max_items": 3,
+      "priority": 1,
+      "category": "growth"
+    },
+    "opening_words": {
+      "title": "Opening Words",
+      "icon": "📝",
+      "description": "Editor's note style opening words for the magazine view",
+      "max_items": 1,
+      "priority": 1,
+      "category": "content"
+    },
+    "deeper_story": {
+      "title": "The Deeper Story",
+      "icon": "📖",
+      "description": "Cross-dimensional pattern synthesis with narrative flair",
+      "max_items": 1,
+      "priority": 1,
+      "category": "analysis"
+    },
+    "hidden_connection": {
+      "title": "Hidden Connections",
+      "icon": "🔗",
+      "description": "Unexpected links between seemingly unrelated experiences",
+      "max_items": 2,
+      "priority": 2,
+      "category": "analysis"
+    },
+    "values_revolution": {
+      "title": "Values Revolution",
+      "icon": "⚡",
+      "description": "How core values are transforming different life areas",
+      "max_items": 1,
+      "priority": 1,
+      "category": "growth"
+    },
+    "mastery_quest": {
+      "title": "Mastery Quest",
+      "icon": "🏆",
+      "description": "Current chapter of growth with historical parallels",
+      "max_items": 1,
+      "priority": 1,
+      "category": "growth"
+    },
+    "breakthrough_moment": {
+      "title": "Breakthrough Moments",
+      "icon": "💡",
+      "description": "Significant realizations that change perspective",
+      "max_items": 2,
+      "priority": 1,
+      "category": "celebration"
+    },
+    "synergy_discovery": {
+      "title": "Synergy Discoveries",
+      "icon": "✨",
+      "description": "How different strengths are combining in surprising ways",
+      "max_items": 2,
+      "priority": 2,
+      "category": "analysis"
+    },
+    "authentic_voice": {
+      "title": "Authentic Voice",
+      "icon": "🎤",
+      "description": "How you're claiming your true self",
+      "max_items": 1,
+      "priority": 1,
+      "category": "growth"
+    },
+    "leadership_evolution": {
+      "title": "Leadership Evolution",
+      "icon": "👑",
+      "description": "Growth in how you influence and inspire others",
+      "max_items": 1,
+      "priority": 2,
+      "category": "growth"
+    },
+    "creative_renaissance": {
+      "title": "Creative Renaissance",
+      "icon": "🎨",
+      "description": "Periods of artistic or innovative expression",
+      "max_items": 1,
+      "priority": 2,
+      "category": "growth"
+    },
+    "wisdom_integration": {
+      "title": "Wisdom Integration",
+      "icon": "🧘",
+      "description": "How life experiences are becoming personal philosophy",
+      "max_items": 1,
+      "priority": 2,
+      "category": "analysis"
+    },
+    "vision_crystallization": {
+      "title": "Vision Crystallization",
+      "icon": "🔮",
+      "description": "How long-term goals are becoming clearer",
+      "max_items": 1,
+      "priority": 1,
+      "category": "growth"
+    },
+    "legacy_building": {
+      "title": "Legacy Building",
+      "icon": "🏛️",
+      "description": "What you're creating that will outlast you",
+      "max_items": 1,
+      "priority": 2,
+      "category": "growth"
+    },
+    "horizon_expansion": {
+      "title": "Horizon Expansion",
+      "icon": "🌅",
+      "description": "New possibilities you're discovering",
+      "max_items": 2,
+      "priority": 2,
+      "category": "growth"
+    },
+    "transformation_phase": {
+      "title": "Transformation Phase",
+      "icon": "🦋",
+      "description": "Major life transitions and their meaning",
+      "max_items": 1,
+      "priority": 1,
+      "category": "growth"
+    }
+  },
+  "section_categories": {
+    "analysis": {
+      "title": "Analysis",
+      "color": "blue",
+      "description": "Insights and patterns from your data"
+    },
+    "action": {
+      "title": "Action Items",
+      "color": "green",
+      "description": "Things you can do to improve"
+    },
+    "growth": {
+      "title": "Growth",
+      "color": "purple",
+      "description": "Areas of personal development"
+    },
+    "awareness": {
+      "title": "Awareness",
+      "color": "orange",
+      "description": "Things to be aware of"
+    },
+    "celebration": {
+      "title": "Celebration",
+      "color": "yellow",
+      "description": "Worth celebrating"
+    },
+    "prompts": {
+      "title": "Prompts",
+      "color": "indigo",
+      "description": "Questions to explore"
+    },
+    "content": {
+      "title": "Content",
+      "color": "purple",
+      "description": "Generated content and artifacts"
+    }
+  },
+  "dashboard_layout": {
+    "grid_columns": {
+      "default": 3,
+      "mobile": 1,
+      "tablet": 2
+    },
+    "tabs": {
+      "opening": {
+        "title": "Opening",
+        "icon": "📖",
+        "section_groups": [
+          {
+            "title": "Opening Words",
+            "sections": ["opening_words"],
+            "priority": 1
+          },
+          {
+            "title": "Recent Cards",
+            "sections": ["recent_cards"],
+            "priority": 2
+          }
+        ]
+      },
+      "dynamic_insights": {
+        "title": "Dynamic Insights",
+        "icon": "🧠",
+        "section_groups": []
+      },
+      "growth_trajectory": {
+        "title": "Growth Trajectory",
+        "icon": "📈",
+        "section_groups": [
+          {
+            "title": "Growth Dimensions",
+            "sections": ["growth_dimensions"],
+            "priority": 1
+          },
+          {
+            "title": "Growth Insights",
+            "sections": ["growth_insights", "growth_focus_areas"],
+            "priority": 2
+          }
+        ]
+      },
+      "activity": {
+        "title": "Activity",
+        "icon": "📊",
+        "section_groups": [
+          {
+            "title": "Recent Activity",
+            "sections": ["recent_cards", "insights", "recommendations"],
+            "priority": 1
+          }
+        ]
+      }
+    }
+  }
+}

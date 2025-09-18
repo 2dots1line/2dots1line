@@ -6,15 +6,16 @@
       "vectorizer": "none",
       "properties": [
         { "name": "externalId", "dataType": ["uuid"] },
-        { "name": "userId", "dataType": ["string"], "indexInverted": true },
-        { "name": "sourceEntityType", "dataType": ["string"], "indexInverted": true },
-        { "name": "sourceEntityId", "dataType": ["uuid"], "indexInverted": true },
+        { "name": "userId", "dataType": ["string"], "indexFilterable": true, "indexSearchable": true },
+        { "name": "sourceEntityType", "dataType": ["string"], "indexFilterable": true, "indexSearchable": true },
+        { "name": "sourceEntityId", "dataType": ["uuid"], "indexFilterable": true },
         { "name": "textContent", "dataType": ["text"] },
-        { "name": "title", "dataType": ["text"], "indexInverted": true, "tokenization": "word" },
-        { "name": "embeddingModelVersion", "dataType": ["string"], "indexInverted": true },
-        { "name": "createdAt", "dataType": ["date"], "indexInverted": true },
-        { "name": "importanceScore", "dataType": ["number"], "indexInverted": true },
-        { "name": "tags", "dataType": ["text[]"], "indexInverted": true, "tokenization": "word" }
+        { "name": "title", "dataType": ["text"], "indexFilterable": true, "indexSearchable": true, "tokenization": "word" },
+        { "name": "embeddingModelVersion", "dataType": ["string"], "indexFilterable": true, "indexSearchable": true },
+        { "name": "createdAt", "dataType": ["date"], "indexFilterable": true },
+        { "name": "importanceScore", "dataType": ["number"], "indexFilterable": true },
+        { "name": "tags", "dataType": ["text[]"], "indexFilterable": true, "indexSearchable": true, "tokenization": "word" },
+        { "name": "status", "dataType": ["text"], "indexFilterable": true, "indexSearchable": false }
       ]
     }
   ]

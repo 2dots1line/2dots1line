@@ -1,0 +1,31 @@
+{
+  "name": "@2dots1line/ontology-optimization-worker",
+  "version": "1.0.0",
+  "description": "Dedicated worker for ontology optimization tasks including concept merging, archiving, and community formation",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@2dots1line/database": "workspace:*",
+    "@2dots1line/shared-types": "workspace:*",
+    "@2dots1line/ontology-core": "workspace:*",
+    "@2dots1line/tools": "workspace:*",
+    "@2dots1line/config-service": "workspace:*",
+    "@2dots1line/core-utils": "workspace:*",
+    "bullmq": "^5.0.0",
+    "ioredis": "^5.3.2",
+    "weaviate-ts-client": "^2.2.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0"
+  },
+  "files": [
+    "dist/**/*"
+  ]
+}

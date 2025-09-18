@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { ConfigService } from '@2dots1line/config-service';
 import type { TToolInput, TToolOutput } from '@2dots1line/shared-types';
 import { LLMChatTool, type LLMChatInput } from '../ai/LLMChatTool';
+import { LLMRetryHandler } from '@2dots1line/core-utils';
 
 // Zod validation schemas as per V9.6 specification
 // V11.1 FIX: Made schema more flexible to handle LLM response variations
@@ -43,7 +44,9 @@ export const HolisticAnalysisOutputSchema = z.object({
     detected_growth_events: z.array(z.object({
       dim_key: z.enum(['know_self', 'know_world', 'act_self', 'act_world', 'show_self', 'show_world']),
       delta: z.number().min(-5.0).max(5.0), // V11.1 FIX: Increased range to prevent validation failures
-      rationale: z.string().min(1) // Removed max limit to allow high-quality LLM responses
+      rationale: z.string().min(1), // Removed max limit to allow high-quality LLM responses
+      source_concept_ids: z.array(z.string()).optional().default([]), // Specific concepts that support this growth event
+      source_memory_unit_ids: z.array(z.string()).optional().default([]) // Specific memory units that support this growth event
     })), // Remove array size limit to allow flexible LLM responses
   }),
   
@@ -89,7 +92,6 @@ export interface HolisticAnalysisInput {
   userName?: string; // User's display name for LLM reference
   fullConversationTranscript: string;
   userMemoryProfile: any; // Can be null for new users
-  knowledgeGraphSchema: any; // Can be null, will use default
   
   // New fields for LLM interaction logging
   workerType?: string;
@@ -131,7 +133,15 @@ export class HolisticAnalysisTool {
       };
 
       // Enhanced LLM call with retry logic
-      const llmResult = await this.executeLLMWithRetry(llmInput, 'holistic-analysis');
+      const llmResult = await LLMRetryHandler.executeWithRetry(
+        LLMChatTool,
+        llmInput,
+        { 
+          maxAttempts: 3, 
+          baseDelay: 1000,
+          callType: 'holistic-analysis'
+        }
+      );
       
       console.log(`[HolisticAnalysisTool] LLM response received, length: ${llmResult.result.text.length}`);
       
@@ -183,19 +193,6 @@ export class HolisticAnalysisTool {
     // Load prompt templates from config
     const templates = this.configService.getAllTemplates();
     
-    // Get the knowledge graph schema or use default
-    const knowledgeGraphSchema = input.knowledgeGraphSchema || {
-      "description_for_llm": "The schema below represents the potential structure you can help build. Focus on creating :MemoryUnit and :Concept nodes first.",
-      "prominent_node_types": [],
-      "prominent_relationship_types": [],
-      "example_concept_types": ["person", "organization", "location", "project", "goal", "value", "skill", "interest", "emotion", "theme", "event_theme", "role"],
-      "relationship_label_guidelines": {
-        "description": "Guidelines for generating relationship_description strings for new relationships.",
-        "format": "Should be a concise, human-readable, verb-based phrase in the present tense.",
-        "style": "Be as specific as the context allows. Describe the connection clearly.",
-        "examples": ["is motivated by", "is an obstacle to", "expresses frustration with", "has skill in", "is a core part of", "has symptom"]
-      }
-    };
 
     // Build the master prompt following V9.6 specification structure
     const user_name = input.userName || 'User';
@@ -208,10 +205,6 @@ ${templates.ingestion_analyst_rules}
 <user_memory_profile>
 ${input.userMemoryProfile ? JSON.stringify(input.userMemoryProfile, null, 2) : 'No existing memory profile'}
 </user_memory_profile>
-
-<knowledge_graph_schema>
-${JSON.stringify(knowledgeGraphSchema, null, 2)}
-</knowledge_graph_schema>
 
 <conversation_transcript>
 ${input.fullConversationTranscript}
@@ -300,109 +293,4 @@ ${templates.ingestion_analyst_instructions}`;
     }
   }
 
-  /**
-   * Enhanced LLM execution with automatic retry and fallback model support
-   */
-  private async executeLLMWithRetry(
-    llmInput: any,
-    callType: string
-  ): Promise<any> {
-    let attempts = 0;
-    const maxAttempts = 3; // Try primary model + 2 fallback models
-    
-    while (attempts < maxAttempts) {
-      attempts++;
-      try {
-        console.log(`[HolisticAnalysisTool] ${callType.toUpperCase()} LLM call - Attempt ${attempts}/${maxAttempts}`);
-        
-        const llmResult = await LLMChatTool.execute(llmInput);
-        
-        if (llmResult.status === 'success' && llmResult.result?.text) {
-          console.log(`[HolisticAnalysisTool] ${callType.toUpperCase()} LLM call successful on attempt ${attempts}`);
-          return llmResult;
-        }
-        
-        // Check if this is a retryable error
-        const errorMessage = llmResult.error?.message || 'Unknown error';
-        if (attempts < maxAttempts && this.isRetryableError(errorMessage)) {
-          console.log(`[HolisticAnalysisTool] ${callType.toUpperCase()} LLM call - Retryable error detected: ${errorMessage}`);
-          console.log(`[HolisticAnalysisTool] ${callType.toUpperCase()} LLM call - Attempting to switch to fallback model...`);
-          
-          try {
-            // Force reinitialization to try a different model
-            if (LLMChatTool.forceReinitialize) {
-              LLMChatTool.forceReinitialize();
-              console.log(`[HolisticAnalysisTool] ${callType.toUpperCase()} LLM call - Switched to fallback model`);
-            }
-            
-            // Add exponential backoff delay before retrying
-            const delay = Math.min(1000 * Math.pow(2, attempts - 1), 10000); // Max 10 seconds
-            console.log(`[HolisticAnalysisTool] ${callType.toUpperCase()} LLM call - Waiting ${delay}ms before retry...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            
-            continue; // Try again with the new model
-          } catch (modelSwitchError) {
-            console.error(`[HolisticAnalysisTool] ${callType.toUpperCase()} LLM call - Failed to switch to fallback model:`, modelSwitchError);
-            // Continue with the next attempt
-          }
-        } else {
-          // If not retryable or all attempts exhausted, break out of retry loop
-          console.error(`[HolisticAnalysisTool] ${callType.toUpperCase()} LLM call - Non-retryable error or max attempts reached: ${errorMessage}`);
-          throw new Error(`LLM call failed: ${errorMessage}`);
-        }
-      } catch (error) {
-        console.error(`[HolisticAnalysisTool] ${callType.toUpperCase()} LLM call - Unexpected error on attempt ${attempts}:`, error);
-        
-        if (attempts < maxAttempts && this.isRetryableError(error instanceof Error ? error.message : String(error))) {
-          console.log(`[HolisticAnalysisTool] ${callType.toUpperCase()} LLM call - Retryable error, attempting retry...`);
-          
-          try {
-            // Force reinitialization to try a different model
-            if (LLMChatTool.forceReinitialize) {
-              LLMChatTool.forceReinitialize();
-              console.log(`[HolisticAnalysisTool] ${callType.toUpperCase()} LLM call - Switched to fallback model after unexpected error`);
-            }
-            
-            // Add exponential backoff delay before retrying
-            const delay = Math.min(1000 * Math.pow(2, attempts - 1), 10000);
-            console.log(`[HolisticAnalysisTool] ${callType.toUpperCase()} LLM call - Waiting ${delay}ms before retry...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            
-            continue; // Try again with the new model
-          } catch (modelSwitchError) {
-            console.error(`[HolisticAnalysisTool] ${callType.toUpperCase()} LLM call - Failed to switch to fallback model:`, modelSwitchError);
-          }
-        } else {
-          // If not retryable or all attempts exhausted, re-throw the error
-          throw error;
-        }
-      }
-    }
-
-    // If all attempts fail, throw the last error
-    console.error(`[HolisticAnalysisTool] ${callType.toUpperCase()} LLM call - All ${maxAttempts} attempts failed`);
-    throw new Error(`Failed to get LLM response after ${maxAttempts} attempts. The AI service may be temporarily overloaded. Please try again in a moment.`);
-  }
-
-  /**
-   * Determine if an error is retryable based on the error message
-   */
-  private isRetryableError(errorMessage: string): boolean {
-    const retryablePatterns = [
-      /model is overloaded/i,
-      /service unavailable/i,
-      /rate limit/i,
-      /quota exceeded/i,
-      /temporary/i,
-      /try again later/i,
-      /timeout/i,
-      /network error/i,
-      /connection error/i,
-      /503/i, // Service Unavailable
-      /429/i, // Too Many Requests
-      /500/i  // Internal Server Error
-    ];
-    
-    return retryablePatterns.some(pattern => pattern.test(errorMessage));
-  }
 } 

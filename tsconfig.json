@@ -14,7 +14,6 @@
     { "path": "./packages/shader-lib" },
     { "path": "./services/config-service" },
     { "path": "./services/dialogue-service" },
-    { "path": "./services/notification-service" },
     { "path": "./services/user-service" },
     { "path": "./services/card-service" },
     { "path": "./workers/card-worker" },
