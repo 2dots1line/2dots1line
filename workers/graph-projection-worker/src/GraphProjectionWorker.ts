@@ -127,7 +127,7 @@ export class GraphProjectionWorker {
     this.config = {
       queueName: 'graph-queue',
       concurrency: 2,
-      retryAttempts: 3,
+      retryAttempts: 3, // ENABLED: BullMQ retries appropriate for non-LLM operations (database, Python service, network)
       retryDelay: 5000,
       dimensionReducerUrl: environmentLoader.get('DIMENSION_REDUCER_URL') || 'http://localhost:8000',
       projectionMethod: 'umap',
@@ -170,8 +170,22 @@ export class GraphProjectionWorker {
     });
 
     this.worker.on('failed', (job, error) => {
-      if (job) {
-        console.error(`[GraphProjectionWorker] Job ${job.id} failed:`, error);
+      console.error(`[GraphProjectionWorker] Job ${job?.id} failed:`, error);
+      
+      // Log specific error details for debugging
+      if (error.message.includes('database') || error.message.includes('postgres') || error.message.includes('neo4j')) {
+        console.error(`[GraphProjectionWorker] Database error detected - will retry if attempts remaining`);
+      } else if (error.message.includes('connection') || error.message.includes('timeout')) {
+        console.error(`[GraphProjectionWorker] Network/connection error detected - will retry if attempts remaining`);
+      } else if (error.message.includes('python') || error.message.includes('umap') || error.message.includes('service')) {
+        console.error(`[GraphProjectionWorker] Python service error detected - will retry if attempts remaining`);
+      } else {
+        console.error(`[GraphProjectionWorker] Unknown error type - will retry if attempts remaining`);
+      }
+      
+      // Check if job has exhausted all retries
+      if (job && job.attemptsMade >= this.config.retryAttempts!) {
+        console.error(`[GraphProjectionWorker] Job ${job.id} exhausted all retry attempts, moving to DLQ`);
       }
     });
 

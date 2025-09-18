@@ -31,6 +31,42 @@
       "cypher": "UNWIND $nodeIds AS nodeId MATCH (node) WHERE node.id = nodeId AND node.userId = $userId RETURN node.id AS nodeId, labels(node)[0] AS nodeType, node.createdAt AS createdAt, node.lastModified AS lastModified",
       "allowedParams": ["nodeIds", "userId"],
       "defaultParams": {}
+    },
+    "trend_analysis": {
+      "description": "Finds entities with temporal patterns for trend synthesis",
+      "cypher": "UNWIND $seedEntities AS seed MATCH (startNode) WHERE startNode.id = seed.id CALL { WITH startNode MATCH (startNode)-[:OCCURRED_BEFORE|:OCCURRED_AFTER|:SAME_TIME|:TREND_RELATED|:PATTERN_MATCH]-(relatedNode) WHERE relatedNode.userId = $userId AND relatedNode.createdAt >= datetime() - duration('P90D') RETURN DISTINCT relatedNode.id AS nodeId, labels(relatedNode)[0] AS nodeType, relatedNode.createdAt AS createdAt ORDER BY relatedNode.createdAt DESC LIMIT toInteger($limit) } RETURN COLLECT(DISTINCT {id: nodeId, type: nodeType, createdAt: createdAt}) + $seedEntities AS allRelevantEntities",
+      "allowedParams": ["seedEntities", "userId", "limit"],
+      "defaultParams": { "limit": 60 }
+    },
+    "pattern_detection": {
+      "description": "Finds entities with similar patterns or characteristics",
+      "cypher": "UNWIND $seedEntities AS seed MATCH (startNode) WHERE startNode.id = seed.id CALL { WITH startNode MATCH (startNode)-[:SIMILAR_TO|:PATTERN_MATCH|:HAS_SIMILAR]-(relatedNode) WHERE relatedNode.userId = $userId RETURN DISTINCT relatedNode.id AS nodeId, labels(relatedNode)[0] AS nodeType, relatedNode.similarityScore AS similarityScore ORDER BY relatedNode.similarityScore DESC LIMIT toInteger($limit) } RETURN COLLECT(DISTINCT {id: nodeId, type: nodeType, similarityScore: similarityScore}) + $seedEntities AS allRelevantEntities",
+      "allowedParams": ["seedEntities", "userId", "limit"],
+      "defaultParams": { "limit": 40 }
+    },
+    "strategic_relationships": {
+      "description": "Finds entities with strategic or high-value relationships",
+      "cypher": "UNWIND $seedEntities AS seed MATCH (startNode) WHERE startNode.id = seed.id CALL { WITH startNode MATCH (startNode)-[:STRATEGIC_RELATIONSHIP|:HIGH_VALUE|:CRITICAL|:KEY_CONNECTION]-(relatedNode) WHERE relatedNode.userId = $userId RETURN DISTINCT relatedNode.id AS nodeId, labels(relatedNode)[0] AS nodeType, relatedNode.strategicValue AS strategicValue ORDER BY relatedNode.strategicValue DESC LIMIT toInteger($limit) } RETURN COLLECT(DISTINCT {id: nodeId, type: nodeType, strategicValue: strategicValue}) + $seedEntities AS allRelevantEntities",
+      "allowedParams": ["seedEntities", "userId", "limit"],
+      "defaultParams": { "limit": 25 }
+    },
+    "community_analysis": {
+      "description": "Finds entities within communities or clusters",
+      "cypher": "UNWIND $seedEntities AS seed MATCH (startNode) WHERE startNode.id = seed.id CALL { WITH startNode MATCH (startNode)-[:MEMBER_OF|:COMMUNITY_MEMBER|:CLUSTER_MEMBER]-(community) MATCH (community)-[:MEMBER_OF|:COMMUNITY_MEMBER|:CLUSTER_MEMBER]-(relatedNode) WHERE relatedNode.userId = $userId AND relatedNode.id <> startNode.id RETURN DISTINCT relatedNode.id AS nodeId, labels(relatedNode)[0] AS nodeType, community.id AS communityId LIMIT toInteger($limit) } RETURN COLLECT(DISTINCT {id: nodeId, type: nodeType, communityId: communityId}) + $seedEntities AS allRelevantEntities",
+      "allowedParams": ["seedEntities", "userId", "limit"],
+      "defaultParams": { "limit": 35 }
+    },
+    "temporal_evolution": {
+      "description": "Finds entities showing evolution or change over time",
+      "cypher": "UNWIND $seedEntities AS seed MATCH (startNode) WHERE startNode.id = seed.id CALL { WITH startNode MATCH (startNode)-[:EVOLVED_FROM|:CHANGED_TO|:PROGRESSED_TO|:DEVELOPED_INTO]-(relatedNode) WHERE relatedNode.userId = $userId AND relatedNode.createdAt >= datetime() - duration('P180D') RETURN DISTINCT relatedNode.id AS nodeId, labels(relatedNode)[0] AS nodeType, relatedNode.evolutionScore AS evolutionScore ORDER BY relatedNode.evolutionScore DESC LIMIT toInteger($limit) } RETURN COLLECT(DISTINCT {id: nodeId, type: nodeType, evolutionScore: evolutionScore}) + $seedEntities AS allRelevantEntities",
+      "allowedParams": ["seedEntities", "userId", "limit"],
+      "defaultParams": { "limit": 30 }
+    },
+    "influence_network": {
+      "description": "Finds entities that influence or are influenced by seed entities",
+      "cypher": "UNWIND $seedEntities AS seed MATCH (startNode) WHERE startNode.id = seed.id CALL { WITH startNode MATCH (startNode)-[:INFLUENCES|:INFLUENCED_BY|:AFFECTS|:IMPACTS]-(relatedNode) WHERE relatedNode.userId = $userId RETURN DISTINCT relatedNode.id AS nodeId, labels(relatedNode)[0] AS nodeType, relatedNode.influenceStrength AS influenceStrength ORDER BY relatedNode.influenceStrength DESC LIMIT toInteger($limit) } RETURN COLLECT(DISTINCT {id: nodeId, type: nodeType, influenceStrength: influenceStrength}) + $seedEntities AS allRelevantEntities",
+      "allowedParams": ["seedEntities", "userId", "limit"],
+      "defaultParams": { "limit": 20 }
     }
   },
   "validation": {

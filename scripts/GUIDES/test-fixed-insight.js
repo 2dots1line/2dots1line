@@ -87,7 +87,7 @@ async function triggerTestInsightJob() {
       userId: USER_ID,
       timestamp: new Date().toISOString()
     }, {
-      attempts: 3,
+      attempts: 1,
       backoff: {
         type: 'exponential',
         delay: 2000

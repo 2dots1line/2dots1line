@@ -72,6 +72,18 @@ module.exports = {
       log_file: path.join(__dirname, 'logs', 'insight-worker-combined.log'),
     },
     {
+      name: 'ontology-optimization-worker',
+      script: './workers/ontology-optimization-worker/dist/index.js',
+      instances: 1,
+      exec_mode: 'fork',
+      watch: false,
+      ...baseConfig,
+      // Force individual logging to prevent shared context
+      error_file: path.join(__dirname, 'logs', 'ontology-optimization-worker-error.log'),
+      out_file: path.join(__dirname, 'logs', 'ontology-optimization-worker-out.log'),
+      log_file: path.join(__dirname, 'logs', 'ontology-optimization-worker-combined.log'),
+    },
+    {
       name: 'card-worker',
       script: './workers/card-worker/dist/index.js',
       instances: 1,
@@ -142,18 +154,6 @@ module.exports = {
       error_file: path.join(__dirname, 'logs', 'notification-worker-error.log'),
       out_file: path.join(__dirname, 'logs', 'notification-worker-out.log'),
       log_file: path.join(__dirname, 'logs', 'notification-worker-combined.log'),
-    },
-    {
-      name: 'notification-service',
-      script: './services/notification-service/dist/index.js',
-      instances: 1,
-      exec_mode: 'fork',
-      watch: false,
-      ...baseConfig,
-      // Force individual logging to prevent shared context
-      error_file: path.join(__dirname, 'logs', 'notification-service-error.log'),
-      out_file: path.join(__dirname, 'logs', 'notification-service-out.log'),
-      log_file: path.join(__dirname, 'logs', 'notification-service-combined.log'),
     },
   ],
 }; 
