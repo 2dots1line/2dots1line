@@ -27,7 +27,7 @@ async function addInsightJob() {
     };
     
     const job = await insightQueue.add('user_cycle', jobData, {
-      attempts: 3,
+      attempts: 1,
       backoff: {
         type: 'exponential',
         delay: 2000

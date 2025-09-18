@@ -337,8 +337,7 @@ export class GraphController {
             artifactType: entityData.artifact_type,
             createdAt: entityData.created_at,
             sourceMemoryUnitIds: entityData.source_memory_unit_ids,
-            sourceConceptIds: entityData.source_concept_ids,
-            contentData: entityData.content_data
+            sourceConceptIds: entityData.source_concept_ids
           }
         };
         

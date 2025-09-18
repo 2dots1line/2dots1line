@@ -81,7 +81,7 @@ async function triggerInsightJob(userId = DEFAULT_USER_ID) {
     }, {
       removeOnComplete: true,
       removeOnFail: false,
-      attempts: 3,
+      attempts: 1,
       backoff: {
         type: 'exponential',
         delay: 2000

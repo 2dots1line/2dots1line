@@ -236,7 +236,7 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
     const requestStartedAt = new Date();
     let currentMessage = '';
     let attempts = 0;
-    const maxAttempts = 3; // Try primary model + 2 fallback models
+    const maxAttempts = 2; // Try primary model + 1 fallback model (reduced from 3)
     
     while (attempts < maxAttempts) {
       attempts++;

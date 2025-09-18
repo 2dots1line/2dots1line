@@ -98,7 +98,6 @@ async function syncAllEntities() {
             title: artifact.title,
             content_narrative: artifact.content_narrative,
             artifact_type: artifact.artifact_type,
-            content_data: artifact.content_data,
             source_memory_unit_ids: artifact.source_memory_unit_ids,
             source_concept_ids: artifact.source_concept_ids,
             created_at: artifact.created_at
