@@ -164,6 +164,8 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
         if (!baseUrl) throw new Error('OPENAI_BASE_URL environment variable is required for OpenAI provider');
         this.openai = new OpenAI({apiKey});
         this.openai.baseURL = baseUrl;
+      } else {
+        throw new Error('Invalid LLM provider configuration');
       }
 
       this.initialized = true;
