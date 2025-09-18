@@ -14,12 +14,28 @@ import type {
   CreateConceptData, 
   CreateGrowthEventData 
 } from '@2dots1line/database';
-import { HolisticAnalysisTool, HolisticAnalysisOutput } from '@2dots1line/tools';
+import { HolisticAnalysisTool, HolisticAnalysisOutput, SemanticSimilarityTool } from '@2dots1line/tools';
+import type { SemanticSimilarityInput, SemanticSimilarityResult } from '@2dots1line/tools';
 import { Job , Queue } from 'bullmq';
 
 export interface IngestionJobData {
   conversationId: string;
   userId: string;
+}
+
+// HRT Deduplication Types
+export interface DeduplicationDecision {
+  candidate: any;
+  existingEntity: any; // Hydrated entity from HRT, not just ScoredEntity
+  similarityScore: number;
+}
+
+export interface DeduplicationDecisions {
+  conceptsToCreate: any[];
+  conceptsToReuse: DeduplicationDecision[];
+  memoryUnitsToCreate: any[];
+  memoryUnitsToReuse: DeduplicationDecision[];
+  entityMappings: Map<string, string>; // Maps candidate entity names to actual entity IDs
 }
 
 export class IngestionAnalyst {
@@ -34,6 +50,7 @@ export class IngestionAnalyst {
 
   constructor(
     private holisticAnalysisTool: HolisticAnalysisTool,
+    private semanticSimilarityTool: SemanticSimilarityTool,
     private dbService: DatabaseService,
     private embeddingQueue: Queue,
     private cardQueue: Queue,
@@ -56,16 +73,15 @@ export class IngestionAnalyst {
 
     try {
       // Phase I: Data Gathering & Preparation
-      const { fullConversationTranscript, userMemoryProfile, knowledgeGraphSchema, userName } = 
+      const { fullConversationTranscript, userMemoryProfile, userName } = 
         await this.gatherContextData(conversationId, userId);
 
-      // Phase II: The "Single Synthesis" LLM Call
+      // Phase II: The "Single Synthesis" LLM Call (LLMRetryHandler handles LLM retries internally)
       const analysisOutput = await this.holisticAnalysisTool.execute({
         userId,
         userName,
         fullConversationTranscript,
         userMemoryProfile,
-        knowledgeGraphSchema,
         workerType: 'ingestion-worker',
         workerJobId: job.id || 'unknown',
         conversationId,
@@ -74,13 +90,16 @@ export class IngestionAnalyst {
 
       console.log(`[IngestionAnalyst] Analysis completed with importance score: ${analysisOutput.persistence_payload.conversation_importance_score}`);
 
-      // Phase III: Persistence & Graph Update
-      const newEntities = await this.persistAnalysisResults(conversationId, userId, analysisOutput);
+      // Phase III: Semantic Similarity Deduplication
+      const deduplicationDecisions = await this.performSemanticDeduplication(userId, analysisOutput);
 
-      // Phase IV: Update Conversation Title
+      // Phase IV: Enhanced Persistence with Deduplication
+      const newEntities = await this.persistAnalysisResultsWithDeduplication(conversationId, userId, analysisOutput, deduplicationDecisions);
+
+      // Phase V: Update Conversation Title
       await this.updateConversationTitle(conversationId, analysisOutput.persistence_payload.conversation_title);
       
-      // Phase V: Event Publishing
+      // Phase VI: Event Publishing
       await this.publishEvents(userId, newEntities);
 
       console.log(`[IngestionAnalyst] Successfully processed conversation ${conversationId}, created ${newEntities.length} new entities`);
@@ -88,29 +107,34 @@ export class IngestionAnalyst {
     } catch (error) {
       console.error(`[IngestionAnalyst] Error processing conversation ${conversationId}:`, error);
       
-      // Handle validation errors specifically
-      if (error instanceof Error && error.name === 'ValidationError') {
-        console.error(`[IngestionAnalyst] Validation error details:`, error);
-        
         // Update conversation with error information
         await this.conversationRepository.update(conversationId, {
-          context_summary: `Analysis failed - validation error: ${error.message}`,
+        context_summary: `Analysis failed: ${error instanceof Error ? error.message : String(error)}`,
           importance_score: 0,
           status: 'failed'
         });
         
-        console.log(`[IngestionAnalyst] Conversation ${conversationId} marked as failed due to validation error`);
-        return; // Don't throw, just return to prevent job retry
+      // All errors are non-retryable at BullMQ level - only LLM retries are handled by LLMRetryHandler
+      console.error(`[IngestionAnalyst] 🔴 JOB FAILED - BullMQ retries disabled`);
+      console.error(`[IngestionAnalyst] Error type: ${error instanceof Error ? error.name : 'Unknown'}`);
+      console.error(`[IngestionAnalyst] Error message: ${error instanceof Error ? error.message : String(error)}`);
+      
+      // Log specific error categorization for debugging
+      if (error instanceof Error) {
+        if (error.message.includes('503') || error.message.includes('server overload')) {
+          console.error(`[IngestionAnalyst] LLM service overload - this should have been retried by LLMRetryHandler`);
+        } else if (error.message.includes('database') || error.message.includes('postgres') || error.message.includes('neo4j')) {
+          console.error(`[IngestionAnalyst] Database error - this is NOT retryable at BullMQ level`);
+        } else if (error.message.includes('validation') || error.message.includes('schema')) {
+          console.error(`[IngestionAnalyst] Validation error - this is NOT retryable at BullMQ level`);
+        } else {
+          console.error(`[IngestionAnalyst] Unknown error type - manual investigation required`);
+        }
       }
       
-      // For other errors, update conversation and re-throw
-      await this.conversationRepository.update(conversationId, {
-        context_summary: `Analysis failed - ${error instanceof Error ? error.message : 'Unknown error'}`,
-        importance_score: 0,
-        status: 'failed'
-      });
-      
-      throw error;
+      const nonRetryableError = new Error(`NON_RETRYABLE: ${error instanceof Error ? error.message : String(error)}`);
+      nonRetryableError.name = 'NonRetryableError';
+      throw nonRetryableError;
     }
   }
 
@@ -137,44 +161,45 @@ export class IngestionAnalyst {
     // Fetch user context
     const user = await this.userRepository.findById(userId);
     const userMemoryProfile = user?.memory_profile || null;
-    const knowledgeGraphSchema = user?.knowledge_graph_schema || null;
     const userName = user?.name || 'User';
 
     return {
       fullConversationTranscript,
       userMemoryProfile,
-      knowledgeGraphSchema,
       userName
     };
   }
 
-  private async persistAnalysisResults(
+
+  /**
+   * Enhanced persistence with deduplication decisions
+   * This method modifies the existing persistAnalysisResults to handle entity reuse
+   */
+  private async persistAnalysisResultsWithDeduplication(
     conversationId: string, 
     userId: string, 
-    analysisOutput: HolisticAnalysisOutput
+    analysisOutput: HolisticAnalysisOutput,
+    deduplicationDecisions: DeduplicationDecisions
   ): Promise<Array<{ id: string; type: string }>> {
+    
     const { persistence_payload, forward_looking_context } = analysisOutput;
     
-    console.log(`🔍 [IngestionAnalyst] DEBUG: Starting persistence for conversation ${conversationId}`);
+    console.log(`🔍 [IngestionAnalyst] DEBUG: Starting enhanced persistence for conversation ${conversationId}`);
     console.log(`🔍 [IngestionAnalyst] DEBUG: Importance score: ${persistence_payload.conversation_importance_score}`);
-    console.log(`🔍 [IngestionAnalyst] DEBUG: Memory units to create: ${persistence_payload.extracted_memory_units?.length || 0}`);
-    console.log(`🔍 [IngestionAnalyst] DEBUG: Concepts to create: ${persistence_payload.extracted_concepts?.length || 0}`);
-    console.log(`🔍 [IngestionAnalyst] DEBUG: Growth events to create: ${persistence_payload.detected_growth_events?.length || 0}`);
+    console.log(`🔍 [IngestionAnalyst] DEBUG: Concepts to create: ${deduplicationDecisions.conceptsToCreate.length}, to reuse: ${deduplicationDecisions.conceptsToReuse.length}`);
+    console.log(`🔍 [IngestionAnalyst] DEBUG: Memory units to create: ${deduplicationDecisions.memoryUnitsToCreate.length}, to reuse: ${deduplicationDecisions.memoryUnitsToReuse.length}`);
 
     // Check importance score threshold
     if (persistence_payload.conversation_importance_score < 1) {
       console.log(`🔍 [IngestionAnalyst] DEBUG: Importance score ${persistence_payload.conversation_importance_score} below threshold, skipping entity creation`);
       
-      // Update conversation only
+      // Update conversation with context fields
       await this.conversationRepository.update(conversationId, {
         context_summary: persistence_payload.conversation_summary,
         importance_score: persistence_payload.conversation_importance_score,
-        status: 'processed'
-      });
-
-      // Update user's next conversation context
-      await this.userRepository.update(userId, {
-        next_conversation_context_package: forward_looking_context
+        status: 'processed',
+        proactive_greeting: forward_looking_context.proactive_greeting,
+        forward_looking_context: forward_looking_context
       });
       
       return [];
@@ -195,7 +220,7 @@ export class IngestionAnalyst {
 
       console.log(`🔍 [IngestionAnalyst] DEBUG: Conversation updated successfully`);
 
-      // CRITICAL FIX: Use single Neo4j transaction for all operations
+      // Use existing Neo4j transaction pattern
       if (!this.dbService.neo4j) {
         console.warn(`[IngestionAnalyst] Neo4j client not available, skipping Neo4j operations`);
         return [];
@@ -205,29 +230,25 @@ export class IngestionAnalyst {
       const neo4jTransaction = neo4jSession.beginTransaction();
 
       try {
-        // Create memory units
-        if (persistence_payload.extracted_memory_units && persistence_payload.extracted_memory_units.length > 0) {
-          console.log(`🔍 [IngestionAnalyst] DEBUG: Creating ${persistence_payload.extracted_memory_units.length} memory units`);
-          
-          for (const memoryUnit of persistence_payload.extracted_memory_units) {
-            console.log(`🔍 [IngestionAnalyst] DEBUG: Processing memory unit: ${memoryUnit.title}`);
-            
+        // ENHANCED: Process memory units with deduplication decisions
+        for (const memoryUnit of deduplicationDecisions.memoryUnitsToCreate) {
             const memoryData: CreateMemoryUnitData = {
               user_id: userId,
               title: memoryUnit.title,
               content: memoryUnit.content,
-              importance_score: memoryUnit.importance_score || persistence_payload.conversation_importance_score || 5, // Use memory-specific score or fallback to conversation score
-              sentiment_score: memoryUnit.sentiment_score || 0, // Use memory-specific sentiment or neutral
+            importance_score: memoryUnit.importance_score || persistence_payload.conversation_importance_score || 5,
+            sentiment_score: memoryUnit.sentiment_score || 0,
               source_conversation_id: conversationId
             };
 
             const createdMemory = await this.memoryRepository.create(memoryData);
             newEntities.push({ id: createdMemory.muid, type: 'MemoryUnit' });
             
-            console.log(`🔍 [IngestionAnalyst] DEBUG: Memory unit created in PostgreSQL: ${createdMemory.muid}`);
-            console.log(`🔍 [IngestionAnalyst] DEBUG: About to create Neo4j node for memory unit: ${createdMemory.muid}`);
+          // Update entity mapping - map both title and temp_id to the actual memory unit ID
+          deduplicationDecisions.entityMappings.set(memoryUnit.title, createdMemory.muid);
+          deduplicationDecisions.entityMappings.set(memoryUnit.temp_id, createdMemory.muid);
             
-            // Create Neo4j node for memory unit within transaction
+          // Create Neo4j node
             await this.createNeo4jNodeInTransaction(neo4jTransaction, 'MemoryUnit', {
               id: createdMemory.muid,
               userId: userId,
@@ -235,76 +256,54 @@ export class IngestionAnalyst {
               content: createdMemory.content,
               importance_score: createdMemory.importance_score,
               sentiment_score: createdMemory.sentiment_score,
-              creation_ts: new Date().toISOString(), // Always use current time
+            creation_ts: new Date().toISOString(),
               source_conversation_id: createdMemory.source_conversation_id,
               source: 'IngestionAnalyst'
             });
-            
-            console.log(`[IngestionAnalyst] Created memory unit: ${createdMemory.muid} - ${memoryUnit.title}`);
-          }
-        } else {
-          console.log(`🔍 [IngestionAnalyst] DEBUG: No memory units to create`);
         }
 
-      // PHASE 1: Create ALL concepts (including those referenced in relationships)
-      const allConcepts = new Set<string>();
-      
-      // Add explicitly extracted concepts
-      if (persistence_payload.extracted_concepts && persistence_payload.extracted_concepts.length > 0) {
-        persistence_payload.extracted_concepts.forEach(concept => allConcepts.add(concept.name));
-      }
-      
-      // Add concepts referenced in relationships
-      if (persistence_payload.new_relationships && persistence_payload.new_relationships.length > 0) {
-        for (const relationship of persistence_payload.new_relationships) {
-          // Skip user names (they're handled separately)
-          const user = await this.userRepository.findById(userId);
-          if (user && (user.name === relationship.source_entity_id_or_name || user.name === relationship.target_entity_id_or_name)) {
+        // ENHANCED: Process memory units to reuse (update existing)
+        for (const decision of deduplicationDecisions.memoryUnitsToReuse) {
+          // Get the correct memory unit ID from the existing entity
+          const memoryUnitId = decision.existingEntity.entityId;
+          
+          console.log(`🔍 [IngestionAnalyst] DEBUG: Reusing memory unit ${decision.candidate.title} with ID: ${memoryUnitId}`);
+          
+          if (!memoryUnitId) {
+            console.warn(`🔍 [IngestionAnalyst] WARNING: No memory unit ID found for ${decision.candidate.title}, skipping update`);
             continue;
           }
           
-          allConcepts.add(relationship.source_entity_id_or_name);
-          allConcepts.add(relationship.target_entity_id_or_name);
+          // Update existing memory unit with incremental insights
+          await this.memoryRepository.update(memoryUnitId, {
+            content: `${decision.candidate.content}`, // Use the new content
+            importance_score: Math.max(0, decision.candidate.importance_score || 0)
+          });
+          
+          // Update entity mapping - map both title and temp_id to the actual memory unit ID
+          deduplicationDecisions.entityMappings.set(decision.candidate.title, memoryUnitId);
+          if (decision.candidate.temp_id) {
+            deduplicationDecisions.entityMappings.set(decision.candidate.temp_id, memoryUnitId);
+          }
         }
-      }
-      
-      console.log(`🔍 [IngestionAnalyst] DEBUG: Creating ${allConcepts.size} concepts (including relationship-referenced ones)`);
-      
-      // Create all concepts first
-      for (const conceptName of allConcepts) {
-        // Skip if it's a user name
-        const user = await this.userRepository.findById(userId);
-        if (user && user.name === conceptName) {
-          continue;
-        }
-        
-        // Check if concept already exists
-        const existingConcepts = await this.conceptRepository.findByUserId(userId);
-        const existingConcept = existingConcepts.find(c => c.name === conceptName);
-        
-        if (existingConcept) {
-          console.log(`🔍 [IngestionAnalyst] DEBUG: Concept already exists: ${conceptName}`);
-          continue;
-        }
-        
-        // Find the concept data from extracted concepts if available
-        const extractedConcept = persistence_payload.extracted_concepts?.find(c => c.name === conceptName);
-        
+
+        // ENHANCED: Process concepts with deduplication decisions
+        for (const concept of deduplicationDecisions.conceptsToCreate) {
         const conceptData: CreateConceptData = {
           user_id: userId,
-          name: conceptName,
-          type: extractedConcept?.type || 'theme', // Default to 'theme' for auto-created concepts
-          description: extractedConcept?.description || `Concept extracted from conversation: ${conceptName}`,
-          salience: extractedConcept ? this.calculateConceptSalience(extractedConcept, persistence_payload) : 0.5
+            name: concept.name,
+            type: concept.type || 'theme',
+            description: concept.description || `Concept extracted from conversation: ${concept.name}`,
+            salience: concept.salience || 0.5
         };
 
         const createdConcept = await this.conceptRepository.create(conceptData);
         newEntities.push({ id: createdConcept.concept_id, type: 'Concept' });
         
-        console.log(`🔍 [IngestionAnalyst] DEBUG: Concept created in PostgreSQL: ${createdConcept.concept_id}`);
-        console.log(`🔍 [IngestionAnalyst] DEBUG: About to create Neo4j node for concept: ${createdConcept.concept_id}`);
+          // Update entity mapping
+          deduplicationDecisions.entityMappings.set(concept.name, createdConcept.concept_id);
         
-        // Create Neo4j node for concept within transaction
+          // Create Neo4j node
         await this.createNeo4jNodeInTransaction(neo4jTransaction, 'Concept', {
           id: createdConcept.concept_id,
           userId: userId,
@@ -317,700 +316,301 @@ export class IngestionAnalyst {
           community_id: createdConcept.community_id,
           source: 'IngestionAnalyst'
         });
-        
-        console.log(`[IngestionAnalyst] Created concept: ${createdConcept.concept_id} - ${conceptName}`);
-      }
+        }
 
-      // Create growth events
-      if (persistence_payload.detected_growth_events && persistence_payload.detected_growth_events.length > 0) {
-        console.log(`🔍 [IngestionAnalyst] DEBUG: Creating ${persistence_payload.detected_growth_events.length} growth events`);
-        
-        for (const growthEvent of persistence_payload.detected_growth_events) {
-          // Collect related entity IDs that were created in this conversation
-          const relatedMemoryUnitIds = persistence_payload.extracted_memory_units?.map(mu => mu.temp_id) || [];
-          const relatedConceptIds = persistence_payload.extracted_concepts?.map(concept => concept.name) || [];
+        // ENHANCED: Process concepts to reuse (update existing)
+        for (const decision of deduplicationDecisions.conceptsToReuse) {
+          // Get the correct concept ID from the existing entity
+          const conceptId = decision.existingEntity.entityId;
           
-          const growthData: CreateGrowthEventData = {
-            user_id: userId,
-            related_memory_units: relatedMemoryUnitIds,
-            related_concepts: relatedConceptIds,
-            growth_dimensions: [], // Keep empty for now, will remove later
-            source: 'IngestionAnalyst',
-            details: {
-              entity_id: conversationId,
-              entity_type: 'conversation'
-            },
-            dimension_key: growthEvent.dim_key,
-            delta_value: growthEvent.delta,
-            rationale: growthEvent.rationale
-          };
+          console.log(`🔍 [IngestionAnalyst] DEBUG: Reusing concept ${decision.candidate.name} with ID: ${conceptId}`);
+          
+          if (!conceptId) {
+            console.warn(`🔍 [IngestionAnalyst] WARNING: No concept ID found for ${decision.candidate.name}, skipping update`);
+            continue;
+          }
+          
+          // Update existing concept with incremental insights - append with timestamp
+          // Only update active concepts, not merged ones
+          const currentConcept = await this.conceptRepository.findById(conceptId);
+          if (!currentConcept) {
+            console.warn(`🔍 [IngestionAnalyst] WARNING: Concept ${conceptId} not found, skipping description update`);
+            continue;
+          }
+          
+          const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+          const newDescription = currentConcept.description 
+            ? `${currentConcept.description}\n[${timestamp}] ${decision.candidate.description}`
+            : `[${timestamp}] ${decision.candidate.description}`;
 
-          const createdGrowthEvent = await this.growthEventRepository.create(growthData);
-          
-          // CRITICAL FIX: Add growth event to newEntities so it gets published to graph queue
-          newEntities.push({ id: createdGrowthEvent.event_id, type: 'GrowthEvent' });
-          
-          console.log(`[IngestionAnalyst] Created growth event: ${createdGrowthEvent.event_id} - ${growthEvent.dim_key} (${growthEvent.delta})`);
-          
-          // CRITICAL FIX: Create Neo4j node for growth event within transaction
-          await this.createNeo4jNodeInTransaction(neo4jTransaction, 'GrowthEvent', {
-            id: createdGrowthEvent.event_id,
-            userId: userId,
-            dimension_key: growthEvent.dim_key,
-            delta_value: growthEvent.delta,
-            rationale: growthEvent.rationale,
-            source: 'IngestionAnalyst',
-            created_at: createdGrowthEvent.created_at.toISOString(),
-            related_memory_units: relatedMemoryUnitIds,
-            related_concepts: relatedConceptIds
+          await this.conceptRepository.update(conceptId, {
+            description: newDescription,
+            last_updated_ts: new Date()
           });
           
-          console.log(`[IngestionAnalyst] Created Neo4j GrowthEvent node: ${createdGrowthEvent.event_id}`);
+          // Update entity mapping
+          deduplicationDecisions.entityMappings.set(decision.candidate.name, conceptId);
         }
-      } else {
-        console.log(`🔍 [IngestionAnalyst] DEBUG: No growth events to create`);
-      }
 
-        // Update user's next conversation context
-        await this.userRepository.update(userId, {
-          next_conversation_context_package: forward_looking_context
-        });
-
-        console.log(`🔍 [IngestionAnalyst] DEBUG: About to create Neo4j relationships`);
-
-        // CRITICAL FIX: Create Neo4j relationships within the same transaction
+        // ENHANCED: Process relationships with entity mapping
         if (persistence_payload.new_relationships && persistence_payload.new_relationships.length > 0) {
-          console.log(`🔍 [IngestionAnalyst] DEBUG: Creating ${persistence_payload.new_relationships.length} Neo4j relationships`);
-          await this.createNeo4jRelationshipsInTransaction(neo4jTransaction, userId, persistence_payload.new_relationships);
-        } else {
-          console.log(`🔍 [IngestionAnalyst] DEBUG: No Neo4j relationships to create`);
+          await this.createNeo4jRelationshipsInTransactionWithMapping(
+            neo4jTransaction, 
+            userId, 
+            persistence_payload.new_relationships,
+            deduplicationDecisions.entityMappings
+          );
         }
 
-        // CRITICAL FIX: Commit the Neo4j transaction
-        await neo4jTransaction.commit();
-        console.log(`🔍 [IngestionAnalyst] DEBUG: Neo4j transaction committed successfully`);
+        // Process growth events (unchanged - always created as new)
+        if (persistence_payload.detected_growth_events && persistence_payload.detected_growth_events.length > 0) {
+          for (const growthEvent of persistence_payload.detected_growth_events) {
+            const growthData: CreateGrowthEventData = {
+              user_id: userId,
+              related_memory_units: growthEvent.source_memory_unit_ids || [],
+              related_concepts: growthEvent.source_concept_ids || [],
+              growth_dimensions: [],
+              source: 'IngestionAnalyst',
+              details: {
+                entity_id: conversationId,
+                entity_type: 'conversation'
+              },
+              dimension_key: growthEvent.dim_key,
+              delta_value: growthEvent.delta,
+              rationale: growthEvent.rationale
+            };
 
-        console.log(`[IngestionAnalyst] Persistence completed for conversation ${conversationId}`);
-        
-      } catch (neo4jError) {
-        console.error(`[IngestionAnalyst] ❌ Neo4j transaction failed, rolling back:`, neo4jError);
+            const createdGrowthEvent = await this.growthEventRepository.create(growthData);
+            newEntities.push({ id: createdGrowthEvent.event_id, type: 'GrowthEvent' });
+          }
+        }
+
+        // Commit Neo4j transaction
+        await neo4jTransaction.commit();
+
+      } catch (error) {
         await neo4jTransaction.rollback();
-        throw neo4jError;
+        throw error;
       } finally {
         await neo4jSession.close();
-        console.log(`🔍 [IngestionAnalyst] DEBUG: Neo4j session closed`);
       }
+
+      // Update conversation with context fields
+      await this.conversationRepository.update(conversationId, {
+        proactive_greeting: forward_looking_context.proactive_greeting,
+        forward_looking_context: forward_looking_context
+      });
+
+      return newEntities;
       
     } catch (error) {
-      console.error(`[IngestionAnalyst] Error during persistence:`, error);
+      console.error(`[IngestionAnalyst] Error in enhanced persistence:`, error);
       throw error;
     }
-
-    return newEntities;
   }
 
   /**
-   * IMPLEMENTED: Create nodes in Neo4j knowledge graph within a transaction
+   * Enhanced relationship creation with entity mapping
    */
-  private async createNeo4jNodeInTransaction(transaction: any, nodeType: string, properties: Record<string, any>): Promise<void> {
-    console.log(`🔍 [IngestionAnalyst] DEBUG: createNeo4jNodeInTransaction called for ${nodeType} with id: ${properties.id}`);
+  private async createNeo4jRelationshipsInTransactionWithMapping(
+    transaction: any, 
+    userId: string, 
+    relationships: any[],
+    entityMappings: Map<string, string>
+  ): Promise<void> {
     
+    for (const relationship of relationships) {
+      const sourceId = this.resolveEntityIdWithMapping(relationship.source_entity_id_or_name, entityMappings);
+      const targetId = this.resolveEntityIdWithMapping(relationship.target_entity_id_or_name, entityMappings);
+      
+      // Use existing relationship creation logic with resolved IDs
+      await this.createNeo4jRelationshipsInTransaction(transaction, [{
+        source_entity_id_or_name: sourceId,
+        target_entity_id_or_name: targetId,
+        relationship_type: relationship.relationship_type,
+        relationship_description: relationship.relationship_description
+      }], entityMappings);
+    }
+  }
+
+  private resolveEntityIdWithMapping(entityNameOrId: string, entityMappings: Map<string, string>): string {
+    // If it's already an ID, return as-is
+    if (entityNameOrId.startsWith('concept_') || entityNameOrId.startsWith('memory_')) {
+      return entityNameOrId;
+    }
+    
+    // FIX: If it's a UUID, treat it as an existing entity ID
+    if (this.isUUID(entityNameOrId)) {
+      console.log(`🔍 [IngestionAnalyst] DEBUG: Entity "${entityNameOrId}" is a UUID, treating as existing entity ID`);
+      return entityNameOrId;
+    }
+    
+    // Otherwise, look up in entity mappings
+    return entityMappings.get(entityNameOrId) || entityNameOrId;
+  }
+
+  /**
+   * Check if an entity name is a memory unit temp_id
+   * Memory unit temp_ids start with 'mem_' and contain only alphanumeric characters and underscores
+   */
+  private isMemoryUnitTempId(entityName: string): boolean {
+    return entityName.startsWith('mem_') && /^mem_[a-zA-Z0-9_]+$/.test(entityName);
+  }
+
+  /**
+   * Check if an entity name is a growth dimension
+   * Growth dimensions are the HRT framework dimensions: act_self, know_world, etc.
+   */
+  private isGrowthDimension(entityName: string): boolean {
+    const growthDimensions = ['act_self', 'know_world', 'act_world', 'know_self'];
+    return growthDimensions.includes(entityName);
+  }
+
+  /**
+   * Check if a string is a valid UUID
+   */
+  private isUUID(str: string): boolean {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(str);
+  }
+
+  /**
+   * Perform semantic deduplication to identify entities to reuse vs create
+   */
+  private async performSemanticDeduplication(
+    userId: string, 
+    analysisOutput: HolisticAnalysisOutput
+  ): Promise<DeduplicationDecisions> {
+    console.log(`🔍 [IngestionAnalyst] Starting semantic deduplication for user ${userId}`);
+    
+    const decisions: DeduplicationDecisions = {
+      conceptsToCreate: [],
+      conceptsToReuse: [],
+      memoryUnitsToCreate: [],
+      memoryUnitsToReuse: [],
+      entityMappings: new Map()
+    };
+
     try {
-      // Clean properties to only include primitive types
-      const cleanProperties = this.cleanNeo4jProperties(properties);
-      console.log(`🔍 [IngestionAnalyst] DEBUG: Cleaned properties: ${JSON.stringify(cleanProperties, null, 2)}`);
-      
-      const cypher = `
-        MERGE (n:${nodeType} {id: $id, userId: $userId})
-        SET n += $properties
-        SET n.updatedAt = datetime()
-        RETURN n
-      `;
-      
-      console.log(`🔍 [IngestionAnalyst] DEBUG: Cypher query: ${cypher}`);
-      console.log(`🔍 [IngestionAnalyst] DEBUG: Query parameters: ${JSON.stringify({
-        id: properties.id,
-        userId: properties.userId,
-        properties: cleanProperties
-      }, null, 2)}`);
-      
-      const result = await transaction.run(cypher, {
-        id: properties.id,
-        userId: properties.userId,
-        properties: cleanProperties
-      });
-      
-      console.log(`🔍 [IngestionAnalyst] DEBUG: Cypher query executed successfully`);
-      console.log(`🔍 [IngestionAnalyst] DEBUG: Result records length: ${result.records.length}`);
-      
-      if (result.records.length > 0) {
-        console.log(`[IngestionAnalyst] ✅ Created ${nodeType} node: ${properties.id}`);
-      } else {
-        console.warn(`[IngestionAnalyst] ⚠️ Failed to create ${nodeType} node: ${properties.id}`);
-      }
-      
-    } catch (error) {
-      console.error(`[IngestionAnalyst] ❌ Error creating ${nodeType} node:`, error);
-      console.log(`🔍 [IngestionAnalyst] DEBUG: Error details: ${JSON.stringify(error, null, 2)}`);
-      throw error; // Re-throw to trigger transaction rollback
-    }
-  }
-
-  /**
-   * IMPLEMENTED: Create nodes in Neo4j knowledge graph (legacy method for backward compatibility)
-   */
-  private async createNeo4jNode(nodeType: string, properties: Record<string, any>): Promise<void> {
-    console.log(`🔍 [IngestionAnalyst] DEBUG: createNeo4jNode called for ${nodeType} with id: ${properties.id}`);
-    
-    if (!this.dbService.neo4j) {
-      console.warn(`[IngestionAnalyst] Neo4j client not available, skipping node creation`);
-      console.log(`🔍 [IngestionAnalyst] DEBUG: dbService.neo4j is: ${this.dbService.neo4j}`);
-      console.log(`🔍 [IngestionAnalyst] DEBUG: dbService object keys: ${Object.keys(this.dbService)}`);
-      return;
-    }
-
-    console.log(`🔍 [IngestionAnalyst] DEBUG: Neo4j client is available, proceeding with node creation`);
-    console.log(`🔍 [IngestionAnalyst] DEBUG: Node type: ${nodeType}`);
-    console.log(`🔍 [IngestionAnalyst] DEBUG: Properties: ${JSON.stringify(properties, null, 2)}`);
-
-    const session = this.dbService.neo4j.session();
-    
-    try {
-      console.log(`🔍 [IngestionAnalyst] DEBUG: Neo4j session created successfully`);
-      
-      // Clean properties to only include primitive types
-      const cleanProperties = this.cleanNeo4jProperties(properties);
-      console.log(`🔍 [IngestionAnalyst] DEBUG: Cleaned properties: ${JSON.stringify(cleanProperties, null, 2)}`);
-      
-      const cypher = `
-        MERGE (n:${nodeType} {id: $id, userId: $userId})
-        SET n += $properties
-        SET n.updatedAt = datetime()
-        RETURN n
-      `;
-      
-      console.log(`🔍 [IngestionAnalyst] DEBUG: Cypher query: ${cypher}`);
-      console.log(`🔍 [IngestionAnalyst] DEBUG: Query parameters: ${JSON.stringify({
-        id: properties.id,
-        userId: properties.userId,
-        properties: cleanProperties
-      }, null, 2)}`);
-      
-      const result = await session.run(cypher, {
-        id: properties.id,
-        userId: properties.userId,
-        properties: cleanProperties
-      });
-      
-      console.log(`🔍 [IngestionAnalyst] DEBUG: Cypher query executed successfully`);
-      console.log(`🔍 [IngestionAnalyst] DEBUG: Result records length: ${result.records.length}`);
-      
-      if (result.records.length > 0) {
-        console.log(`[IngestionAnalyst] ✅ Created ${nodeType} node: ${properties.id}`);
-      } else {
-        console.warn(`[IngestionAnalyst] ⚠️ Failed to create ${nodeType} node: ${properties.id}`);
-      }
-      
-    } catch (error) {
-      console.error(`[IngestionAnalyst] ❌ Error creating ${nodeType} node:`, error);
-      console.log(`🔍 [IngestionAnalyst] DEBUG: Error details: ${JSON.stringify(error, null, 2)}`);
-      // Don't throw - allow ingestion to continue even if node creation fails
-    } finally {
-      await session.close();
-      console.log(`🔍 [IngestionAnalyst] DEBUG: Neo4j session closed`);
-    }
-  }
-
-  /**
-   * Clean properties to only include primitive types for Neo4j
-   */
-  private cleanNeo4jProperties(properties: Record<string, any>): Record<string, any> {
-    const clean: Record<string, any> = {};
-    
-    for (const [key, value] of Object.entries(properties)) {
-      // Skip id and userId as they're handled separately
-      if (key === 'id' || key === 'userId') continue;
-      
-      // Only include primitive types
-      if (value === null || value === undefined) {
-        continue;
-      } else if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-        clean[key] = value;
-      } else if (Array.isArray(value)) {
-        // Convert arrays to strings for Neo4j
-        clean[key] = JSON.stringify(value);
-      } else if (typeof value === 'object') {
-        // Convert objects to strings for Neo4j
-        clean[key] = JSON.stringify(value);
-      }
-    }
-    
-    return clean;
-  }
-
-  /**
-   * IMPLEMENTED: Create relationships in Neo4j knowledge graph within a transaction
-   */
-  private async createNeo4jRelationshipsInTransaction(transaction: any, userId: string, relationships: any[]): Promise<void> {
-    console.log(`🔍 [IngestionAnalyst] DEBUG: createNeo4jRelationshipsInTransaction called for ${relationships.length} relationships`);
-    
-    try {
-      for (const relationship of relationships) {
-        console.log(`🔍 [IngestionAnalyst] DEBUG: Processing relationship: ${JSON.stringify(relationship, null, 2)}`);
-        
-        // Transform relationship data structure from HolisticAnalysisTool format
-        const sourceId = relationship.source_entity_id_or_name || relationship.source_id;
-        const targetId = relationship.target_entity_id_or_name || relationship.target_id;
-        const relationshipDescription = relationship.relationship_description || relationship.type || 'general';
-        const context = relationship.relationship_description || relationship.context || 'Inferred from conversation analysis';
-        
-        console.log(`🔍 [IngestionAnalyst] DEBUG: Transformed relationship - sourceId: ${sourceId}, targetId: ${targetId}, description: ${relationshipDescription}`);
-        
-        // FIXED: Map relationship IDs to actual node IDs by querying the database
-        const actualSourceId = await this.mapRelationshipIdToNodeId(sourceId, userId);
-        const actualTargetId = await this.mapRelationshipIdToNodeId(targetId, userId);
-        
-        if (!actualSourceId || !actualTargetId) {
-          console.warn(`[IngestionAnalyst] ⚠️ Could not map relationship IDs: source=${sourceId} -> ${actualSourceId}, target=${targetId} -> ${actualTargetId}`);
-          continue;
-        }
-
-        console.log(`🔍 [IngestionAnalyst] DEBUG: Mapped IDs - actualSourceId: ${actualSourceId}, actualTargetId: ${actualTargetId}`);
-
-        // CRITICAL FIX: Use emergent relationship labels based on LLM description instead of generic 'RELATED_TO'
-        // Transform the LLM description into a valid Neo4j relationship label
-        const relationshipLabel = this.transformToValidRelationshipLabel(relationshipDescription);
-        
-        const cypher = `
-          MATCH (source), (target)
-          WHERE (source.muid = $sourceId OR source.concept_id = $sourceId OR source.id = $sourceId)
-          AND (target.muid = $targetId OR target.concept_id = $targetId OR target.id = $targetId)
-          AND source.userId = $userId AND target.userId = $userId
-          MERGE (source)-[r:${relationshipLabel}]->(target)
-          SET r.relationship_description = $relationshipDescription,
-              r.context = $context,
-              r.source_agent = 'IngestionAnalyst',
-              r.created_at = datetime(),
-              r.updated_at = datetime(),
-              r.original_description = $relationshipDescription
-          RETURN r
-        `;
-
-        console.log(`🔍 [IngestionAnalyst] DEBUG: Creating relationship with cypher: ${cypher}`);
-        console.log(`🔍 [IngestionAnalyst] DEBUG: Relationship parameters: ${JSON.stringify({
-          sourceId: actualSourceId,
-          targetId: actualTargetId,
-          userId,
-          relationshipDescription,
-          context
-        }, null, 2)}`);
-
-        // CRITICAL FIX: Verify nodes exist before creating relationship
-        const verifyCypher = `
-          MATCH (source), (target)
-          WHERE (source.muid = $sourceId OR source.concept_id = $sourceId OR source.id = $sourceId)
-          AND (target.muid = $targetId OR target.concept_id = $targetId OR target.id = $targetId)
-          AND source.userId = $userId AND target.userId = $userId
-          RETURN source, target
-        `;
-        
-        const verifyResult = await transaction.run(verifyCypher, {
-          sourceId: actualSourceId,
-          targetId: actualTargetId,
+      // Process concepts
+      if (analysisOutput.persistence_payload.extracted_concepts) {
+        const conceptNames = analysisOutput.persistence_payload.extracted_concepts.map(c => c.name);
+        const conceptResults = await this.semanticSimilarityTool.execute({
+          candidateNames: conceptNames,
+          entityTypes: ['concept'],
           userId
         });
         
-        if (verifyResult.records.length === 0) {
-          console.error(`[IngestionAnalyst] ❌ Cannot create relationship - nodes not found in Neo4j`);
-          console.error(`[IngestionAnalyst] ❌ Source ID: ${actualSourceId}, Target ID: ${actualTargetId}, User ID: ${userId}`);
-          continue; // Skip this relationship and continue with others
-        }
-        
-        console.log(`🔍 [IngestionAnalyst] DEBUG: Verified nodes exist, proceeding with relationship creation`);
+        this.processSemanticSimilarityResults(conceptResults, decisions, 'concept', analysisOutput);
+      }
 
-        // CRITICAL FIX: Add retry logic for relationship creation
-        let relationshipCreated = false;
-        let retryCount = 0;
-        const maxRetries = 3;
-        
-        while (!relationshipCreated && retryCount < maxRetries) {
-          try {
-            const result = await transaction.run(cypher, {
-              sourceId: actualSourceId,
-              targetId: actualTargetId,
-              userId,
-              relationshipDescription,
-              context
+      // Process memory units
+      if (analysisOutput.persistence_payload.extracted_memory_units) {
+        const memoryTextContent = analysisOutput.persistence_payload.extracted_memory_units.map(m => `${m.title}\n${m.content}`);
+        const memoryResults = await this.semanticSimilarityTool.execute({
+          candidateNames: memoryTextContent,
+          entityTypes: ['memory_unit'],
+          userId
+        });
+
+        this.processSemanticSimilarityResults(memoryResults, decisions, 'memory_unit', analysisOutput);
+      }
+
+      console.log(`🔍 [IngestionAnalyst] Deduplication complete: ${decisions.conceptsToCreate.length} concepts to create, ${decisions.conceptsToReuse.length} to reuse, ${decisions.memoryUnitsToCreate.length} memory units to create, ${decisions.memoryUnitsToReuse.length} to reuse`);
+      
+      return decisions;
+    } catch (error) {
+      console.error(`[IngestionAnalyst] Error in semantic deduplication:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Process semantic similarity results and populate deduplication decisions
+   */
+  private processSemanticSimilarityResults(
+    results: any[], 
+    decisions: DeduplicationDecisions, 
+    entityType: 'concept' | 'memory_unit',
+    analysisOutput: HolisticAnalysisOutput
+  ): void {
+    if (!results || results.length === 0) {
+      console.log(`🔍 [IngestionAnalyst] No similarity results for ${entityType}`);
+      return;
+    }
+
+    for (const similarityResult of results) {
+      if (similarityResult.bestMatch && similarityResult.bestMatch.similarityScore > 0.8) {
+        // Reuse existing entity
+        if (entityType === 'concept') {
+          // Find the original concept data by name
+          const originalConcept = analysisOutput.persistence_payload.extracted_concepts?.find(c => c.name === similarityResult.candidateName);
+          if (originalConcept) {
+            decisions.conceptsToReuse.push({
+              candidate: originalConcept,
+              existingEntity: similarityResult.bestMatch,
+              similarityScore: similarityResult.bestMatch.similarityScore
             });
-
-            if (result.records.length > 0) {
-              console.log(`[IngestionAnalyst] ✅ Created relationship: ${sourceId} --[${relationshipDescription}]--> ${targetId}`);
-              relationshipCreated = true;
-            } else {
-              retryCount++;
-              if (retryCount < maxRetries) {
-                console.warn(`[IngestionAnalyst] ⚠️ Relationship creation failed (attempt ${retryCount}/${maxRetries}), retrying...`);
-                // Add a small delay before retry
-                await new Promise(resolve => setTimeout(resolve, 100 * retryCount));
-              } else {
-                console.error(`[IngestionAnalyst] ❌ Relationship creation failed after ${maxRetries} attempts: ${sourceId} -> ${targetId}`);
-                console.error(`[IngestionAnalyst] ❌ Source ID: ${actualSourceId}, Target ID: ${actualTargetId}, User ID: ${userId}`);
-              }
-            }
-          } catch (retryError) {
-            retryCount++;
-            if (retryCount < maxRetries) {
-              console.warn(`[IngestionAnalyst] ⚠️ Relationship creation error (attempt ${retryCount}/${maxRetries}):`, retryError);
-              await new Promise(resolve => setTimeout(resolve, 100 * retryCount));
-            } else {
-              console.error(`[IngestionAnalyst] ❌ Relationship creation failed after ${maxRetries} attempts with error:`, retryError);
-              throw retryError; // Re-throw to trigger transaction rollback
+            // Map candidate name to the existing entity ID
+            decisions.entityMappings.set(similarityResult.candidateName, similarityResult.bestMatch.entityId);
+          }
+        } else {
+          // Find the original memory unit data by textContent
+          const originalMemory = analysisOutput.persistence_payload.extracted_memory_units?.find(m => `${m.title}\n${m.content}` === similarityResult.candidateName);
+          if (originalMemory) {
+            decisions.memoryUnitsToReuse.push({
+              candidate: originalMemory,
+              existingEntity: similarityResult.bestMatch,
+              similarityScore: similarityResult.bestMatch.similarityScore
+            });
+            // Map candidate name to the existing entity ID
+            decisions.entityMappings.set(similarityResult.candidateName, similarityResult.bestMatch.entityId);
+          }
+        }
+      } else {
+        // Create new entity - we'll need to find the original entity data
+        if (entityType === 'concept') {
+          // Find the original concept data by name
+          const originalConcept = analysisOutput.persistence_payload.extracted_concepts?.find(c => c.name === similarityResult.candidateName);
+          if (originalConcept) {
+            decisions.conceptsToCreate.push(originalConcept);
+            // Map name to placeholder ID
+            decisions.entityMappings.set(originalConcept.name, `new_concept_${originalConcept.name}`);
+          }
+        } else {
+          // Find the original memory unit data by textContent
+          const originalMemory = analysisOutput.persistence_payload.extracted_memory_units?.find(m => `${m.title}\n${m.content}` === similarityResult.candidateName);
+          if (originalMemory) {
+            decisions.memoryUnitsToCreate.push(originalMemory);
+            // Map both title and temp_id to placeholder IDs
+            decisions.entityMappings.set(originalMemory.title, `new_memory_${originalMemory.title}`);
+            if (originalMemory.temp_id) {
+              decisions.entityMappings.set(originalMemory.temp_id, `new_memory_${originalMemory.title}`);
             }
           }
         }
       }
-      
-      console.log(`[IngestionAnalyst] ✅ Created ${relationships.length} Neo4j relationships`);
-      
-    } catch (error) {
-      console.error(`[IngestionAnalyst] ❌ Error creating Neo4j relationships:`, error);
-      console.error(`[IngestionAnalyst] ❌ Error details: ${JSON.stringify(error, null, 2)}`);
-      throw error; // Re-throw to trigger transaction rollback
     }
   }
 
   /**
-   * IMPLEMENTED: Create relationships in Neo4j knowledge graph (legacy method for backward compatibility)
+   * Update conversation title
    */
-  private async createNeo4jRelationships(userId: string, relationships: any[]): Promise<void> {
-    console.log(`🔍 [IngestionAnalyst] DEBUG: createNeo4jRelationships called for ${relationships.length} relationships`);
-    
-    if (!this.dbService.neo4j) {
-      console.warn(`[IngestionAnalyst] Neo4j client not available, skipping relationship creation`);
-      return;
-    }
-
-    console.log(`🔍 [IngestionAnalyst] DEBUG: Neo4j client is available, proceeding with relationship creation`);
-
-    const session = this.dbService.neo4j.session();
-    
+  private async updateConversationTitle(conversationId: string, title: string): Promise<void> {
     try {
-      console.log(`🔍 [IngestionAnalyst] DEBUG: Neo4j session created for relationships`);
-      
-      for (const relationship of relationships) {
-        console.log(`🔍 [IngestionAnalyst] DEBUG: Processing relationship: ${JSON.stringify(relationship, null, 2)}`);
-        
-        // Transform relationship data structure from HolisticAnalysisTool format
-        const sourceId = relationship.source_entity_id_or_name || relationship.source_id;
-        const targetId = relationship.target_entity_id_or_name || relationship.target_id;
-        const relationshipDescription = relationship.relationship_description || relationship.type || 'general';
-        const context = relationship.relationship_description || relationship.context || 'Inferred from conversation analysis';
-        
-        console.log(`🔍 [IngestionAnalyst] DEBUG: Transformed relationship - sourceId: ${sourceId}, targetId: ${targetId}, description: ${relationshipDescription}`);
-        
-        // FIXED: Map relationship IDs to actual node IDs by querying the database
-        const actualSourceId = await this.mapRelationshipIdToNodeId(sourceId, userId);
-        const actualTargetId = await this.mapRelationshipIdToNodeId(targetId, userId);
-        
-        if (!actualSourceId || !actualTargetId) {
-          console.warn(`[IngestionAnalyst] ⚠️ Could not map relationship IDs: source=${sourceId} -> ${actualSourceId}, target=${targetId} -> ${actualTargetId}`);
-          continue;
-        }
-
-        console.log(`🔍 [IngestionAnalyst] DEBUG: Mapped IDs - actualSourceId: ${actualSourceId}, actualTargetId: ${actualTargetId}`);
-
-        // CRITICAL FIX: Use emergent relationship labels based on LLM description instead of generic 'RELATED_TO'
-        // Transform the LLM description into a valid Neo4j relationship label
-        const relationshipLabel = this.transformToValidRelationshipLabel(relationshipDescription);
-        
-        const cypher = `
-          MATCH (source), (target)
-          WHERE (source.muid = $sourceId OR source.concept_id = $sourceId OR source.id = $sourceId)
-          AND (target.muid = $targetId OR target.concept_id = $targetId OR target.id = $targetId)
-          AND source.userId = $userId AND target.userId = $userId
-          MERGE (source)-[r:${relationshipLabel}]->(target)
-          SET r.relationship_description = $relationshipDescription,
-              r.context = $context,
-              r.source_agent = 'IngestionAnalyst',
-              r.created_at = datetime(),
-              r.updated_at = datetime(),
-              r.original_description = $relationshipDescription
-          RETURN r
-        `;
-
-        console.log(`🔍 [IngestionAnalyst] DEBUG: Creating relationship with cypher: ${cypher}`);
-        console.log(`🔍 [IngestionAnalyst] DEBUG: Relationship parameters: ${JSON.stringify({
-          sourceId: actualSourceId,
-          targetId: actualTargetId,
-          userId,
-          relationshipDescription,
-          context
-        }, null, 2)}`);
-
-        const result = await session.run(cypher, {
-          sourceId: actualSourceId,
-          targetId: actualTargetId,
-          userId,
-          relationshipDescription,
-          context
-        });
-
-        if (result.records.length > 0) {
-          console.log(`[IngestionAnalyst] ✅ Created relationship: ${sourceId} --[${relationshipDescription}]--> ${targetId}`);
-        } else {
-          console.warn(`[IngestionAnalyst] ⚠️ Failed to create relationship: ${sourceId} -> ${targetId}`);
-        }
-      }
-      
-      console.log(`[IngestionAnalyst] ✅ Created ${relationships.length} Neo4j relationships`);
-      
-    } catch (error) {
-      console.error(`[IngestionAnalyst] ❌ Error creating Neo4j relationships:`, error);
-      // Don't throw - allow ingestion to continue even if relationship creation fails
-    } finally {
-      await session.close();
-      console.log(`🔍 [IngestionAnalyst] DEBUG: Neo4j session closed for relationships`);
-    }
-  }
-
-  /**
-   * Transform LLM relationship description into valid Neo4j relationship label
-   * Neo4j relationship labels must be valid identifiers (alphanumeric + underscore)
-   */
-  private transformToValidRelationshipLabel(description: string): string {
-    // Convert to lowercase and replace spaces/special chars with underscores
-    let label = description.toLowerCase()
-      .replace(/[^a-z0-9\s]/g, '') // Remove special characters
-      .replace(/\s+/g, '_') // Replace spaces with underscores
-      .replace(/_+/g, '_') // Replace multiple underscores with single
-      .trim();
-    
-    // Ensure it starts with a letter
-    if (!/^[a-z]/.test(label)) {
-      label = 'rel_' + label;
-    }
-    
-    // Ensure it's not empty
-    if (!label) {
-      label = 'related_to';
-    }
-    
-    // Limit length for Neo4j compatibility
-    if (label.length > 50) {
-      label = label.substring(0, 50);
-    }
-    
-    console.log(`🔍 [IngestionAnalyst] DEBUG: Transformed relationship label: "${description}" -> "${label}"`);
-    return label;
-  }
-
-  /**
-   * Map relationship ID to actual node ID by querying the database
-   * V11.1.1 ENHANCEMENT: Map user names to User concepts instead of skipping
-   */
-  private async mapRelationshipIdToNodeId(relationshipId: string, userId: string): Promise<string | null> {
-    try {
-      // V11.1.1 ENHANCEMENT: Map user names to User concepts instead of skipping
-      // Get the user's name to check if this relationshipId is the user's name
-      const user = await this.userRepository.findById(userId);
-      if (user && (user.name === relationshipId || user.email?.includes(relationshipId))) {
-        // Instead of skipping, find or create the User concept
-        const userConcept = await this.findOrCreateUserConcept(userId, user.name || 'User');
-        if (userConcept) {
-          console.log(`[IngestionAnalyst] ℹ️ Mapped user name "${relationshipId}" to User concept: ${userConcept.concept_id}`);
-          return userConcept.concept_id;
-        }
-      }
-      
-      // First try to find by memory unit temp_id
-      if (relationshipId.startsWith('mem_')) {
-        // This is a memory unit temp_id, find the actual memory unit
-        const memoryUnits = await this.memoryRepository.findByUserId(userId);
-        const memoryUnit = memoryUnits.find(mu => mu.muid === relationshipId);
-        if (memoryUnit) {
-          return memoryUnit.muid;
-        }
-      }
-      
-      // Try to find by concept name
-      const concepts = await this.conceptRepository.findByUserId(userId);
-      const concept = concepts.find(c => c.name === relationshipId);
-      if (concept) {
-        return concept.concept_id;
-      }
-      
-      // Try to find by exact ID match (in case it's already a UUID)
-      const memoryUnit = await this.memoryRepository.findById(relationshipId);
-      if (memoryUnit && memoryUnit.user_id === userId) {
-        return memoryUnit.muid;
-      }
-      
-      const conceptById = await this.conceptRepository.findById(relationshipId);
-      if (conceptById && conceptById.user_id === userId) {
-        return conceptById.concept_id;
-      }
-      
-      // V11.1.2 ENHANCEMENT: Auto-create missing concepts for relationships
-      console.log(`[IngestionAnalyst] ℹ️ Concept "${relationshipId}" not found, attempting to auto-create...`);
-      const autoCreatedConcept = await this.findOrCreateConceptByName(userId, relationshipId);
-      if (autoCreatedConcept) {
-        return autoCreatedConcept.concept_id;
-      }
-      
-      console.warn(`[IngestionAnalyst] ⚠️ Could not map relationship ID: ${relationshipId}`);
-      return null;
-      
-    } catch (error) {
-      console.error(`[IngestionAnalyst] ❌ Error mapping relationship ID ${relationshipId}:`, error);
-      return null;
-    }
-  }
-
-  /**
-   * V11.1.1 NEW: Find or create a User concept for the user
-   */
-  private async findOrCreateUserConcept(userId: string, userName: string): Promise<any | null> {
-    try {
-      // First try to find existing User concept
-      const concepts = await this.conceptRepository.findByUserId(userId);
-      const userConcept = concepts.find(c => c.name === userName && c.type === 'person');
-      
-      if (userConcept) {
-        // CRITICAL FIX: Ensure Neo4j node exists for existing User concept
-        await this.ensureNeo4jNodeExists('Concept', userConcept.concept_id, userId, {
-          name: userConcept.name,
-          description: userConcept.description,
-          type: userConcept.type,
-          salience: userConcept.salience,
-          status: userConcept.status,
-          created_at: userConcept.created_at.toISOString(),
-          source: 'IngestionAnalyst'
-        });
-        return userConcept;
-      }
-
-      // Create User concept if it doesn't exist
-      const userConceptData = {
-        user_id: userId,
-        name: userName,
-        type: 'person',
-        description: `The user (${userName}) in this knowledge graph - the central person whose experiences, interests, and growth are being tracked.`,
-        salience: 10 // High salience since user is central to their own knowledge graph
-      };
-
-      const createdUserConcept = await this.conceptRepository.create(userConceptData);
-      console.log(`[IngestionAnalyst] ✅ Created User concept for ${userName}: ${createdUserConcept.concept_id}`);
-      
-      // CRITICAL FIX: Create corresponding Neo4j node for new User concept
-      await this.createNeo4jNode('Concept', {
-        id: createdUserConcept.concept_id,
-        userId: userId,
-        name: createdUserConcept.name,
-        description: createdUserConcept.description,
-        type: createdUserConcept.type,
-        salience: createdUserConcept.salience,
-        status: createdUserConcept.status,
-        created_at: createdUserConcept.created_at.toISOString(),
-        source: 'IngestionAnalyst'
+      await this.conversationRepository.update(conversationId, {
+        title: title
       });
-      
-      return createdUserConcept;
-
+      console.log(`🔍 [IngestionAnalyst] Updated conversation title: ${title}`);
     } catch (error) {
-      console.error(`[IngestionAnalyst] ❌ Error finding/creating User concept for ${userName}:`, error);
-      return null;
+      console.error(`[IngestionAnalyst] Error updating conversation title:`, error);
+      throw error;
     }
   }
 
   /**
-   * CRITICAL FIX: Ensure Neo4j node exists for a given entity
+   * Publish events for new entities
    */
-  private async ensureNeo4jNodeExists(nodeType: string, nodeId: string, userId: string, properties: Record<string, any>): Promise<void> {
-    try {
-      const session = this.dbService.neo4j.session();
-      
-      // Check if node exists
-      const checkCypher = `
-        MATCH (n:${nodeType} {id: $id, userId: $userId})
-        RETURN n
-      `;
-      
-      const result = await session.run(checkCypher, { id: nodeId, userId });
-      
-      if (result.records.length === 0) {
-        // Node doesn't exist, create it
-        console.log(`🔍 [IngestionAnalyst] DEBUG: Neo4j node missing for ${nodeType} ${nodeId}, creating it`);
-        await this.createNeo4jNode(nodeType, {
-          id: nodeId,
-          userId: userId,
-          ...properties
-        });
-      } else {
-        console.log(`🔍 [IngestionAnalyst] DEBUG: Neo4j node exists for ${nodeType} ${nodeId}`);
-      }
-      
-      await session.close();
-    } catch (error) {
-      console.error(`[IngestionAnalyst] ❌ Error ensuring Neo4j node exists for ${nodeType} ${nodeId}:`, error);
-    }
-  }
-
-  /**
-   * V11.1.2 NEW: Find or create any concept by name
-   */
-  private async findOrCreateConceptByName(userId: string, conceptName: string, conceptType: string = 'theme'): Promise<any | null> {
-    try {
-      // First try to find existing concept
-      const concepts = await this.conceptRepository.findByUserId(userId);
-      const existingConcept = concepts.find(c => c.name === conceptName);
-      
-      if (existingConcept) {
-        // CRITICAL FIX: Ensure Neo4j node exists for existing concept
-        await this.ensureNeo4jNodeExists('Concept', existingConcept.concept_id, userId, {
-          name: existingConcept.name,
-          description: existingConcept.description,
-          type: existingConcept.type,
-          salience: existingConcept.salience,
-          status: existingConcept.status,
-          created_at: existingConcept.created_at.toISOString(),
-          source: 'IngestionAnalyst'
-        });
-        return existingConcept;
-      }
-
-      // Create concept if it doesn't exist
-      const conceptData = {
-        user_id: userId,
-        name: conceptName,
-        type: conceptType,
-        description: `Concept extracted from conversation: ${conceptName}`,
-        salience: 0.5 // Default salience for auto-created concepts
-      };
-
-      const createdConcept = await this.conceptRepository.create(conceptData);
-      console.log(`[IngestionAnalyst] ✅ Auto-created concept for relationship: ${conceptName} (${createdConcept.concept_id})`);
-      
-      // CRITICAL FIX: Create corresponding Neo4j node for new concept
-      await this.createNeo4jNode('Concept', {
-        id: createdConcept.concept_id,
-        userId: userId,
-        name: createdConcept.name,
-        description: createdConcept.description,
-        type: createdConcept.type,
-        salience: createdConcept.salience,
-        status: createdConcept.status,
-        created_at: createdConcept.created_at.toISOString(),
-        source: 'IngestionAnalyst'
-      });
-      
-      return createdConcept;
-
-    } catch (error) {
-      console.error(`[IngestionAnalyst] ❌ Error finding/creating concept for ${conceptName}:`, error);
-      return null;
-    }
-  }
-
   private async publishEvents(userId: string, newEntities: Array<{ id: string; type: string }>) {
     // Publish embedding jobs for each new entity
     for (const entity of newEntities) {
@@ -1021,7 +621,7 @@ export class IngestionAnalyst {
         textContent = memory ? `${memory.title}\n${memory.content}` : '';
       } else if (entity.type === 'Concept') {
         const concept = await this.conceptRepository.findById(entity.id);
-        textContent = concept ? `${concept.name}: ${concept.description || ''}` : '';
+        textContent = concept ? concept.name : '';
       } else if (entity.type === 'GrowthEvent') {
         const growthEvent = await this.growthEventRepository.findById(entity.id);
         if (growthEvent) {
@@ -1029,14 +629,11 @@ export class IngestionAnalyst {
           textContent = `${growthEvent.dimension_key} Growth Event: ${details?.rationale || growthEvent.rationale || 'Growth event recorded'}`;
         }
       } else if (entity.type === 'DerivedArtifact') {
-        // CRITICAL FIX: Add support for DerivedArtifact entities
         const artifact = await this.derivedArtifactRepository.findById(entity.id);
         if (artifact) {
           textContent = `${artifact.title}\n\n${artifact.content_narrative || 'Derived artifact content'}`;
         }
       } else if (entity.type === 'Community') {
-        // CRITICAL FIX: Add support for Community entities
-        // Note: CommunityRepository doesn't have findById, so we'll use a direct Prisma query
         try {
           const community = await this.dbService.prisma.communities.findUnique({
             where: { community_id: entity.id }
@@ -1048,13 +645,11 @@ export class IngestionAnalyst {
           console.warn(`[IngestionAnalyst] ⚠️ Error fetching community ${entity.id}:`, error);
         }
       } else if (entity.type === 'ProactivePrompt') {
-        // CRITICAL FIX: Add support for ProactivePrompt entities
         const prompt = await this.proactivePromptRepository.findById(entity.id);
         if (prompt) {
           textContent = `Proactive Prompt: ${prompt.prompt_text || 'Prompt content'}`;
         }
       } else if (entity.type === 'User') {
-        // CRITICAL FIX: Add support for User entities
         const user = await this.userRepository.findById(entity.id);
         if (user) {
           textContent = `${user.name || user.email}: User profile`;
@@ -1095,75 +690,104 @@ export class IngestionAnalyst {
   }
 
   /**
-   * Calculate concept salience based on context and importance
-   * Salience ranges from 0.0 to 1.0, where higher values indicate more important concepts
+   * Create Neo4j node in transaction
    */
-  private calculateConceptSalience(concept: any, persistencePayload: any): number {
-    let salience = 0.5; // Base salience
-    
-    // Boost salience based on concept type
-    if (concept.type === 'person' || concept.type === 'knowledge') {
-      salience += 0.2; // People and knowledge are generally more salient
-    } else if (concept.type === 'skill' || concept.type === 'location') {
-      salience += 0.15; // Skills and locations are moderately salient
-    } else if (concept.type === 'emotion' || concept.type === 'experience') {
-      salience += 0.1; // Emotions and experiences have some salience
-    }
-    
-    // Boost salience if concept appears in multiple contexts
-    if (persistencePayload.extracted_memory_units && persistencePayload.extracted_memory_units.length > 0) {
-      salience += 0.1; // Concept mentioned in memory units
-    }
-    
-    if (persistencePayload.new_relationships && persistencePayload.new_relationships.length > 0) {
-      salience += 0.1; // Concept has relationships
-    }
-    
-    // Ensure salience stays within bounds
-    return Math.min(Math.max(salience, 0.1), 1.0);
+  private async createNeo4jNodeInTransaction(transaction: any, label: string, properties: any): Promise<void> {
+    const cypher = `CREATE (n:${label} $props)`;
+    await transaction.run(cypher, { props: properties });
   }
 
   /**
-   * V11.1: Generate smart, user-facing conversation title using LLM
-   * This replaces the generic timestamp-based titles with meaningful descriptions
+   * Create Neo4j relationships in transaction
    */
-  private async updateConversationTitle(conversationId: string, title: string): Promise<void> {
-    try {
-      console.log(`[IngestionAnalyst] Updating conversation title: "${title}"`);
-      
-      // Clean up the title
-      let cleanTitle = title.trim();
-      
-      // Remove quotes if present
-      if ((cleanTitle.startsWith('"') && cleanTitle.endsWith('"')) ||
-          (cleanTitle.startsWith("'") && cleanTitle.endsWith("'"))) {
-        cleanTitle = cleanTitle.slice(1, -1);
+  private async createNeo4jRelationshipsInTransaction(
+    transaction: any, 
+    relationships: Array<{
+      source_entity_id_or_name: string;
+      target_entity_id_or_name: string;
+      relationship_type: string;
+      relationship_description: string;
+    }>,
+    entityMappings: Map<string, string>
+  ): Promise<void> {
+    for (const relationship of relationships) {
+      const sourceId = this.resolveEntityIdWithMapping(relationship.source_entity_id_or_name, entityMappings);
+      const targetId = this.resolveEntityIdWithMapping(relationship.target_entity_id_or_name, entityMappings);
+
+      if (sourceId && targetId) {
+        const cypher = `
+          MATCH (source), (target)
+          WHERE (source.muid = $sourceId OR source.concept_id = $sourceId OR source.event_id = $sourceId)
+            AND (target.muid = $targetId OR target.concept_id = $targetId OR target.event_id = $targetId)
+          CREATE (source)-[r:${relationship.relationship_type} {description: $description}]->(target)
+        `;
+        
+        await transaction.run(cypher, {
+          sourceId,
+          targetId,
+          description: relationship.relationship_description
+        });
       }
-      
-      // Ensure it's not too long
-      if (cleanTitle.length > 50) {
-        cleanTitle = cleanTitle.substring(0, 47) + '...';
-      }
-      
-      // Fallback if empty
-      if (!cleanTitle || cleanTitle.trim() === '') {
-        cleanTitle = 'New Conversation';
-      }
-      
-      // Update the conversation with the title
-      await this.conversationRepository.update(conversationId, {
-        title: cleanTitle
-      });
-      
-      console.log(`[IngestionAnalyst] Successfully updated conversation title: "${cleanTitle}"`);
-      
-    } catch (error) {
-      console.error(`[IngestionAnalyst] Failed to update conversation title:`, error);
-      
-      // Set a fallback title
-      await this.conversationRepository.update(conversationId, {
-        title: 'New Conversation'
-      });
     }
   }
+
+  /**
+   * Map relationship ID to actual node ID
+   */
+  private async mapRelationshipIdToNodeId(entityIdOrName: string, userId: string): Promise<string | null> {
+    // If it's already an ID, return as-is
+    if (entityIdOrName.startsWith('concept_') || entityIdOrName.startsWith('memory_')) {
+      return entityIdOrName;
+    }
+
+    // FIX: If it's a UUID, it's likely a concept ID, so return it directly
+    if (this.isUUID(entityIdOrName)) {
+      console.log(`🔍 [IngestionAnalyst] DEBUG: Mapped ID "${entityIdOrName}" is a UUID, treating as concept ID`);
+      return entityIdOrName;
+    }
+
+    // Try to find existing concept by name
+    const concepts = await this.conceptRepository.searchByName(userId, entityIdOrName, 1);
+    if (concepts.length > 0) {
+      return concepts[0].concept_id;
+    }
+
+    // Try to find existing memory unit by title
+    const memories = await this.memoryRepository.searchByContent(userId, entityIdOrName, 1);
+    if (memories.length > 0) {
+      return memories[0].muid;
+    }
+
+    // Try to find existing growth event by event_id
+    const growthEvent = await this.growthEventRepository.findById(entityIdOrName);
+    if (growthEvent) {
+      return growthEvent.event_id;
+    }
+
+    // FIX: Don't create concepts for memory unit temp_ids or growth dimensions
+    if (this.isMemoryUnitTempId(entityIdOrName)) {
+      console.log(`🔍 [IngestionAnalyst] DEBUG: Skipping concept creation for memory unit temp_id: ${entityIdOrName}`);
+      return null;
+    }
+    
+    if (this.isGrowthDimension(entityIdOrName)) {
+      console.log(`🔍 [IngestionAnalyst] DEBUG: Skipping concept creation for growth dimension: ${entityIdOrName}`);
+      return null;
+    }
+    
+    // Auto-create concept as fallback
+    console.log(`🔍 [IngestionAnalyst] DEBUG: Auto-creating concept for: ${entityIdOrName}`);
+    const createdConcept = await this.conceptRepository.create({
+            user_id: userId,
+      name: entityIdOrName,
+      type: 'auto_generated',
+      description: `Auto-generated concept from relationship: ${entityIdOrName}`,
+      salience: 0.5
+    });
+
+    return createdConcept.concept_id;
+  }
+
+
+
 }

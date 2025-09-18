@@ -8,7 +8,7 @@ import type { CardData, CardFilters } from '@2dots1line/database';
 
 export interface Card {
   id: string;
-  type: 'memory_unit' | 'concept' | 'derived_artifact';
+  type: 'memory_unit' | 'concept' | 'derived_artifact' | 'memoryunit' | 'growthevent' | 'proactiveprompt' | 'community';
   title: string;
   preview: string;
   evolutionState: 'seed' | 'sprout' | 'bloom' | 'constellation' | 'supernova';
@@ -36,7 +36,7 @@ export interface Card {
 export interface GetCardsRequest {
   userId: string;
   filters?: {
-    cardType?: 'memory_unit' | 'concept' | 'derived_artifact';
+    cardType?: 'memory_unit' | 'concept' | 'derived_artifact' | 'memoryunit' | 'growthevent' | 'proactiveprompt' | 'community';
     evolutionState?: string;
     growthDimension?: string;
     minImportanceScore?: number;

@@ -150,17 +150,6 @@ export interface UserMemoryProfile {
   [key: string]: unknown;
 }
 
-/**
- * Knowledge Graph Schema structure (stored in User.knowledge_graph_schema JSONB field)
- */
-export interface KnowledgeGraphSchema {
-  prominent_node_types: string[];
-  prominent_relationship_types: string[];
-  universal_concept_types: string[];
-  universal_relationship_labels: {
-    [key: string]: string[];
-  };
-}
 
 /**
  * Next Conversation Context Package (stored in User.next_conversation_context_package JSONB field)

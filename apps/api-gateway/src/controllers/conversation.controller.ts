@@ -6,10 +6,11 @@
 import { NextFunction, Request, Response } from 'express';
 import type { TApiResponse } from '@2dots1line/shared-types';
 import { DialogueAgent } from '@2dots1line/dialogue-service';
-import { ConversationRepository, SessionRepository, SessionWithConversations } from '@2dots1line/database';
-import type { user_sessions } from '@2dots1line/database';
+import { ConversationRepository, SessionRepository, SessionWithConversations, MediaRepository } from '@2dots1line/database';
+// import type { user_sessions } from '@2dots1line/database';
 import { REDIS_CONVERSATION_TIMEOUT_PREFIX } from '@2dots1line/core-utils';
 import { z } from 'zod';
+import { createHash } from 'crypto';
 
 const chatSchema = z.object({
   userId: z.string(),
@@ -40,18 +41,21 @@ const uploadSchema = z.object({
 export class ConversationController {
   private conversationRepository: ConversationRepository;
   private sessionRepository: SessionRepository; // NEW: Session management
+  private mediaRepository: MediaRepository; // RESTORED: Media management
   private redis: any; // Redis client for conversation timeout management
 
   constructor(
     private dialogueAgent: DialogueAgent,
     conversationRepository: ConversationRepository,
     sessionRepository: SessionRepository, // NEW DEPENDENCY
+    mediaRepository: MediaRepository, // RESTORED DEPENDENCY
     redisClient?: any
   ) {
     this.conversationRepository = conversationRepository;
     this.sessionRepository = sessionRepository; // NEW
+    this.mediaRepository = mediaRepository; // RESTORED
     this.redis = redisClient;
-    console.log(`✅ ConversationController initialized with direct DialogueAgent injection and SessionRepository (V11.0)`);
+    console.log(`✅ ConversationController initialized with direct DialogueAgent injection, SessionRepository, and MediaRepository (V11.0)`);
   }
 
   /**
@@ -120,11 +124,63 @@ export class ConversationController {
         return;
       }
 
-      // STEP 1: Session Management - Only create sessions when we have a valid message
-      let session: user_sessions | null;
-      
-      if (session_id) {
-        // Use existing session if provided
+      // STEP 1: Determine session and conversation based on your correct vision
+      let session: any | null;
+      let conversation: any = null;
+
+      if (conversation_id) {
+        // Resume existing conversation - use its existing session
+        conversation = await this.conversationRepository.findById(conversation_id);
+        
+        if (!conversation) {
+          res.status(404).json({ 
+            success: false, 
+            error: { code: 'NOT_FOUND', message: 'Conversation not found' }
+          } as TApiResponse<any>);
+          return;
+        }
+
+        if (conversation.user_id !== userId) {
+          res.status(403).json({ 
+            success: false, 
+            error: { code: 'FORBIDDEN', message: 'Conversation does not belong to user' }
+          } as TApiResponse<any>);
+          return;
+        }
+
+        // If conversation is ended, create a new conversation in the same session
+        if (conversation.status === 'ended' || conversation.ended_at !== null) {
+          console.log(`🔄 Conversation ${conversation_id} is ended, creating new conversation in same session ${conversation.session_id}`);
+          
+          // Create new conversation in the same session
+          const newConversation = await this.conversationRepository.create({
+            user_id: userId,
+            title: `Conversation started at ${new Date().toISOString()}`,
+            session_id: conversation.session_id
+          });
+          
+          // Update conversation to the new one
+          conversation = newConversation;
+          
+          console.log(`✅ Created new conversation ${newConversation.id} in session ${conversation.session_id}`);
+        }
+
+        // Use the conversation's existing session
+        session = await this.sessionRepository.getSessionById(conversation.session_id);
+        if (!session) {
+          res.status(500).json({ 
+            success: false, 
+            error: { code: 'INTERNAL_ERROR', message: 'Conversation has invalid session' }
+          } as TApiResponse<any>);
+          return;
+        }
+
+        // Update session activity
+        await this.sessionRepository.updateSessionActivity(session.session_id);
+        console.log(`💖 Updated activity for existing session ${session.session_id}`);
+
+      } else if (session_id) {
+        // New conversation in existing session
         session = await this.sessionRepository.getSessionById(session_id);
         if (!session || session.user_id !== userId) {
           res.status(404).json({ 
@@ -133,75 +189,29 @@ export class ConversationController {
           } as TApiResponse<any>);
           return;
         }
-        // Update session activity
-        await this.sessionRepository.updateSessionActivity(session.session_id);
-        console.log(`💖 Updated activity for existing session ${session.session_id}`);
-      } else {
-        // Check if this is a new chat request (no conversation_id and no session_id)
-        const isNewChatRequest = !conversation_id;
-        
-        if (isNewChatRequest) {
-          // Create a new session ONLY when we have a valid message to send
-          session = await this.sessionRepository.createSession({
-            user_id: userId
-          });
-          console.log(`🆕 Created new session ${session.session_id} for new chat with message`);
-        } else {
-          // For existing conversations, try to find the active session
-          session = await this.sessionRepository.getActiveSession(userId);
-          if (!session) {
-            // Create new session if none exists
-            session = await this.sessionRepository.createSession({
-              user_id: userId
-            });
-            console.log(`🆕 Created new session ${session.session_id} for user ${userId}`);
-          } else {
-            // Update session activity
-            await this.sessionRepository.updateSessionActivity(session.session_id);
-            console.log(`💖 Updated activity for existing session ${session.session_id}`);
-          }
-        }
-      }
 
-      // Ensure we have a valid session
-      if (!session) {
-        res.status(500).json({ 
-          success: false, 
-          error: { code: 'INTERNAL_ERROR', message: 'Failed to create or retrieve session' }
-        } as TApiResponse<any>);
-        return;
-      }
-
-      // STEP 2: Find an existing conversation or create a new one
-      let conversation = conversation_id 
-        ? await this.conversationRepository.findById(conversation_id)
-        : null;
-
-      // V11.1 FIX: Check if conversation exists, belongs to user, AND is not ended
-      const isConversationEnded = !conversation || 
-        conversation.user_id !== userId || 
-        conversation.status === 'ended' ||
-        conversation.ended_at !== null; // CRITICAL FIX: Check if conversation has ended_at timestamp
-
-      if (isConversationEnded) {
-        // Create a new conversation if:
-        // - No conversation found
-        // - Conversation doesn't belong to this user
-        // - Conversation is already ended (CRITICAL FIX)
-        // - Conversation has an ended_at timestamp (NEW FIX)
+        // Create new conversation in this session
         conversation = await this.conversationRepository.create({
           user_id: userId,
           title: `Conversation: ${new Date().toISOString()}`,
-          session_id: session.session_id, // NEW: Pass session_id directly during creation
+          session_id: session.session_id,
         });
         
-        console.log(`🔄 Created new conversation ${conversation.id} in session ${session.session_id}`);
+        console.log(`🆕 Created new conversation ${conversation.id} in existing session ${session.session_id}`);
+
       } else {
-        // Ensure existing conversation is assigned to current session
-        if (conversation && conversation.session_id !== session.session_id) {
-          await this.conversationRepository.assignToSession(conversation.id, session.session_id);
-          console.log(`🔗 Reassigned conversation ${conversation.id} to session ${session.session_id}`);
-        }
+        // New chat - create new session and conversation
+        session = await this.sessionRepository.createSession({
+          user_id: userId
+        });
+
+        conversation = await this.conversationRepository.create({
+          user_id: userId,
+          title: `Conversation: ${new Date().toISOString()}`,
+          session_id: session.session_id,
+        });
+        
+        console.log(`🆕 Created new session ${session.session_id} and conversation ${conversation.id}`);
       }
       const actualConversationId = conversation!.id; // Use non-null assertion since we just created it
 
@@ -217,12 +227,8 @@ export class ConversationController {
       const timeoutSeconds = this.getConversationTimeout();
       await this.redis.set(heartbeatKey, 'active', 'EX', timeoutSeconds);
 
-      // Verify conversation was created with session_id
-      if (!conversation?.session_id) {
-        console.error(`❌ CRITICAL ERROR: Conversation ${actualConversationId} has no session_id after creation!`);
-        throw new Error('Failed to create conversation with session_id');
-      }
-      console.log(`✅ Verified conversation ${actualConversationId} created with session_id ${conversation.session_id}`);
+      // Conversation is guaranteed to have session_id with the new logic
+      console.log(`✅ Processing conversation ${actualConversationId} in session ${conversation.session_id}`);
 
       // STEP 4: Call the pure, headless DialogueAgent to get a response
       const agentResult = await this.dialogueAgent.processTurn({
@@ -242,7 +248,7 @@ export class ConversationController {
       // STEP 6: Send the final response to the client
       res.status(200).json({
         success: true,
-        conversation_id: actualConversationId, // Ensure the client always gets the correct ID
+        conversation_id: conversation.id, // Use the actual conversation ID (may be new if ended conversation was replaced)
         session_id: session.session_id, // NEW: Include session ID
         conversation_title: conversation?.title || `Conversation: ${new Date().toISOString()}`, // NEW: Include conversation title with null safety
         response_text: agentResult.response_text,
@@ -297,22 +303,184 @@ export class ConversationController {
       const mimeType = file.mimetype;
       const dataUrl = `data:${mimeType};base64,${base64Data}`;
 
-      // Generate conversation ID if not provided
-      const conversationId = conversation_id || session_id || `conv_${userId}_${Date.now()}`;
+      let conversation: any = null;
+      let session: any = null;
+
+      if (conversation_id) {
+        // Resume existing conversation - use its existing session
+        conversation = await this.conversationRepository.findById(conversation_id);
+        
+        if (!conversation) {
+          res.status(404).json({ 
+            success: false, 
+            error: { code: 'NOT_FOUND', message: 'Conversation not found' }
+          } as TApiResponse<any>);
+          return;
+        }
+
+        if (conversation.user_id !== userId) {
+          res.status(403).json({ 
+            success: false, 
+            error: { code: 'FORBIDDEN', message: 'Conversation does not belong to user' }
+          } as TApiResponse<any>);
+          return;
+        }
+
+        if (conversation.status === 'ended' || conversation.ended_at !== null) {
+          res.status(400).json({ 
+            success: false, 
+            error: { code: 'BAD_REQUEST', message: 'Cannot upload file to ended conversation' }
+          } as TApiResponse<any>);
+          return;
+        }
+
+        // Use the conversation's existing session, or create one if missing
+        if (conversation.session_id) {
+          session = await this.sessionRepository.getSessionById(conversation.session_id);
+          if (!session) {
+            res.status(500).json({ 
+              success: false, 
+              error: { code: 'INTERNAL_ERROR', message: 'Conversation has invalid session' }
+            } as TApiResponse<any>);
+            return;
+          }
+        } else {
+          // Create a new session for this conversation (legacy conversations without session_id)
+          session = await this.sessionRepository.createSession({
+            user_id: userId
+          });
+          
+          // Update the conversation with the new session_id
+          await this.conversationRepository.update(conversation.id, {
+            session_id: session.session_id
+          });
+          
+          console.log(`🔗 Created new session ${session.session_id} for legacy conversation ${conversation.id}`);
+        }
+
+        console.log(`✅ Using existing conversation ${conversation.id} in session ${session.session_id}`);
+
+      } else if (session_id) {
+        // New conversation in existing session
+        session = await this.sessionRepository.getSessionById(session_id);
+        if (!session || session.user_id !== userId) {
+          res.status(404).json({ 
+            success: false, 
+            error: { code: 'NOT_FOUND', message: 'Session not found' }
+          } as TApiResponse<any>);
+          return;
+        }
+
+        // Create new conversation in this session
+        conversation = await this.conversationRepository.create({
+          user_id: userId,
+          title: `File Upload: ${file.originalname}`,
+          session_id: session.session_id,
+          metadata: {
+            source: 'file_upload',
+            filename: file.originalname,
+            mime_type: file.mimetype,
+            file_size: file.size
+          }
+        });
+        
+        console.log(`🆕 Created new conversation ${conversation.id} in existing session ${session.session_id}`);
+
+      } else {
+        // New chat - create new session and conversation
+        session = await this.sessionRepository.createSession({
+          user_id: userId
+        });
+
+        conversation = await this.conversationRepository.create({
+          user_id: userId,
+          title: `File Upload: ${file.originalname}`,
+          session_id: session.session_id,
+          metadata: {
+            source: 'file_upload',
+            filename: file.originalname,
+            mime_type: file.mimetype,
+            file_size: file.size
+          }
+        });
+        
+        console.log(`🆕 Created new session ${session.session_id} and conversation ${conversation.id}`);
+      }
+
+      const conversationId = conversation.id;
       
       // Set/reset conversation timeout for background processing trigger
       await this.setConversationTimeout(conversationId);
       
+      // RESTORED: Media handling logic from deleted agent.controller.ts
+      console.log(`📁 Processing file upload: ${file.originalname} (${file.mimetype})`);
+      
+      // 1. Determine file type
+      const fileType = this.determineFileType(file.mimetype, file.originalname);
+      console.log(`🔍 File type determined: ${fileType} (MIME: ${file.mimetype})`);
+      
+      // 2. Record file in media model with deduplication
+      let mediaRecord = null;
+      try {
+        // Generate hash for deduplication
+        const fileHash = createHash('sha256').update(dataUrl).digest('hex');
+        
+        // Check if file already exists (deduplication)
+        const existingMedia = await this.mediaRepository.findByHash(fileHash);
+        
+        if (existingMedia) {
+          console.log(`🔄 File already exists in database: ${existingMedia.media_id}`);
+          mediaRecord = existingMedia;
+        } else {
+          // Create new media record
+          const mediaData = {
+            user_id: userId,
+            type: fileType,
+            storage_url: dataUrl, // Store base64 data URL for now
+            filename: file.originalname,
+            mime_type: file.mimetype,
+            size_bytes: file.size,
+            hash: fileHash,
+            processing_status: 'completed', // Will be updated if processing fails
+            metadata: {
+              upload_timestamp: new Date().toISOString(),
+              conversation_id: conversationId,
+              original_filename: file.originalname,
+              file_type: fileType,
+              analysis_completed: true,
+              analysis_timestamp: new Date().toISOString()
+            }
+          };
+          
+          mediaRecord = await this.mediaRepository.create(mediaData);
+          console.log(`✅ Media record created: ${mediaRecord.media_id} (${file.size} bytes, ${file.mimetype}, type: ${fileType})`);
+        }
+      } catch (error) {
+        console.error('❌ Failed to record media in database:', error);
+        // Continue with the flow even if media recording fails
+      }
+      
       // Process file through DialogueAgent using processTurn with enhanced message
-      const enhancedMessage = `${message || 'What can you tell me about this file?'}\n\n[File uploaded: ${file.originalname} (${file.mimetype}, ${file.size} bytes)]`;
+      const enhancedMessage = `${message || 'What can you tell me about this file?'}\n\n[File uploaded: ${file.originalname} (${file.mimetype})]`;
       
       // STEP 1: Save the user's message to the database
-      await this.conversationRepository.addMessage({
-        conversation_id: conversationId,
-        role: 'user',
-        content: enhancedMessage,
-      });
+      console.log(`💬 Attempting to add message to conversation: ${conversationId}`);
+      console.log(`💬 Message content preview: ${enhancedMessage.substring(0, 100)}...`);
       
+      try {
+        await this.conversationRepository.addMessage({
+          conversation_id: conversationId,
+          role: 'user',
+          content: enhancedMessage,
+          media_ids: mediaRecord ? [mediaRecord.media_id] : [] // RESTORED: Link media to message
+        });
+        console.log(`✅ Successfully added user message to conversation: ${conversationId}${mediaRecord ? ` with media_id: ${mediaRecord.media_id}` : ''}`);
+      } catch (addMessageError) {
+        console.error(`❌ Failed to add message to conversation ${conversationId}:`, addMessageError);
+        throw addMessageError;
+      }
+      
+      // STEP 2: Process file through DialogueAgent to get extracted content
       const result = await this.dialogueAgent.processTurn({
         userId,
         conversationId,
@@ -323,12 +491,41 @@ export class ConversationController {
         }]
       });
 
-      // STEP 2: Save the assistant's response to the database
+      // STEP 3: Create separate assistant message with file analysis
+      // Use the analysis results directly from DialogueAgent result
+      if (result.vision_analysis) {
+        console.log(`✅ Found vision analysis from DialogueAgent (${result.vision_analysis.length} chars)`);
+        
+        // Store the vision analysis as a separate message for record keeping
+        await this.conversationRepository.addMessage({
+          conversation_id: conversationId,
+          role: 'assistant',
+          content: result.vision_analysis,
+          media_ids: mediaRecord ? [mediaRecord.media_id] : []
+        });
+        console.log(`✅ Created separate assistant message with vision analysis`);
+      } else if (result.document_analysis) {
+        console.log(`✅ Found document analysis from DialogueAgent (${result.document_analysis.length} chars)`);
+        
+        // Store the document analysis as a separate message for record keeping
+        await this.conversationRepository.addMessage({
+          conversation_id: conversationId,
+          role: 'assistant',
+          content: result.document_analysis,
+          media_ids: mediaRecord ? [mediaRecord.media_id] : []
+        });
+        console.log(`✅ Created separate assistant message with document analysis`);
+      } else {
+        console.log(`⚠️ No file analysis found in DialogueAgent result`);
+      }
+
+      // STEP 4: Save the main assistant's response to the database
       await this.conversationRepository.addMessage({
         conversation_id: conversationId,
         role: 'assistant',
         content: result.response_text,
-        llm_call_metadata: result.metadata || {}
+        llm_call_metadata: result.metadata || {},
+        media_ids: mediaRecord ? [mediaRecord.media_id] : [] // RESTORED: Link media to assistant message
       });
 
       // Clean up uploaded file after processing
@@ -383,6 +580,25 @@ export class ConversationController {
     try {
       const { userId, conversationId, message } = chatSchema.parse(req.body);
       
+      // Verify conversation exists before adding messages
+      const conversation = await this.conversationRepository.findById(conversationId);
+      if (!conversation) {
+        res.status(404).json({ 
+          success: false, 
+          error: { code: 'NOT_FOUND', message: 'Conversation not found' }
+        } as TApiResponse<any>);
+        return;
+      }
+      
+      // Verify conversation belongs to the user
+      if (conversation.user_id !== userId) {
+        res.status(403).json({ 
+          success: false, 
+          error: { code: 'FORBIDDEN', message: 'Conversation does not belong to user' }
+        } as TApiResponse<any>);
+        return;
+      }
+      
       // Set/reset conversation timeout for background processing trigger
       await this.setConversationTimeout(conversationId);
       
@@ -421,13 +637,20 @@ export class ConversationController {
     try {
       const { userId, initialMessage } = startConversationSchema.parse(req.body);
       
-      // Create conversation record in database BEFORE processing
+      // Create new session for this conversation
+      const session = await this.sessionRepository.createSession({
+        user_id: userId
+      });
+      console.log(`🆕 Created new session ${session.session_id} for conversation`);
+      
+      // Create conversation record in database with session_id
       const conversation = await this.conversationRepository.create({
         user_id: userId,
-        title: `Conversation started at ${new Date().toISOString()}`
+        title: `Conversation started at ${new Date().toISOString()}`,
+        session_id: session.session_id
       });
       const conversationId = conversation.id;
-      console.log(`✅ Conversation record created: ${conversationId}`);
+      console.log(`✅ Conversation record created: ${conversationId} in session ${session.session_id}`);
       
       // Set/reset conversation timeout for background processing trigger
       await this.setConversationTimeout(conversationId);
@@ -443,6 +666,7 @@ export class ConversationController {
         success: true,
         data: {
           conversationId,
+          sessionId: session.session_id,
           initialResponse: result
         },
         message: 'Conversation started successfully'
@@ -781,9 +1005,9 @@ export class ConversationController {
         success: true,
         data: {
           sessions: sessions.map(session => ({
-            session_id: session.session_id,
-            created_at: session.created_at,
-            last_active_at: session.last_active_at,
+            session_id: (session as any).session_id,
+            created_at: (session as any).created_at,
+            last_active_at: (session as any).last_active_at,
             most_recent_conversation_title: (session as any).conversations?.[0]?.title || 'New Chat',
             conversation_count: (session as any).conversations?.length || 0,
             conversations: (session as any).conversations || []
@@ -802,4 +1026,96 @@ export class ConversationController {
       } as TApiResponse<any>);
     }
   };
+
+  /**
+   * RESTORED: Determine file type from MIME type and filename
+   * From deleted agent.controller.ts
+   */
+  private determineFileType(mimeType: string, filename: string): 'image' | 'document' | 'unknown' {
+    // Check MIME type first
+    if (mimeType.startsWith('image/')) {
+      return 'image';
+    }
+    
+    // Check for document MIME types
+    const documentMimeTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'text/plain',
+      'text/markdown',
+      'application/rtf'
+    ];
+    
+    if (documentMimeTypes.includes(mimeType)) {
+      return 'document';
+    }
+    
+    // Fallback to file extension
+    const path = require('path');
+    const extension = path.extname(filename).toLowerCase();
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'];
+    const documentExtensions = ['.pdf', '.doc', '.docx', '.txt', '.md', '.rtf'];
+    
+    if (imageExtensions.includes(extension)) {
+      return 'image';
+    }
+    
+    if (documentExtensions.includes(extension)) {
+      return 'document';
+    }
+    
+    return 'unknown';
+  }
+
+
+  /**
+   * Get proactive greeting for a user from the most recent processed conversation
+   */
+  async getProactiveGreeting(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const { userId } = req.params;
+
+    if (!userId) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'MISSING_USER_ID',
+          message: 'User ID is required'
+        }
+      } as TApiResponse<any>);
+      return;
+    }
+
+    try {
+      const recentConversation = await this.conversationRepository.getMostRecentProcessedConversationWithContext(userId);
+
+      if (!recentConversation || !recentConversation.proactive_greeting) {
+        res.status(404).json({
+          success: false,
+          error: {
+            code: 'NO_PROACTIVE_GREETING',
+            message: 'No proactive greeting found for this user'
+          }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        data: {
+          proactive_greeting: recentConversation.proactive_greeting
+        }
+      } as TApiResponse<any>);
+
+    } catch (error) {
+      console.error('Error fetching proactive greeting:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Internal server error'
+        }
+      } as TApiResponse<any>);
+    }
+  }
 } 

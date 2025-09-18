@@ -1,0 +1,22 @@
+{
+  "name": "@2dots1line/ontology-core",
+  "version": "1.0.0",
+  "description": "Shared ontology persistence logic for concept merging, archiving, and community creation",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@2dots1line/database": "workspace:*",
+    "@2dots1line/shared-types": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "files": [
+    "dist/**/*"
+  ]
+}

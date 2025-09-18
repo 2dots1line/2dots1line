@@ -4,4 +4,5 @@
 export * from './ai';
 export * from './composite';
 export * from './data';
-export * from './retrieval'; 
+export * from './retrieval';
+export * from './similarity'; 

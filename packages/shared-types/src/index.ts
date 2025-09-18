@@ -86,7 +86,6 @@ export type {
   TUser,
   CoreIdentity,
   UserMemoryProfile,
-  KnowledgeGraphSchema,
   NextConversationContextPackage,
   TurnContextPackage,
   AugmentedMemoryContext,

@@ -18,8 +18,6 @@ export interface TDerivedArtifact {
   title: string;
   /** Narrative content of the artifact (optional) */
   content_narrative: string | null;
-  /** Structured data content (JSON object, optional) */
-  content_data: Record<string, unknown> | null;
   /** IDs of the source memory units (optional) */
   source_memory_unit_ids: string[];
   /** IDs of the source concepts (optional) */

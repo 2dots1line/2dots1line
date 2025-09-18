@@ -21,6 +21,7 @@ import {
   HybridRetrievalTool 
 } from '@2dots1line/tools';
 import { IExecutableTool } from '@2dots1line/shared-types';
+import { LLMRetryHandler } from '@2dots1line/core-utils';
 import { Redis } from 'ioredis';
 
 import { ConfigService } from '../../config-service/src/ConfigService';
@@ -95,12 +96,14 @@ export class DialogueAgent {
       key_phrases_used?: string[];
       memory_retrieval_performed?: boolean;
     };
+    vision_analysis?: string; // Add vision analysis result for record keeping
+    document_analysis?: string; // Add document analysis result for record keeping
   }> {
     const executionId = `da_${Date.now()}`;
     console.log(`[${executionId}] Starting turn processing for convo: ${input.conversationId}`);
 
     // --- PHASE I: INPUT PRE-PROCESSING ---
-    const finalInputText = await this.processInput(input.currentMessageText, input.currentMessageMedia);
+    const { processedText: finalInputText, visionAnalysis, documentAnalysis } = await this.processInput(input.currentMessageText, input.currentMessageMedia);
 
     // --- PHASE II: SINGLE SYNTHESIS LLM CALL ---
     const llmResponse = await this.performSingleSynthesisCall({ ...input, finalInputText }, undefined, 'first');
@@ -128,7 +131,9 @@ export class DialogueAgent {
           execution_id: executionId,
           decision: response_plan.decision,
           processing_time_ms: Date.now() - parseInt(executionId.split('_')[1])
-        }
+        },
+        vision_analysis: visionAnalysis,
+        document_analysis: documentAnalysis
       };
     } 
     
@@ -182,7 +187,9 @@ export class DialogueAgent {
           key_phrases_used: keyPhrases,
           memory_retrieval_performed: true,
           processing_time_ms: Date.now() - parseInt(executionId.split('_')[1])
-        }
+        },
+        vision_analysis: visionAnalysis,
+        document_analysis: documentAnalysis
       };
     }
 
@@ -197,9 +204,11 @@ export class DialogueAgent {
     type: string;
     url?: string;
     content?: string;
-  }>): Promise<string> {
+  }>): Promise<{ processedText: string; visionAnalysis?: string; documentAnalysis?: string }> {
     console.log(`🔍 DialogueAgent - processInput called with text: "${text}", media:`, media);
     let mediaText = '';
+    let visionAnalysis: string | undefined;
+    let documentAnalysis: string | undefined;
     
     if (media && media.length > 0) {
       console.log(`🔍 DialogueAgent - Processing ${media.length} media items`);
@@ -228,8 +237,10 @@ export class DialogueAgent {
             });
             
             if (visionResult.status === 'success' && visionResult.result?.caption) {
-              mediaText += `\n[Image Analysis: ${visionResult.result.caption}]`;
-              console.log(`✅ DialogueAgent - Image analysis completed: ${(visionResult.result.caption as string).substring(0, 100)}...`);
+              const caption = visionResult.result.caption as string;
+              mediaText += `\n[Image Analysis: ${caption}]`;
+              visionAnalysis = caption; // Store the full vision analysis for record keeping
+              console.log(`✅ DialogueAgent - Image analysis completed: ${caption.substring(0, 100)}...`);
             } else {
               console.warn(`⚠️ DialogueAgent - Vision analysis failed:`, visionResult.error);
               mediaText += `\n[Image provided but analysis failed]`;
@@ -292,8 +303,10 @@ export class DialogueAgent {
               });
               
               if (documentResult.status === 'success' && documentResult.result?.extractedText) {
-                mediaText += `\n[Document Analysis: ${documentResult.result.extractedText}]`;
-                console.log(`✅ DialogueAgent - Document analysis completed: ${(documentResult.result.extractedText as string).substring(0, 100)}...`);
+                const extractedText = documentResult.result.extractedText as string;
+                mediaText += `\n[Document Analysis: ${extractedText}]`;
+                documentAnalysis = extractedText; // Store the full document analysis for record keeping
+                console.log(`✅ DialogueAgent - Document analysis completed: ${extractedText.substring(0, 100)}...`);
               } else {
                 console.warn(`⚠️ DialogueAgent - Document analysis failed:`, documentResult.error);
                 mediaText += `\n[Document provided but analysis failed]`;
@@ -324,7 +337,11 @@ export class DialogueAgent {
       }
     }
     
-    return `${text || ''}${mediaText}`.trim();
+    return {
+      processedText: `${text || ''}${mediaText}`.trim(),
+      visionAnalysis,
+      documentAnalysis
+    };
   }
 
   /**
@@ -389,81 +406,77 @@ export class DialogueAgent {
     });
     
     const llmToolInput = {
-      userId: input.userId,
-      sessionId: input.conversationId,
-      workerType: 'dialogue-service',
-      workerJobId: `dialogue-${Date.now()}`,
-      conversationId: input.conversationId,
-      messageId: `msg-${Date.now()}`,
-      sourceEntityId: input.conversationId,
-      systemPrompt: promptOutput.systemPrompt,        // ✅ Background context only
-      userMessage: promptOutput.userPrompt,           // ✅ Current turn context  
-      history: formattedHistory, // ✅ Properly formatted history
-      memoryContextBlock: augmentedMemoryContext?.relevant_memories?.join('\n') || '',
-      temperature: 0.3, // ✅ Lower for consistent formatting
-      maxTokens: 50000
+      payload: {
+        userId: input.userId,
+        sessionId: input.conversationId,
+        workerType: 'dialogue-service',
+        workerJobId: `dialogue-${Date.now()}`,
+        conversationId: input.conversationId,
+        messageId: `msg-${Date.now()}`,
+        sourceEntityId: input.conversationId,
+        systemPrompt: promptOutput.systemPrompt,        // ✅ Background context only
+        userMessage: promptOutput.userPrompt,           // ✅ Current turn context  
+        history: formattedHistory, // ✅ Properly formatted history
+        memoryContextBlock: augmentedMemoryContext?.relevant_memories?.join('\n') || '',
+        temperature: 0.3, // ✅ Lower for consistent formatting
+        maxTokens: 50000
+      },
+      request_id: `dialogue-${Date.now()}-${callType}`
     };
 
     console.log(`[DialogueAgent] V11.0 - ${callType.toUpperCase()} LLM call - LLM input prepared:`, {
-      systemPromptLength: llmToolInput.systemPrompt.length,
-      userMessageLength: llmToolInput.userMessage.length,
-      historyCount: llmToolInput.history.length,
-      hasMemoryContext: !!llmToolInput.memoryContextBlock,
-      memoryContextLength: llmToolInput.memoryContextBlock?.length || 0
+      systemPromptLength: llmToolInput.payload.systemPrompt.length,
+      userMessageLength: llmToolInput.payload.userMessage.length,
+      historyCount: llmToolInput.payload.history.length,
+      hasMemoryContext: !!llmToolInput.payload.memoryContextBlock,
+      memoryContextLength: llmToolInput.payload.memoryContextBlock?.length || 0
     });
 
     // Enhanced LLM call with retry logic
-    const llmResult = await this.executeLLMWithRetry(llmToolInput, callType);
+    const llmResult = await LLMRetryHandler.executeWithRetry(
+      this.llmChatTool,
+      llmToolInput,
+      { 
+        maxAttempts: 3, 
+        baseDelay: 1000,
+        callType: callType
+      }
+    );
 
+    // Use Gemini's native JSON parsing
+    return this.parseLLMResponse(llmResult);
+  }
+
+  /**
+   * Simple LLM response parser using Gemini's native JSON capabilities.
+   * Clean and reliable - no complex fallback strategies.
+   */
+  private parseLLMResponse(llmResult: any): any {
+    const rawText = llmResult.result.text;
+    console.log('DialogueAgent - Raw LLM response:', rawText.substring(0, 200) + '...');
+    
     try {
-      // Extract JSON from between markers
-      const rawText = llmResult.result.text;
-      console.log('DialogueAgent - Raw LLM response:', rawText.substring(0, 200) + '...');
+      // Simple JSON extraction - just find the JSON between { and }
+      const firstBrace = rawText.indexOf('{');
+      const lastBrace = rawText.lastIndexOf('}');
       
-      let jsonText = '';
-      
-      // First try: Look for special JSON markers
-      const beginMarker = '###==BEGIN_JSON==###';
-      const endMarker = '###==END_JSON==###';
-      
-      const beginIndex = rawText.indexOf(beginMarker);
-      const endIndex = rawText.indexOf(endMarker);
-      
-      if (beginIndex !== -1 && endIndex !== -1) {
-        jsonText = rawText.substring(beginIndex + beginMarker.length, endIndex).trim();
-        console.log('DialogueAgent - Found special markers, extracted JSON');
-      } else {
-        // Fallback: Look for markdown code blocks
-        const codeBlockStart = rawText.indexOf('```json');
-        const codeBlockEnd = rawText.indexOf('```', codeBlockStart + 7);
-        
-        if (codeBlockStart !== -1 && codeBlockEnd !== -1) {
-          jsonText = rawText.substring(codeBlockStart + 7, codeBlockEnd).trim();
-          console.log('DialogueAgent - Found markdown code block, extracted JSON');
-        } else {
-          // Final fallback: Try to find JSON by looking for { and }
-          const firstBrace = rawText.indexOf('{');
-          const lastBrace = rawText.lastIndexOf('}');
-          
-          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-            jsonText = rawText.substring(firstBrace, lastBrace + 1).trim();
-            console.log('DialogueAgent - Found braces, extracted JSON');
-          } else {
-            console.error('DialogueAgent - No JSON markers or code blocks found in LLM response:', rawText);
-            throw new Error("LLM response missing JSON markers or code blocks.");
-          }
-        }
+      if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+        throw new Error("No valid JSON found in LLM response");
       }
       
+      const jsonText = rawText.substring(firstBrace, lastBrace + 1).trim();
       console.log('DialogueAgent - Extracted JSON:', jsonText.substring(0, 100) + '...');
       
+      // Parse the JSON directly
       return JSON.parse(jsonText);
+      
     } catch (e) {
       console.error('DialogueAgent - JSON parsing error:', e);
       console.error('DialogueAgent - Raw LLM response:', llmResult.result.text);
       throw new Error("LLM returned malformed JSON.");
     }
   }
+
 
   /**
    * V11.0: Format conversation history for LLM consumption
@@ -553,113 +566,5 @@ export class DialogueAgent {
     }
   }
 
-  /**
-   * Enhanced LLM execution with automatic retry and fallback model support
-   */
-  private async executeLLMWithRetry(
-    llmInput: any,
-    callType: 'first' | 'second'
-  ): Promise<any> {
-    let attempts = 0;
-    const maxAttempts = 3; // Try primary model + 2 fallback models
-    
-    while (attempts < maxAttempts) {
-      attempts++;
-      try {
-        console.log(`[DialogueAgent] ${callType.toUpperCase()} LLM call - Attempt ${attempts}/${maxAttempts}`);
-        
-        const llmResult = await this.llmChatTool.execute({ payload: llmInput });
-        
-        if (llmResult.status === 'success' && llmResult.result?.text) {
-          console.log(`[DialogueAgent] ${callType.toUpperCase()} LLM call successful on attempt ${attempts}`);
-          return llmResult;
-        }
-        
-        // Check if this is a retryable error
-        const errorMessage = llmResult.error?.message || 'Unknown error';
-        if (attempts < maxAttempts && this.isRetryableError(errorMessage)) {
-          console.log(`[DialogueAgent] ${callType.toUpperCase()} LLM call - Retryable error detected: ${errorMessage}`);
-          console.log(`[DialogueAgent] ${callType.toUpperCase()} LLM call - Attempting to switch to fallback model...`);
-          
-          try {
-            // Force reinitialization to try a different model
-            if ((this.llmChatTool as any).forceReinitialize) {
-              (this.llmChatTool as any).forceReinitialize();
-              console.log(`[DialogueAgent] ${callType.toUpperCase()} LLM call - Switched to fallback model`);
-            }
-            
-            // Add exponential backoff delay before retrying
-            const delay = Math.min(1000 * Math.pow(2, attempts - 1), 10000); // Max 10 seconds
-            console.log(`[DialogueAgent] ${callType.toUpperCase()} LLM call - Waiting ${delay}ms before retry...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            
-            continue; // Try again with the new model
-          } catch (modelSwitchError) {
-            console.error(`[DialogueAgent] ${callType.toUpperCase()} LLM call - Failed to switch to fallback model:`, modelSwitchError);
-            // Continue with the next attempt
-          }
-        } else {
-          // If not retryable or all attempts exhausted, break out of retry loop
-          console.error(`[DialogueAgent] ${callType.toUpperCase()} LLM call - Non-retryable error or max attempts reached: ${errorMessage}`);
-          throw new Error(`LLM call failed: ${errorMessage}`);
-        }
-      } catch (error) {
-        console.error(`[DialogueAgent] ${callType.toUpperCase()} LLM call - Unexpected error on attempt ${attempts}:`, error);
-        
-        if (attempts < maxAttempts && this.isRetryableError(error)) {
-          console.log(`[DialogueAgent] ${callType.toUpperCase()} LLM call - Retryable error, attempting retry...`);
-          
-          try {
-            // Force reinitialization to try a different model
-            if ((this.llmChatTool as any).forceReinitialize) {
-              (this.llmChatTool as any).forceReinitialize();
-              console.log(`[DialogueAgent] ${callType.toUpperCase()} LLM call - Switched to fallback model after unexpected error`);
-            }
-            
-            // Add exponential backoff delay before retrying
-            const delay = Math.min(1000 * Math.pow(2, attempts - 1), 10000);
-            console.log(`[DialogueAgent] ${callType.toUpperCase()} LLM call - Waiting ${delay}ms before retry...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            
-            continue; // Try again with the new model
-          } catch (modelSwitchError) {
-            console.error(`[DialogueAgent] ${callType.toUpperCase()} LLM call - Failed to switch to fallback model:`, modelSwitchError);
-          }
-        } else {
-          // If not retryable or all attempts exhausted, re-throw the error
-          throw error;
-        }
-      }
-    }
-
-    // If all attempts fail, throw the last error
-    console.error(`[DialogueAgent] ${callType.toUpperCase()} LLM call - All ${maxAttempts} attempts failed`);
-    throw new Error(`Failed to get LLM response after ${maxAttempts} attempts. The AI service may be temporarily overloaded. Please try again in a moment.`);
-  }
-
-  /**
-   * Check if an error is retryable (e.g., model overload, rate limit, temporary issues)
-   */
-  private isRetryableError(error: any): boolean {
-    if (!error) return false;
-    
-    const errorMessage = (typeof error === 'string') ? error : (error.message || error.toString() || '');
-    const retryablePatterns = [
-      /model is overloaded/i,
-      /service unavailable/i,
-      /rate limit/i,
-      /quota exceeded/i,
-      /temporary/i,
-      /try again later/i,
-      /timeout/i,
-      /network error/i,
-      /connection error/i,
-      /503/i, // Service Unavailable
-      /429/i, // Too Many Requests
-      /500/i  // Internal Server Error
-    ];
-    
-    return retryablePatterns.some(pattern => pattern.test(errorMessage));
-  }
 
 } 

@@ -5,9 +5,10 @@
 
 import { ConfigService } from '@2dots1line/config-service';
 import { DatabaseService } from '@2dots1line/database';
-import { StrategicSynthesisTool } from '@2dots1line/tools';
+import { StrategicSynthesisTool, HybridRetrievalTool } from '@2dots1line/tools';
 import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
 import { Worker, Queue } from 'bullmq';
+import { Redis } from 'ioredis';
 
 import { InsightEngine, InsightJobData } from './InsightEngine';
 
@@ -32,14 +33,46 @@ async function main() {
     const strategicSynthesisTool = new StrategicSynthesisTool(configService);
     console.log('[InsightWorker] StrategicSynthesisTool instantiated');
 
-    // 3. Initialize BullMQ queues with EnvironmentLoader
-    const redisConnection = {
-      host: environmentLoader.get('REDIS_HOST') || 'localhost',
-      port: parseInt(environmentLoader.get('REDIS_PORT') || '6379'),
-      password: environmentLoader.get('REDIS_PASSWORD'),
-    };
+    // 2.1. Instantiate the HybridRetrievalTool
+    const hybridRetrievalTool = new HybridRetrievalTool(dbService, configService);
+    console.log('[InsightWorker] HybridRetrievalTool instantiated');
 
-    console.log(`[InsightWorker] Redis connection configured: ${redisConnection.host}:${redisConnection.port}`);
+    // 3. Create dedicated Redis connection for BullMQ to prevent connection pool exhaustion
+    const redisUrl = environmentLoader.get('REDIS_URL');
+    let redisConnection: Redis;
+    
+    if (redisUrl) {
+      redisConnection = new Redis(redisUrl, {
+        maxRetriesPerRequest: null, // Required by BullMQ
+        enableReadyCheck: false,
+        lazyConnect: true,
+        family: 4,
+        keepAlive: 30000,
+        connectTimeout: 10000,
+        commandTimeout: 10000,
+        enableOfflineQueue: true
+      });
+    } else {
+      const redisHost = environmentLoader.get('REDIS_HOST') || environmentLoader.get('REDIS_HOST_DOCKER') || 'localhost';
+      const redisPort = parseInt(environmentLoader.get('REDIS_PORT') || environmentLoader.get('REDIS_PORT_DOCKER') || '6379');
+      const redisPassword = environmentLoader.get('REDIS_PASSWORD');
+      
+      redisConnection = new Redis({
+        host: redisHost,
+        port: redisPort,
+        password: redisPassword,
+        maxRetriesPerRequest: null, // Required by BullMQ
+        enableReadyCheck: false,
+        lazyConnect: true,
+        family: 4,
+        keepAlive: 30000,
+        connectTimeout: 10000,
+        commandTimeout: 10000,
+        enableOfflineQueue: true
+      });
+    }
+
+    console.log(`[InsightWorker] Using dedicated Redis connection for BullMQ`);
 
     const cardQueue = new Queue('card-queue', { connection: redisConnection });
     const graphQueue = new Queue('graph-queue', { connection: redisConnection });
@@ -49,6 +82,8 @@ async function main() {
     // 4. Instantiate the InsightEngine with its dependencies
     const insightEngine = new InsightEngine(
       strategicSynthesisTool,
+      hybridRetrievalTool,
+      configService,
       dbService,
       cardQueue,
       graphQueue,
@@ -62,8 +97,19 @@ async function main() {
       'insight',
       async (job) => {
         console.log(`[InsightWorker] Processing job ${job.id}: ${job.data.userId}`);
-        await insightEngine.processUserCycle(job);
-        console.log(`[InsightWorker] Completed job ${job.id}`);
+        try {
+          await insightEngine.processUserCycle(job);
+          console.log(`[InsightWorker] Completed job ${job.id}`);
+        } catch (error) {
+          // Check if this is a non-retryable error
+          if (error instanceof Error && error.name === 'NonRetryableError') {
+            console.error(`[InsightWorker] Non-retryable error detected for job ${job.id}: ${error.message}`);
+            // Mark job as failed without retry
+            throw new Error(`NON_RETRYABLE: ${error.message}`);
+          }
+          // Re-throw other errors for normal retry logic
+          throw error;
+        }
       },
       {
         connection: redisConnection,
@@ -72,16 +118,31 @@ async function main() {
     );
 
     // Configure queue-level retry settings for BullMQ v4+
+    // DISABLED: BullMQ retries are disabled - only LLM retries are handled by LLMRetryHandler
     const insightQueue = new Queue('insight', { 
       connection: redisConnection,
       defaultJobOptions: {
-        attempts: 3,
-        backoff: {
-          type: 'exponential',
-          delay: 2000,
-        },
+        attempts: 1, // NO BULLMQ RETRIES - LLM retries handled by LLMRetryHandler only
         removeOnComplete: { count: 10 },
         removeOnFail: { count: 50 },
+      }
+    });
+
+    // Error handler - BullMQ retries are disabled, only LLM retries are handled by LLMRetryHandler
+    worker.on('failed', (job, err) => {
+      console.error(`[InsightWorker] Job ${job?.id} FAILED - BullMQ retries disabled`);
+      console.error(`[InsightWorker] Error type: ${err.name || 'Unknown'}`);
+      console.error(`[InsightWorker] Error message: ${err.message}`);
+      
+      // Log specific error details for debugging
+      if (err.message.includes('503') || err.message.includes('server overload')) {
+        console.error(`[InsightWorker] LLM service overload detected - this should have been retried by LLMRetryHandler`);
+      } else if (err.message.includes('database') || err.message.includes('postgres') || err.message.includes('neo4j')) {
+        console.error(`[InsightWorker] Database error detected - this is NOT retryable at BullMQ level`);
+      } else if (err.message.includes('validation') || err.message.includes('schema')) {
+        console.error(`[InsightWorker] Validation error detected - this is NOT retryable at BullMQ level`);
+      } else {
+        console.error(`[InsightWorker] Unknown error type - manual investigation required`);
       }
     });
 
@@ -125,25 +186,25 @@ async function main() {
     console.log('[InsightWorker] Worker is running and listening for jobs on insight queue');
 
     // Graceful shutdown
-    process.on('SIGINT', async () => {
-      console.log('[InsightWorker] Received SIGINT, shutting down gracefully...');
-      await worker.close();
-      await cardQueue.close();
-      await graphQueue.close();
-      await embeddingQueue.close();
-      console.log('[InsightWorker] Shutdown complete');
-      process.exit(0);
-    });
+    const gracefulShutdown = async (signal: string) => {
+      console.log(`[InsightWorker] Received ${signal}, shutting down gracefully...`);
+      try {
+        await worker.close();
+        await cardQueue.close();
+        await graphQueue.close();
+        await embeddingQueue.close();
+        // Close dedicated Redis connection
+        await redisConnection.quit();
+        console.log('[InsightWorker] Shutdown complete');
+        process.exit(0);
+      } catch (error) {
+        console.error('[InsightWorker] Error during shutdown:', error);
+        process.exit(1);
+      }
+    };
 
-    process.on('SIGTERM', async () => {
-      console.log('[InsightWorker] Received SIGTERM, shutting down gracefully...');
-      await worker.close();
-      await cardQueue.close();
-      await graphQueue.close();
-      await embeddingQueue.close();
-      console.log('[InsightWorker] Shutdown complete');
-      process.exit(0);
-    });
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
   } catch (error) {
     console.error('[InsightWorker] Failed to start:', error);
