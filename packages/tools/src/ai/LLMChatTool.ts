@@ -125,13 +125,13 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
   private modelConfigService: EnvironmentModelConfigService | null = null;
   private currentModelName: string | null = null;
   private initialized = false;
-  private provider: 'gemini' | 'openai' = 'gemini';
+  private provider: 'gemini' | 'openai' = 'openai';
 
   private initialize() {
     // Decide provider
-    this.provider = (process.env.LLM_PROVIDER as 'gemini' | 'openai') || 'gemini';
+    this.provider = (process.env.LLM_PROVIDER as 'gemini' | 'openai') || 'openai';
     this.modelConfigService = EnvironmentModelConfigService.getInstance();
-    const newModelName = this.modelConfigService.getModelForUseCase('chat') || (this.provider === 'openai' ? 'gpt-3.5-turbo' : undefined);
+    const newModelName = this.modelConfigService.getModelForUseCase('chat') || (this.provider === 'openai' ? 'llama3.2:3b' : undefined);
 
     if (!this.initialized || this.currentModelName !== newModelName || !this.provider) {
       console.log(`🤖 LLMChatTool: Initializing with provider ${this.provider}, model ${newModelName}`);
@@ -160,7 +160,10 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
       } else if (this.provider === 'openai') {
         const apiKey = process.env.OPENAI_API_KEY;
         if (!apiKey) throw new Error('OPENAI_API_KEY environment variable is required');
-        this.openai = new OpenAI({ apiKey });
+        const baseUrl = process.env.OPENAI_BASE_URL;
+        if (!baseUrl) throw new Error('OPENAI_BASE_URL environment variable is required for OpenAI provider');
+        this.openai = new OpenAI({apiKey});
+        this.openai.baseURL = baseUrl;
       }
 
       this.initialized = true;
@@ -177,7 +180,8 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
     this.currentModelName = null;
     this.initialize();
   }
-
+  
+  
   /**
    * Log LLM interaction to database
    */
