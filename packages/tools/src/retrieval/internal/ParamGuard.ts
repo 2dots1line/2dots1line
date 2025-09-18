@@ -26,7 +26,7 @@ export class ParamGuard {
   // V9.5 Configuration limits
   private static readonly MAX_RESULT_LIMIT = 100;
   private static readonly MAX_GRAPH_HOPS = 3;
-  private static readonly MAX_SEED_ENTITIES = 50;
+  private static readonly MAX_SEED_ENTITIES = 300;
   private static readonly USER_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
   private rules: ValidationRule[];

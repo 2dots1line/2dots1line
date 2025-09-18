@@ -1,13 +1,11 @@
 'use client';
 
-import { GlassmorphicPanel, GlassButton } from '@2dots1line/ui-components';
+import { GlassmorphicPanel, GlassButton, MarkdownRenderer } from '@2dots1line/ui-components';
 import { 
   X, 
   TrendingUp, 
-  Calendar, 
   Activity,
   Brain,
-  Heart,
   Globe,
   Target,
   Lightbulb,
@@ -18,10 +16,14 @@ import {
   Clock,
   Zap,
   Eye,
-  Compass
+  Compass,
+  Sprout,
+  User,
+  Plus,
+  Sparkles
 } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
-import { dashboardService, type GrowthDimension, type Insight, type RecentActivity } from '../../services/dashboardService';
+import { dashboardService, type RecentActivity, type DynamicDashboardData } from '../../services/dashboardService';
 
 interface DashboardModalProps {
   isOpen: boolean;
@@ -32,20 +34,51 @@ interface DashboardModalProps {
 
 const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
   const [isLoading, setIsLoading] = useState(true);
-  const [userData, setUserData] = useState<any>(null);
-  const [growthProfile, setGrowthProfile] = useState<GrowthDimension[]>([]);
-  const [recentInsights, setRecentInsights] = useState<Insight[]>([]);
+  const [userData, setUserData] = useState<{ name: string; email: string; memberSince: string } | null>(null);
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
-  const [activeTab, setActiveTab] = useState<'overview' | 'growth' | 'insights' | 'activity'>('overview');
+  const [dynamicDashboardData, setDynamicDashboardData] = useState<DynamicDashboardData | null>(null);
+  const [dashboardConfig, setDashboardConfig] = useState<{
+    dashboard_sections: Record<string, {
+      title: string;
+      icon: string;
+      description: string;
+      max_items: number;
+      priority: number;
+      category: string;
+    }>;
+    dashboard_layout: {
+      tabs: Record<string, {
+        title: string;
+        icon: string;
+        section_groups: Array<{
+          title: string;
+          sections: string[];
+          priority: number;
+        }>;
+      }>;
+    };
+  } | null>(null);
+  const [activeTab, setActiveTab] = useState<'opening' | 'dynamic' | 'growth-trajectory' | 'activity'>('opening');
+  const [proactiveGreeting, setProactiveGreeting] = useState<string | null>(null);
+  const [userMetrics, setUserMetrics] = useState<{
+    memory_units_count: number;
+    concepts_count: number;
+    growth_events_count: number;
+    cards_count: number;
+    latest_cycle_date_range: {
+      start_date: string | null;
+      end_date: string | null;
+    };
+    total_artifacts: number;
+    total_prompts: number;
+  } | null>(null);
 
-  // Icon mapping for growth dimensions
-  const dimensionIcons: Record<string, React.ComponentType<any>> = {
-    self_know: Brain,
-    self_act: Target,
-    self_show: Heart,
-    world_know: BookOpen,
-    world_act: Globe,
-    world_show: MessageCircle
+  // Tab name mapping
+  const tabNames: Record<string, string> = {
+    'opening': 'Opening',
+    'dynamic': 'Dynamic Insights',
+    'growth-trajectory': 'Growth Trajectory',
+    'activity': 'Activity'
   };
 
   // Mock data will be replaced by API calls
@@ -59,20 +92,55 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
   const loadDashboardData = async () => {
     setIsLoading(true);
     try {
-      const response = await dashboardService.getDashboardData();
+      // Load all dashboard data
+      const [legacyResponse, dynamicResponse, configResponse, greetingResponse, metricsResponse] = await Promise.all([
+        dashboardService.getDashboardData(),
+        dashboardService.getDynamicDashboard(),
+        dashboardService.getDashboardConfig(),
+        dashboardService.getProactiveGreeting(),
+        dashboardService.getUserMetrics()
+      ]);
       
-      if (response.success && response.data) {
+      if (legacyResponse.success && legacyResponse.data) {
         setUserData({
           name: 'Alex', // This would come from user service
           email: 'alex@example.com',
           memberSince: '2024-06-15'
         });
-        setGrowthProfile(response.data.growthProfile);
-        setRecentInsights(response.data.recentInsights);
-        setRecentActivity(response.data.recentActivity);
+        setRecentActivity(legacyResponse.data.recentActivity);
       } else {
-        console.error('Failed to load dashboard data:', response.error);
+        console.error('Failed to load legacy dashboard data:', legacyResponse.error);
       }
+
+      if (dynamicResponse.success && dynamicResponse.data) {
+        setDynamicDashboardData(dynamicResponse.data);
+      } else {
+        console.error('Failed to load dynamic dashboard data:', dynamicResponse.error);
+      }
+
+      if (configResponse.success && configResponse.data) {
+        console.log('🔧 Dashboard config loaded:', configResponse.data);
+        console.log('🔧 Dashboard sections:', configResponse.data.dashboard_sections);
+        console.log('🔧 Dashboard layout tabs:', configResponse.data.dashboard_layout?.tabs);
+        setDashboardConfig(configResponse.data);
+      } else {
+        console.error('❌ Failed to load dashboard config:', configResponse.error);
+      }
+
+      if (greetingResponse.success && greetingResponse.data) {
+        setProactiveGreeting(greetingResponse.data.greeting);
+        console.log('👋 Proactive greeting loaded:', greetingResponse.data.greeting);
+      } else {
+        console.error('❌ Failed to load proactive greeting:', greetingResponse.error);
+      }
+
+      if (metricsResponse.success && metricsResponse.data) {
+        setUserMetrics(metricsResponse.data);
+        console.log('📊 User metrics loaded:', metricsResponse.data);
+      } else {
+        console.error('❌ Failed to load user metrics:', metricsResponse.error);
+      }
+
     } catch (error) {
       console.error('Error loading dashboard data:', error);
     } finally {
@@ -98,10 +166,6 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
     return `${diffInDays}d ago`;
   };
 
-  const getDimensionIcon = (dimension: GrowthDimension) => {
-    const IconComponent = dimensionIcons[dimension.key];
-    return IconComponent ? <IconComponent size={16} className="stroke-current" strokeWidth={1.5} /> : null;
-  };
 
   const getActivityIcon = (type: string) => {
     switch (type) {
@@ -111,6 +175,98 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
       case 'growth': return <TrendingUp size={16} className="stroke-current" strokeWidth={1.5} />;
       default: return <Activity size={16} className="stroke-current" strokeWidth={1.5} />;
     }
+  };
+
+  // Map emoji icons to Lucide components
+  const getIconComponent = (emoji: string) => {
+    const iconMap: Record<string, React.ComponentType<any>> = {
+      '💡': Lightbulb,
+      '🎯': Target,
+      '📋': Award,
+      '🤔': MessageCircle,
+      '🎉': Star,
+      '🃏': Eye,
+      '📈': TrendingUp,
+      '🔍': Compass,
+      '🧠': Brain,
+      '🌟': Star,
+      '⚠️': Eye,
+      '🎨': Star,
+      '📚': BookOpen,
+      '⚡': Zap,
+      '💬': MessageCircle,
+      '🌍': Globe,
+      '🌱': Sprout,
+      '🎭': User,
+      '🆕': Plus,
+      '🔮': Sparkles
+    };
+    return iconMap[emoji] || Lightbulb;
+  };
+
+
+  // Get section groups for a specific tab from configuration
+  const getTabSectionGroups = (tabKey: string) => {
+    if (!dashboardConfig) {
+      console.log(`[DashboardModal] DEBUG: No dashboardConfig for tab ${tabKey}`);
+      return [];
+    }
+    
+    const tabConfig = dashboardConfig.dashboard_layout?.tabs?.[tabKey];
+    if (!tabConfig?.section_groups) {
+      console.log(`[DashboardModal] DEBUG: No section_groups for tab ${tabKey}`, { tabConfig, dashboardLayout: dashboardConfig.dashboard_layout });
+      return [];
+    }
+    
+    console.log(`[DashboardModal] DEBUG: Found ${tabConfig.section_groups.length} section groups for tab ${tabKey}`, tabConfig.section_groups);
+    return tabConfig.section_groups.sort((a, b) => a.priority - b.priority);
+  };
+
+
+  // Render any section dynamically based on configuration
+  const renderSection = (sectionKey: string, sectionData: { items: Array<{ id: string; title: string; content: string; confidence?: number; actionability?: string }>; total_count: number }) => {
+    const config = dashboardConfig?.dashboard_sections?.[sectionKey];
+    if (!config || !dashboardConfig) return null;
+    
+    // Hide sections with no data
+    if (!sectionData.items || sectionData.items.length === 0) return null;
+    
+    
+    const IconComponent = getIconComponent(config.icon);
+    
+    return (
+      <GlassmorphicPanel
+        key={sectionKey}
+        variant="glass-panel"
+        rounded="lg"
+        padding="md"
+        className="hover:bg-white/15 transition-all duration-200 h-fit"
+      >
+        <div className="flex items-center gap-3 mb-4">
+          <IconComponent size={20} className="text-white/80 stroke-current" strokeWidth={1.5} />
+          <h4 className="text-white/90 font-medium">{config.title}</h4>
+          <span className="text-xs text-white/60">({sectionData.total_count})</span>
+        </div>
+        <div className="space-y-3">
+          {sectionData.items.slice(0, config.max_items || 3).map((item) => (
+            <div key={item.id} className="p-3 bg-white/10 rounded-lg">
+              <div className="text-sm font-medium text-white/90 mb-2">{item.title}</div>
+              <div className="text-xs text-white/70 leading-relaxed whitespace-pre-wrap">{item.content}</div>
+              {item.confidence && (
+                <div className="text-xs text-white/50 mt-2">
+                  Confidence: {Math.round(item.confidence * 100)}%
+                </div>
+              )}
+              {item.actionability && (
+                <div className="text-xs text-blue-400 mt-2">
+                  {item.actionability}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </GlassmorphicPanel>
+    );
   };
 
   if (!isOpen) return null;
@@ -126,10 +282,10 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-white font-brand">Dashboard</h1>
-                          <p className="text-white/70 text-sm">
-                {getGreeting()}, {userData?.name || 'there'}! Here&apos;s your growth journey.
-              </p>
+            <h1 className="text-2xl font-bold text-white font-brand">{tabNames[activeTab]}</h1>
+            <p className="text-white/70 text-sm">
+              {proactiveGreeting || `${getGreeting()}, ${userData?.name || 'there'}! Here's your growth journey.`}
+            </p>
           </div>
           <GlassButton
             onClick={onClose}
@@ -153,11 +309,11 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
         {!isLoading && (
           <div className="h-[calc(90vh-200px)] overflow-y-auto custom-scrollbar">
             {/* Tab Navigation */}
-            <div className="flex gap-2 mb-6">
+            <div className="flex gap-2 mb-6 flex-wrap">
               {[
-                { key: 'overview', label: 'Overview', icon: Compass },
-                { key: 'growth', label: 'Growth Dimensions', icon: TrendingUp },
-                { key: 'insights', label: 'Insights', icon: Lightbulb },
+                { key: 'opening', label: 'Opening', icon: BookOpen },
+                { key: 'dynamic', label: 'Dynamic Insights', icon: Brain },
+                { key: 'growth-trajectory', label: 'Growth Trajectory', icon: TrendingUp },
                 { key: 'activity', label: 'Activity', icon: Activity }
               ].map((tab) => {
                 const IconComponent = tab.icon;
@@ -178,243 +334,8 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
               })}
             </div>
 
-            {/* Overview Tab */}
-            {activeTab === 'overview' && (
-              <div className="space-y-6">
-                {/* Cosmic Metrics */}
-                <GlassmorphicPanel
-                  variant="glass-panel"
-                  rounded="lg"
-                  padding="md"
-                  className="hover:bg-white/15 transition-all duration-200"
-                >
-                  <div className="flex items-center gap-3 mb-4">
-                    <Star size={24} className="text-white/80 stroke-current" strokeWidth={1.5} />
-                    <h3 className="text-lg font-semibold text-white/90">Cosmic Metrics</h3>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {[
-                      { label: 'Total Memories', value: '127', icon: Brain, color: 'text-purple-400' },
-                      { label: 'Active Insights', value: '23', icon: Lightbulb, color: 'text-yellow-400' },
-                      { label: 'Growth Events', value: '156', icon: TrendingUp, color: 'text-green-400' },
-                      { label: 'Days Active', value: '45', icon: Calendar, color: 'text-blue-400' }
-                    ].map((metric) => {
-                      const IconComponent = metric.icon;
-                      return (
-                        <div key={metric.label} className="text-center">
-                          <IconComponent size={20} className={`${metric.color} stroke-current mx-auto mb-2`} strokeWidth={1.5} />
-                          <div className="text-2xl font-bold text-white">{metric.value}</div>
-                          <div className="text-xs text-white/60">{metric.label}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </GlassmorphicPanel>
 
-                {/* Growth Dimensions Overview */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <GlassmorphicPanel
-                    variant="glass-panel"
-                    rounded="lg"
-                    padding="md"
-                    className="hover:bg-white/15 transition-all duration-200"
-                  >
-                    <div className="flex items-center gap-3 mb-4">
-                      <Target size={20} className="text-white/80 stroke-current" strokeWidth={1.5} />
-                      <h3 className="text-white/90 font-medium">Growth Dimensions</h3>
-                    </div>
-                    <div className="space-y-3">
-                      {growthProfile.slice(0, 3).map((dimension) => (
-                        <div key={dimension.key} className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            {getDimensionIcon(dimension)}
-                            <span className="text-sm text-white/80">{dimension.name}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className="w-16 bg-white/20 rounded-full h-2">
-                              <div 
-                                className={`bg-gradient-to-r ${dimension.color} h-2 rounded-full transition-all duration-300`}
-                                style={{ width: `${dimension.percentageOfMax}%` }}
-                              />
-                            </div>
-                            <span className="text-xs text-white/60">{Math.round(dimension.percentageOfMax)}%</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </GlassmorphicPanel>
 
-                  <GlassmorphicPanel
-                    variant="glass-panel"
-                    rounded="lg"
-                    padding="md"
-                    className="hover:bg-white/15 transition-all duration-200"
-                  >
-                    <div className="flex items-center gap-3 mb-4">
-                      <Lightbulb size={20} className="text-white/80 stroke-current" strokeWidth={1.5} />
-                      <h3 className="text-white/90 font-medium">Recent Insights</h3>
-                    </div>
-                    <div className="space-y-3">
-                      {recentInsights.slice(0, 3).map((insight) => (
-                        <div key={insight.id} className="cursor-pointer hover:bg-white/10 p-2 rounded transition-all duration-200">
-                          <div className="text-sm font-medium text-white/90 mb-1">{insight.title}</div>
-                          <div className="text-xs text-white/60 line-clamp-2">{insight.description}</div>
-                          <div className="text-xs text-white/40 mt-1">{formatTimeAgo(insight.createdAt)}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </GlassmorphicPanel>
-                </div>
-
-                {/* Quick Actions */}
-                <GlassmorphicPanel
-                  variant="glass-panel"
-                  rounded="lg"
-                  padding="md"
-                  className="hover:bg-white/15 transition-all duration-200"
-                >
-                  <div className="flex items-center gap-3 mb-4">
-                    <Zap size={20} className="text-white/80 stroke-current" strokeWidth={1.5} />
-                    <h3 className="text-white/90 font-medium">Quick Actions</h3>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {[
-                      { label: 'Start Journaling', icon: BookOpen, action: () => console.log('Start journaling') },
-                      { label: 'Chat with Dot', icon: MessageCircle, action: () => console.log('Open chat') },
-                      { label: 'Explore Cards', icon: Eye, action: () => console.log('Open cards') },
-                      { label: 'View Insights', icon: Lightbulb, action: () => setActiveTab('insights') }
-                    ].map((action) => {
-                      const IconComponent = action.icon;
-                      return (
-                        <GlassButton
-                          key={action.label}
-                          onClick={action.action}
-                          className="p-3 flex flex-col items-center gap-2 hover:bg-white/20 transition-all duration-200"
-                        >
-                          <IconComponent size={20} className="text-white/80 stroke-current" strokeWidth={1.5} />
-                          <span className="text-xs text-white/80">{action.label}</span>
-                        </GlassButton>
-                      );
-                    })}
-                  </div>
-                </GlassmorphicPanel>
-              </div>
-            )}
-
-            {/* Growth Dimensions Tab */}
-            {activeTab === 'growth' && (
-              <div className="space-y-6">
-                <GlassmorphicPanel
-                  variant="glass-panel"
-                  rounded="lg"
-                  padding="md"
-                  className="hover:bg-white/15 transition-all duration-200"
-                >
-                  <div className="flex items-center gap-3 mb-6">
-                    <TrendingUp size={24} className="text-white/80 stroke-current" strokeWidth={1.5} />
-                    <h3 className="text-lg font-semibold text-white/90">Six-Dimensional Growth Profile</h3>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                         {growthProfile.map((dimension) => (
-                      <div key={dimension.key} className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            {getDimensionIcon(dimension)}
-                            <div>
-                              <div className="text-white/90 font-medium">{dimension.name}</div>
-                              <div className="text-xs text-white/60">{dimension.description}</div>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-lg font-bold text-white">{Math.round(dimension.percentageOfMax)}%</div>
-                            <div className="text-xs text-white/60">
-                              {dimension.trend === 'increasing' && '↗ Growing'}
-                              {dimension.trend === 'decreasing' && '↘ Declining'}
-                              {dimension.trend === 'stable' && '→ Stable'}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="w-full bg-white/20 rounded-full h-3">
-                          <div 
-                            className={`bg-gradient-to-r ${dimension.color} h-3 rounded-full transition-all duration-500`}
-                            style={{ width: `${dimension.percentageOfMax}%` }}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </GlassmorphicPanel>
-
-                {/* Growth Recommendations */}
-                <GlassmorphicPanel
-                  variant="glass-panel"
-                  rounded="lg"
-                  padding="md"
-                  className="hover:bg-white/15 transition-all duration-200"
-                >
-                  <div className="flex items-center gap-3 mb-4">
-                    <Award size={20} className="text-white/80 stroke-current" strokeWidth={1.5} />
-                    <h3 className="text-white/90 font-medium">Growth Recommendations</h3>
-                  </div>
-                  <div className="space-y-4">
-                    {[
-                      {
-                        dimension: 'Act World',
-                        recommendation: 'Consider volunteering at a local community center to apply your self-knowledge in service to others.',
-                        impact: 'High',
-                        effort: 'Medium'
-                      },
-                      {
-                        dimension: 'Show Self',
-                        recommendation: 'Start a personal blog or vlog to share your creative insights and authentic voice.',
-                        impact: 'Medium',
-                        effort: 'Low'
-                      }
-                    ].map((rec, index) => (
-                      <div key={index} className="p-3 bg-white/10 rounded-lg">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-sm font-medium text-white/90">{rec.dimension}</span>
-                          <span className="text-xs px-2 py-1 bg-white/20 rounded text-white/60">
-                            Impact: {rec.impact}
-                          </span>
-                          <span className="text-xs px-2 py-1 bg-white/20 rounded text-white/60">
-                            Effort: {rec.effort}
-                          </span>
-                        </div>
-                        <div className="text-sm text-white/70">{rec.recommendation}</div>
-                      </div>
-                    ))}
-                  </div>
-                </GlassmorphicPanel>
-              </div>
-            )}
-
-            {/* Insights Tab */}
-            {activeTab === 'insights' && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {recentInsights.map((insight) => (
-                    <GlassmorphicPanel
-                      key={insight.id}
-                      variant="glass-panel"
-                      rounded="lg"
-                      padding="md"
-                      className="hover:bg-white/15 transition-all duration-200 cursor-pointer"
-                    >
-                      <div className="flex items-center gap-3 mb-3">
-                        <Lightbulb size={20} className="text-white/80 stroke-current" strokeWidth={1.5} />
-                        <span className="text-white/90 font-medium">{insight.title}</span>
-                      </div>
-                      <p className="text-white/70 text-sm mb-4 line-clamp-3">{insight.description}</p>
-                      <div className="flex items-center justify-between text-xs text-white/60">
-                        <span>{formatTimeAgo(insight.createdAt)}</span>
-                        <span className="capitalize">{insight.type.replace('_', ' ')}</span>
-                      </div>
-                    </GlassmorphicPanel>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {/* Activity Tab */}
             {activeTab === 'activity' && (
@@ -453,6 +374,354 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                     ))}
                   </div>
                 </GlassmorphicPanel>
+              </div>
+            )}
+
+            {/* Dynamic Insights Tab - Configuration-Driven */}
+            {activeTab === 'dynamic' && (
+              <div className="space-y-6">
+                {dynamicDashboardData && dashboardConfig ? (
+                  <>
+                    {/* User Metrics Header */}
+                    <GlassmorphicPanel
+                      variant="glass-panel"
+                      rounded="lg"
+                      padding="md"
+                      className="hover:bg-white/15 transition-all duration-200"
+                    >
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <Brain size={20} className="text-white/80 stroke-current" strokeWidth={1.5} />
+                          <h3 className="text-white/90 font-medium">Dynamic Insights</h3>
+                        </div>
+                        {userMetrics?.latest_cycle_date_range?.start_date && (
+                          <div className="text-sm text-white/60">
+                            Latest Cycle: {new Date(userMetrics.latest_cycle_date_range.start_date).toLocaleDateString()} - {userMetrics.latest_cycle_date_range.end_date ? new Date(userMetrics.latest_cycle_date_range.end_date).toLocaleDateString() : 'Ongoing'}
+                          </div>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                        <div>
+                          <div className="text-2xl font-bold text-white">{userMetrics?.memory_units_count || 0}</div>
+                          <div className="text-xs text-white/60">Memory Units</div>
+                        </div>
+                        <div>
+                          <div className="text-2xl font-bold text-white">{userMetrics?.concepts_count || 0}</div>
+                          <div className="text-xs text-white/60">Concepts</div>
+                        </div>
+                        <div>
+                          <div className="text-2xl font-bold text-white">{userMetrics?.growth_events_count || 0}</div>
+                          <div className="text-xs text-white/60">Growth Events</div>
+                        </div>
+                        <div>
+                          <div className="text-2xl font-bold text-white">{userMetrics?.cards_count || 0}</div>
+                          <div className="text-xs text-white/60">Cards</div>
+                        </div>
+                      </div>
+                    </GlassmorphicPanel>
+
+                    {/* DYNAMIC SECTIONS - Show all available sections directly */}
+                    {dashboardConfig && dynamicDashboardData?.sections ? (
+                      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                        {Object.entries(dynamicDashboardData.sections)
+                          .filter(([sectionKey, sectionData]) => 
+                            sectionData && 
+                            sectionData.items && 
+                            sectionData.items.length > 0 &&
+                            // Exclude growth_dimensions, opening_words, and recent_cards as they belong to other tabs
+                            sectionKey !== 'growth_dimensions' &&
+                            sectionKey !== 'opening_words' &&
+                            sectionKey !== 'recent_cards'
+                          )
+                          .sort(([a]: [string, any], [b]: [string, any]) => {
+                            const priorityA = dashboardConfig?.dashboard_sections?.[a]?.priority || 999;
+                            const priorityB = dashboardConfig?.dashboard_sections?.[b]?.priority || 999;
+                            return priorityA - priorityB;
+                          })
+                          .map(([sectionKey, sectionData]: [string, any]) => (
+                            <div key={sectionKey} className="h-fit">
+                              {renderSection(sectionKey, sectionData)}
+                            </div>
+                          ))}
+                      </div>
+                    ) : (
+                      <div className="col-span-2 text-center py-8">
+                        <div className="text-white/60">Loading insights...</div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <GlassmorphicPanel
+                    variant="glass-panel"
+                    rounded="lg"
+                    padding="md"
+                    className="hover:bg-white/15 transition-all duration-200"
+                  >
+                    <div className="text-center py-8">
+                      <Brain size={48} className="text-white/40 mx-auto mb-4" />
+                      <h3 className="text-white/90 font-medium mb-2">No Dynamic Insights Available</h3>
+                      <p className="text-white/60 text-sm">
+                        Start a conversation to generate insights, or check back later for new data.
+                      </p>
+                    </div>
+                  </GlassmorphicPanel>
+                )}
+              </div>
+            )}
+
+            {/* Opening Tab */}
+            {activeTab === 'opening' && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                  {/* Opening Words - 75% of page */}
+                  <div className="lg:col-span-3">
+                    <GlassmorphicPanel
+                      variant="glass-panel"
+                      rounded="lg"
+                      padding="lg"
+                      className="hover:bg-white/15 transition-all duration-200 h-full"
+                    >
+                      <div className="flex items-center gap-3 mb-6">
+                        <BookOpen size={24} className="text-white/80 stroke-current" strokeWidth={1.5} />
+                        <h3 className="text-2xl font-semibold text-white/90">Editor&apos;s Note</h3>
+                      </div>
+                      <div className="prose prose-invert max-w-none">
+                        {(() => {
+                          const openingWords = dynamicDashboardData?.sections?.opening_words?.items?.[0];
+                          
+                          if (openingWords) {
+                            return (
+                              <>
+                                <h1 className="text-4xl font-bold text-white mb-6 leading-tight">
+                                  {openingWords.title}
+                                </h1>
+                                <div className="text-lg text-white/90 leading-relaxed">
+                                  <MarkdownRenderer 
+                                    content={openingWords.content} 
+                                    variant="dashboard"
+                                    className="prose prose-invert max-w-none"
+                                  />
+                                </div>
+                              </>
+                            );
+                          } else {
+                            // Fallback to hardcoded content if no opening words exist
+                            return (
+                              <>
+                                <h1 className="text-4xl font-bold text-white mb-6 leading-tight">
+                                  Your Journey Through the Cosmos
+                                </h1>
+                                <div className="text-lg text-white/90 leading-relaxed">
+                                  <p>
+                                    Welcome to your personal cosmic journey. This month, we&apos;ve witnessed remarkable growth 
+                                    across all dimensions of your being. Your conversations have revealed patterns of 
+                                    self-discovery that speak to a deeper understanding of your place in the universe.
+                                  </p>
+                                  <p>
+                                    The insights we&apos;ve gathered show a person who is not just growing, but evolving. 
+                                    Each interaction, each moment of reflection, each new connection you make adds 
+                                    another layer to the rich tapestry of your experience.
+                                  </p>
+                                  <p>
+                                    As you explore the cards and insights that follow, remember that this is your story. 
+                                    These are your discoveries, your breakthroughs, your moments of clarity. They represent 
+                                    not just where you&apos;ve been, but where you&apos;re heading.
+                                  </p>
+                                  <p className="text-white/70 italic">
+                                    &ldquo;The cosmos is within us. We are made of star-stuff. We are a way for the universe to know itself.&rdquo;
+                                  </p>
+                                </div>
+                              </>
+                            );
+                          }
+                        })()}
+                      </div>
+                    </GlassmorphicPanel>
+                  </div>
+
+                  {/* Recent Cards Column - 25% of page */}
+                  <div className="lg:col-span-1">
+                    <GlassmorphicPanel
+                      variant="glass-panel"
+                      rounded="lg"
+                      padding="md"
+                      className="hover:bg-white/15 transition-all duration-200 h-full"
+                    >
+                      <div className="flex items-center gap-3 mb-4">
+                        <Eye size={20} className="text-white/80 stroke-current" strokeWidth={1.5} />
+                        <h4 className="text-white/90 font-medium">Recent Cards</h4>
+                      </div>
+                <div className="space-y-6 h-full overflow-y-auto custom-scrollbar">
+                  {(() => {
+                    const cards = dynamicDashboardData?.sections?.recent_cards?.items || [];
+                    console.log('🎨 Opening tab rendering - cards from sections:', cards);
+                    console.log('🎨 Opening tab rendering - cards.length:', cards.length);
+                    return cards.length > 0 ? (
+                      cards.map((card, index) => {
+                        console.log(`🎨 Rendering card ${index}:`, card);
+                        
+                        // Get card type for gradient selection
+                        const cardType = card.metadata?.card_type || 'default';
+                        const gradients = {
+                          memoryunit: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+                          concept: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
+                          derived_artifact: 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
+                          proactive_prompt: 'linear-gradient(135deg, #ffaa00 0%, #ff8800 100%)',
+                          default: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+                        };
+                        
+                        const backgroundImage = card.metadata?.background_image_url 
+                          ? `url(${card.metadata.background_image_url})` 
+                          : gradients[cardType as keyof typeof gradients] || gradients.default;
+                        
+                        return (
+                          <div 
+                            key={card.id || `card-${index}`} 
+                            className="relative w-48 h-48 mx-auto rounded-2xl overflow-hidden cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-2xl"
+                            style={{
+                              backgroundImage,
+                              backgroundSize: 'cover',
+                              backgroundPosition: 'center',
+                              backgroundRepeat: 'no-repeat'
+                            }}
+                          >
+                            {/* Card Overlay */}
+                            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/20 to-black/60 rounded-2xl" />
+                            
+                            {/* Card Content */}
+                            <div className="relative z-10 h-full flex flex-col justify-end p-4">
+                              <div className="text-white">
+                                <h3 className="text-sm font-semibold mb-1 text-shadow-sm">
+                                  {card.title}
+                                </h3>
+                                <p className="text-xs text-white/80 text-shadow-sm line-clamp-2">
+                                  {card.content}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="text-center py-4 text-white/60">
+                        <div className="text-2xl mb-2">📭</div>
+                        <p className="text-sm">No recent cards available</p>
+                        <p className="text-xs text-white/40 mt-1">Check console for API errors</p>
+                      </div>
+                    );
+                  })()}
+                </div>
+                    </GlassmorphicPanel>
+                  </div>
+                </div>
+              </div>
+            )}
+
+
+            {/* Growth Trajectory Tab */}
+            {activeTab === 'growth-trajectory' && (
+              <div className="space-y-6">
+                {isLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="text-white/60">Loading growth trajectory...</div>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {(() => {
+                      const sectionData = dynamicDashboardData?.sections?.growth_dimensions;
+                      if (!sectionData || sectionData.items?.[0]?.metadata?.layout?.type !== 'table') {
+                        return <div className="text-white/60">No growth dimensions data available</div>;
+                      }
+                      
+                      const tableData = sectionData.items[0].metadata;
+                      
+                      return (
+                        <GlassmorphicPanel
+                          variant="glass-panel"
+                          rounded="lg"
+                          padding="md"
+                          className="hover:bg-white/15 transition-all duration-200"
+                        >
+                          <div className="flex items-center gap-3 mb-6">
+                            <TrendingUp size={24} className="text-white/80 stroke-current" strokeWidth={1.5} />
+                            <h3 className="text-2xl font-semibold text-white/90">Growth Trajectory</h3>
+                            <span className="text-sm text-white/60">({sectionData.total_count})</span>
+                          </div>
+                          
+                          {/* Dynamic Table Layout */}
+                          <div className="overflow-x-auto">
+                            <table className="w-full table-fixed">
+                              <thead>
+                                <tr className="border-b border-white/20">
+                                  <th className="w-1/5 text-left py-3 px-3 text-white/80 font-medium">Dimension</th>
+                                  {tableData.layout.columns.map((column: any) => {
+                                    // Use different icons for different column types
+                                    const getColumnIcon = (columnKey: string) => {
+                                      if (columnKey === 'whats_new') return Clock;
+                                      if (columnKey === 'whats_next') return Target;
+                                      return TrendingUp; // fallback
+                                    };
+                                    
+                                    const ColumnIconComponent = getColumnIcon(column.key);
+                                    
+                                    return (
+                                      <th key={column.key} className="w-2/5 text-center py-3 px-4 text-white/80 font-medium">
+                                        <div className="flex items-center justify-center gap-2">
+                                          <ColumnIconComponent size={16} className="text-white/70" />
+                                          <span>{column.title}</span>
+                                        </div>
+                                      </th>
+                                    );
+                                  })}
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-white/10">
+                                {tableData.layout.rows.map((row: any) => {
+                                  const RowIconComponent = getIconComponent(row.icon);
+                                  return (
+                                    <tr key={row.key} className="hover:bg-white/5 transition-colors">
+                                      <td className="w-1/5 py-4 px-3">
+                                        <div className="flex items-center gap-2">
+                                          <RowIconComponent size={18} className="text-white/70 stroke-current" strokeWidth={1.5} />
+                                          <span className="text-white/90 font-medium break-words">{row.title}</span>
+                                        </div>
+                                      </td>
+                                      {tableData.layout.columns.map((column: any) => {
+                                        return (
+                                          <td key={column.key} className="w-2/5 py-4 px-4 align-top">
+                                            <div className="text-sm text-white/70">
+                                              {row.cells[column.key].count > 0 ? (
+                                                <div className="space-y-2">
+                                                  {row.cells[column.key].events.slice(0, 2).map((event: any) => (
+                                                    <div key={event.event_id} className="bg-white/10 rounded-lg p-3">
+                                                      <div className="text-sm text-white/90">
+                                                        {event.rationale}
+                                                      </div>
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              ) : (
+                                                <div className="bg-white/5 rounded-lg p-3">
+                                                  <div className="text-xs text-white/40">
+                                                    {column.key === 'whats_new' ? 'No recent growth events' : 'No strategic recommendations'}
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </div>
+                                          </td>
+                                        );
+                                      })}
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </GlassmorphicPanel>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
             )}
           </div>

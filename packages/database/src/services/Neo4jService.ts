@@ -333,7 +333,7 @@ export class Neo4jService {
 
   /**
    * V11.0: Gets connection counts for all nodes for a user
-   * Used by InsightDataCompiler for analytical purposes (per tech lead directive)
+   * Used by InsightEngine for analytical purposes (per tech lead directive)
    */
   public async compileNodeMetrics(userId: string): Promise<Array<{ nodeId: string; connectionCount: number }>> {
     const cypher = `

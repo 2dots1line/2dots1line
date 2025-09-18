@@ -9,6 +9,7 @@ import { randomUUID } from 'crypto';
 
 export interface CreateProactivePromptData {
   user_id: string;
+  cycle_id?: string; // For dashboard grouping
   prompt_text: string;
   source_agent: string;
   metadata?: any;
@@ -26,7 +27,11 @@ export class ProactivePromptRepository {
     return this.db.prisma.proactive_prompts.create({
       data: {
         prompt_id: randomUUID(),
-        ...data,
+        user_id: data.user_id,
+        cycle_id: data.cycle_id ?? null,
+        prompt_text: data.prompt_text,
+        source_agent: data.source_agent,
+        metadata: data.metadata ?? null,
       },
     });
   }

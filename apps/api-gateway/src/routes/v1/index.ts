@@ -10,6 +10,7 @@ import { UserController } from '../../controllers/user.controller';
 import { GraphController } from '../../controllers/graph.controller';
 import { MediaController } from '../../controllers/media.controller';
 import { createAgentRoutes } from './agent.routes';
+import dashboardRoutes from '../../routes/dashboard';
 
 export function createV1Routes(
   authController: AuthController,
@@ -45,6 +46,7 @@ v1Router.post('/conversations/messages', authMiddleware, conversationController.
 v1Router.post('/conversations/upload', authMiddleware, uploadSingle, handleUploadError, conversationController.uploadFile);
 v1Router.post('/conversations/new-chat', authMiddleware, conversationController.startNewChat);
 v1Router.post('/conversations/:conversationId/end', authMiddleware, conversationController.endConversation);
+v1Router.get('/conversations/proactive-greeting/:userId', authMiddleware, conversationController.getProactiveGreeting.bind(conversationController));
 v1Router.get('/conversations', authMiddleware, conversationController.getConversationHistory);
 v1Router.get('/conversations/:conversationId', authMiddleware, conversationController.getConversation);
 
@@ -70,10 +72,14 @@ v1Router.get('/users/me/dashboard/growth-summary', authMiddleware, userControlle
 v1Router.get('/users/:userId', authMiddleware, userController.getUserData);
 
 // --- Dashboard Routes (Authenticated) ---
+// Legacy dashboard routes (keeping for backward compatibility)
 v1Router.get('/dashboard/summary', authMiddleware, userController.getDashboardGrowthSummary);
 v1Router.get('/dashboard/insights', authMiddleware, userController.getRecentInsights);
 v1Router.get('/dashboard/recent-events', authMiddleware, userController.getRecentActivity);
 v1Router.get('/dashboard/data', authMiddleware, userController.getDashboardData);
+
+// New dynamic dashboard routes
+v1Router.use('/dashboard', dashboardRoutes);
 
 // --- Graph Routes (Authenticated) --- V11.0: Real-time metrics from Neo4j source of truth
 v1Router.get('/nodes/:nodeId/metrics', authMiddleware, graphController.getNodeMetrics);

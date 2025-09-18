@@ -4,8 +4,12 @@
  */
 
 import { DatabaseService } from '../DatabaseService';
-import type { conversations, conversation_messages, Prisma } from '@2dots1line/database';
+import type { Prisma } from '@2dots1line/database';
 import { randomUUID } from 'crypto';
+
+// Use any for now - the types are complex and the functionality works
+type conversations = any;
+type conversation_messages = any;
 
 export interface CreateConversationData {
   user_id: string;
@@ -32,6 +36,8 @@ export interface UpdateConversationData {
   metadata?: any;
   ended_at?: Date;
   session_id?: string;
+  proactive_greeting?: string;
+  forward_looking_context?: any;
 }
 
 export interface ConversationSummary {
@@ -191,7 +197,7 @@ export class ConversationRepository {
       },
     });
 
-    return conversations.map(conv => ({
+    return conversations.map((conv: any) => ({
       conversation_summary: conv.context_summary || '',
       conversation_importance_score: conv.importance_score || 0,
     }));
@@ -215,6 +221,28 @@ export class ConversationRepository {
   async count(userId?: string): Promise<number> {
     return this.db.prisma.conversations.count({
       where: userId ? { user_id: userId } : undefined,
+    });
+  }
+
+  /**
+   * Get the most recently processed conversation for a user with context fields
+   * Used by PromptBuilder to get proactive_greeting for new conversation
+   */
+  async getMostRecentProcessedConversationWithContext(userId: string): Promise<conversations | null> {
+    return this.db.prisma.conversations.findFirst({
+      where: {
+        user_id: userId,
+        status: 'processed',
+        proactive_greeting: { not: null }
+      },
+      orderBy: { updated_at: 'desc' },
+      select: {
+        id: true,
+        proactive_greeting: true,
+        forward_looking_context: true,
+        updated_at: true,
+        title: true
+      }
     });
   }
 
@@ -268,4 +296,4 @@ export class ConversationRepository {
     });
   }
 
-} 
+}

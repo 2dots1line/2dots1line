@@ -65,7 +65,31 @@ export const useNotificationConnection = () => {
           try {
             console.log('[Socket.IO] 📨 Event received:', data);
             
-            // Map worker event names to store types
+            // Handle consolidated updates from notification worker
+            if (data.newCards !== undefined || data.graphUpdates !== undefined || data.insights !== undefined) {
+              // This is a consolidated update
+              const notification = {
+                id: `consolidated-${Date.now()}`,
+                type: 'new_card_available' as const, // Use a default type for consolidated updates
+                title: 'Updates Available',
+                description: data.message || 'New updates are available',
+                timestamp: new Date(data.timestamp || Date.now()),
+                isRead: false,
+                userId: user.user_id,
+                metadata: {
+                  newCards: data.newCards || 0,
+                  graphUpdates: data.graphUpdates || 0,
+                  insights: data.insights || 0,
+                  isConsolidated: true
+                }
+              };
+
+              console.log('[Socket.IO] 🎉 Adding consolidated notification to store:', notification);
+              addNotification(notification);
+              return;
+            }
+            
+            // Handle individual notifications
             const typeMap: Record<string, 'new_star_generated' | 'new_card_available' | 'graph_projection_updated'> = {
               new_star: 'new_star_generated',
               new_card: 'new_card_available',
@@ -104,7 +128,7 @@ export const useNotificationConnection = () => {
         };
 
         // Listen to all notification events
-        ['notification', 'new_star', 'new_card', 'graph_updated', 'new_card_available', 'graph_projection_updated'].forEach((eventName) => {
+        ['notification', 'new_star', 'new_card', 'graph_updated', 'new_card_available', 'graph_projection_updated', 'consolidated_update'].forEach((eventName) => {
           console.log('[Socket.IO] Adding listener for event:', eventName);
           socket.on(eventName, handleNotification);
         });

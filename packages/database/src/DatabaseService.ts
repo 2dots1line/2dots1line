@@ -54,14 +54,38 @@ export class DatabaseService {
       host: weaviateHost,
     });
 
-    // 4. Initialize Redis Client
+    // 4. Initialize Redis Client with Connection Pooling
     const redisUrl = environmentLoader.get('REDIS_URL');
     if (redisUrl) {
-      this.redis = new Redis(redisUrl);
+      this.redis = new Redis(redisUrl, {
+        // Connection pool configuration to prevent exhaustion
+        maxRetriesPerRequest: null, // Required by BullMQ
+        enableReadyCheck: false,
+        lazyConnect: true,
+        // Connection pool settings
+        family: 4, // IPv4
+        keepAlive: 30000, // Keep alive timeout in milliseconds
+        // Connection timeout settings
+        connectTimeout: 10000,
+        commandTimeout: 10000, // Increased from 5000ms to 10000ms for stability
+        enableOfflineQueue: true
+      });
     } else {
       const redisHost = environmentLoader.get('REDIS_HOST') || environmentLoader.get('REDIS_HOST_DOCKER') || 'localhost';
       const redisPort = parseInt(environmentLoader.get('REDIS_PORT') || environmentLoader.get('REDIS_PORT_DOCKER') || '6379');
-      this.redis = new Redis({ host: redisHost, port: redisPort });
+      this.redis = new Redis({ 
+        host: redisHost, 
+        port: redisPort,
+        // Same connection pool configuration
+        maxRetriesPerRequest: null, // Required by BullMQ
+        enableReadyCheck: false,
+        lazyConnect: true,
+        family: 4,
+        keepAlive: 30000, // Keep alive timeout in milliseconds
+        connectTimeout: 10000,
+        commandTimeout: 10000, // Increased from 5000ms to 10000ms for stability
+        enableOfflineQueue: true
+      });
     }
 
     // 5. Initialize Repositories

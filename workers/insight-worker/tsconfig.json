@@ -35,6 +35,9 @@
     },
     {
       "path": "../../packages/ai-clients"
+    },
+    {
+      "path": "../../packages/ontology-core"
     }
   ]
 }
