@@ -40,18 +40,6 @@ export class SessionRepository {
     });
   }
 
-  /**
-   * Get an active session for a user
-   */
-  async getActiveSession(userId: string): Promise<user_sessions | null> {
-    return this.db.prisma.user_sessions.findFirst({
-      where: {
-        user_id: userId
-        // No expiration check - sessions persist until explicitly closed
-      },
-      orderBy: { last_active_at: 'desc' }
-    });
-  }
 
   /**
    * Get a specific session by ID

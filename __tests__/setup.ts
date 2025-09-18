@@ -32,10 +32,6 @@ afterAll(() => {
     memory_profile: {
       dominant_themes: ['technology', 'learning'],
       communication_preferences: { detail_level: 'balanced' }
-    },
-    knowledge_graph_schema: {
-      prominent_concept_types: ['skill', 'goal', 'interest'],
-      prominent_relationship_labels: ['relates_to', 'enables', 'requires']
     }
   },
   conversation: {

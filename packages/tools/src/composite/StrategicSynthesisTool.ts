@@ -1,21 +1,19 @@
 /**
- * StrategicSynthesisTool.ts
- * V9.5 Composite Tool for InsightEngine's Strategic Cyclical Analysis
+ * StrategicSynthesisTool - V9.5 Composite Tool for InsightEngine
  * 
- * This tool performs strategic analysis of the user's knowledge graph to identify
- * patterns, optimize ontologies, and generate proactive insights. It operates on
- * cycles to continuously refine and enhance the knowledge representation.
+ * Performs strategic analysis of knowledge graphs to identify patterns, optimize
+ * ontologies, and generate proactive insights through cyclical analysis.
  * 
- * ARCHITECTURE: Composite tool built by ToolRegistry, uses injected atomic tools
- * for complex analysis while maintaining strategic focus on user growth.
+ * Architecture: Composite tool using injected atomic tools for strategic analysis.
  */
 
 import { z } from 'zod';
 import { ConfigService } from '@2dots1line/config-service';
 import type { TToolInput, TToolOutput } from '@2dots1line/shared-types';
 import { LLMChatTool, type LLMChatInput } from '../ai/LLMChatTool';
+import { LLMRetryHandler } from '@2dots1line/core-utils';
 
-// Zod validation schemas for StrategicSynthesisOutput
+// Output validation schema
 export const StrategicSynthesisOutputSchema = z.object({
   ontology_optimizations: z.object({
     concepts_to_merge: z.array(z.object({
@@ -42,96 +40,123 @@ export const StrategicSynthesisOutputSchema = z.object({
       member_concept_ids: z.array(z.string()),
       theme: z.string(),
       strategic_importance: z.number().min(1).max(10)
+    })),
+    concept_description_synthesis: z.array(z.object({
+      concept_id: z.string(),
+      synthesized_description: z.string()
     }))
   }),
   derived_artifacts: z.array(z.object({
-    artifact_type: z.enum(['insight', 'pattern', 'recommendation', 'synthesis']),
+    artifact_type: z.enum(['opening', 'deeper_story', 'hidden_connection', 'values_revolution', 'mastery_quest', 'breakthrough_moment', 'synergy_discovery', 'authentic_voice', 'leadership_evolution', 'creative_renaissance', 'wisdom_integration', 'vision_crystallization', 'legacy_building', 'horizon_expansion', 'transformation_phase', 'insight', 'pattern', 'recommendation', 'synthesis', 'identified_pattern', 'emerging_theme', 'focus_area', 'blind_spot', 'celebration_moment']),
     title: z.string(),
     content: z.string(),
     confidence_score: z.number().min(0).max(1),
     supporting_evidence: z.array(z.string()),
     actionability: z.enum(['immediate', 'short_term', 'long_term', 'aspirational']),
-    content_data: z.record(z.any()).optional(), // Structured data for the artifact
-    source_concept_ids: z.array(z.string()).optional(), // IDs of concepts that informed this artifact
-    source_memory_unit_ids: z.array(z.string()).optional() // IDs of memory units that informed this artifact
+    source_concept_ids: z.array(z.string()).optional(),
+    source_memory_unit_ids: z.array(z.string()).optional()
   })),
   proactive_prompts: z.array(z.object({
-    prompt_type: z.enum(['reflection', 'exploration', 'goal_setting', 'skill_development', 'creative_expression']),
+    prompt_type: z.enum(['pattern_exploration', 'values_articulation', 'future_visioning', 'wisdom_synthesis', 'creative_expression', 'storytelling', 'metaphor_discovery', 'inspiration_hunting', 'synergy_building', 'legacy_planning', 'assumption_challenging', 'horizon_expanding', 'meaning_making', 'identity_integration', 'gratitude_deepening', 'wisdom_sharing', 'reflection', 'exploration', 'goal_setting', 'skill_development']),
     title: z.string(),
     prompt_text: z.string(),
     context_explanation: z.string(),
     timing_suggestion: z.enum(['next_conversation', 'weekly_check_in', 'monthly_review', 'quarterly_planning']),
     priority_level: z.number().min(1).max(10)
   })),
-  growth_trajectory_updates: z.object({
-    identified_patterns: z.array(z.string()),
-    emerging_themes: z.array(z.string()),
-    recommended_focus_areas: z.array(z.string()),
-    potential_blind_spots: z.array(z.string()),
-    celebration_moments: z.array(z.string())
-  }),
-  cycle_metrics: z.object({
-    knowledge_graph_health: z.number().min(0).max(1),
-    ontology_coherence: z.number().min(0).max(1),
-    growth_momentum: z.number().min(0).max(1),
-    strategic_alignment: z.number().min(0).max(1),
-    insight_generation_rate: z.number().min(0).max(1)
+  growth_events: z.array(z.object({
+    dimension_key: z.enum(['know_self', 'act_self', 'show_self', 'know_world', 'act_world', 'show_world']),
+    delta_value: z.number().min(-5.0).max(5.0),
+    rationale: z.string(),
+    source_concept_ids: z.array(z.string()).optional(),
+    source_memory_unit_ids: z.array(z.string()).optional(),
+    confidence_score: z.number().min(0).max(1),
+    actionability: z.enum(['immediate', 'short_term', 'long_term', 'aspirational'])
+  })),
+  key_phrases: z.object({
+    values_and_goals: z.array(z.string()),
+    emotional_drivers: z.array(z.string()),
+    important_relationships: z.array(z.string()),
+    growth_patterns: z.array(z.string()),
+    knowledge_domains: z.array(z.string()),
+    life_context: z.array(z.string()),
+    hidden_connections: z.array(z.string())
   })
 });
 
 export type StrategicSynthesisOutput = z.infer<typeof StrategicSynthesisOutputSchema>;
 
 export interface StrategicSynthesisInput {
+  // Core identification
   userId: string;
-  userName?: string; // User's display name for LLM reference
+  userName?: string;
   cycleId: string;
   cycleStartDate: Date;
   cycleEndDate: Date;
+  
+  // Current cycle data
   currentKnowledgeGraph: {
+    conversations: Array<{
+      context_summary: string;
+    }>;
     memoryUnits: Array<{
       id: string;
-      title: string;
       content: string;
-      importance_score: number;
-      tags: string[];
-      created_at: string;
     }>;
     concepts: Array<{
       id: string;
       name: string;
       description: string;
-      category: string;
-      salience: number;
-      created_at: string;
-      merged_into_concept_id?: string;
     }>;
-    relationships: Array<{
-      source_id: string;
-      target_id: string;
-      relationship_type: string;
-      strength: number;
+    conceptsNeedingSynthesis: Array<{
+      id: string;
+      name: string;
+      description: string;
     }>;
-  };
-  recentGrowthEvents: Array<{
-    dim_key: string;
-    event_type: string;
-    description: string;
-    impact_level: number;
-    created_at: string;
-  }>;
-  userProfile: {
-    preferences: any;
-    goals: string[];
-    interests: string[];
-    growth_trajectory: any;
   };
   
-  // New fields for LLM interaction logging
+  // Growth events (recent cycle activity)
+  recentGrowthEvents: Array<{
+    id: string;
+    rationale: string;
+  }>;
+  
+  // HRT-retrieved strategic context (historical data)
+  strategicContext?: {
+    retrievedMemoryUnits?: Array<{
+      id: string;
+      title: string;
+      content: string;
+      finalScore: number;
+    }>;
+    retrievedConcepts?: Array<{
+      id: string;
+      name: string;
+      description: string;
+      finalScore: number;
+    }>;
+    retrievedArtifacts?: Array<{
+      id: string;
+      title: string;
+      content: string;
+      type: string;
+      finalScore: number;
+    }>;
+    retrievalSummary?: string;
+  };
+  
+  // Previous cycle continuity
+  previousKeyPhrases?: Array<{
+    category: string;
+    phrases: string[];
+  }>;
+  
+  // System metadata
   workerType?: string;
   workerJobId?: string;
 }
 
-// Custom error types for better error handling
+// Error types
 export class StrategicSynthesisError extends Error {
   constructor(message: string, public cause?: Error) {
     super(message);
@@ -162,364 +187,481 @@ export class StrategicSynthesisTool {
     console.log(`[StrategicSynthesisTool] Starting strategic synthesis for cycle ${input.cycleId}`);
     console.log(`[StrategicSynthesisTool] Analyzing ${input.currentKnowledgeGraph.memoryUnits.length} memory units`);
     console.log(`[StrategicSynthesisTool] Analyzing ${input.currentKnowledgeGraph.concepts.length} concepts`);
-    console.log(`[StrategicSynthesisTool] Analyzing ${input.currentKnowledgeGraph.relationships.length} relationships`);
     
-    try {
-      // Build comprehensive analysis prompt using config templates
-      const prompt = await this.buildStrategicAnalysisPrompt(input);
-      
-      // Prepare LLM input following HolisticAnalysisTool pattern
-      const llmInput: LLMChatInput = {
-        payload: {
-          userId: input.userId,
-          sessionId: `strategic-synthesis-${input.cycleId}`,
-          workerType: input.workerType || 'insight-worker',
-          workerJobId: input.workerJobId,
-          sourceEntityId: input.cycleId,
-          systemPrompt: "You are the InsightEngine component performing strategic cyclical analysis. Follow the instructions precisely and return valid JSON without any markers or additional text.",
-          history: [], // No previous history for analysis tasks
-          userMessage: prompt,
-          temperature: 0.4, // Balanced creativity and consistency for strategic thinking
-          maxTokens: 50000
-        }
-      };
-      
-      // Enhanced LLM call with retry logic
-      const llmResult = await this.executeLLMWithRetry(llmInput, 'strategic-synthesis');
-      
-      console.log(`[StrategicSynthesisTool] DEBUG: Full prompt sent to LLM:`, prompt.substring(0, 1000) + '...');
-      console.log(`[StrategicSynthesisTool] DEBUG: LLM response received:`, llmResult.result?.text?.substring(0, 1000) + '...');
-      
-      if (llmResult.status !== 'success' || !llmResult.result?.text) {
-        console.error(`[StrategicSynthesisTool] LLM call failed with status: ${llmResult.status}`);
-        console.error(`[StrategicSynthesisTool] Error details:`, llmResult.error);
-        throw new StrategicSynthesisError(`LLM call failed: ${llmResult.error?.message || 'Unknown error'}`);
+    // Build analysis prompt
+    const prompt = await this.buildStrategicAnalysisPrompt(input);
+    
+    // Prepare LLM input
+    const llmInput: LLMChatInput = {
+      payload: {
+        userId: input.userId,
+        sessionId: `strategic-synthesis-${input.cycleId}`,
+        workerType: input.workerType || 'insight-worker',
+        workerJobId: input.workerJobId,
+        sourceEntityId: input.cycleId,
+        systemPrompt: "You are the InsightEngine component performing strategic cyclical analysis. Follow the instructions precisely and return valid JSON without any markers or additional text.",
+        history: [],
+        userMessage: prompt,
+        temperature: 0.4,
+        maxTokens: 50000
       }
-      
-      console.log(`[StrategicSynthesisTool] LLM response received, length: ${llmResult.result.text.length}`);
-      
-      // Parse and validate the response
-      const synthesisResult = this.validateAndParseOutput(llmResult.result.text);
-      
-      console.log('[StrategicSynthesisTool] Strategic synthesis completed successfully');
-      console.log(`[StrategicSynthesisTool] Generated ${synthesisResult.ontology_optimizations.concepts_to_merge.length} concept merges`);
-      console.log(`[StrategicSynthesisTool] Generated ${synthesisResult.derived_artifacts.length} derived artifacts`);
-      console.log(`[StrategicSynthesisTool] Generated ${synthesisResult.proactive_prompts.length} proactive prompts`);
-      
-      return synthesisResult;
-      
-    } catch (error) {
-      console.error(`[StrategicSynthesisTool] Strategic synthesis failed for cycle ${input.cycleId}:`, error);
-      
-      // Check if this is a parsing error vs LLM call error
-      if (error instanceof StrategicSynthesisJSONParseError || error instanceof StrategicSynthesisValidationError) {
-        console.error(`[StrategicSynthesisTool] CRITICAL: Parsing/validation failed. This indicates the LLM response format is incorrect.`);
-        console.error(`[StrategicSynthesisTool] Raw LLM response: ${error instanceof StrategicSynthesisJSONParseError ? error.rawResponse.substring(0, 1000) : 'N/A'}...`);
-        console.error(`[StrategicSynthesisTool] This error should be investigated as it prevents downstream processing.`);
-        
-        // For parsing errors, we should throw rather than return fallback data
-        // as this indicates a system issue that needs fixing
-        throw error;
+    };
+    
+    // Call LLM with retry logic - LLMRetryHandler handles LLM service failures
+    const llmResult = await LLMRetryHandler.executeWithRetry(
+      LLMChatTool,
+      llmInput,
+      { 
+        callType: 'strategic-synthesis'
       }
-      
-      // For other errors (LLM service issues, etc.), return fallback
-      console.log(`[StrategicSynthesisTool] Returning fallback output for non-parsing error`);
-      
-      // Return a minimal valid response to prevent system failure
-      const fallbackOutput: StrategicSynthesisOutput = {
-        ontology_optimizations: {
-          concepts_to_merge: [],
-          concepts_to_archive: [],
-          new_strategic_relationships: [],
-          community_structures: []
-        },
-        derived_artifacts: [{
-          artifact_type: 'insight',
-          title: 'Analysis Failed - Manual Review Required',
-          content: 'Strategic synthesis encountered an error and requires manual review.',
-          confidence_score: 0.1,
-          supporting_evidence: ['System error during analysis'],
-          actionability: 'immediate'
-        }],
-        proactive_prompts: [],
-        growth_trajectory_updates: {
-          identified_patterns: [],
-          emerging_themes: [],
-          recommended_focus_areas: [],
-          potential_blind_spots: ['Strategic analysis system failure'],
-          celebration_moments: []
-        },
-        cycle_metrics: {
-          knowledge_graph_health: 0.5,
-          ontology_coherence: 0.5,
-          growth_momentum: 0.5,
-          strategic_alignment: 0.5,
-          insight_generation_rate: 0.0
-        }
-      };
-      
-      return fallbackOutput;
-    }
+    );
+    
+    console.log(`[StrategicSynthesisTool] LLM response received, length: ${llmResult.result.text.length}`);
+    
+    // If we get here, LLM service succeeded - work with whatever response we got
+    // No fallback responses - work with the actual LLM response
+    const synthesisResult = this.validateAndParseOutput(llmResult.result.text);
+    
+    console.log('[StrategicSynthesisTool] Strategic synthesis completed successfully');
+    console.log(`[StrategicSynthesisTool] Generated ${synthesisResult.ontology_optimizations.concepts_to_merge.length} concept merges`);
+    console.log(`[StrategicSynthesisTool] Generated ${synthesisResult.derived_artifacts.length} derived artifacts`);
+    console.log(`[StrategicSynthesisTool] Generated ${synthesisResult.proactive_prompts.length} proactive prompts`);
+    
+    return synthesisResult;
   }
 
   /**
-   * Build the comprehensive strategic analysis prompt using config templates
+   * Build strategic analysis prompt using KV cache-optimized templates
    */
   private async buildStrategicAnalysisPrompt(input: StrategicSynthesisInput): Promise<string> {
-    // Load templates from config service like HolisticAnalysisTool
+    // Load templates
     const templates = this.configService.getAllTemplates();
     
-    // Get strategic synthesis specific templates
-    const strategicPersona = templates.strategic_synthesis_persona || '';
-    const strategicInstructions = templates.strategic_synthesis_instructions || '';
-    const responseFormat = templates.response_format_block || '';
+    // Get templates
+    const coreIdentity = templates.insight_worker_core_identity;
+    const operationalConfig = templates.insight_worker_operational_config;
+    const dynamicContext = templates.insight_worker_dynamic_context;
+    const currentAnalysis = templates.insight_worker_current_analysis;
     
-    console.log(`[StrategicSynthesisTool] Building prompt with ${input.currentKnowledgeGraph.memoryUnits.length} memory units, ${input.currentKnowledgeGraph.concepts.length} concepts, ${input.currentKnowledgeGraph.relationships.length} relationships`);
+    // Consolidate entities
+    const consolidatedEntities = this.consolidateEntities(input);
     
-    // Replace user name placeholders in templates
+    console.log(`[StrategicSynthesisTool] Building KV cache-optimized prompt with ${input.currentKnowledgeGraph.conversations.length} conversations, ${consolidatedEntities.memoryUnits.length} memory units, ${consolidatedEntities.concepts.length} concepts`);
+    
+    // Replace user name placeholders
     const user_name = input.userName || 'User';
-    const strategicPersonaWithUserName = strategicPersona.replace(/\{\{user_name\}\}/g, user_name);
-    const strategicInstructionsWithUserName = strategicInstructions.replace(/\{\{user_name\}\}/g, user_name);
-    
-    // Build the master prompt using all available data
-    const masterPrompt = `${strategicPersonaWithUserName}
+    const coreIdentityWithUserName = coreIdentity.replace(/\{\{user_name\}\}/g, user_name);
+    const operationalConfigWithUserName = operationalConfig.replace(/\{\{user_name\}\}/g, user_name);
+    const currentAnalysisWithUserName = currentAnalysis.replace(/\{\{user_name\}\}/g, user_name);
 
-## Analysis Context
-- **User ID**: ${input.userId}
-- **Cycle ID**: ${input.cycleId}
-- **Analysis Timestamp**: ${new Date().toISOString()}
-- **Cycle Period**: ${input.cycleStartDate.toISOString()} to ${input.cycleEndDate.toISOString()}
+    // Build dynamic context data
+    const dynamicContextData = {
+      analysis_context: {
+        user_name: user_name,
+        cycle_id: input.cycleId,
+        analysis_timestamp: new Date().toISOString(),
+        cycle_period: `${input.cycleStartDate.toISOString()} to ${input.cycleEndDate.toISOString()}`
+      },
+      consolidated_knowledge_graph: {
+        concepts: consolidatedEntities.concepts,
+        memory_units: consolidatedEntities.memoryUnits,
+        concepts_needing_synthesis: input.currentKnowledgeGraph.conceptsNeedingSynthesis,
+        recent_growth_events: input.recentGrowthEvents,
+        previous_key_phrases: input.previousKeyPhrases || []
+      },
+      recent_conversations: {
+        conversations: input.currentKnowledgeGraph.conversations.map(conv => ({
+          title: conv.context_summary || 'Untitled Conversation',
+          importance_score: 7,
+          summary: conv.context_summary || 'No summary available'
+        }))
+      }
+    };
 
-## Current Knowledge Graph State
-### Memory Units and Conversation Summaries (${input.currentKnowledgeGraph.memoryUnits.length} total)
-**Note**: This section contains:
-- **Memory Units** (tagged with 'memory_unit'): Actual extracted memories from conversations
-- **Conversation Summaries** (tagged with 'conversation_summary'): Context summaries with proper titles from the conversations table
-${JSON.stringify(input.currentKnowledgeGraph.memoryUnits, null, 2)}
+    // Process dynamic context template
+    const dynamicContextProcessed = this.buildDynamicContextSimple(dynamicContextData);
 
-### Concepts (${input.currentKnowledgeGraph.concepts.length} total)
-${JSON.stringify(input.currentKnowledgeGraph.concepts, null, 2)}
+    // Build prompt
+    const masterPrompt = `${coreIdentityWithUserName}
 
-### Relationships (${input.currentKnowledgeGraph.relationships.length} total)
-${JSON.stringify(input.currentKnowledgeGraph.relationships, null, 2)}
+${operationalConfigWithUserName}
 
-## Recent Growth Events (${input.recentGrowthEvents.length} total)
-${JSON.stringify(input.recentGrowthEvents, null, 2)}
+${dynamicContextProcessed}
 
-## User Profile
-${JSON.stringify(input.userProfile, null, 2)}
-
-${strategicInstructionsWithUserName}
-
-${responseFormat}`;
+${currentAnalysisWithUserName}`;
 
     console.log(`[StrategicSynthesisTool] Final prompt length: ${masterPrompt.length} characters`);
     return masterPrompt;
   }
 
   /**
-   * Parse and validate LLM output with Gemini-native JSON support
-   * V11.1 FIX: Updated to prioritize direct JSON parsing over marker-based extraction
+   * Process Mustache template with data
    */
-  private validateAndParseOutput(llmJsonResponse: string): StrategicSynthesisOutput {
-    let jsonString = llmJsonResponse.trim();
-    let parsed: unknown;
+  private processMustacheTemplate(template: string, data: any): string {
+    let result = template;
     
-    // Strategy 1: Try direct JSON parsing first (Gemini native mode)
-    try {
-      parsed = JSON.parse(jsonString);
-      console.log(`[StrategicSynthesisTool] Direct JSON parsing successful (Gemini native mode)`);
-    } catch (directParseError) {
-      console.log(`[StrategicSynthesisTool] Direct JSON parsing failed, attempting marker-based extraction as fallback`);
+    // Process sections with arrays and objects (supports underscore-separated names)
+    result = result.replace(/\{\{#([^}]+)\}\}([\s\S]*?)\{\{\/\1\}\}/g, (match, sectionName, content) => {
+      const sectionData = this.getNestedValue(data, sectionName);
+      if (!sectionData) return '';
       
-      // Strategy 2: Extract JSON from between markers (fallback for old responses)
-      const beginMarker = '###==BEGIN_JSON==###';
-      const endMarker = '###==END_JSON==###';
-      
-      let beginIndex = llmJsonResponse.indexOf(beginMarker);
-      let endIndex = llmJsonResponse.indexOf(endMarker);
-      
-      // If exact markers not found, try more flexible matching
-      if (beginIndex === -1) {
-        // Try variations of the begin marker
-        const beginVariations = ['###==BEGIN_JSON==###', '###==BEGIN_JSON==##', '###==BEGIN_JSON==#', '###==BEGIN_JSON=='];
-        for (const variation of beginVariations) {
-          beginIndex = llmJsonResponse.indexOf(variation);
-          if (beginIndex !== -1) {
-            console.log(`[StrategicSynthesisTool] Found begin marker variation: "${variation}"`);
-            break;
-          }
-        }
+      if (Array.isArray(sectionData)) {
+        return sectionData.map(item => {
+          let itemContent = content;
+          // Replace item properties
+          Object.keys(item).forEach(key => {
+            const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+            itemContent = itemContent.replace(regex, this.formatValue(item[key]) || '');
+          });
+          return itemContent;
+        }).join('');
+      } else {
+        // For objects, process the content with the object as context
+        let processedContent = content;
+        Object.keys(sectionData).forEach(key => {
+          const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+          processedContent = processedContent.replace(regex, this.formatValue(sectionData[key]) || '');
+        });
+        return processedContent;
       }
-      
-      if (endIndex === -1) {
-        // Try variations of the end marker
-        const endVariations = ['###==END_JSON==###', '###==END_JSON==##', '###==END_JSON==#', '###==END_JSON=='];
-        for (const variation of endVariations) {
-          endIndex = llmJsonResponse.indexOf(variation);
-          if (endIndex !== -1) {
-            console.log(`[StrategicSynthesisTool] Found end marker variation: "${variation}"`);
-            break;
-          }
-        }
-      }
-      
-      if (beginIndex === -1 || endIndex === -1) {
-        console.error(`[StrategicSynthesisTool] JSON markers not found. Begin index: ${beginIndex}, End index: ${endIndex}`);
-        console.error(`[StrategicSynthesisTool] Response preview: ${llmJsonResponse.substring(0, 500)}...`);
-        console.error(`[StrategicSynthesisTool] Response end: ${llmJsonResponse.substring(Math.max(0, llmJsonResponse.length - 200))}`);
-        throw new StrategicSynthesisJSONParseError(`LLM response missing required JSON markers. Response: ${llmJsonResponse.substring(0, 500)}...`, llmJsonResponse);
-      }
-      
-      jsonString = llmJsonResponse.substring(beginIndex + beginMarker.length, endIndex).trim();
-      
-      console.log(`[StrategicSynthesisTool] Extracted JSON string length: ${jsonString.length}`);
-      console.log(`[StrategicSynthesisTool] JSON preview: ${jsonString.substring(0, 200)}...`);
-      
-      try {
-        parsed = JSON.parse(jsonString);
-      } catch (error) {
-        console.error(`[StrategicSynthesisTool] JSON parsing failed:`, error);
-        console.error(`[StrategicSynthesisTool] Failed JSON string: ${jsonString.substring(0, 500)}...`);
-        throw new StrategicSynthesisJSONParseError(`Invalid JSON in LLM response: ${jsonString.substring(0, 200)}...`, jsonString);
-      }
-    }
+    });
     
-    try {
-      const validatedResult = StrategicSynthesisOutputSchema.parse(parsed);
-      console.log(`[StrategicSynthesisTool] Validation successful. Parsed data:`, {
-        concepts_to_merge: validatedResult.ontology_optimizations.concepts_to_merge.length,
-        new_strategic_relationships: validatedResult.ontology_optimizations.new_strategic_relationships.length,
-        derived_artifacts: validatedResult.derived_artifacts.length,
-        proactive_prompts: validatedResult.proactive_prompts.length
-      });
-      return validatedResult;
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        console.error('[StrategicSynthesisTool] Validation errors:', error.errors);
-        console.error('[StrategicSynthesisTool] Raw parsed data:', JSON.stringify(parsed, null, 2).substring(0, 1000));
-        throw new StrategicSynthesisValidationError('Validation failed', error.errors);
-      }
-      throw new StrategicSynthesisError('Unknown validation error', error as Error);
-    }
+    // Process remaining variables (including object properties like .length)
+    result = this.processVariables(result, data);
+    
+    return result;
   }
 
   /**
-   * Check if an error is retryable (e.g., model overload, rate limit, temporary issues)
+   * Get nested value from object using dot notation or underscore notation
    */
-  private isRetryableError(error: any): boolean {
-    if (!error) return false;
+  private getNestedValue(obj: any, path: string): any {
+    // Handle both dot notation (nested.properties) and underscore notation (section_names)
+    const keys = path.includes('.') ? path.split('.') : [path];
+    return keys.reduce((current, key) => current?.[key], obj);
+  }
+
+  /**
+   * Process simple variables and object properties in template
+   */
+  private processVariables(template: string, data: any): string {
+    let result = template;
     
-    const errorMessage = (typeof error === 'string') ? error : (error.message || error.toString() || '');
-    const retryablePatterns = [
-      /model is overloaded/i,
-      /service unavailable/i,
-      /rate limit/i,
-      /quota exceeded/i,
-      /temporary/i,
-      /try again later/i,
-      /timeout/i,
-      /network error/i,
-      /connection error/i,
-      /503/i, // Service Unavailable
-      /429/i, // Too Many Requests
-      /500/i  // Internal Server Error
+    // Process all variables in the template
+    const variableRegex = /\{\{([^}]+)\}\}/g;
+    let match;
+    
+    while ((match = variableRegex.exec(result)) !== null) {
+      const fullMatch = match[0]; // {{variable}}
+      const variablePath = match[1]; // variable
+      
+      const value = this.getNestedValue(data, variablePath);
+      const formattedValue = this.formatValue(value) || '';
+      
+      result = result.replace(fullMatch, formattedValue);
+    }
+    
+    return result;
+  }
+
+  /**
+   * Format value for template replacement
+   */
+  private formatValue(value: any): string {
+    if (value === null || value === undefined) return '';
+    if (Array.isArray(value)) return value.length.toString();
+    if (typeof value === 'object') return JSON.stringify(value);
+    return String(value);
+  }
+
+
+  /**
+   * Consolidate and deduplicate entities from all sources
+   */
+  private consolidateEntities(input: StrategicSynthesisInput): {
+    concepts: Array<{ id: string; name: string; description: string }>;
+    memoryUnits: Array<{ id: string; content: string }>;
+  } {
+    // Consolidate concepts
+    const allConcepts = [
+      ...input.currentKnowledgeGraph.concepts,
+      // Normalize HRT concepts
+      ...(input.strategicContext?.retrievedConcepts?.map((concept: any) => ({
+        id: concept.id,
+        name: concept.name,
+        description: concept.description
+        // Drop finalScore field
+      })) || [])
     ];
     
-    return retryablePatterns.some(pattern => pattern.test(errorMessage));
+    const deduplicatedConcepts = this.deduplicateConcepts(allConcepts);
+    
+    // Consolidate memory units
+    const allMemoryUnits = [
+      ...input.currentKnowledgeGraph.memoryUnits,
+      // Normalize HRT memory units
+      ...(input.strategicContext?.retrievedMemoryUnits?.map((mu: any) => ({
+        id: mu.id,
+        content: mu.content
+        // Drop title and finalScore fields
+      })) || [])
+    ];
+    
+    const deduplicatedMemoryUnits = this.deduplicateMemoryUnits(allMemoryUnits);
+    
+    return {
+      concepts: deduplicatedConcepts,
+      memoryUnits: deduplicatedMemoryUnits
+    };
   }
 
   /**
-   * Enhanced LLM execution with automatic retry and fallback model support
+   * Deduplicate concepts by name, merging descriptions
    */
-  private async executeLLMWithRetry(
-    llmInput: any,
-    callType: string
-  ): Promise<any> {
-    let attempts = 0;
-    const maxAttempts = 3; // Try primary model + 2 fallback models
+  private deduplicateConcepts(concepts: Array<{ id: string; name: string; description: string }>): Array<{ id: string; name: string; description: string }> {
+    const seen = new Map<string, { id: string; name: string; description: string }>();
     
-    while (attempts < maxAttempts) {
-      attempts++;
-      try {
-        console.log(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Attempt ${attempts}/${maxAttempts}`);
-        
-        const llmResult = await LLMChatTool.execute(llmInput);
-        
-        if (llmResult.status === 'success' && llmResult.result?.text) {
-          console.log(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call successful on attempt ${attempts}`);
-          return llmResult;
+    for (const concept of concepts) {
+      const key = concept.name.toLowerCase().trim();
+      if (seen.has(key)) {
+        // Merge descriptions
+        const existing = seen.get(key)!;
+        if (existing.description !== concept.description && concept.description.trim()) {
+          existing.description = `${existing.description} ${concept.description}`.trim();
         }
-        
-        // Check if this is a retryable error
-        const errorMessage = llmResult.error?.message || 'Unknown error';
-        if (attempts < maxAttempts && this.isRetryableError(errorMessage)) {
-          console.log(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Retryable error detected: ${errorMessage}`);
-          console.log(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Attempting to switch to fallback model...`);
-          
-          try {
-            // Force reinitialization to try a different model
-            if (LLMChatTool.forceReinitialize) {
-              LLMChatTool.forceReinitialize();
-              console.log(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Switched to fallback model`);
-            }
-            
-            // Add exponential backoff delay before retrying
-            const delay = Math.min(1000 * Math.pow(2, attempts - 1), 10000); // Max 10 seconds
-            console.log(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Waiting ${delay}ms before retry...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            
-            continue; // Try again with the new model
-          } catch (modelSwitchError) {
-            console.error(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Failed to switch to fallback model:`, modelSwitchError);
-            // Continue with the next attempt
-          }
-        } else {
-          // If not retryable or all attempts exhausted, break out of retry loop
-          console.error(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Non-retryable error or max attempts reached: ${errorMessage}`);
-          throw new Error(`LLM call failed: ${errorMessage}`);
-        }
-      } catch (error) {
-        console.error(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Unexpected error on attempt ${attempts}:`, error);
-        
-        if (attempts < maxAttempts && this.isRetryableError(error)) {
-          console.log(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Retryable error, attempting retry...`);
-          
-          try {
-            // Force reinitialization to try a different model
-            if (LLMChatTool.forceReinitialize) {
-              LLMChatTool.forceReinitialize();
-              console.log(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Switched to fallback model after unexpected error`);
-            }
-            
-            // Add exponential backoff delay before retrying
-            const delay = Math.min(1000 * Math.pow(2, attempts - 1), 10000);
-            console.log(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Waiting ${delay}ms before retry...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            
-            continue; // Try again with the new model
-          } catch (modelSwitchError) {
-            console.error(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - Failed to switch to fallback model:`, modelSwitchError);
-          }
-        } else {
-          // If not retryable or all attempts exhausted, re-throw the error
-          throw error;
-        }
+      } else {
+        seen.set(key, { ...concept });
       }
     }
-
-    // If all attempts fail, throw the last error
-    console.error(`[StrategicSynthesisTool] ${callType.toUpperCase()} LLM call - All ${maxAttempts} attempts failed`);
-    throw new Error(`Failed to get LLM response after ${maxAttempts} attempts. The AI service may be temporarily overloaded. Please try again in a moment.`);
+    
+    return Array.from(seen.values());
   }
 
   /**
-   * Get tool metadata for ToolRegistry
+   * Deduplicate memory units by content
+   */
+  private deduplicateMemoryUnits(memoryUnits: Array<{ id: string; content: string }>): Array<{ id: string; content: string }> {
+    const seen = new Map<string, { id: string; content: string }>();
+    
+    for (const memoryUnit of memoryUnits) {
+      const key = memoryUnit.content.toLowerCase().trim();
+      if (!seen.has(key)) {
+        seen.set(key, { ...memoryUnit });
+      }
+    }
+    
+    return Array.from(seen.values());
+  }
+
+  /**
+   * Build dynamic context using simple string interpolation (surgical fix for template processing)
+   */
+  private buildDynamicContextSimple(data: any): string {
+    const { analysis_context, consolidated_knowledge_graph, recent_conversations } = data;
+    
+    return `=== SECTION 3: DYNAMIC CONTEXT ===
+
+## 3.1 ANALYSIS CONTEXT (High Cacheability: 80-90%)
+User: ${analysis_context.user_name}
+Cycle ID: ${analysis_context.cycle_id}
+Analysis Timestamp: ${analysis_context.analysis_timestamp}
+Cycle Period: ${analysis_context.cycle_period}
+
+## 3.2 CONSOLIDATED KNOWLEDGE GRAPH (Medium Cacheability: 50-70%)
+### Concepts (${consolidated_knowledge_graph.concepts.length} total)
+${consolidated_knowledge_graph.concepts.map((concept: any) => 
+  `- **${concept.name}** (${concept.id}): ${concept.description}`
+).join('\n')}
+
+### Memory Units (${consolidated_knowledge_graph.memory_units.length} total)
+${consolidated_knowledge_graph.memory_units.map((mu: any) => 
+  `- **${mu.id}**: ${mu.content}`
+).join('\n')}
+
+### Concepts Needing Synthesis (${consolidated_knowledge_graph.concepts_needing_synthesis.length} total)
+${consolidated_knowledge_graph.concepts_needing_synthesis.map((concept: any) => 
+  `- **${concept.name}** (${concept.id}): ${concept.description}`
+).join('\n')}
+
+### Recent Growth Events (${consolidated_knowledge_graph.recent_growth_events.length} total)
+${consolidated_knowledge_graph.recent_growth_events.map((event: any) => 
+  `- **${event.id}**: ${event.rationale}`
+).join('\n')}
+
+### Previous Cycle Key Phrases (${consolidated_knowledge_graph.previous_key_phrases.length} total)
+${consolidated_knowledge_graph.previous_key_phrases.map((kp: any) => 
+  `- **${kp.category}**: ${kp.phrases.join(', ')}`
+).join('\n')}
+
+## 3.3 RECENT CONVERSATIONS (Low Cacheability: 10-30%)
+${recent_conversations.conversations.map((conv: any) => 
+  `- **${conv.title}** (${conv.importance_score}/10): ${conv.summary}`
+).join('\n')}`;
+  }
+
+  /**
+   * Parse and validate LLM output with resilient error handling
+   * Works with whatever the LLM sends back, only failing on critical issues
+   * Never hides LLM response failures - works with actual response
+   */
+  private validateAndParseOutput(llmJsonResponse: string): StrategicSynthesisOutput {
+    console.log(`[StrategicSynthesisTool] Processing LLM response (${llmJsonResponse.length} chars)`);
+    
+    // Extract JSON from response (handles extra text, markdown, etc.)
+    const jsonData = this.extractJSONFromResponse(llmJsonResponse);
+    
+    // Check if LLM returned schema template instead of actual data
+    this.detectSchemaResponse(jsonData);
+    
+    // Validate with smart error recovery - work with actual LLM response
+    return this.validateWithRecovery(jsonData);
+  }
+
+  /**
+   * Detect if LLM returned schema template instead of actual data
+   */
+  private detectSchemaResponse(data: any): void {
+    if (!data || typeof data !== 'object') return;
+    
+    // Check for schema syntax patterns
+    const schemaPatterns = [
+      /\|/g,  // Pipe separators like "opening" | "deeper_story"
+      /<[^>]+>/g,  // Angle brackets like <artifact_title>
+      /<number_between_[^>]+>/g,  // Number placeholders
+      /<string>/g,  // String placeholders
+    ];
+    
+    const dataString = JSON.stringify(data);
+    const foundPatterns = schemaPatterns.filter(pattern => pattern.test(dataString));
+    
+    if (foundPatterns.length > 0) {
+      console.error(`[StrategicSynthesisTool] 🚨 SCHEMA DETECTION: LLM returned schema template instead of actual data!`);
+      console.error(`[StrategicSynthesisTool] Found schema patterns: ${foundPatterns.length}`);
+      console.error(`[StrategicSynthesisTool] This indicates a prompt engineering issue - LLM is confused by schema examples`);
+      
+      // Throw a specific error that can be caught and handled
+      throw new StrategicSynthesisValidationError(
+        'LLM response format is critically invalid - returned schema template instead of actual data. This indicates a prompt engineering issue where the LLM is confused by schema examples in the prompt.',
+        [{ 
+          code: 'schema_template_detected', 
+          message: 'LLM returned schema template instead of actual data',
+          data: dataString 
+        }]
+      );
+    }
+  }
+
+  /**
+   * Extract JSON from LLM response, handling various response formats
+   */
+  private extractJSONFromResponse(response: string): any {
+    // Try direct parsing first (most common case)
+    try {
+      return JSON.parse(response.trim());
+    } catch {
+      // Extract JSON from response with extra text
+      const firstBrace = response.indexOf('{');
+      const lastBrace = response.lastIndexOf('}');
+      
+      if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+        throw new StrategicSynthesisJSONParseError('No valid JSON found in LLM response', response);
+      }
+      
+      const jsonString = response.substring(firstBrace, lastBrace + 1).trim();
+      return JSON.parse(jsonString);
+    }
+  }
+
+  /**
+   * Validate data with smart error recovery - work with actual LLM response
+   * Only applies minor fixes for formatting issues, never hides LLM response content
+   */
+  private validateWithRecovery(data: any): StrategicSynthesisOutput {
+    try {
+      // Try validation first
+      return StrategicSynthesisOutputSchema.parse(data);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        console.warn(`[StrategicSynthesisTool] Validation issues detected, attempting minor fixes...`);
+        
+        // Apply only minor fixes for common formatting issues
+        const fixedData = this.applyMinorFixes(data, error.errors);
+        
+        try {
+          const result = StrategicSynthesisOutputSchema.parse(fixedData);
+          console.log(`[StrategicSynthesisTool] Minor fixes successful`);
+          return result;
+        } catch (recoveryError) {
+          console.error(`[StrategicSynthesisTool] Minor fixes failed - LLM response has critical issues`);
+          console.error(`[StrategicSynthesisTool] This indicates a problem with the LLM response format that needs investigation`);
+          throw new StrategicSynthesisValidationError('LLM response format is critically invalid', error.errors);
+        }
+      }
+      throw new StrategicSynthesisError('Unexpected validation error', error as Error);
+    }
+  }
+
+  /**
+   * Apply minor fixes for common LLM response formatting issues
+   * Only fixes minor formatting problems, never adds content
+   */
+  private applyMinorFixes(data: any, errors: z.ZodIssue[]): any {
+    const fixed = JSON.parse(JSON.stringify(data));
+    
+    // Only fix minor formatting issues - don't add missing content
+    this.cleanupArrays(fixed);
+    
+    return fixed;
+  }
+
+
+  /**
+   * Clean up arrays by removing null/undefined items
+   */
+  private cleanupArrays(data: any): void {
+    const arrayFields = [
+      'derived_artifacts', 'proactive_prompts',
+      'ontology_optimizations.concepts_to_merge',
+      'ontology_optimizations.concepts_to_archive',
+      'ontology_optimizations.new_strategic_relationships',
+      'ontology_optimizations.community_structures',
+      'ontology_optimizations.concept_description_synthesis'
+    ];
+    
+    for (const field of arrayFields) {
+      this.filterArrayField(data, field);
+    }
+  }
+
+  /**
+   * Filter null/undefined items from a specific array field
+   */
+  private filterArrayField(data: any, fieldPath: string): void {
+    const path = fieldPath.split('.');
+    let current = data;
+    
+    // Navigate to the parent object
+    for (let i = 0; i < path.length - 1; i++) {
+      if (!current[path[i]]) return; // Field doesn't exist
+      current = current[path[i]];
+    }
+    
+    const arrayField = path[path.length - 1];
+    if (Array.isArray(current[arrayField])) {
+      current[arrayField] = current[arrayField].filter((item: any) => item != null);
+    }
+  }
+
+
+
+
+  /**
+   * Get tool metadata
    */
   static getMetadata() {
     return {
       name: 'StrategicSynthesisTool',
-      description: ' Composite tool for strategic knowledge graph analysis and optimization',
+      description: 'Composite tool for strategic knowledge graph analysis and optimization',
       version: '1.0.0',
       requiredAtomicTools: ['LLMChatTool'],
       inputSchema: 'StrategicSynthesisInput',

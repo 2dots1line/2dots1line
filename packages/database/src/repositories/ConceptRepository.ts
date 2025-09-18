@@ -24,6 +24,7 @@ export interface UpdateConceptData {
   salience?: number;
   community_id?: string;
   merged_into_concept_id?: string;
+  last_updated_ts?: Date;
 }
 
 export class ConceptRepository {

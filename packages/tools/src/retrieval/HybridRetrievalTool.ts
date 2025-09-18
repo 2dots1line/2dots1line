@@ -164,8 +164,7 @@ export class HybridRetrievalTool {
       // Simple filtering and deduplication
       const processed = keyPhrases
         .filter(phrase => phrase && phrase.trim().length > 0)
-        .map(phrase => phrase.trim().substring(0, 100))
-        .slice(0, 5);
+        .map(phrase => phrase.trim().substring(0, 100));
       
       const deduplicated = [...new Set(processed)];
       
@@ -181,7 +180,7 @@ export class HybridRetrievalTool {
         error: error instanceof Error ? error : new Error(String(error)),
         impact: 'degraded'
       });
-      return keyPhrases.slice(0, 5);
+      return keyPhrases.filter(phrase => phrase && phrase.trim().length > 0);
     }
   }
 
@@ -205,8 +204,8 @@ export class HybridRetrievalTool {
           // Generate embedding for the search phrase
           const embeddingResult = await this.embeddingTool.execute({
             payload: {
-              text_to_embed: phrase,
-              model_id: 'gemini-embedding-004' // Use Gemini embedding model
+              text_to_embed: phrase
+              // model_id will be determined by the TextEmbeddingTool from config
             }
           });
           
@@ -219,16 +218,60 @@ export class HybridRetrievalTool {
           console.log(`[HRT ${context.requestId}] Generated ${searchVector.length}-dimensional vector for phrase "${phrase}"`);
           
           // Use nearVector search instead of withNearText
+          // For memory units, we don't filter by status since they don't have status in PostgreSQL
+          // For concepts, we filter by status: 'active' or null to include existing concepts
+          const whereClause = {
+            operator: 'And' as const,
+            operands: [
+              {
+                operator: 'Equal' as const,
+                path: ['userId'],
+                valueString: userId
+              },
+              {
+                operator: 'Or' as const,
+                operands: [
+                  {
+                    operator: 'Equal' as const,
+                    path: ['sourceEntityType'],
+                    valueString: 'MemoryUnit'
+                  },
+                  {
+                    operator: 'And' as const,
+                    operands: [
+                      {
+                        operator: 'Equal' as const,
+                        path: ['sourceEntityType'],
+                        valueString: 'Concept'
+                      },
+                        {
+                          operator: 'Or' as const,
+                          operands: [
+                            {
+                              operator: 'Equal' as const,
+                              path: ['status'],
+                              valueString: 'active'
+                            },
+                            {
+                              operator: 'NotEqual' as const,
+                              path: ['status'],
+                              valueString: 'merged'
+                            }
+                          ]
+                        }
+                    ]
+                  }
+                ]
+              }
+            ]
+          };
+
           const result = await this.weaviate
             .graphql
             .get()
             .withClassName('UserKnowledgeItem')
-            .withFields('externalId sourceEntityType _additional { distance }')
-            .withWhere({
-              operator: 'Equal',
-              path: ['userId'],
-              valueString: userId
-            })
+            .withFields('externalId sourceEntityType textContent _additional { distance }')
+            .withWhere(whereClause)
             .withNearVector({ vector: searchVector })
             .withLimit(3)
             .do();
@@ -241,6 +284,7 @@ export class HybridRetrievalTool {
                 const similarity = 1.0 - distance;
                 
                 if (similarity > 0.1) {
+                  // Weaviate already filters by status='active', so all results are active
                   seedEntities.push({
                     id: item.externalId,
                     type: item.sourceEntityType,

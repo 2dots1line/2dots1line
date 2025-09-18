@@ -1,0 +1,160 @@
+{
+  "version": "1.0",
+  "description": "Retrieval scenario configurations for different insight worker analysis types",
+  "analysis_scenarios": {
+    "trend_synthesis": {
+      "description": "Comprehensive trend analysis and pattern synthesis",
+      "primary_scenario": "trend_analysis",
+      "secondary_scenarios": ["pattern_detection", "temporal_evolution"],
+      "key_phrases": ["trend_analysis", "growth_patterns", "wellbeing_insights"],
+      "max_results": 80,
+      "time_window_days": 90,
+      "focus_areas": [
+        "emerging patterns",
+        "behavioral trends", 
+        "habit formation",
+        "routine changes",
+        "preference shifts",
+        "activity patterns"
+      ]
+    },
+    "strategic_analysis": {
+      "description": "High-level strategic insights and decision patterns",
+      "primary_scenario": "strategic_relationships",
+      "secondary_scenarios": ["conceptual", "influence_network"],
+      "key_phrases": ["strategic_insights", "growth_patterns", "relationship_dynamics"],
+      "max_results": 60,
+      "time_window_days": 120,
+      "focus_areas": [
+        "decision patterns",
+        "goal alignment",
+        "priority shifts",
+        "value changes",
+        "strategic thinking"
+      ]
+    },
+    "knowledge_gap_analysis": {
+      "description": "Identify learning gaps and educational opportunities",
+      "primary_scenario": "conceptual",
+      "secondary_scenarios": ["pattern_detection", "community_analysis"],
+      "key_phrases": ["knowledge_gaps", "creative_expression", "growth_patterns"],
+      "max_results": 50,
+      "time_window_days": 60,
+      "focus_areas": [
+        "learning objectives",
+        "skill development",
+        "competency gaps",
+        "mastery progression",
+        "educational goals"
+      ]
+    },
+    "wellbeing_insights": {
+      "description": "Personal wellbeing and life balance analysis",
+      "primary_scenario": "temporal_evolution",
+      "secondary_scenarios": ["trend_analysis", "pattern_detection"],
+      "key_phrases": ["wellbeing_insights", "growth_patterns", "trend_analysis"],
+      "max_results": 45,
+      "time_window_days": 180,
+      "focus_areas": [
+        "health patterns",
+        "stress management",
+        "work-life balance",
+        "emotional growth",
+        "energy levels"
+      ]
+    },
+    "creative_development": {
+      "description": "Creative expression and innovation patterns",
+      "primary_scenario": "community_analysis",
+      "secondary_scenarios": ["conceptual", "pattern_detection"],
+      "key_phrases": ["creative_expression", "strategic_insights", "growth_patterns"],
+      "max_results": 40,
+      "time_window_days": 90,
+      "focus_areas": [
+        "artistic pursuits",
+        "creative projects",
+        "innovation",
+        "problem solving",
+        "creative breakthroughs"
+      ]
+    },
+    "comprehensive_cycle": {
+      "description": "Full strategic cycle analysis with multiple perspectives",
+      "primary_scenario": "trend_analysis",
+      "secondary_scenarios": ["strategic_relationships", "conceptual", "temporal_evolution", "community_analysis"],
+      "key_phrases": ["all_areas"],
+      "max_results": 100,
+      "time_window_days": 90,
+      "focus_areas": "all"
+    }
+  },
+  "scenario_selection_rules": {
+    "trend_synthesis": {
+      "triggers": ["trend", "pattern", "evolution", "change", "development"],
+      "min_entities_required": 10,
+      "confidence_threshold": 0.6
+    },
+    "strategic_analysis": {
+      "triggers": ["strategic", "decision", "goal", "priority", "value"],
+      "min_entities_required": 8,
+      "confidence_threshold": 0.7
+    },
+    "knowledge_gap_analysis": {
+      "triggers": ["learning", "skill", "knowledge", "education", "competency"],
+      "min_entities_required": 6,
+      "confidence_threshold": 0.5
+    },
+    "wellbeing_insights": {
+      "triggers": ["health", "stress", "balance", "emotional", "energy"],
+      "min_entities_required": 8,
+      "confidence_threshold": 0.6
+    },
+    "creative_development": {
+      "triggers": ["creative", "artistic", "innovation", "design", "problem"],
+      "min_entities_required": 5,
+      "confidence_threshold": 0.5
+    }
+  },
+  "multi_scenario_strategies": {
+    "parallel_retrieval": {
+      "description": "Run multiple scenarios in parallel and merge results",
+      "max_parallel_scenarios": 3,
+      "merge_strategy": "weighted_union",
+      "deduplication": true
+    },
+    "sequential_retrieval": {
+      "description": "Run scenarios sequentially, using results to inform next scenario",
+      "max_sequential_scenarios": 4,
+      "result_propagation": true,
+      "adaptive_phrases": true
+    },
+    "adaptive_retrieval": {
+      "description": "Dynamically select scenarios based on initial results",
+      "initial_scenario": "conceptual",
+      "adaptation_threshold": 0.3,
+      "max_adaptations": 2
+    }
+  },
+  "trend_synthesis_config": {
+    "enabled": true,
+    "min_entities_for_trend": 5,
+    "pattern_detection": {
+      "temporal_patterns": true,
+      "frequency_patterns": true,
+      "correlation_patterns": true,
+      "anomaly_detection": true
+    },
+    "trend_confidence_scoring": {
+      "entity_count_weight": 0.3,
+      "temporal_consistency_weight": 0.4,
+      "semantic_coherence_weight": 0.3
+    },
+    "trend_categories": [
+      "emerging_trends",
+      "declining_trends", 
+      "stable_patterns",
+      "cyclical_patterns",
+      "anomalous_events"
+    ]
+  }
+}

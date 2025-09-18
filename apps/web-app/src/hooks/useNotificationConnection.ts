@@ -1,67 +1,104 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { io, Socket } from 'socket.io-client';
 import { useNotificationStore } from '../stores/NotificationStore';
 import { useUserStore } from '../stores/UserStore';
 
 export const useNotificationConnection = () => {
   const { user } = useUserStore();
   const { connectSSE, disconnectSSE, addNotification } = useNotificationStore();
-  const eventSourceRef = useRef<EventSource | null>(null);
+  const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    console.log('[SSE] useNotificationConnection effect - user:', user, 'user_id:', user?.user_id);
+    console.log('[Socket.IO] useNotificationConnection effect - user:', user, 'user_id:', user?.user_id);
     
     if (!user?.user_id) {
-      console.log('[SSE] No user_id found, disconnecting if connected');
+      console.log('[Socket.IO] No user_id found, disconnecting if connected');
       // User not authenticated, disconnect if connected
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
         disconnectSSE();
       }
       return;
     }
 
-    // User is authenticated, establish SSE connection
-    const connectToSSE = () => {
+    // User is authenticated, establish Socket.IO connection
+    const connectToSocketIO = () => {
       try {
         // Close existing connection if any
-        if (eventSourceRef.current) {
-          eventSourceRef.current.close();
+        if (socketRef.current) {
+          socketRef.current.disconnect();
         }
 
-        // Get token for SSE (sent via query param)
+        // Get token for authentication
         const token = (typeof window !== 'undefined' && localStorage.getItem('auth_token')) || 'dev-token';
-        const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
-        const url = `${API_BASE_URL}/api/v1/notification/subscribe?userId=${encodeURIComponent(user.user_id)}&token=${encodeURIComponent(token)}`;
-        console.log('[SSE] Connecting to:', url);
-        const eventSource = new EventSource(url);
+        const NOTIFICATION_SERVICE_URL = process.env.NEXT_PUBLIC_NOTIFICATION_SERVICE_URL || 'http://localhost:3002';
+        
+        console.log('[Socket.IO] Connecting to:', NOTIFICATION_SERVICE_URL);
+        
+        const socket = io(NOTIFICATION_SERVICE_URL, {
+          auth: {
+            token: token,
+            userId: user.user_id
+          },
+          transports: ['websocket', 'polling'], // Fallback to polling if WebSocket fails
+          timeout: 20000,
+          reconnection: true,
+          reconnectionDelay: 1000,
+          reconnectionAttempts: 5,
+          maxReconnectionAttempts: 5
+        });
 
-        eventSource.onopen = () => {
-          console.log('[SSE] ✅ Connection established successfully');
+        socket.on('connect', () => {
+          console.log('[Socket.IO] ✅ Connection established successfully');
           connectSSE();
-        };
+        });
 
-        // Unified handler for both default and named events
-        const handleIncoming = (event: MessageEvent) => {
+        socket.on('connected', (data) => {
+          console.log('[Socket.IO] Server confirmation:', data);
+        });
+
+        // Handle all notification events
+        const handleNotification = (data: any) => {
           try {
-            const raw = event.data;
-            const eventName = (event as any).type || 'message';
-            console.log('[SSE] 📨 Event received:', { eventName, raw });
+            console.log('[Socket.IO] 📨 Event received:', data);
+            
+            // Handle consolidated updates from notification worker
+            if (data.newCards !== undefined || data.graphUpdates !== undefined || data.insights !== undefined) {
+              // This is a consolidated update
+              const notification = {
+                id: `consolidated-${Date.now()}`,
+                type: 'new_card_available' as const, // Use a default type for consolidated updates
+                title: 'Updates Available',
+                description: data.message || 'New updates are available',
+                timestamp: new Date(data.timestamp || Date.now()),
+                isRead: false,
+                userId: user.user_id,
+                metadata: {
+                  newCards: data.newCards || 0,
+                  graphUpdates: data.graphUpdates || 0,
+                  insights: data.insights || 0,
+                  isConsolidated: true
+                }
+              };
 
-            const data = JSON.parse(raw);
-
-            // Map worker event names to store types
+              console.log('[Socket.IO] 🎉 Adding consolidated notification to store:', notification);
+              addNotification(notification);
+              return;
+            }
+            
+            // Handle individual notifications
             const typeMap: Record<string, 'new_star_generated' | 'new_card_available' | 'graph_projection_updated'> = {
               new_star: 'new_star_generated',
               new_card: 'new_card_available',
-              graph_updated: 'graph_projection_updated'
+              new_card_available: 'new_card_available',
+              graph_updated: 'graph_projection_updated',
+              graph_projection_updated: 'graph_projection_updated'
             };
 
-            const mappedType =
-              typeMap[eventName] ||
-              (data.type as 'new_star_generated' | 'new_card_available' | 'graph_projection_updated' | undefined);
+            const mappedType = typeMap[data.type] || data.type;
 
             // Build title/description with good fallbacks
             let title = data.title ?? data.display_data?.title;
@@ -83,55 +120,67 @@ export const useNotificationConnection = () => {
               metadata: data.metadata
             };
 
-            console.log('[SSE] 🎉 Adding notification to store:', notification);
+            console.log('[Socket.IO] 🎉 Adding notification to store:', notification);
             addNotification(notification);
           } catch (error) {
-            console.error('Error parsing SSE message:', error);
+            console.error('[Socket.IO] Error processing notification:', error);
           }
         };
 
-        // Listen to default "message" and all named events
-        eventSource.onmessage = handleIncoming;
-        ['notification', 'new_star', 'new_card', 'graph_updated'].forEach((evt) => {
-          console.log('[SSE] Adding listener for event:', evt);
-          eventSource.addEventListener(evt, handleIncoming);
+        // Listen to all notification events
+        ['notification', 'new_star', 'new_card', 'graph_updated', 'new_card_available', 'graph_projection_updated', 'consolidated_update'].forEach((eventName) => {
+          console.log('[Socket.IO] Adding listener for event:', eventName);
+          socket.on(eventName, handleNotification);
         });
 
-        eventSource.onerror = (error) => {
-          console.error('[SSE] connection error:', error);
-          try {
-            console.log('[SSE] readyState:', eventSource.readyState);
-          } catch {}
-          eventSource.close();
+        socket.on('disconnect', (reason) => {
+          console.log('[Socket.IO] Disconnected:', reason);
+          disconnectSSE();
+        });
 
-          // Attempt to reconnect after 5 seconds
-          setTimeout(() => {
-            if (user?.user_id) {
-              console.log('[SSE] reconnecting…');
-              connectToSSE();
-            }
-          }, 5000);
-        };
+        socket.on('connect_error', (error) => {
+          console.error('[Socket.IO] Connection error:', error);
+          disconnectSSE();
+        });
 
-        eventSourceRef.current = eventSource;
+        socket.on('reconnect', (attemptNumber) => {
+          console.log('[Socket.IO] Reconnected after', attemptNumber, 'attempts');
+          connectSSE();
+        });
+
+        socket.on('reconnect_error', (error) => {
+          console.error('[Socket.IO] Reconnection error:', error);
+        });
+
+        socket.on('reconnect_failed', () => {
+          console.error('[Socket.IO] Reconnection failed');
+          disconnectSSE();
+        });
+
+        // Handle ping/pong for connection health
+        socket.on('pong', (data) => {
+          console.log('[Socket.IO] Pong received:', data);
+        });
+
+        socketRef.current = socket;
       } catch (error) {
-        console.error('Failed to establish SSE connection:', error);
+        console.error('Failed to establish Socket.IO connection:', error);
       }
     };
 
-    connectToSSE();
+    connectToSocketIO();
 
     // Cleanup on unmount or user change
     return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
         disconnectSSE();
       }
     };
   }, [user?.user_id, connectSSE, disconnectSSE, addNotification]);
 
   return {
-    isConnected: !!eventSourceRef.current && eventSourceRef.current.readyState === EventSource.OPEN
+    isConnected: !!socketRef.current && socketRef.current.connected
   };
 };

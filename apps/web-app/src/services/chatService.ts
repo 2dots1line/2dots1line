@@ -98,9 +98,16 @@ class ChatService {
       'Content-Type': 'application/json'
     };
     
-    const token = localStorage.getItem('auth_token');
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+    // In development, use dev-token for testing
+    const isDevelopment = process.env.NODE_ENV === 'development' || (typeof window !== 'undefined' && window.location.hostname === 'localhost');
+    
+    if (isDevelopment) {
+      headers['Authorization'] = 'Bearer dev-token';
+    } else {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
     }
     
     return headers;
@@ -108,26 +115,62 @@ class ChatService {
 
   /**
    * Send a text message to the DialogueAgent via API Gateway
+   * Includes retry logic for temporary connection issues
    */
   async sendMessage(request: SendMessageRequest): Promise<SendMessageResponse> {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/conversations/messages`, {
-        method: 'POST',
-        headers: this.getAuthHeaders(),
-        body: JSON.stringify(request),
-      });
+    const maxRetries = 3;
+    const retryDelay = 1000; // 1 second
 
-      const data = await response.json();
+    // DEBUG: Log the request being sent
+    console.log('🔍 ChatService.sendMessage - Request:', {
+      url: `${API_BASE_URL}/api/v1/conversations/messages`,
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: request
+    });
 
-      if (!response.ok) {
-        throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/v1/conversations/messages`, {
+          method: 'POST',
+          headers: this.getAuthHeaders(),
+          body: JSON.stringify(request),
+        });
+
+        const data = await response.json();
+
+        // DEBUG: Log the response received
+        console.log('🔍 ChatService.sendMessage - Response:', {
+          status: response.status,
+          statusText: response.statusText,
+          data: data
+        });
+
+        if (!response.ok) {
+          // If it's a 400 error and we have retries left, wait and retry
+          if (response.status === 400 && attempt < maxRetries) {
+            console.warn(`Message send attempt ${attempt} failed with 400, retrying in ${retryDelay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
+            continue;
+          }
+          throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        return data;
+      } catch (error) {
+        console.error(`Error sending message (attempt ${attempt}/${maxRetries}):`, error);
+        
+        // If this is the last attempt, throw the error
+        if (attempt === maxRetries) {
+          throw error;
+        }
+        
+        // Wait before retrying
+        await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
       }
-
-      return data;
-    } catch (error) {
-      console.error('Error sending message:', error);
-      throw error;
     }
+
+    throw new Error('Failed to send message after all retry attempts');
   }
 
   /**

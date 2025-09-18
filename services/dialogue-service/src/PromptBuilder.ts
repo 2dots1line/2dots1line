@@ -54,6 +54,7 @@ export class PromptBuilder {
     const summariesPromise = this.conversationRepository.getRecentImportantConversationSummaries(userId);
     const turnContextPromise = this.redisClient.get(`turn_context:${conversationId}`);
     const sessionContextPromise = this.getSessionContext(userId, conversationId); // NEW: Session context
+    const recentConversationPromise = this.conversationRepository.getMostRecentProcessedConversationWithContext(userId); // NEW: Get proactive greeting
     
     // Get new optimized templates
     const coreIdentityTpl = this.configService.getTemplate('core_identity_section');
@@ -63,12 +64,13 @@ export class PromptBuilder {
     const coreIdentity = this.configService.getCoreIdentity();
 
     // --- STEP 2: AWAIT ALL DATA ---
-    const [user, conversationHistory, recentSummaries, turnContextStr, sessionContext] = await Promise.all([
+    const [user, conversationHistory, recentSummaries, turnContextStr, sessionContext, recentConversation] = await Promise.all([
       userPromise,
       historyPromise,
       summariesPromise,
       turnContextPromise,
-      sessionContextPromise // NEW
+      sessionContextPromise, // NEW
+      recentConversationPromise // NEW
     ]);
 
     if (!user) {
@@ -83,7 +85,8 @@ export class PromptBuilder {
       summariesCount: Array.isArray(recentSummaries) ? recentSummaries.length : 0,
       hasTurnContext: !!turnContext,
       isNewConversation,
-      hasNextContextPackage: !!user.next_conversation_context_package
+      hasRecentConversation: !!recentConversation,
+      hasProactiveGreeting: !!recentConversation?.proactive_greeting
     });
 
     // --- STEP 3: BUILD OPTIMIZED 4-SECTION PROMPT ---
@@ -96,7 +99,6 @@ export class PromptBuilder {
     
     // Section 3: Dynamic Context (Variable Cache Hit Rate - Ordered by Stability)
     const section3Data = {
-      knowledge_graph_schema: this.formatComponentContent('knowledge_graph_schema', user.knowledge_graph_schema),
       user_memory_profile: this.formatComponentContent('user_memory_profile', user.memory_profile),
       conversation_summaries: this.formatComponentContent('conversation_summaries', recentSummaries),
       session_context: sessionContext.length > 0 ? this.formatComponentContent('session_context', sessionContext) : null,
@@ -108,7 +110,7 @@ export class PromptBuilder {
     // Section 4: Current Turn (No Cache - Turn-Specific)
     const section4Data = {
       context_from_last_conversation: isNewConversation ? 
-        this.formatContextFromLastConversation(user.next_conversation_context_package, user.name || 'User') : null,
+        this.formatContextFromLastConversation(recentConversation?.forward_looking_context, user.name || 'User') : null,
       context_from_last_turn: !isNewConversation ? 
         this.formatContextFromLastTurn(turnContext, user.name || 'User') : null,
       user_message: finalInputText

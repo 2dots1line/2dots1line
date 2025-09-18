@@ -187,8 +187,7 @@ export class UserController {
           preferences: user.preferences,
           created_at: user.created_at,
           next_conversation_context_package: user.next_conversation_context_package,
-          memory_profile: user.memory_profile,
-          knowledge_graph_schema: user.knowledge_graph_schema
+          memory_profile: user.memory_profile
         }
       } as TApiResponse<any>);
     } catch (error) {

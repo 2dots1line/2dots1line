@@ -4,7 +4,7 @@
  */
 
 import { randomUUID } from 'crypto';
-import type { cards, Prisma } from '@2dots1line/database';
+import type { Prisma } from '@2dots1line/database';
 import { DatabaseService } from '../DatabaseService';
 import { GrowthDimensionData } from './GrowthEventRepository';
 
@@ -26,7 +26,7 @@ export interface UpdateCardData {
 
 export interface CardData {
   id: string;
-  type: 'memory_unit' | 'concept' | 'derived_artifact';
+  type: 'memory_unit' | 'concept' | 'derived_artifact' | 'memoryunit' | 'growthevent' | 'proactiveprompt' | 'community';
   title: string;
   preview: string;
   evolutionState: string;
@@ -39,7 +39,7 @@ export interface CardData {
 }
 
 export interface CardFilters {
-  cardType?: 'memory_unit' | 'concept' | 'derived_artifact';
+  cardType?: 'memory_unit' | 'concept' | 'derived_artifact' | 'memoryunit' | 'growthevent' | 'proactiveprompt' | 'community';
   evolutionState?: string;
   limit?: number;
   offset?: number;
@@ -56,7 +56,7 @@ export interface CardResultWithMeta {
 export class CardRepository {
   constructor(private db: DatabaseService) {}
 
-  async create(data: CreateCardData): Promise<cards> {
+  async create(data: CreateCardData): Promise<any> {
     return this.db.prisma.cards.create({
       data: {
         ...data,
@@ -66,13 +66,13 @@ export class CardRepository {
     });
   }
 
-  async findById(cardId: string): Promise<cards | null> {
+  async findById(cardId: string): Promise<any | null> {
     return this.db.prisma.cards.findUnique({
       where: { card_id: cardId },
     });
   }
 
-  async findByUserId(userId: string, limit = 50, offset = 0): Promise<cards[]> {
+  async findByUserId(userId: string, limit = 50, offset = 0): Promise<any[]> {
     return this.db.prisma.cards.findMany({
       where: { user_id: userId },
       take: limit,
@@ -81,7 +81,7 @@ export class CardRepository {
     });
   }
 
-  async findActiveByUserId(userId: string, limit = 50): Promise<cards[]> {
+  async findActiveByUserId(userId: string, limit = 50): Promise<any[]> {
     return this.db.prisma.cards.findMany({
       where: {
         user_id: userId,
@@ -92,7 +92,7 @@ export class CardRepository {
     });
   }
 
-  async findArchivedByUserId(userId: string, limit = 50): Promise<cards[]> {
+  async findArchivedByUserId(userId: string, limit = 50): Promise<any[]> {
     return this.db.prisma.cards.findMany({
       where: {
         user_id: userId,
@@ -103,7 +103,7 @@ export class CardRepository {
     });
   }
 
-  async findFavoritedByUserId(userId: string): Promise<cards[]> {
+  async findFavoritedByUserId(userId: string): Promise<any[]> {
     return this.db.prisma.cards.findMany({
       where: {
         user_id: userId,
@@ -113,7 +113,7 @@ export class CardRepository {
     });
   }
 
-  async findBySourceEntity(sourceEntityId: string, sourceEntityType: string): Promise<cards[]> {
+  async findBySourceEntity(sourceEntityId: string, sourceEntityType: string): Promise<any[]> {
     return this.db.prisma.cards.findMany({
       where: {
         source_entity_id: sourceEntityId,
@@ -122,7 +122,7 @@ export class CardRepository {
     });
   }
 
-  async update(cardId: string, data: UpdateCardData): Promise<cards> {
+  async update(cardId: string, data: UpdateCardData): Promise<any> {
     return this.db.prisma.cards.update({
       where: { card_id: cardId },
       data: {
@@ -132,28 +132,28 @@ export class CardRepository {
     });
   }
 
-  async archive(cardId: string): Promise<cards> {
+  async archive(cardId: string): Promise<any> {
     return this.db.prisma.cards.update({
       where: { card_id: cardId },
       data: { status: 'active_archive' },
     });
   }
 
-  async complete(cardId: string): Promise<cards> {
+  async complete(cardId: string): Promise<any> {
     return this.db.prisma.cards.update({
       where: { card_id: cardId },
       data: { status: 'completed' },
     });
   }
 
-  async favorite(cardId: string, favorited = true): Promise<cards> {
+  async favorite(cardId: string, favorited = true): Promise<any> {
     return this.db.prisma.cards.update({
       where: { card_id: cardId },
       data: { is_favorited: favorited },
     });
   }
 
-  async markSynced(cardId: string, synced = true): Promise<cards> {
+  async markSynced(cardId: string, synced = true): Promise<any> {
     return this.db.prisma.cards.update({
       where: { card_id: cardId },
       data: { is_synced: synced },
@@ -166,7 +166,7 @@ export class CardRepository {
     });
   }
 
-  async findByType(userId: string, cardType: string, limit = 50): Promise<cards[]> {
+  async findByType(userId: string, cardType: string, limit = 50): Promise<any[]> {
     return this.db.prisma.cards.findMany({
       where: {
         user_id: userId,
@@ -186,7 +186,7 @@ export class CardRepository {
     });
   }
 
-  async findUnsyncedByUserId(userId: string): Promise<cards[]> {
+  async findUnsyncedByUserId(userId: string): Promise<any[]> {
     return this.db.prisma.cards.findMany({
       where: {
         user_id: userId,
@@ -197,7 +197,7 @@ export class CardRepository {
   }
 
   /**
-   * Get cards with advanced filtering and growth data
+   * Get any with advanced filtering and growth data
    */
   async getCards(userId: string, filters: CardFilters): Promise<CardResultWithMeta> {
     // For now, use simplified logic. The proper implementation should join with growth data.
@@ -220,7 +220,7 @@ export class CardRepository {
     });
 
     // Transform to CardData format
-    const cardData: CardData[] = cards.map(card => {
+    const cardData: CardData[] = cards.map((card: any) => {
       // Parse display_data if present
       let displayData: any = {};
       if (card.display_data) {
@@ -232,7 +232,7 @@ export class CardRepository {
       }
       return {
         id: card.card_id,
-        type: card.card_type as 'memory_unit' | 'concept' | 'derived_artifact',
+        type: card.card_type as 'memory_unit' | 'concept' | 'derived_artifact' | 'memoryunit' | 'growthevent' | 'proactiveprompt' | 'community',
         title: displayData.title || displayData.name || '',
         preview: displayData.preview || displayData.previewText || displayData.description || '',
         evolutionState: 'seed', // Simplified - should calculate based on business logic
@@ -281,7 +281,7 @@ export class CardRepository {
   }
 
   /**
-   * Get cards by evolution state
+   * Get any by evolution state
    */
   async getCardsByEvolutionState(userId: string, state: string): Promise<CardData[]> {
     // Simplified implementation - proper logic would filter by calculated evolution state
@@ -291,7 +291,7 @@ export class CardRepository {
       orderBy: { created_at: 'desc' },
     });
 
-    return cards.map(card => ({
+    return cards.map((card: any) => ({
       id: card.card_id,
       type: card.card_type as 'memory_unit' | 'concept' | 'derived_artifact',
       title: `Card ${card.card_id}`,
@@ -304,7 +304,7 @@ export class CardRepository {
   }
 
   /**
-   * Get top growth cards
+   * Get top growth any
    */
   async getTopGrowthCards(userId: string, limit: number): Promise<CardData[]> {
     // Simplified implementation - proper logic would order by growth activity
@@ -314,7 +314,7 @@ export class CardRepository {
       orderBy: { updated_at: 'desc' },
     });
 
-    return cards.map(card => ({
+    return cards.map((card: any) => ({
       id: card.card_id,
       type: card.card_type as 'memory_unit' | 'concept' | 'derived_artifact',
       title: `Card ${card.card_id}`,

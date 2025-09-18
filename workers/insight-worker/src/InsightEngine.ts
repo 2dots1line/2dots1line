@@ -5,17 +5,26 @@ import {
   MemoryRepository,
   ConceptRepository,
   DerivedArtifactRepository,
-  ProactivePromptRepository
+  ProactivePromptRepository,
+  UserCycleRepository,
+  WeaviateService,
+  CommunityRepository,
+  GrowthEventRepository
 } from '@2dots1line/database';
 import type { 
   CreateDerivedArtifactData,
-  CreateProactivePromptData
+  CreateProactivePromptData,
+  CreateUserCycleData,
+  CreateGrowthEventData
 } from '@2dots1line/database';
-import { StrategicSynthesisTool, StrategicSynthesisOutput, StrategicSynthesisInput } from '@2dots1line/tools';
+import { StrategicSynthesisTool, StrategicSynthesisOutput, StrategicSynthesisInput, HybridRetrievalTool, LLMChatTool } from '@2dots1line/tools';
+import { ConceptMerger, ConceptArchiver, CommunityCreator } from '@2dots1line/ontology-core';
+import { ConfigService } from '@2dots1line/config-service';
+import { LLMRetryHandler } from '@2dots1line/core-utils';
 import { Job , Queue } from 'bullmq';
 import { randomUUID } from 'crypto';
+import type { ExtendedAugmentedMemoryContext } from '@2dots1line/tools';
 
-import { InsightDataCompiler } from './InsightDataCompiler';
 
 export interface InsightJobData {
   userId: string;
@@ -33,10 +42,20 @@ export class InsightEngine {
   private conceptRepository: ConceptRepository;
   private derivedArtifactRepository: DerivedArtifactRepository;
   private proactivePromptRepository: ProactivePromptRepository;
-  private insightDataCompiler: InsightDataCompiler;
+  private userCycleRepository: UserCycleRepository;
+  private weaviateService: WeaviateService;
+  private communityRepository: CommunityRepository;
+  private growthEventRepository: GrowthEventRepository;
+  
+  // Shared ontology components
+  private conceptMerger: ConceptMerger;
+  private conceptArchiver: ConceptArchiver;
+  private communityCreator: CommunityCreator;
 
   constructor(
     private strategicSynthesisTool: StrategicSynthesisTool,
+    private hybridRetrievalTool: HybridRetrievalTool,
+    private configService: ConfigService,
     private dbService: DatabaseService,
     private cardQueue: Queue,
     private graphQueue: Queue,
@@ -48,7 +67,15 @@ export class InsightEngine {
     this.conceptRepository = new ConceptRepository(dbService);
     this.derivedArtifactRepository = new DerivedArtifactRepository(dbService);
     this.proactivePromptRepository = new ProactivePromptRepository(dbService);
-    this.insightDataCompiler = new InsightDataCompiler(dbService, dbService.neo4j);
+    this.userCycleRepository = new UserCycleRepository(dbService);
+    this.weaviateService = new WeaviateService(dbService);
+    this.communityRepository = new CommunityRepository(dbService);
+    this.growthEventRepository = new GrowthEventRepository(dbService);
+    
+    // Initialize shared ontology components
+    this.conceptMerger = new ConceptMerger(this.conceptRepository, dbService, this.weaviateService);
+    this.conceptArchiver = new ConceptArchiver(this.conceptRepository, this.weaviateService);
+    this.communityCreator = new CommunityCreator(this.communityRepository, dbService);
   }
 
   async processUserCycle(job: Job<InsightJobData>): Promise<void> {
@@ -56,33 +83,124 @@ export class InsightEngine {
     
     // Calculate cycle dates based on current time
     const cycleDates = this.calculateCycleDates();
+    const cycleId = `cycle_${userId}_${cycleDates.cycleStartDate.getTime()}`;
 
     console.log(`[InsightEngine] Starting strategic cycle for user ${userId}`);
+    console.log(`[InsightEngine] Cycle ID: ${cycleId}`);
     console.log(`[InsightEngine] Cycle period: ${cycleDates.cycleStartDate.toISOString()} to ${cycleDates.cycleEndDate.toISOString()}`);
 
+    // Create cycle record
+    const cycleData: CreateUserCycleData = {
+      cycle_id: cycleId,
+      user_id: userId,
+      job_id: job.id,
+      cycle_start_date: cycleDates.cycleStartDate,
+      cycle_end_date: cycleDates.cycleEndDate,
+      cycle_type: 'strategic_analysis',
+      cycle_duration_days: 2,
+      trigger_source: 'scheduled'
+    };
+
+    const cycle = await this.userCycleRepository.create(cycleData);
+    console.log(`[InsightEngine] Created cycle record: ${cycle.cycle_id}`);
+
+    const startTime = Date.now();
+
+    let analysisOutput: StrategicSynthesisOutput;
+    let newEntities: Array<{ id: string; type: string }> = [];
+
     try {
-      // Phase I: Data Compilation via InsightDataCompiler
+      // Phase I: Data Compilation and Context Gathering
       const { strategicInput } = await this.gatherComprehensiveContext(userId, job.id || 'unknown', cycleDates);
 
-      // Phase II: Strategic Synthesis LLM Call
-      const analysisOutput = await this.strategicSynthesisTool.execute(strategicInput);
-      console.log(`[InsightEngine] Strategic synthesis completed for user ${userId}`);
-      console.log(`[InsightEngine] DEBUG: analysisOutput keys:`, Object.keys(analysisOutput || {}));
-      console.log(`[InsightEngine] DEBUG: ontology_optimizations:`, analysisOutput?.ontology_optimizations ? 'EXISTS' : 'MISSING');
-      console.log(`[InsightEngine] DEBUG: concepts_to_merge length:`, analysisOutput?.ontology_optimizations?.concepts_to_merge?.length || 0);
+      // Phase II: Strategic Synthesis (StrategicSynthesisTool handles retries internally)
+      try {
+        analysisOutput = await this.strategicSynthesisTool.execute(strategicInput);
+        console.log(`[InsightEngine] Strategic synthesis completed for user ${userId}`);
+        console.log(`[InsightEngine] DEBUG: analysisOutput keys:`, Object.keys(analysisOutput || {}));
+        console.log(`[InsightEngine] DEBUG: ontology_optimizations:`, analysisOutput?.ontology_optimizations ? 'EXISTS' : 'MISSING');
+        console.log(`[InsightEngine] DEBUG: concepts_to_merge length:`, analysisOutput?.ontology_optimizations?.concepts_to_merge?.length || 0);
 
-      // ENHANCED: Validate LLM response quality
-      if (analysisOutput) {
-        // Convert analysisOutput to string for validation (simplified approach)
-        const outputString = JSON.stringify(analysisOutput);
-        this.validateLLMResponse(outputString, 'StrategicSynthesisTool');
+        // ENHANCED: Validate LLM response quality
+        if (analysisOutput) {
+          // Convert analysisOutput to string for validation (simplified approach)
+          const outputString = JSON.stringify(analysisOutput);
+          this.validateLLMResponse(outputString, 'StrategicSynthesisTool');
+        }
+      } catch (llmError: unknown) {
+        console.error(`[InsightEngine] 🔴 STRATEGIC SYNTHESIS FAILED - LLM ERROR:`);
+        console.error(`[InsightEngine] Error type: ${llmError instanceof Error ? llmError.name : 'Unknown'}`);
+        console.error(`[InsightEngine] Error message: ${llmError instanceof Error ? llmError.message : String(llmError)}`);
+        
+        // Check if this is a retryable LLM error that should have been handled by LLMRetryHandler
+        if (llmError instanceof Error) {
+          if (llmError.message.includes('503') || llmError.message.includes('server overload')) {
+            console.error(`[InsightEngine] LLM service overload - this should have been retried by LLMRetryHandler`);
+          } else if (llmError.message.includes('rate limit') || llmError.message.includes('quota')) {
+            console.error(`[InsightEngine] LLM rate limit - this should have been retried by LLMRetryHandler`);
+          } else if (llmError.message.includes('timeout') || llmError.message.includes('network')) {
+            console.error(`[InsightEngine] LLM network error - this should have been retried by LLMRetryHandler`);
+          } else {
+            console.error(`[InsightEngine] Non-retryable LLM error - manual investigation required`);
+          }
+        }
+        
+        throw llmError; // Re-throw errors - BullMQ retries are disabled
       }
 
-      // Phase III: Persistence, Graph Update & State Propagation
-      const newEntities = await this.persistStrategicUpdates(userId, analysisOutput);
+      // Phase III: Persistence, Graph Update & State Propagation (separate try-catch for database errors)
+      try {
+        newEntities = await this.persistStrategicUpdates(userId, analysisOutput, cycleId);
+        console.log(`[InsightEngine] Database operations completed successfully`);
+      } catch (dbError: unknown) {
+        console.error(`[InsightEngine] 🔴 DATABASE OPERATIONS FAILED - NON-RETRYABLE ERROR:`);
+        console.error(`[InsightEngine] Error type: ${dbError instanceof Error ? dbError.name : 'Unknown'}`);
+        console.error(`[InsightEngine] Error message: ${dbError instanceof Error ? dbError.message : String(dbError)}`);
+        console.error(`[InsightEngine] LLM call succeeded, but database operations failed. This is NOT retryable at BullMQ level.`);
+        
+        // Log specific database error details
+        if (dbError instanceof Error) {
+          if (dbError.message.includes('connection') || dbError.message.includes('timeout')) {
+            console.error(`[InsightEngine] Database connection error - check database service status`);
+          } else if (dbError.message.includes('constraint') || dbError.message.includes('violation')) {
+            console.error(`[InsightEngine] Database constraint violation - data integrity issue`);
+          } else if (dbError.message.includes('permission') || dbError.message.includes('access')) {
+            console.error(`[InsightEngine] Database permission error - check database credentials`);
+          } else {
+            console.error(`[InsightEngine] Unknown database error - manual investigation required`);
+          }
+        }
+        
+        // For database failures, we still want to complete the cycle but mark it as having issues
+        // Don't throw the error - just log it and continue with partial success
+        console.warn(`[InsightEngine] Continuing with partial success due to database errors`);
+      }
 
       // Phase IV: Event Publishing for Presentation Layer
-      await this.publishCycleArtifacts(userId, newEntities);
+      try {
+        await this.publishCycleArtifacts(userId, newEntities);
+      } catch (publishError: unknown) {
+        console.error(`[InsightEngine] Warning: Failed to publish cycle artifacts:`, publishError);
+        // Don't fail the entire cycle for publishing errors
+      }
+
+      // Update cycle record with completion data
+      const processingDuration = Date.now() - startTime;
+      const artifactsCreated = analysisOutput.derived_artifacts?.length || 0;
+      const promptsCreated = analysisOutput.proactive_prompts?.length || 0;
+      const conceptsMerged = analysisOutput.ontology_optimizations?.concepts_to_merge?.length || 0;
+      const relationshipsCreated = analysisOutput.ontology_optimizations?.new_strategic_relationships?.length || 0;
+
+      await this.userCycleRepository.update(cycleId, {
+        status: 'completed',
+        completed_at: new Date(),
+        artifacts_created: artifactsCreated,
+        prompts_created: promptsCreated,
+        concepts_merged: conceptsMerged,
+        relationships_created: relationshipsCreated,
+        processing_duration_ms: processingDuration,
+        dashboard_ready: true
+      });
 
       console.log(`[InsightEngine] Successfully completed strategic cycle for user ${userId}, created ${newEntities.length} new entities`);
       
@@ -92,6 +210,8 @@ export class InsightEngine {
       console.error(`[InsightEngine] User ID: ${userId}`);
       console.error(`[InsightEngine] Job ID: ${job.id}`);
       console.error(`[InsightEngine] Cycle period: ${cycleDates.cycleStartDate.toISOString()} to ${cycleDates.cycleEndDate.toISOString()}`);
+      
+      // Log error details for debugging
       
       // Type-safe error logging
       if (error instanceof Error) {
@@ -116,21 +236,52 @@ export class InsightEngine {
       
       console.error(`[InsightEngine] ================================================`);
       
-      throw error;
+      // Update cycle record with failure data
+      const processingDuration = Date.now() - startTime;
+      await this.userCycleRepository.update(cycleId, {
+        status: 'failed',
+        completed_at: new Date(),
+        processing_duration_ms: processingDuration,
+        error_count: 1,
+        dashboard_ready: false
+      });
+      
+      // All errors are non-retryable at BullMQ level - only LLM retries are handled by LLMRetryHandler
+      console.error(`[InsightEngine] 🔴 JOB FAILED - BullMQ retries disabled`);
+      console.error(`[InsightEngine] Error type: ${error instanceof Error ? error.name : 'Unknown'}`);
+      console.error(`[InsightEngine] Error message: ${error instanceof Error ? error.message : String(error)}`);
+      
+      // Log specific error categorization for debugging
+      if (error instanceof Error) {
+        if (error.message.includes('503') || error.message.includes('server overload')) {
+          console.error(`[InsightEngine] LLM service overload - this should have been retried by LLMRetryHandler`);
+        } else if (error.message.includes('database') || error.message.includes('postgres') || error.message.includes('neo4j')) {
+          console.error(`[InsightEngine] Database error - this is NOT retryable at BullMQ level`);
+        } else if (error.message.includes('validation') || error.message.includes('schema')) {
+          console.error(`[InsightEngine] Validation error - this is NOT retryable at BullMQ level`);
+        } else {
+          console.error(`[InsightEngine] Unknown error type - manual investigation required`);
+        }
+      }
+      
+      const nonRetryableError = new Error(`NON_RETRYABLE_ERROR: ${error instanceof Error ? error.message : String(error)}`);
+      nonRetryableError.name = 'NonRetryableError';
+      throw nonRetryableError;
     }
   }
 
   /**
-   * Calculate cycle dates based on current time
-   * Default: Last 30 days, but can be configured
+   * Calculate cycle dates for strategic analysis
+   * Returns last 2 days by default
    */
   private calculateCycleDates(): CycleDates {
     const now = new Date();
     const cycleEndDate = new Date(now);
-    const cycleStartDate = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000)); // 30 days ago
+    const cycleStartDate = new Date(now.getTime() - (2 * 24 * 60 * 60 * 1000)); // 2 days ago
     
     return { cycleStartDate, cycleEndDate };
   }
+
 
   private async gatherComprehensiveContext(userId: string, jobId: string, cycleDates: CycleDates) {
     // Get user information
@@ -141,47 +292,32 @@ export class InsightEngine {
 
     console.log(`[InsightEngine] Compiling data for cycle from ${cycleDates.cycleStartDate} to ${cycleDates.cycleEndDate}`);
 
-    // Phase I: Compile the three distinct "Input Packages" in parallel
-    const [ingestionSummary, graphAnalysis, strategicInsights] = await Promise.all([
-      this.insightDataCompiler.compileIngestionActivity(userId, cycleDates),
-      this.insightDataCompiler.compileGraphAnalysis(userId),
-      this.insightDataCompiler.compileStrategicInsights(userId, cycleDates)
-    ]);
-
-    // Build StrategicSynthesisInput with all available data
-    const strategicInput: StrategicSynthesisInput = {
-      userId,
-      userName: user.name || 'User',
-      cycleId: `cycle-${userId}-${Date.now()}`,
-      cycleStartDate: cycleDates.cycleStartDate,
-      cycleEndDate: cycleDates.cycleEndDate,
-      currentKnowledgeGraph: {
-        // Combine conversation summaries and actual memory units, but label them clearly
-        memoryUnits: await (async () => {
-          const actualMemoryUnits = await this.getUserMemoryUnits(userId, cycleDates);
-          const conversationSummaries = ingestionSummary.conversationSummaries.map(conv => {
-            return {
-              id: `conv_${conv.id}`, // Prefix to distinguish from memory units
-              title: `[CONVERSATION] ${conv.title || 'Untitled Conversation'}`, // Use actual conversation title
-              content: conv.context_summary || 'No summary available', // Clean content
-              importance_score: conv.importance_score,
-              tags: [], // No tags in conversations table - keep empty array for consistency
-              created_at: conv.created_at.toISOString()
-            };
-          });
-          
-          console.log(`[InsightEngine] Assembling knowledge graph: ${actualMemoryUnits.length} actual memory units + ${conversationSummaries.length} conversation summaries = ${actualMemoryUnits.length + conversationSummaries.length} total items`);
-          
-          return [
-            ...actualMemoryUnits,
-            ...conversationSummaries
-          ];
-        })(),
-        concepts: await this.getUserConcepts(userId, cycleDates),
-        relationships: await this.getUserRelationships(userId, cycleDates)
+    // Get conversation summaries directly from database (pre-filtered by importance)
+    const conversationSummaries = await this.dbService.prisma.conversations.findMany({
+      where: {
+        user_id: userId,
+        start_time: {
+          gte: cycleDates.cycleStartDate,
+          lte: cycleDates.cycleEndDate
+        },
+        importance_score: { gte: 5 } // Pre-filter for high importance conversations
       },
+      select: {
+        context_summary: true
+      },
+      orderBy: { importance_score: 'desc' }
+    });
+
+    // Build knowledge graph data for key phrase generation
+    const knowledgeGraph = {
+      conversations: conversationSummaries
+        .filter((conv: { context_summary: string | null }) => conv.context_summary)
+        .map((conv: { context_summary: string | null }) => ({
+          context_summary: conv.context_summary || 'No summary available'
+        })),
+      memoryUnits: await this.getUserMemoryUnits(userId, cycleDates),
+      concepts: await this.getUserConcepts(userId, cycleDates),
       recentGrowthEvents: await (async () => {
-        // Get actual growth events from the database within the cycle period
         const growthEvents = await this.dbService.prisma.growth_events.findMany({
           where: {
             user_id: userId,
@@ -191,29 +327,48 @@ export class InsightEngine {
             }
           },
           orderBy: { created_at: 'desc' },
-          take: 20 // Limit to most recent 20 events to avoid overwhelming the LLM
+          take: 20
         });
+        return growthEvents.map((event: any) => ({
+          id: event.event_id,
+          rationale: event.rationale
+        }));
+      })()
+    };
 
-        console.log(`[InsightEngine] Found ${growthEvents.length} growth events within cycle period`);
-        
-        // Map to the expected format
-        return growthEvents.map((event: any) => {
-          const details = event.details as any;
-          return {
-            dim_key: details?.dim_key || 'unknown',
-            event_type: 'growth_event',
-            description: details?.rationale || 'Growth event recorded',
-            impact_level: Math.abs(details?.delta || 0),
-            created_at: event.created_at.toISOString()
-          };
-        });
-      })(),
-      userProfile: {
-        preferences: user.memory_profile || {},
-        goals: [],
-        interests: [],
-        growth_trajectory: user.knowledge_graph_schema || {}
+    // Get previous cycle key phrases for continuity
+    const previousKeyPhrases = await this.getPreviousKeyPhrases(userId);
+
+    // Use HRT to retrieve strategic context based on previous key phrases
+    const hrtContext = await this.retrieveStrategicContextWithPreviousKeyPhrases(userId, previousKeyPhrases);
+
+    // Build StrategicSynthesisInput with simplified data structures
+    const strategicInput: StrategicSynthesisInput = {
+      // Core identification
+      userId,
+      userName: user.name || 'User',
+      cycleId: `cycle-${userId}-${Date.now()}`,
+      cycleStartDate: cycleDates.cycleStartDate,
+      cycleEndDate: cycleDates.cycleEndDate,
+      
+      // Current cycle data
+      currentKnowledgeGraph: {
+        conversations: knowledgeGraph.conversations,
+        memoryUnits: knowledgeGraph.memoryUnits,
+        concepts: knowledgeGraph.concepts,
+        conceptsNeedingSynthesis: await this.getConceptsNeedingSynthesis(userId, cycleDates.cycleStartDate)
       },
+      
+      // Growth events (recent cycle activity)
+      recentGrowthEvents: knowledgeGraph.recentGrowthEvents,
+      
+      // HRT-retrieved strategic context (historical data)
+      strategicContext: hrtContext,
+      
+      // Previous cycle continuity
+      previousKeyPhrases: previousKeyPhrases,
+      
+      // System metadata
       workerType: 'insight-worker',
       workerJobId: jobId
     };
@@ -221,26 +376,173 @@ export class InsightEngine {
     return { strategicInput };
   }
 
+
+
   /**
-   * Fetch user concepts from the database for strategic synthesis
+   * Get previous cycle key phrases for continuity
+   * Returns: Array of key phrase categories with their phrases
+   */
+  private async getPreviousKeyPhrases(userId: string): Promise<Array<{
+    category: string;
+    phrases: string[];
+  }>> {
+    try {
+      const user = await this.userRepository.findById(userId);
+      if (!user || !user.key_phrases || !Array.isArray(user.key_phrases)) {
+        console.log(`[InsightEngine] No previous key phrases found for user ${userId}`);
+        return [];
+      }
+
+      // Convert flat array to categorized format
+      // Previous format was just a flat array, so we'll create a simple structure
+      const phrases = user.key_phrases as string[];
+      const categories = [
+        'values_and_goals',
+        'emotional_drivers', 
+        'important_relationships',
+        'growth_patterns',
+        'knowledge_domains',
+        'life_context',
+        'hidden_connections'
+      ];
+
+      const result = [];
+      const phrasesPerCategory = Math.floor(phrases.length / categories.length);
+      
+      for (let i = 0; i < categories.length; i++) {
+        const startIdx = i * phrasesPerCategory;
+        const endIdx = i === categories.length - 1 ? phrases.length : (i + 1) * phrasesPerCategory;
+        const categoryPhrases = phrases.slice(startIdx, endIdx);
+        
+        if (categoryPhrases.length > 0) {
+          result.push({
+            category: categories[i],
+            phrases: categoryPhrases
+          });
+        }
+      }
+
+      console.log(`[InsightEngine] Retrieved ${result.length} key phrase categories for user ${userId}`);
+      return result;
+      
+    } catch (error) {
+      console.error(`[InsightEngine] Error retrieving previous key phrases:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Retrieve strategic context using HRT with previous cycle's key phrases
+   * This provides additional context for the LLM to generate better key phrases
+   */
+  private async retrieveStrategicContextWithPreviousKeyPhrases(
+    userId: string, 
+    previousKeyPhrases: Array<{ category: string; phrases: string[] }>
+  ): Promise<ExtendedAugmentedMemoryContext> {
+    try {
+      // Flatten previous key phrases for HRT
+      const allPreviousPhrases = previousKeyPhrases.flatMap(cat => cat.phrases);
+      
+      if (allPreviousPhrases.length === 0) {
+        console.log(`[InsightEngine] No previous key phrases available for HRT retrieval`);
+        return {
+          retrievedMemoryUnits: [],
+          retrievedConcepts: [],
+          retrievedArtifacts: [],
+          retrievalSummary: 'No previous key phrases available for retrieval'
+        };
+      }
+
+      console.log(`[InsightEngine] Using ${allPreviousPhrases.length} previous key phrases for HRT retrieval:`, allPreviousPhrases.slice(0, 5));
+      
+      // Execute HRT with previous cycle's key phrases
+      const hrtContext = await this.hybridRetrievalTool.execute({
+        keyPhrasesForRetrieval: allPreviousPhrases,
+        userId: userId,
+        retrievalScenario: 'trend_analysis', // Use trend analysis for comprehensive insights
+        maxResults: 60 // Higher limit for comprehensive analysis
+      });
+      
+      console.log(`[InsightEngine] HRT context retrieved:`, {
+        memoryUnits: hrtContext.retrievedMemoryUnits?.length || 0,
+        concepts: hrtContext.retrievedConcepts?.length || 0,
+        artifacts: hrtContext.retrievedArtifacts?.length || 0,
+        retrievalSummary: hrtContext.retrievalSummary || 'No summary available'
+      });
+      
+      return hrtContext;
+      
+    } catch (error) {
+      console.error(`[InsightEngine] Error retrieving strategic context with previous key phrases:`, error);
+      
+      // Return empty context on error to prevent system failure
+      return {
+        retrievedMemoryUnits: [],
+        retrievedConcepts: [],
+        retrievedArtifacts: [],
+        retrievalSummary: `Error retrieving strategic context: ${error instanceof Error ? error.message : 'Unknown error'}`
+      };
+    }
+  }
+
+  /**
+   * Save key phrases from LLM output to user's key_phrases field
+   * Converts categorized format to flat array for storage
+   */
+  private async saveKeyPhrasesFromLLMOutput(userId: string, keyPhrases: {
+    values_and_goals: string[];
+    emotional_drivers: string[];
+    important_relationships: string[];
+    growth_patterns: string[];
+    knowledge_domains: string[];
+    life_context: string[];
+    hidden_connections: string[];
+  }): Promise<void> {
+    try {
+      // Flatten all key phrases into a single array
+      const allPhrases = [
+        ...keyPhrases.values_and_goals,
+        ...keyPhrases.emotional_drivers,
+        ...keyPhrases.important_relationships,
+        ...keyPhrases.growth_patterns,
+        ...keyPhrases.knowledge_domains,
+        ...keyPhrases.life_context,
+        ...keyPhrases.hidden_connections
+      ];
+
+      await this.userRepository.update(userId, {
+        key_phrases: allPhrases
+      });
+
+      console.log(`[InsightEngine] Saved ${allPhrases.length} key phrases from LLM output for user ${userId}`);
+      console.log(`[InsightEngine] Key phrase categories: ${Object.keys(keyPhrases).join(', ')}`);
+      
+    } catch (error) {
+      console.error(`[InsightEngine] Error saving key phrases from LLM output:`, error);
+      // Don't throw error - this is not critical for the main process
+    }
+  }
+
+  /**
+   * Fetch user concepts for strategic synthesis
+   * Returns: id, name, description (pre-filtered by importance and active status)
    */
   private async getUserConcepts(userId: string, cycleDates: CycleDates): Promise<Array<{
     id: string;
     name: string;
     description: string;
-    category: string;
-    salience: number;
-    created_at: string;
-    merged_into_concept_id?: string;
   }>> {
     try {
       console.log(`[InsightEngine] Fetching concepts for user ${userId}`);
       
-      // Get all active concepts for the user within the cycle period
+      // Get active concepts for the user within the cycle period, excluding already merged ones
+      // Pre-filter by importance (salience) and exclude merged concepts
       const concepts = await this.dbService.prisma.concepts.findMany({
         where: { 
           user_id: userId, 
           status: 'active',
+          merged_into_concept_id: null, // Exclude already merged concepts
+          salience: { gte: 0.3 }, // Pre-filter for high importance concepts
           created_at: {
             gte: cycleDates.cycleStartDate,
             lte: cycleDates.cycleEndDate
@@ -249,27 +551,19 @@ export class InsightEngine {
         select: {
           concept_id: true,
           name: true,
-          description: true,
-          type: true,
-          salience: true,
-          created_at: true,
-          merged_into_concept_id: true
+          description: true
         },
         orderBy: { salience: 'desc' }
       });
 
-      // Map to the expected interface
+      // Map to simplified interface
       const mappedConcepts = concepts.map((concept: any) => ({
         id: concept.concept_id,
         name: concept.name,
-        description: concept.description || '',
-        category: concept.type,
-        salience: concept.salience || 0,
-        created_at: concept.created_at.toISOString(),
-        merged_into_concept_id: concept.merged_into_concept_id
+        description: concept.description || ''
       }));
 
-      console.log(`[InsightEngine] Retrieved ${mappedConcepts.length} concepts`);
+      console.log(`[InsightEngine] Retrieved ${mappedConcepts.length} new concepts from current cycle`);
       return mappedConcepts;
 
     } catch (error: unknown) {
@@ -279,49 +573,40 @@ export class InsightEngine {
   }
 
   /**
-   * Fetch user memory units from PostgreSQL for strategic synthesis
+   * Fetch user memory units for strategic synthesis
+   * Returns: id, content (pre-filtered by importance)
    */
   private async getUserMemoryUnits(userId: string, cycleDates: CycleDates): Promise<Array<{
     id: string;
-    title: string;
     content: string;
-    importance_score: number;
-    tags: string[];
-    created_at: string;
   }>> {
     try {
       console.log(`[InsightEngine] Fetching memory units for user ${userId}`);
       
-      // Get all memory units for the user within the cycle period
+      // Get memory units for the user within the cycle period, pre-filtered by importance
       const memoryUnits = await this.dbService.prisma.memory_units.findMany({
         where: { 
           user_id: userId,
-          creation_ts: {
+          importance_score: { gte: 2 }, // Pre-filter for high importance memory units
+          last_modified_ts: {
             gte: cycleDates.cycleStartDate,
             lte: cycleDates.cycleEndDate
           }
         },
         select: {
           muid: true,
-          title: true,
-          content: true,
-          importance_score: true,
-          creation_ts: true
+          content: true
         },
         orderBy: { importance_score: 'desc' }
       });
 
-      // Map to the expected interface
+      // Map to simplified interface
       const mappedMemoryUnits = memoryUnits.map((mu: any) => ({
         id: mu.muid,
-        title: mu.title,
-        content: mu.content,
-        importance_score: mu.importance_score || 0,
-        tags: ['memory_unit'], // Tag to distinguish from conversation summaries
-        created_at: mu.creation_ts.toISOString()
+        content: mu.content
       }));
 
-      console.log(`[InsightEngine] Retrieved ${mappedMemoryUnits.length} memory units`);
+      console.log(`[InsightEngine] Retrieved ${mappedMemoryUnits.length} high-importance memory units (pre-filtered)`);
       return mappedMemoryUnits;
 
     } catch (error: unknown) {
@@ -330,79 +615,11 @@ export class InsightEngine {
     }
   }
 
-  /**
-   * Fetch user relationships from Neo4j for strategic synthesis
-   */
-  private async getUserRelationships(userId: string, cycleDates: CycleDates): Promise<Array<{
-    source_id: string;
-    target_id: string;
-    relationship_type: string;
-    strength: number;
-  }>> {
-    try {
-      console.log(`[InsightEngine] Fetching relationships for user ${userId}`);
-      
-      if (!this.dbService.neo4j) {
-        console.log(`[InsightEngine] Neo4j client not available, returning empty relationships array`);
-        return [];
-      }
-
-      const session = this.dbService.neo4j.session();
-      
-      try {
-        // Query for relationships between concepts, memory units, and other entities
-        const cypher = `
-          MATCH (source)-[r:RELATED_TO]->(target)
-          WHERE (source.user_id = $userId OR source.userId = $userId)
-            AND (target.user_id = $userId OR target.userId = $userId)
-            AND r.created_ts >= datetime($startDate)
-            AND r.created_ts <= datetime($endDate)
-          RETURN 
-            CASE 
-              WHEN source.concept_id IS NOT NULL THEN source.concept_id
-              WHEN source.muid IS NOT NULL THEN source.muid
-              ELSE source.id
-            END as source_id,
-            CASE 
-              WHEN target.concept_id IS NOT NULL THEN target.concept_id
-              WHEN target.muid IS NOT NULL THEN target.muid
-              ELSE target.id
-            END as target_id,
-            COALESCE(r.relationship_label, r.type, 'RELATED_TO') as relationship_type,
-            COALESCE(r.weight, r.strength, 0.5) as strength
-          ORDER BY r.created_ts DESC
-          LIMIT 100
-        `;
-        
-        const result = await session.run(cypher, {
-          userId,
-          startDate: cycleDates.cycleStartDate.toISOString(),
-          endDate: cycleDates.cycleEndDate.toISOString()
-        });
-        
-        const relationships = result.records.map(record => ({
-          source_id: record.get('source_id'),
-          target_id: record.get('target_id'),
-          relationship_type: record.get('relationship_type'),
-          strength: record.get('strength').toNumber()
-        }));
-        
-        console.log(`[InsightEngine] Found ${relationships.length} relationships for user ${userId}`);
-        return relationships;
-        
-      } finally {
-        await session.close();
-      }
-
-    } catch (error: unknown) {
-      console.error(`[InsightEngine] Error fetching relationships for user ${userId}:`, error);
-      return [];
-    }
-  }
 
   private async persistStrategicUpdates(
     userId: string,
-    analysisOutput: StrategicSynthesisOutput
+    analysisOutput: StrategicSynthesisOutput,
+    cycleId?: string
   ): Promise<Array<{ id: string; type: string }>> {
     console.log(`[InsightEngine] persistStrategicUpdates called for user ${userId}`);
     console.log(`[InsightEngine] DEBUG: analysisOutput type:`, typeof analysisOutput);
@@ -410,58 +627,41 @@ export class InsightEngine {
 
     const { ontology_optimizations, derived_artifacts, proactive_prompts } = analysisOutput;
     const newEntities: Array<{ id: string; type: string }> = [];
+    
+    // Generate cycle_id if not provided
+    const currentCycleId = cycleId || `cycle_${userId}_${Date.now()}`;
 
     try {
-      // Execute Ontology Updates (Neo4j) - Actual concept merging
-      if (this.dbService.neo4j && ontology_optimizations.concepts_to_merge.length > 0) {
-        const mergedConceptIds = await this.executeConceptMerging(ontology_optimizations);
-        newEntities.push(...mergedConceptIds.map(id => ({ id, type: 'MergedConcept' })));
-        console.log(`[InsightEngine] Merged ${ontology_optimizations.concepts_to_merge.length} concepts successfully in Neo4j`);
-      } else if (ontology_optimizations.concepts_to_merge.length > 0) {
-        console.log(`[InsightEngine] Neo4j client not available, proceeding with PostgreSQL-only concept merging`);
-        // Still create entities for tracking even without Neo4j
-        newEntities.push(...ontology_optimizations.concepts_to_merge.map(merge => ({ 
-          id: merge.primary_concept_id, 
-          type: 'MergedConcept' 
-        })));
-      }
-
-      // CRITICAL FIX: Update PostgreSQL concepts table for merged concepts
+      // Execute Ontology Updates - Concept merging (PostgreSQL + Neo4j)
       if (ontology_optimizations.concepts_to_merge.length > 0) {
-        await this.updatePostgreSQLConceptsForMerging(ontology_optimizations.concepts_to_merge);
+        const mergedConceptIds = await this.executeConceptMerging(ontology_optimizations.concepts_to_merge);
+        newEntities.push(...mergedConceptIds.map(id => ({ id, type: 'MergedConcept' })));
         console.log(`[InsightEngine] Updated PostgreSQL concepts for ${ontology_optimizations.concepts_to_merge.length} merges`);
         
-        // CRITICAL FIX: Update Neo4j for concept merging
         if (this.dbService.neo4j) {
-          for (const merge of ontology_optimizations.concepts_to_merge) {
-            await this.updateNeo4jMergedConcepts(merge);
-          }
-          console.log(`[InsightEngine] Updated Neo4j for ${ontology_optimizations.concepts_to_merge.length} concept merges`);
+          console.log(`[InsightEngine] Merged ${ontology_optimizations.concepts_to_merge.length} concepts successfully in Neo4j`);
+        } else {
+          console.log(`[InsightEngine] Neo4j client not available, PostgreSQL-only concept merging completed`);
         }
       }
 
       // CRITICAL FIX: Archive concepts as specified by LLM
       if (ontology_optimizations.concepts_to_archive.length > 0) {
-        await this.archiveConcepts(ontology_optimizations.concepts_to_archive);
+        await this.conceptArchiver.executeConceptArchives(ontology_optimizations.concepts_to_archive);
         console.log(`[InsightEngine] Archived ${ontology_optimizations.concepts_to_archive.length} concepts`);
-        
-        // CRITICAL FIX: Update Neo4j concept status for archived concepts
-        if (this.dbService.neo4j) {
-          for (const archive of ontology_optimizations.concepts_to_archive) {
-            await this.updateNeo4jConceptStatus(archive.concept_id, 'archived', {
-              archive_rationale: archive.archive_rationale,
-              replacement_concept_id: archive.replacement_concept_id
-            });
-          }
-          console.log(`[InsightEngine] Updated Neo4j status for ${ontology_optimizations.concepts_to_archive.length} archived concepts`);
-        }
       }
 
       // CRITICAL FIX: Create communities as specified by LLM
       if (ontology_optimizations.community_structures.length > 0) {
-        const communityIds = await this.createCommunities(userId, ontology_optimizations.community_structures);
-        newEntities.push(...communityIds.map(id => ({ id, type: 'Community' })));
+        const communityIds = await this.communityCreator.executeCommunityCreations(ontology_optimizations.community_structures, userId);
+        newEntities.push(...communityIds.map((id: string) => ({ id, type: 'Community' })));
         console.log(`[InsightEngine] Created ${ontology_optimizations.community_structures.length} communities`);
+      }
+
+      // Process concept description synthesis
+      if (ontology_optimizations.concept_description_synthesis?.length > 0) {
+        await this.synthesizeConceptDescriptions(ontology_optimizations.concept_description_synthesis);
+        console.log(`[InsightEngine] Synthesized descriptions for ${ontology_optimizations.concept_description_synthesis.length} concepts`);
       }
 
       // Create new strategic relationships if specified
@@ -475,10 +675,10 @@ export class InsightEngine {
       for (const artifact of derived_artifacts) {
         const artifactData: CreateDerivedArtifactData = {
           user_id: userId,
+          cycle_id: currentCycleId, // ✅ Include cycle_id for dashboard grouping
           artifact_type: artifact.artifact_type,
           title: artifact.title,
           content_narrative: artifact.content,
-          content_data: artifact.content_data || null, // ✅ Include structured data
           source_concept_ids: artifact.source_concept_ids || [], // ✅ Include source concepts
           source_memory_unit_ids: artifact.source_memory_unit_ids || [] // ✅ Include source memory units
         };
@@ -498,6 +698,7 @@ export class InsightEngine {
       for (const prompt of proactive_prompts) {
         const promptData: CreateProactivePromptData = {
           user_id: userId,
+          cycle_id: currentCycleId, // ✅ Include cycle_id for dashboard grouping
           prompt_text: prompt.prompt_text,
           source_agent: 'InsightEngine',
           metadata: {
@@ -518,11 +719,39 @@ export class InsightEngine {
         console.log(`[InsightEngine] Created proactive prompt: ${createdPrompt.prompt_id} - ${prompt.title}`);
       }
 
+      // Create strategic growth events from LLM output
+      if (analysisOutput.growth_events && analysisOutput.growth_events.length > 0) {
+        for (const growthEvent of analysisOutput.growth_events) {
+          const growthData: CreateGrowthEventData = {
+            user_id: userId,
+            related_memory_units: growthEvent.source_memory_unit_ids || [],
+            related_concepts: growthEvent.source_concept_ids || [],
+            growth_dimensions: [], // Empty array as per IngestionAnalyst pattern
+            source: 'InsightWorker', // Critical: This makes it appear in "What's Next"
+            details: {
+              confidence_score: growthEvent.confidence_score,
+              actionability: growthEvent.actionability,
+              cycle_id: currentCycleId
+            },
+            dimension_key: growthEvent.dimension_key,
+            delta_value: growthEvent.delta_value,
+            rationale: growthEvent.rationale
+          };
+
+          const createdGrowthEvent = await this.growthEventRepository.create(growthData);
+          newEntities.push({ id: createdGrowthEvent.event_id, type: 'GrowthEvent' });
+        }
+        console.log(`[InsightEngine] Created ${analysisOutput.growth_events.length} strategic growth events`);
+      }
+
+      // Save key phrases from LLM output
+      if (analysisOutput.key_phrases) {
+        await this.saveKeyPhrasesFromLLMOutput(userId, analysisOutput.key_phrases);
+      }
+
       // CRITICAL FIX: Update user memory profile with strategic insights
       await this.updateUserMemoryProfile(userId, analysisOutput);
 
-      // CRITICAL FIX: Update user knowledge graph schema
-      await this.updateUserKnowledgeGraphSchema(userId, analysisOutput);
 
       // CRITICAL FIX: Update next conversation context package
       await this.updateNextConversationContext(userId, analysisOutput);
@@ -553,13 +782,13 @@ export class InsightEngine {
   }
 
   /**
-   * Publish embedding jobs for newly created entities
-   * CRITICAL FIX: Only send content entities, not graph relationships
+   * Publish embedding jobs for new entities
+   * Only processes content entities (DerivedArtifact, ProactivePrompt, Community)
    */
   private async publishEmbeddingJobs(userId: string, newEntities: Array<{ id: string; type: string }>) {
     const embeddingJobs = [];
     
-    // CRITICAL FIX: Filter out non-content entities
+    // Filter out non-content entities
     const contentEntities = newEntities.filter(entity => 
       ['DerivedArtifact', 'ProactivePrompt', 'Community'].includes(entity.type)
     );
@@ -608,7 +837,7 @@ export class InsightEngine {
 
   /**
    * Extract text content for embedding based on entity type
-   * ENHANCED: Added content length validation and truncation warnings
+   * Includes content length validation
    */
   private async extractTextContentForEntity(entityId: string, entityType: string): Promise<string | null> {
     try {
@@ -630,17 +859,14 @@ export class InsightEngine {
           break;
           
         case 'MergedConcept':
-          // MergedConcepts are stored in the concepts table, so use concept repository
           const concept = await this.conceptRepository.findById(entityId);
           if (concept) {
-            textContent = `${concept.name}: ${concept.description || ''}`;
+            textContent = concept.name;
           }
           break;
           
         case 'Community':
-          // For communities, aggregate content from member concepts
           try {
-            // CRITICAL FIX: Generate proper content for embedding and Weaviate compatibility
             const community = await this.dbService.communityRepository.getByIdWithConcepts(entityId);
             if (community) {
               const memberCount = community.concepts?.length || 0;
@@ -659,7 +885,7 @@ export class InsightEngine {
           return null;
       }
 
-      // ENHANCED: Validate content length and provide warnings
+      // Validate content length
       if (textContent) {
         this.validateContentLength(textContent, entityType, entityId);
         return textContent;
@@ -673,8 +899,8 @@ export class InsightEngine {
   }
 
   /**
-   * CRITICAL FIX: Publish cycle artifacts to downstream workers
-   * Only send content entities to card worker, all entities to graph worker
+   * Publish cycle artifacts to downstream workers
+   * Content entities → card worker, all entities → graph worker
    */
   private async publishCycleArtifacts(userId: string, newEntities: Array<{ id: string; type: string }>) {
     if (newEntities.length === 0) {
@@ -683,7 +909,7 @@ export class InsightEngine {
     }
 
     try {
-      // CRITICAL FIX: Filter entities for different workers
+      // Filter entities for different workers
       const contentEntities = newEntities.filter(entity => 
         ['DerivedArtifact', 'ProactivePrompt', 'Community'].includes(entity.type)
       );
@@ -774,9 +1000,36 @@ export class InsightEngine {
   }
 
   /**
-   * Execute Neo4j concept merging operations
+   * Execute concept merging using shared components
    */
-  private async executeConceptMerging(ontologyOptimizations: any): Promise<string[]> {
+  private async executeConceptMerging(conceptsToMerge: any[]): Promise<string[]> {
+    const mergedConceptIds: string[] = [];
+    
+    for (const merge of conceptsToMerge) {
+      try {
+        // Use the shared ConceptMerger component
+        await this.conceptMerger.executeConceptMerge(merge);
+        
+        // Update Neo4j if available
+        if (this.dbService.neo4j) {
+          await this.conceptMerger.updateNeo4jMergedConcepts(merge);
+        }
+        
+        mergedConceptIds.push(merge.primary_concept_id);
+        console.log(`[InsightEngine] Successfully merged concept ${merge.primary_concept_id}`);
+      } catch (error: unknown) {
+        console.error(`[InsightEngine] Error merging concept ${merge.primary_concept_id}:`, error);
+        // Continue with other merges
+      }
+    }
+    
+    return mergedConceptIds;
+  }
+
+  /**
+   * Execute concept merging in Neo4j (legacy method - now uses shared components)
+   */
+  private async executeConceptMergingLegacy(ontologyOptimizations: any): Promise<string[]> {
     if (!this.dbService.neo4j) {
       console.warn('[InsightEngine] Neo4j client not available, skipping concept merging');
       return [];
@@ -878,75 +1131,20 @@ export class InsightEngine {
     }
   }
 
-  /**
-   * CRITICAL FIX: Update PostgreSQL concepts table for merged concepts
-   * Improved error handling to prevent job failures
-   */
-  private async updatePostgreSQLConceptsForMerging(conceptsToMerge: any[]): Promise<void> {
-    const errors: string[] = [];
-    
-    for (const merge of conceptsToMerge) {
-      try {
-        // Update secondary concepts to mark them as merged
-        for (const secondaryId of merge.secondary_concept_ids) {
-          try {
-            await this.conceptRepository.update(secondaryId, {
-              status: 'merged',
-              merged_into_concept_id: merge.primary_concept_id
-            });
-            console.log(`[InsightEngine] Marked concept ${secondaryId} as merged into ${merge.primary_concept_id}`);
-          } catch (updateError) {
-            const errorMsg = `Failed to update secondary concept ${secondaryId}: ${updateError instanceof Error ? updateError.message : 'Unknown error'}`;
-            console.error(`[InsightEngine] ${errorMsg}`);
-            errors.push(errorMsg);
-            // Continue with other concepts instead of failing the entire job
-          }
-        }
-
-        // Update primary concept with new name and description
-        try {
-          await this.conceptRepository.update(merge.primary_concept_id, {
-            name: merge.new_concept_name,
-            description: merge.new_concept_description
-          });
-          console.log(`[InsightEngine] Updated primary concept ${merge.primary_concept_id} with new name: ${merge.new_concept_name}`);
-        } catch (updateError) {
-          const errorMsg = `Failed to update primary concept ${merge.primary_concept_id}: ${updateError instanceof Error ? updateError.message : 'Unknown error'}`;
-          console.error(`[InsightEngine] ${errorMsg}`);
-          errors.push(errorMsg);
-        }
-      } catch (error: unknown) {
-        const errorMsg = `Failed to process merge for primary concept ${merge.primary_concept_id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
-        console.error(`[InsightEngine] ${errorMsg}`);
-        errors.push(errorMsg);
-      }
-    }
-    
-    // Log summary of any errors but don't fail the job
-    if (errors.length > 0) {
-      console.warn(`[InsightEngine] Completed concept merging with ${errors.length} errors:`, errors);
-    } else {
-      console.log(`[InsightEngine] Successfully completed all concept merging updates`);
-    }
-  }
 
   /**
-   * CRITICAL FIX: Update user memory profile with comprehensive strategic insights
+   * Update user memory profile with strategic insights
    */
   private async updateUserMemoryProfile(userId: string, analysisOutput: StrategicSynthesisOutput): Promise<void> {
     try {
-      const { ontology_optimizations, derived_artifacts, proactive_prompts, growth_trajectory_updates, cycle_metrics } = analysisOutput;
+      const { ontology_optimizations, derived_artifacts, proactive_prompts } = analysisOutput;
       
       const memoryProfileUpdate = {
         last_updated: new Date().toISOString(),
         strategic_insights: {
-          ontology_optimizations: {
-            concepts_merged: ontology_optimizations.concepts_to_merge.length,
-            new_relationships: ontology_optimizations.new_strategic_relationships.length,
-            cycle_timestamp: new Date().toISOString()
-          },
           derived_artifacts: derived_artifacts.length,
-          proactive_prompts: proactive_prompts.length
+          proactive_prompts: proactive_prompts.length,
+          cycle_timestamp: new Date().toISOString()
         },
         growth_patterns: {
           concept_consolidation: ontology_optimizations.concepts_to_merge.map(merge => ({
@@ -955,23 +1153,7 @@ export class InsightEngine {
             rationale: merge.merge_rationale
           }))
         },
-        // CRITICAL FIX: Add comprehensive growth trajectory data
-        growth_trajectory: {
-          identified_patterns: growth_trajectory_updates?.identified_patterns || [],
-          emerging_themes: growth_trajectory_updates?.emerging_themes || [],
-          recommended_focus_areas: growth_trajectory_updates?.recommended_focus_areas || [],
-          potential_blind_spots: growth_trajectory_updates?.potential_blind_spots || [],
-          celebration_moments: growth_trajectory_updates?.celebration_moments || []
-        },
-        // CRITICAL FIX: Add cycle metrics for tracking progress
-        cycle_metrics: {
-          knowledge_graph_health: cycle_metrics?.knowledge_graph_health || 0,
-          ontology_coherence: cycle_metrics?.ontology_coherence || 0,
-          growth_momentum: cycle_metrics?.growth_momentum || 0,
-          strategic_alignment: cycle_metrics?.strategic_alignment || 0,
-          insight_generation_rate: cycle_metrics?.insight_generation_rate || 0
-        },
-        // CRITICAL FIX: Add key insights from derived artifacts
+        // Key insights from derived artifacts
         key_insights: derived_artifacts?.map(artifact => ({
           title: artifact.title,
           content: artifact.content,
@@ -979,7 +1161,7 @@ export class InsightEngine {
           confidence: artifact.confidence_score,
           actionability: artifact.actionability
         })) || [],
-        // CRITICAL FIX: Add proactive guidance
+        // Proactive guidance
         proactive_guidance: proactive_prompts?.map(prompt => ({
           title: prompt.title,
           prompt_text: prompt.prompt_text,
@@ -1000,164 +1182,123 @@ export class InsightEngine {
     }
   }
 
+
   /**
-   * CRITICAL FIX: Archive concepts as specified by LLM
-   * Improved error handling to prevent job failures
+   * Get concepts that need description synthesis
+   * Returns concepts updated within the cycle period
    */
-  private async archiveConcepts(conceptsToArchive: Array<{ concept_id: string; archive_rationale: string; replacement_concept_id?: string | null }>): Promise<void> {
+  private async getConceptsNeedingSynthesis(userId: string, cycleStartDate?: Date): Promise<Array<{
+    id: string;
+    name: string;
+    description: string;
+  }>> {
+    try {
+      console.log(`[InsightEngine] Fetching concepts needing synthesis for user ${userId}`);
+      
+      // Build where clause for concepts updated within the cycle period
+      const whereClause: any = { 
+        user_id: userId, 
+        status: 'active',
+        merged_into_concept_id: null // Exclude already merged concepts
+      };
+      
+      // If cycleStartDate is provided, filter by last_updated_ts within cycle period
+      // and ensure last_updated_ts > created_at (concept was updated after creation)
+      if (cycleStartDate) {
+        whereClause.last_updated_ts = {
+          gte: cycleStartDate,
+          lte: new Date() // Use current time as end of cycle period
+        };
+        whereClause.created_at = {
+          lt: cycleStartDate // Ensure concept was created before the cycle period
+        };
+      } else {
+        // Fallback to text search if no date provided (for backward compatibility)
+        whereClause.description = { contains: '[20' };
+      }
+      
+      const concepts = await this.dbService.prisma.concepts.findMany({
+        where: whereClause,
+        select: {
+          concept_id: true,
+          name: true,
+          description: true
+        }
+      });
+
+      // Map to simplified interface
+      const mappedConcepts = concepts.map((concept: any) => ({
+        id: concept.concept_id,
+        name: concept.name,
+        description: concept.description || ''
+      }));
+
+      console.log(`[InsightEngine] Found ${mappedConcepts.length} concepts needing description synthesis`);
+      return mappedConcepts;
+
+    } catch (error: unknown) {
+      console.error(`[InsightEngine] Error fetching concepts needing synthesis for user ${userId}:`, error);
+      return []; // Return empty array on error to prevent system failure
+    }
+  }
+
+  /**
+   * Synthesize concept descriptions
+   * Includes validation and error handling
+   */
+  private async synthesizeConceptDescriptions(conceptsToSynthesize: Array<{ concept_id: string; synthesized_description: string }>): Promise<void> {
     const errors: string[] = [];
     
-    for (const archive of conceptsToArchive) {
+    for (const concept of conceptsToSynthesize) {
       try {
-        // Update concept status to archived
-        await this.conceptRepository.update(archive.concept_id, {
-          status: 'archived',
-          // Store archive rationale in description or metadata if available
-          description: `ARCHIVED: ${archive.archive_rationale}${archive.replacement_concept_id ? ` (Replaced by: ${archive.replacement_concept_id})` : ''}`
+        // Validate LLM output before updating
+        if (!concept.concept_id || !concept.synthesized_description) {
+          console.warn(`[InsightEngine] Skipping concept synthesis - missing concept_id or synthesized_description:`, concept);
+          continue;
+        }
+
+        // Additional validation: ensure synthesized description is meaningful
+        if (concept.synthesized_description.trim().length < 3) {
+          console.warn(`[InsightEngine] Skipping concept ${concept.concept_id} - synthesized description too short: "${concept.synthesized_description}"`);
+          continue;
+        }
+
+        // Only update if we have valid data
+        await this.conceptRepository.update(concept.concept_id, {
+          description: concept.synthesized_description
         });
-        console.log(`[InsightEngine] Archived concept ${archive.concept_id} with rationale: ${archive.archive_rationale}`);
+        console.log(`[InsightEngine] Successfully synthesized description for concept ${concept.concept_id}`);
+        
       } catch (error: unknown) {
-        const errorMsg = `Failed to archive concept ${archive.concept_id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        const errorMsg = `Failed to synthesize concept ${concept.concept_id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
         console.error(`[InsightEngine] ${errorMsg}`);
         errors.push(errorMsg);
         // Continue with other concepts instead of failing the entire job
+        // Original description remains unchanged
       }
     }
     
     // Log summary of any errors but don't fail the job
     if (errors.length > 0) {
-      console.warn(`[InsightEngine] Completed concept archiving with ${errors.length} errors:`, errors);
+      console.warn(`[InsightEngine] Completed concept description synthesis with ${errors.length} errors:`, errors);
     } else {
-      console.log(`[InsightEngine] Successfully completed all concept archiving`);
+      console.log(`[InsightEngine] Successfully completed all concept description synthesis`);
     }
   }
 
-  /**
-   * CRITICAL FIX: Create communities as specified by LLM
-   */
-  private async createCommunities(userId: string, communityStructures: Array<{ community_id: string; member_concept_ids: string[]; theme: string; strategic_importance: number }>): Promise<string[]> {
-    const communityIds: string[] = [];
-    
-    try {
-      for (const community of communityStructures) {
-        // CRITICAL FIX: Generate a proper UUID instead of using the semantic ID from LLM
-        const generatedCommunityId = randomUUID();
-        
-        // Create community in PostgreSQL using the repository
-        const communityData = {
-          community_id: generatedCommunityId, // Use generated UUID instead of semantic ID
-          user_id: userId,
-          name: community.theme, // Use theme as the community name
-          description: `Strategic importance: ${community.strategic_importance}/10. Members: ${community.member_concept_ids.length} concepts.`,
-          created_at: new Date(),
-          last_analyzed_ts: new Date()
-        };
 
-        // Actually create the community in the database
-        const createdCommunity = await this.dbService.communityRepository.create(communityData);
-        
-        // Assign concepts to this community
-        if (community.member_concept_ids.length > 0) {
-          await this.dbService.communityRepository.assignConceptsToCommunity(
-            createdCommunity.community_id, 
-            community.member_concept_ids
-          );
-        }
-
-        // CRITICAL: Create Community node in Neo4j
-        if (this.dbService.neo4j) {
-          await this.createNeo4jCommunity(createdCommunity, community.member_concept_ids, generatedCommunityId);
-        }
-
-        console.log(`[InsightEngine] Created community: ${community.theme} with ID ${generatedCommunityId} and ${community.member_concept_ids.length} members`);
-        communityIds.push(createdCommunity.community_id);
-      }
-    } catch (error: unknown) {
-      console.error('[InsightEngine] Error creating communities:', error);
-      throw error;
-    }
-    
-    return communityIds;
-  }
 
   /**
-   * CRITICAL FIX: Update user knowledge graph schema with comprehensive insights
-   */
-  private async updateUserKnowledgeGraphSchema(userId: string, analysisOutput: StrategicSynthesisOutput): Promise<void> {
-    try {
-      const { ontology_optimizations, cycle_metrics } = analysisOutput;
-      
-      const schemaUpdate = {
-        last_updated: new Date().toISOString(),
-        schema_version: 'v1.1',
-        cycle_timestamp: new Date().toISOString(),
-        ontology_changes: {
-          concepts_merged: ontology_optimizations.concepts_to_merge.map(merge => ({
-            primary_concept_id: merge.primary_concept_id,
-            secondary_concept_ids: merge.secondary_concept_ids,
-            new_concept_name: merge.new_concept_name,
-            new_concept_description: merge.new_concept_description,
-            merge_rationale: merge.merge_rationale
-          })),
-          concepts_archived: ontology_optimizations.concepts_to_archive?.map(archive => ({
-            concept_id: archive.concept_id,
-            archive_rationale: archive.archive_rationale,
-            replacement_concept_id: archive.replacement_concept_id
-          })) || [],
-          new_strategic_relationships: ontology_optimizations.new_strategic_relationships?.map(rel => ({
-            source_id: rel.source_id,
-            target_id: rel.target_id,
-            relationship_type: rel.relationship_type,
-            strength: rel.strength,
-            strategic_value: rel.strategic_value
-          })) || [],
-          community_structures: ontology_optimizations.community_structures?.map(community => ({
-            community_id: community.community_id,
-            theme: community.theme,
-            strategic_importance: community.strategic_importance,
-            member_concept_count: community.member_concept_ids.length
-          })) || []
-        },
-        // CRITICAL FIX: Add comprehensive schema health metrics
-        schema_health: {
-          knowledge_graph_health: cycle_metrics?.knowledge_graph_health || 0,
-          ontology_coherence: cycle_metrics?.ontology_coherence || 0,
-          growth_momentum: cycle_metrics?.growth_momentum || 0,
-          strategic_alignment: cycle_metrics?.strategic_alignment || 0,
-          insight_generation_rate: cycle_metrics?.insight_generation_rate || 0
-        },
-        // CRITICAL FIX: Add strategic insights summary
-        strategic_summary: {
-          total_concepts_merged: ontology_optimizations.concepts_to_merge.length,
-          total_concepts_archived: ontology_optimizations.concepts_to_archive?.length || 0,
-          total_new_relationships: ontology_optimizations.new_strategic_relationships?.length || 0,
-          total_communities: ontology_optimizations.community_structures?.length || 0,
-          cycle_insights: `Processed ${ontology_optimizations.concepts_to_merge.length} concept merges, ${ontology_optimizations.concepts_to_archive?.length || 0} concept archives, and created ${ontology_optimizations.new_strategic_relationships?.length || 0} new strategic relationships`
-        }
-      };
-
-      await this.userRepository.update(userId, {
-        knowledge_graph_schema: schemaUpdate
-      });
-      
-      console.log(`[InsightEngine] Updated comprehensive knowledge graph schema for user ${userId}`);
-    } catch (error: unknown) {
-      console.error('[InsightEngine] Error updating user knowledge graph schema:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * CRITICAL FIX: Update next conversation context package with forward-looking insights
+   * Update next conversation context package with insights
    */
   private async updateNextConversationContext(userId: string, analysisOutput: StrategicSynthesisOutput): Promise<void> {
     try {
-      const { derived_artifacts, proactive_prompts, growth_trajectory_updates, cycle_metrics } = analysisOutput;
+      const { derived_artifacts, proactive_prompts } = analysisOutput;
       
       const nextContextPackage = {
         last_updated: new Date().toISOString(),
         cycle_timestamp: new Date().toISOString(),
-        // CRITICAL FIX: Include key insights for next conversation
+        // Key insights for next conversation
         key_insights: derived_artifacts?.map(artifact => ({
           title: artifact.title,
           content: artifact.content,
@@ -1165,7 +1306,7 @@ export class InsightEngine {
           confidence: artifact.confidence_score,
           actionability: artifact.actionability
         })) || [],
-        // CRITICAL FIX: Include proactive guidance
+        // Proactive guidance
         proactive_guidance: proactive_prompts?.map(prompt => ({
           title: prompt.title,
           prompt_text: prompt.prompt_text,
@@ -1174,23 +1315,7 @@ export class InsightEngine {
           priority: prompt.priority_level,
           context_explanation: prompt.context_explanation
         })) || [],
-        // CRITICAL FIX: Include growth trajectory insights
-        growth_insights: {
-          patterns: growth_trajectory_updates?.identified_patterns || [],
-          themes: growth_trajectory_updates?.emerging_themes || [],
-          focus_areas: growth_trajectory_updates?.recommended_focus_areas || [],
-          blind_spots: growth_trajectory_updates?.potential_blind_spots || [],
-          celebrations: growth_trajectory_updates?.celebration_moments || []
-        },
-        // CRITICAL FIX: Include cycle health metrics
-        cycle_health: {
-          knowledge_graph_health: cycle_metrics?.knowledge_graph_health || 0,
-          ontology_coherence: cycle_metrics?.ontology_coherence || 0,
-          growth_momentum: cycle_metrics?.growth_momentum || 0,
-          strategic_alignment: cycle_metrics?.strategic_alignment || 0,
-          insight_generation_rate: cycle_metrics?.insight_generation_rate || 0
-        },
-        // CRITICAL FIX: Include conversation starter suggestions
+        // Conversation starter suggestions
         conversation_starters: proactive_prompts
           ?.filter(prompt => prompt.timing_suggestion === 'next_conversation')
           ?.map(prompt => ({
@@ -1213,11 +1338,11 @@ export class InsightEngine {
   }
 
   // ============================================================================
-  // CRITICAL FIX: Missing Neo4j Synchronization Methods
+  // Neo4j Synchronization Methods
   // ============================================================================
 
   /**
-   * CRITICAL FIX: Create Community node in Neo4j with member concept relationships
+   * Create Community node in Neo4j with member concept relationships
    */
   private async createNeo4jCommunity(community: any, memberConceptIds: string[], generatedCommunityId: string): Promise<void> {
     if (!this.dbService.neo4j) {
@@ -1293,7 +1418,7 @@ export class InsightEngine {
   }
 
   /**
-   * CRITICAL FIX: Create DerivedArtifact node in Neo4j
+   * Create DerivedArtifact node in Neo4j
    */
   private async createNeo4jArtifact(artifact: any): Promise<void> {
     if (!this.dbService.neo4j) {
@@ -1396,7 +1521,7 @@ export class InsightEngine {
   }
 
   /**
-   * CRITICAL FIX: Create ProactivePrompt node in Neo4j
+   * Create ProactivePrompt node in Neo4j
    */
   private async createNeo4jPrompt(prompt: any): Promise<void> {
     if (!this.dbService.neo4j) {
@@ -1407,19 +1532,17 @@ export class InsightEngine {
     const session = this.dbService.neo4j.session();
     
     try {
-      // Create ProactivePrompt node
+      // Create or update ProactivePrompt node (use MERGE to avoid constraint violations)
       const createPromptCypher = `
-        CREATE (p:ProactivePrompt {
-          prompt_id: $promptId,
-          prompt_text: $promptText,
-          source_agent: $sourceAgent,
-          prompt_type: $promptType,
-          timing_suggestion: $timingSuggestion,
-          priority_level: $priorityLevel,
-          userId: $userId,
-          created_at: datetime(),
-          metadata: $metadata
-        })
+        MERGE (p:ProactivePrompt {prompt_id: $promptId})
+        SET p.prompt_text = $promptText,
+            p.source_agent = $sourceAgent,
+            p.prompt_type = $promptType,
+            p.timing_suggestion = $timingSuggestion,
+            p.priority_level = $priorityLevel,
+            p.userId = $userId,
+            p.created_at = datetime(),
+            p.metadata = $metadata
         RETURN p.prompt_id as promptId
       `;
 
@@ -1435,23 +1558,23 @@ export class InsightEngine {
       });
 
       if (promptResult.records.length === 0) {
-        throw new Error(`Failed to create ProactivePrompt node for ${prompt.prompt_id}`);
+        console.warn(`[InsightEngine] Failed to create/update ProactivePrompt node for ${prompt.prompt_id} - continuing without Neo4j sync`);
+        return;
       }
 
-      console.log(`[InsightEngine] Created ProactivePrompt node in Neo4j: ${prompt.prompt_id}`);
-
-      console.log(`[InsightEngine] Successfully created Neo4j ProactivePrompt ${prompt.prompt_id}`);
+      console.log(`[InsightEngine] Created/updated ProactivePrompt node in Neo4j: ${prompt.prompt_id}`);
 
     } catch (error: unknown) {
       console.error(`[InsightEngine] Error creating Neo4j ProactivePrompt ${prompt.prompt_id}:`, error);
-      throw error;
+      // Don't throw error - just log and continue to prevent job failure
+      console.warn(`[InsightEngine] Continuing without Neo4j ProactivePrompt sync for ${prompt.prompt_id}`);
     } finally {
       await session.close();
     }
   }
 
   /**
-   * CRITICAL FIX: Update concept status in Neo4j (archived/merged)
+   * Update concept status in Neo4j (archived/merged)
    */
   private async updateNeo4jConceptStatus(conceptId: string, status: string, metadata?: any): Promise<void> {
     if (!this.dbService.neo4j) {
@@ -1528,7 +1651,7 @@ export class InsightEngine {
   }
 
   /**
-   * CRITICAL FIX: Handle concept merging in Neo4j graph
+   * Handle concept merging in Neo4j graph
    */
   private async updateNeo4jMergedConcepts(merge: any): Promise<void> {
     if (!this.dbService.neo4j) {
@@ -1653,7 +1776,7 @@ export class InsightEngine {
   }
 
   /**
-   * CRITICAL FIX: Synchronize all Neo4j entities after PostgreSQL creation
+   * Synchronize all Neo4j entities after PostgreSQL creation
    */
   private async synchronizeNeo4jEntities(userId: string, newEntities: Array<{ id: string; type: string }>): Promise<void> {
     if (!this.dbService.neo4j) {
@@ -1680,10 +1803,9 @@ export class InsightEngine {
               break;
 
             case 'ProactivePrompt':
-              const prompt = await this.proactivePromptRepository.findById(entity.id);
-              if (prompt) {
-                await this.createNeo4jPrompt(prompt);
-              }
+              // ProactivePrompt nodes are already created in persistStrategicUpdates
+              // Skip duplicate creation to avoid constraint violations
+              console.log(`[InsightEngine] ProactivePrompt ${entity.id} already synchronized to Neo4j during persistStrategicUpdates`);
               break;
 
             case 'MergedConcept':
@@ -1714,7 +1836,7 @@ export class InsightEngine {
   }
 
   /**
-   * ENHANCED: Validate content length and provide warnings for potential truncation
+   * Validate content length and provide warnings for potential truncation
    */
   private validateContentLength(content: string, fieldName: string, entityId: string): void {
     const contentLength = content.length;
@@ -1740,7 +1862,7 @@ export class InsightEngine {
   }
 
   /**
-   * ENHANCED: Validate LLM response quality and length
+   * Validate LLM response quality and length
    */
   private validateLLMResponse(response: string, toolName: string): void {
     const responseLength = response.length;

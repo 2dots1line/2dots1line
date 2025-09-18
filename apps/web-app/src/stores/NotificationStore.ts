@@ -22,7 +22,6 @@ export interface Notification {
 interface NotificationState {
   notifications: Notification[];
   isConnected: boolean;
-  eventSource: EventSource | null;
   
   addNotification: (notification: Omit<Notification, 'id' | 'timestamp' | 'isVisible' | 'isRead'>) => void;
   removeNotification: (id: string) => void;
@@ -36,7 +35,6 @@ interface NotificationState {
 export const useNotificationStore = create<NotificationState>((set, get) => ({
   notifications: [],
   isConnected: false,
-  eventSource: null,
 
   addNotification: (notification) => {
     const newNotification: Notification = {
@@ -83,6 +81,6 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   },
 
   disconnectSSE: () => {
-    set({ isConnected: false, eventSource: null });
+    set({ isConnected: false });
   },
 }));
