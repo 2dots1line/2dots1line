@@ -81,7 +81,7 @@ export type LLMChatOutput = TToolOutput<LLMChatResult>;
 // Tool manifest for registry discovery
 const manifest: IToolManifest<LLMChatInputPayload, LLMChatResult> = {
   name: 'llm.chat',
-  description: 'AI conversation tool using Gemini for DialogueAgent',
+  description: 'AI conversation tool for DialogueAgent',
   version: '1.0.0',
   availableRegions: ['us', 'cn'],
   categories: ['ai', 'llm', 'conversation'],
@@ -106,9 +106,8 @@ const manifest: IToolManifest<LLMChatInputPayload, LLMChatResult> = {
     isIdempotent: false
   },
   limitations: [
-    'Requires GOOGLE_API_KEY environment variable',
-    'Uses Gemini 1.5 Flash model',
-    'Rate limited by Google API quotas'
+    'Requires GOOGLE_API_KEY or OPENAI_API_KEY environment variable',
+    'Rate limited by Google/OpenAI API quotas'
   ]
 };
 
@@ -125,13 +124,13 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
   private modelConfigService: EnvironmentModelConfigService | null = null;
   private currentModelName: string | null = null;
   private initialized = false;
-  private provider: 'gemini' | 'openai' = 'openai';
+  private provider: 'gemini' | 'openai' = 'gemini';
 
   private initialize() {
     // Decide provider
-    this.provider = (process.env.LLM_PROVIDER as 'gemini' | 'openai') || 'openai';
+    this.provider = (process.env.LLM_PROVIDER as 'gemini' | 'openai') || 'gemini';
     this.modelConfigService = EnvironmentModelConfigService.getInstance();
-    const newModelName = this.modelConfigService.getModelForUseCase('chat') || (this.provider === 'openai' ? 'llama3.2:3b' : undefined);
+    const newModelName = this.modelConfigService.getModelForUseCase('chat') ||  undefined;
 
     if (!this.initialized || this.currentModelName !== newModelName || !this.provider) {
       console.log(`🤖 LLMChatTool: Initializing with provider ${this.provider}, model ${newModelName}`);

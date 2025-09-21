@@ -26,6 +26,7 @@ start-backend:
 
 stop-backend:
 	$(PM2) delete all
+	rm -rf ./logs
 
 
 start-dimension-reducer:
