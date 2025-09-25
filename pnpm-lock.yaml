@@ -344,7 +344,7 @@ importers:
         version: 1.12.1
       openai:
         specifier: ^4.14.2
-        version: 4.104.0
+        version: 4.104.0(zod@3.25.76)
       uuid:
         specifier: ^9.0.1
         version: 9.0.1
@@ -629,6 +629,9 @@ importers:
       neo4j-driver:
         specifier: ^5.15.0
         version: 5.28.1
+      openai:
+        specifier: ^4.0.0
+        version: 4.104.0(zod@3.25.76)
       pdf-parse:
         specifier: ^1.1.1
         version: 1.1.1
@@ -8797,7 +8800,7 @@ packages:
       is-wsl: 2.2.0
     dev: true
 
-  /openai@4.104.0:
+  /openai@4.104.0(zod@3.25.76):
     resolution: {integrity: sha512-p99EFNsA/yX6UhVO93f5kJsDRLAg+CTA2RBqdHK4RtK8u5IJw32Hyb2dTGKbnnFmnuoBv5r7Z2CURI9sGZpSuA==}
     hasBin: true
     peerDependencies:
@@ -8816,6 +8819,7 @@ packages:
       form-data-encoder: 1.7.2
       formdata-node: 4.4.1
       node-fetch: 2.7.0
+      zod: 3.25.76
     transitivePeerDependencies:
       - encoding
     dev: false
