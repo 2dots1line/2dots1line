@@ -26,6 +26,7 @@ start-backend:
 
 stop-backend:
 	$(PM2) delete all
+	rm -rf ./logs
 
 
 start-dimension-reducer:
@@ -41,8 +42,9 @@ start-webapp-dev:
 
 
 
-db-push: init
-	$(NPX) prisma db push --schema=$(PRISMA_DB_SCHEMA)
+db-schema-sync: init
+	test $(DATABASE_URL) || (echo "DATABASE_URL environment variable is required" && exit 1)
+	cd packages/database && $(PNPM) prisma generate && DATABASE_URL=$(DATABASE_URL) $(PNPM) prisma db push && cd ../..
 
 
 build-all: init db-push build-backend build-webapp 

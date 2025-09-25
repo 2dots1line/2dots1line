@@ -16,6 +16,7 @@
     "@google/generative-ai": "^0.21.0",
     "mammoth": "^1.9.1",
     "neo4j-driver": "^5.15.0",
+    "openai": "^4.0.0",
     "pdf-parse": "^1.1.1",
     "weaviate-ts-client": "^2.0.0",
     "zod": "^3.22.4"
