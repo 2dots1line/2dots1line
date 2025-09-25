@@ -179,13 +179,15 @@ class ChatService {
   async uploadFile(
     file: File, 
     message?: string, 
-    conversation_id?: string
+    conversation_id?: string,
+    session_id?: string
   ): Promise<SendMessageResponse> {
     try {
       const formData = new FormData();
       formData.append('file', file);
       if (message) formData.append('message', message);
       if (conversation_id) formData.append('conversation_id', conversation_id);
+      if (session_id) formData.append('session_id', session_id);
 
       const token = localStorage.getItem('auth_token');
       const headers: Record<string, string> = {};
@@ -202,7 +204,9 @@ class ChatService {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+        const errorMessage = data.error?.message || data.error || `HTTP ${response.status}: ${response.statusText}`;
+        console.error('Upload failed with response:', { status: response.status, data });
+        throw new Error(errorMessage);
       }
 
       return data;

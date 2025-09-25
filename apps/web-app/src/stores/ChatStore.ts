@@ -83,8 +83,8 @@ export const useChatStore = create<ChatState>()(
         const messagesWithDateTimestamps = messages.map(msg => ({
           ...msg,
           timestamp: msg.timestamp instanceof Date ? msg.timestamp : new Date(msg.timestamp),
-          // Ensure attachment has valid file data
-          attachment: msg.attachment && msg.attachment.file ? {
+          // Remove attachment if file is not a valid File object
+          attachment: msg.attachment && msg.attachment.file && msg.attachment.file instanceof File ? {
             ...msg.attachment,
             file: msg.attachment.file
           } : undefined
@@ -97,8 +97,8 @@ export const useChatStore = create<ChatState>()(
         const messageWithDateTimestamp = {
           ...message,
           timestamp: message.timestamp instanceof Date ? message.timestamp : new Date(message.timestamp),
-          // Ensure attachment has valid file data
-          attachment: message.attachment && message.attachment.file ? {
+          // Remove attachment if file is not a valid File object
+          attachment: message.attachment && message.attachment.file && message.attachment.file instanceof File ? {
             ...message.attachment,
             file: message.attachment.file
           } : undefined

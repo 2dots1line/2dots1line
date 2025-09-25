@@ -243,10 +243,9 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
       content: messageContent,
       timestamp: new Date(),
       conversation_id: currentConversationId || undefined,
-      attachment: currentAttachment && currentAttachment.type ? {
-        file: currentAttachment,
-        type: currentAttachment.type.startsWith('image/') ? 'image' : 'document'
-      } : undefined
+      // Don't store File object in message as it can't be serialized
+      // The attachment will be handled separately during upload
+      attachment: undefined
     };
     
     addMessage(userMessage);
@@ -261,7 +260,8 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
         response = await chatService.uploadFile(
           currentAttachment,
           message.trim() || undefined,
-          currentConversationId || undefined
+          currentConversationId || undefined,
+          currentSessionId || undefined
         );
         setCurrentAttachment(null); // Clear attachment after sending
       } else {
@@ -311,7 +311,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
       const errorMessage: EnhancedChatMessage = {
         id: `error-${Date.now()}`,
         type: 'bot',
-        content: 'I apologize, but I encountered an error processing your message. Please try again.',
+        content: `I apologize, but I encountered an error processing your message: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`,
         timestamp: new Date()
       };
       addMessage(errorMessage);
@@ -389,8 +389,8 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
   const renderMessageContent = (msg: EnhancedChatMessage) => {
     return (
       <div>
-        {/* Render attachment if present */}
-        {msg.attachment && msg.attachment.file && (
+        {/* Render attachment if present and file is valid */}
+        {msg.attachment && msg.attachment.file && msg.attachment.file instanceof File && (
           <div className="mb-2">
             <FileAttachment
               file={msg.attachment.file}

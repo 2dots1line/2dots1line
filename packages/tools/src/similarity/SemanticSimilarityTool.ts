@@ -110,19 +110,9 @@ export class SemanticSimilarityTool {
                 valueString: 'Concept'
               },
               {
-                operator: 'Or' as const,
-                operands: [
-                  {
-                    operator: 'Equal' as const,
-                    path: ['status'],
-                    valueString: 'active'
-                  },
-                  {
-                    operator: 'NotEqual' as const,
-                    path: ['status'],
-                    valueString: 'merged'
-                  }
-                ]
+                operator: 'Equal' as const,
+                path: ['status'],
+                valueString: 'active'
               }
             ]
           };
