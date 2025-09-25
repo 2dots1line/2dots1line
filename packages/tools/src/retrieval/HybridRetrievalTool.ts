@@ -225,7 +225,7 @@ export class HybridRetrievalTool {
             operands: [
               {
                 operator: 'Equal' as const,
-                path: ['userId'],
+                path: ['user_id'],
                 valueString: userId
               },
               {

@@ -217,15 +217,14 @@ export class EmbeddingWorker {
         .creator()
         .withClassName('UserKnowledgeItem')
         .withProperties({
-          externalId: data.entityId, // This should now be a valid UUID
-          userId: data.userId,
+          entity_id: data.entityId, // This should now be a valid UUID
+          user_id: data.userId,
           title: data.textContent, // Use the full textContent as title (what gets vectorized)
-          textContent: data.textContent,
-          sourceEntityType: data.entityType,
-          sourceEntityId: data.entityId, // This should now be a valid UUID
+          content: data.textContent,
+          entity_type: data.entityType,
           status: entityStatus, // Add status field
-          createdAt: new Date().toISOString(),
-          modelVersion: this.config.embeddingModelVersion!
+          created_at: new Date().toISOString(),
+          embedding_model_version: this.config.embeddingModelVersion!
         })
         .withVector(data.vector)
         .do();

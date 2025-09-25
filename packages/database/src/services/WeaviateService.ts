@@ -28,14 +28,13 @@ export interface SemanticSearchOptions {
 
 export interface WeaviateUpsertItem {
   id: string;
-  externalId: string;
-  userId: string;
-  sourceEntityType: string;
-  sourceEntityId: string;
-  textContent: string;
+  entity_id: string;
+  user_id: string;
+  entity_type: string;
+  content: string;
   title: string;
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
+  updated_at: string;
   vector?: number[];
   status?: string;
 }
@@ -67,14 +66,13 @@ export class WeaviateService {
           class: this.className,
           id: item.id,
           properties: {
-            externalId: item.externalId,
-            userId: item.userId,
-            sourceEntityType: item.sourceEntityType,
-            sourceEntityId: item.sourceEntityId,
-            textContent: item.textContent,
+            entity_id: item.entity_id,
+            user_id: item.user_id,
+            entity_type: item.entity_type,
+            content: item.content,
             title: item.title,
-            createdAt: item.createdAt,
-            updatedAt: item.updatedAt,
+            created_at: item.created_at,
+            updated_at: item.updated_at,
             ...(item.status && { status: item.status })
           }
         };
@@ -119,20 +117,20 @@ export class WeaviateService {
 
       let query = this.client.graphql.get()
         .withClassName(this.className)
-        .withFields('externalId userId sourceEntityType sourceEntityId textContent title createdAt updatedAt')
+        .withFields('entity_id user_id entity_type content title created_at updated_at')
         .withNearVector({
           vector: queryVector,
           certainty: threshold
         })
         .withWhere({
-          path: ['userId'],
+          path: ['user_id'],
           operator: 'Equal',
           valueString: userId
         })
         .withLimit(limit);
 
       if (includeVector) {
-        query = query.withFields('externalId userId sourceEntityType sourceEntityId textContent title createdAt updatedAt _additional { vector }');
+        query = query.withFields('entity_id user_id entity_type content title created_at updated_at _additional { vector }');
       }
 
       const result = await query.do();
@@ -144,14 +142,14 @@ export class WeaviateService {
       const items = result.data.Get[this.className];
       return items.map((item: any) => ({
         id: item.id || '',
-        externalId: item.externalId,
-        userId: item.userId,
-        sourceEntityType: item.sourceEntityType,
-        sourceEntityId: item.sourceEntityId,
-        textContent: item.textContent,
+        externalId: item.entity_id,
+        userId: item.user_id,
+        sourceEntityType: item.entity_type,
+        sourceEntityId: item.entity_id,
+        textContent: item.content,
         title: item.title,
-        createdAt: item.createdAt,
-        updatedAt: item.updatedAt,
+        createdAt: item.created_at,
+        updatedAt: item.updated_at,
         vector: item._additional?.vector
       }));
 
@@ -178,21 +176,21 @@ export class WeaviateService {
 
       let query = this.client.graphql.get()
         .withClassName(this.className)
-        .withFields('externalId userId sourceEntityType sourceEntityId textContent title createdAt updatedAt')
+        .withFields('entity_id user_id entity_type content title created_at updated_at')
         .withHybrid({
           query: queryText,
           alpha: alpha,
           vector: queryVector
         })
         .withWhere({
-          path: ['userId'],
+          path: ['user_id'],
           operator: 'Equal',
           valueString: userId
         })
         .withLimit(limit);
 
       if (includeVector) {
-        query = query.withFields('externalId userId sourceEntityType sourceEntityId textContent title createdAt updatedAt _additional { vector }');
+        query = query.withFields('entity_id user_id entity_type content title created_at updated_at _additional { vector }');
       }
 
       const result = await query.do();
@@ -204,14 +202,14 @@ export class WeaviateService {
       const items = result.data.Get[this.className];
       return items.map((item: any) => ({
         id: item.id || '',
-        externalId: item.externalId,
-        userId: item.userId,
-        sourceEntityType: item.sourceEntityType,
-        sourceEntityId: item.sourceEntityId,
-        textContent: item.textContent,
+        externalId: item.entity_id,
+        userId: item.user_id,
+        sourceEntityType: item.entity_type,
+        sourceEntityId: item.entity_id,
+        textContent: item.content,
         title: item.title,
-        createdAt: item.createdAt,
-        updatedAt: item.updatedAt,
+        createdAt: item.created_at,
+        updatedAt: item.updated_at,
         vector: item._additional?.vector
       }));
 
@@ -245,14 +243,14 @@ export class WeaviateService {
           if (item && item.properties) {
             items.push({
               id: item.id || id,
-              externalId: String(item.properties.externalId || ''),
-              userId: String(item.properties.userId || ''),
-              sourceEntityType: String(item.properties.sourceEntityType || ''),
-              sourceEntityId: String(item.properties.sourceEntityId || ''),
-              textContent: String(item.properties.textContent || ''),
+              externalId: String(item.properties.entity_id || ''),
+              userId: String(item.properties.user_id || ''),
+              sourceEntityType: String(item.properties.entity_type || ''),
+              sourceEntityId: String(item.properties.entity_id || ''),
+              textContent: String(item.properties.content || ''),
               title: String(item.properties.title || ''),
-              createdAt: String(item.properties.createdAt || ''),
-              updatedAt: String(item.properties.updatedAt || ''),
+              createdAt: String(item.properties.created_at || ''),
+              updatedAt: String(item.properties.updated_at || ''),
               vector: item.vector
             });
           }
@@ -314,9 +312,9 @@ export class WeaviateService {
 
       const result = await this.client.graphql.get()
         .withClassName(this.className)
-        .withFields('externalId userId sourceEntityType sourceEntityId textContent title createdAt updatedAt')
+        .withFields('entity_id user_id entity_type content title created_at updated_at')
         .withWhere({
-          path: ['userId'],
+          path: ['user_id'],
           operator: 'Equal',
           valueString: userId
         })
@@ -331,13 +329,13 @@ export class WeaviateService {
       const items = result.data.Get[this.className];
       return items.map((item: any) => ({
         id: item.id || '',
-        externalId: item.externalId,
-        userId: item.userId,
-        sourceEntityType: item.sourceEntityType,
-        sourceEntityId: item.sourceEntityId,
-        textContent: item.textContent,
+        externalId: item.entity_id,
+        userId: item.user_id,
+        sourceEntityType: item.entity_type,
+        sourceEntityId: item.entity_id,
+        textContent: item.content,
         title: item.title,
-        createdAt: item.createdAt,
+        createdAt: item.created_at,
         updatedAt: item.updatedAt
       }));
 
@@ -360,13 +358,13 @@ export class WeaviateService {
 
       const result = await this.client.graphql.get()
         .withClassName(this.className)
-        .withFields('externalId userId sourceEntityType sourceEntityId textContent title createdAt updatedAt')
+        .withFields('entity_id user_id entity_type content title created_at updated_at')
         .withBm25({
           query: query,
-          properties: ['textContent', 'title']
+          properties: ['content', 'title']
         })
         .withWhere({
-          path: ['userId'],
+          path: ['user_id'],
           operator: 'Equal',
           valueString: userId
         })
@@ -380,13 +378,13 @@ export class WeaviateService {
       const items = result.data.Get[this.className];
       return items.map((item: any) => ({
         id: item.id || '',
-        externalId: item.externalId,
-        userId: item.userId,
-        sourceEntityType: item.sourceEntityType,
-        sourceEntityId: item.sourceEntityId,
-        textContent: item.textContent,
+        externalId: item.entity_id,
+        userId: item.user_id,
+        sourceEntityType: item.entity_type,
+        sourceEntityId: item.entity_id,
+        textContent: item.content,
         title: item.title,
-        createdAt: item.createdAt,
+        createdAt: item.created_at,
         updatedAt: item.updatedAt
       }));
 

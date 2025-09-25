@@ -86,12 +86,12 @@ export class SemanticSimilarityTool {
             operands: [
               {
                 operator: 'Equal' as const,
-                path: ['userId'],
+                path: ['user_id'],
                 valueString: userId
               },
               {
                 operator: 'Equal' as const,
-                path: ['sourceEntityType'],
+                path: ['entity_type'],
                 valueString: 'MemoryUnit'
               }
             ]
@@ -101,12 +101,12 @@ export class SemanticSimilarityTool {
             operands: [
               {
                 operator: 'Equal' as const,
-                path: ['userId'],
+                path: ['user_id'],
                 valueString: userId
               },
               {
                 operator: 'Equal' as const,
-                path: ['sourceEntityType'],
+                path: ['entity_type'],
                 valueString: 'Concept'
               },
               {
@@ -131,7 +131,7 @@ export class SemanticSimilarityTool {
         .graphql
         .get()
         .withClassName('UserKnowledgeItem')
-        .withFields('externalId sourceEntityType textContent _additional { distance }')
+        .withFields('entity_id entity_type content _additional { distance }')
         .withWhere(whereClause)
         .withNearVector({ vector: searchVector })
         .withLimit(3) // Same as HRT
@@ -150,14 +150,14 @@ export class SemanticSimilarityTool {
       
       for (const item of entities) {
         // Validate that we have valid data before processing (same as HRT)
-        if (item.externalId && item.sourceEntityType) {
+        if (item.entity_id && item.entity_type) {
           const distance = item._additional?.distance || 1.0;
           const similarity = 1.0 - distance;
           
           // Check if this entity type matches our target types (case-insensitive)
           const isTargetType = entityTypes.some(targetType => {
-            if (targetType === 'concept') return item.sourceEntityType === 'Concept';
-            if (targetType === 'memory_unit') return item.sourceEntityType === 'MemoryUnit';
+            if (targetType === 'concept') return item.entity_type === 'Concept';
+            if (targetType === 'memory_unit') return item.entity_type === 'MemoryUnit';
             return false;
           });
           
@@ -168,7 +168,7 @@ export class SemanticSimilarityTool {
             bestSimilarity = similarity;
           }
         } else {
-          console.warn(`[SemanticSimilarityTool] Skipping item with null externalId or sourceEntityType:`, item);
+          console.warn(`[SemanticSimilarityTool] Skipping item with null entity_id or entity_type:`, item);
         }
       }
       
@@ -177,13 +177,13 @@ export class SemanticSimilarityTool {
         return null;
       }
       
-      const entityName = bestEntity.textContent || bestEntity.externalId;
-      console.log(`[SemanticSimilarityTool] MOST SIMILAR entity found for "${candidateName}": "${entityName}" (id: ${bestEntity.externalId}, type: ${bestEntity.sourceEntityType}, similarity: ${bestSimilarity.toFixed(3)})`);
+      const entityName = bestEntity.content || bestEntity.entity_id;
+      console.log(`[SemanticSimilarityTool] MOST SIMILAR entity found for "${candidateName}": "${entityName}" (id: ${bestEntity.entity_id}, type: ${bestEntity.entity_type}, similarity: ${bestSimilarity.toFixed(3)})`);
       
       return {
-        entityId: bestEntity.externalId,
-        entityName: bestEntity.textContent || bestEntity.externalId, // Use textContent (which contains the vectorized text)
-        entityType: (bestEntity.sourceEntityType === 'Concept' ? 'concept' : 'memory_unit') as 'concept' | 'memory_unit',
+        entityId: bestEntity.entity_id,
+        entityName: bestEntity.content || bestEntity.entity_id, // Use content (which contains the vectorized text)
+        entityType: (bestEntity.entity_type === 'Concept' ? 'concept' : 'memory_unit') as 'concept' | 'memory_unit',
         similarityScore: bestSimilarity
       };
       
