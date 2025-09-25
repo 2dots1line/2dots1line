@@ -10,4 +10,5 @@ export * from './security';
 export * from './validation';
 export * from './environment/EnvironmentLoader';
 export * from './service/BaseService';
-export * from './llm'; 
+export * from './llm';
+export * from './entity-mapping'; 

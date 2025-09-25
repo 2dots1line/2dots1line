@@ -1,13 +1,14 @@
 {
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
-    "types": ["jest", "node"],
     "allowJs": true,
     "noEmit": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
-    "isolatedModules": false
+    "isolatedModules": false,
+    "typeRoots": ["../node_modules/@types"],
+    "types": ["jest", "node"]
   },
   "include": [
     "**/*.ts",

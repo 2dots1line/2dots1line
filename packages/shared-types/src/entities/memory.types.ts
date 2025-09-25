@@ -8,7 +8,7 @@
  */
 export interface TMemoryUnit {
   /** Unique identifier for the memory unit (UUID) */
-  muid: string;
+  entity_id: string;
   /** ID of the user who authored this memory unit */
   user_id: string;
   /** User-provided or AI-generated title for the memory unit */
@@ -16,11 +16,11 @@ export interface TMemoryUnit {
   /** The core text content of the memory unit */
   content: string;
   /** Timestamp of original content creation by the user */
-  creation_ts: Date;
+  created_at: Date;
   /** Timestamp when the memory unit was ingested into the system */
   ingestion_ts: Date;
   /** Timestamp when this record or its content was last updated */
-  last_modified_ts: Date;
+  updated_at: Date;
   /** AI-assigned score (0.0-1.0) indicating significance */
   importance_score: number | null;
   /** AI-assigned sentiment score for the content */

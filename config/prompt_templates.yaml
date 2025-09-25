@@ -497,16 +497,16 @@ ingestion_analyst_instructions: |
           "title": "string", 
           "content": "string",
           "source_type": "conversation_extraction",
-          "creation_ts": "ISO8601_timestamp",
+          "created_at": "ISO8601_timestamp",
           "importance_score": number, // 1-10 scale: how significant is this memory to the user's life/journey
           "sentiment_score": number // -1.0 to 1.0: negative (-1.0) to positive (1.0) emotional tone
         }
       ],
       "extracted_concepts": [
         {
-          "name": "string",
+          "title": "string",
           "type": "string",
-          "description": "string"
+          "content": "string"
         }
       ],
       "new_relationships": [
@@ -518,9 +518,9 @@ ingestion_analyst_instructions: |
       ],
       "detected_growth_events": [
         {
-          "dim_key": "know_self|know_world|act_self|act_world|show_self|show_world", // Must be one of these exact values
+          "type": "know_self|know_world|act_self|act_world|show_self|show_world", // Must be one of these exact values
           "delta": number, // Must be between -5.0 and 5.0
-          "rationale": "string", // CRITICAL: Address {{user_name}} directly using "you" and "your" (NOT third person)
+          "content": "string", // CRITICAL: Address {{user_name}} directly using "you" and "your" (NOT third person)
           "source_concept_ids": ["<concept_name_1>", "<concept_name_2>"], // Specific concepts that support this growth event
           "source_memory_unit_ids": ["<memory_unit_temp_id_1>", "<memory_unit_temp_id_2>"] // Specific memory units that support this growth event
         }
@@ -553,28 +553,28 @@ ingestion_analyst_instructions: |
           "title": "Reading quantum physics book",
           "content": "Read a fascinating book about quantum physics and consciousness that completely changed my perspective on reality and the mind-body problem.",
           "source_type": "conversation_extraction",
-          "creation_ts": "2025-08-18T20:00:00.000Z",
+          "created_at": "2025-08-18T20:00:00.000Z",
           "importance_score": 8,
           "sentiment_score": 0.8
         }
       ],
       "extracted_concepts": [
         {
-          "name": "Quantum Physics",
+          "title": "Quantum Physics",
           "type": "interest",
-          "description": "Fascination with quantum physics and its implications for consciousness"
+          "content": "Fascination with quantum physics and its implications for consciousness"
         },
         {
-          "name": "Consciousness",
+          "title": "Consciousness",
           "type": "theme",
-          "description": "Interest in the nature of consciousness and the mind-body problem"
+          "content": "Interest in the nature of consciousness and the mind-body problem"
         }
       ],
       "detected_growth_events": [
         {
-          "dim_key": "know_world",
+          "type": "know_world",
           "delta": 3.0,
-          "rationale": "You gained a new perspective on reality through your quantum physics reading"
+          "content": "You gained a new perspective on reality through your quantum physics reading"
         }
       ],
       "new_relationships": [
@@ -1041,22 +1041,22 @@ insight_worker_dynamic_context: |
   ## 3.2 CONSOLIDATED KNOWLEDGE GRAPH (Medium Cacheability: 50-70%)
   ### Concepts ({{concepts.length}} total)
   {{#concepts}}
-  - **{{name}}** ({{id}}): {{description}}
+  - **{{title}}** ({{entity_id}}): {{content}}
   {{/concepts}}
 
   ### Memory Units ({{memory_units.length}} total)
   {{#memory_units}}
-  - **{{id}}**: {{content}}
+  - **{{entity_id}}**: {{content}}
   {{/memory_units}}
 
   ### Concepts Needing Synthesis ({{concepts_needing_synthesis.length}} total)
   {{#concepts_needing_synthesis}}
-  - **{{name}}** ({{id}}): {{description}}
+  - **{{title}}** ({{entity_id}}): {{content}}
   {{/concepts_needing_synthesis}}
 
   ### Recent Growth Events ({{recent_growth_events.length}} total)
   {{#recent_growth_events}}
-  - **{{id}}**: {{rationale}}
+  - **{{entity_id}}**: {{content}}
   {{/recent_growth_events}}
 
   ### Previous Cycle Key Phrases ({{previous_key_phrases.length}} total)
@@ -1084,11 +1084,12 @@ insight_worker_current_analysis: |
   4. **MANDATORY**: You MUST always include an "opening" artifact in derived_artifacts array.
   5. If you break any rule above, the system will fail to process your response.
   
-  **CRITICAL CONCEPT ID RULES:**
-  ⚠️  CONCEPT ID RULES — READ CAREFULLY ⚠️
-  1. **ONLY use concept IDs from the input data above**. Never generate new IDs.
-  2. Copy the exact `id` field from the concepts listed in the input data.
-  3. If a concept isn't in the input data, don't include it in your recommendations.
+  **CRITICAL ENTITY ID RULES:**
+  ⚠️  ENTITY ID RULES — READ CAREFULLY ⚠️
+  1. **ONLY use entity IDs from the input data above**. Never generate new IDs.
+  2. For concept operations (merge, archive, synthesis): Copy the exact `entity_id` field from the **concepts** listed in the input data.
+  3. For memory unit operations: Copy the exact `entity_id` field from the **memory units** listed in the input data.
+  4. If an entity isn't in the input data, don't include it in your recommendations.
 
   **OUTPUT FORMAT:**
   Return ONLY the JSON object, no markers, no extra text.
@@ -1100,24 +1101,24 @@ insight_worker_current_analysis: |
     "ontology_optimizations": {
       "concepts_to_merge": [
         {
-          "primary_concept_id": "<actual_concept_id_from_input>",
-          "secondary_concept_ids": ["<actual_concept_id_1>", "<actual_concept_id_2>"],
-          "merge_rationale": "<why_these_should_be_merged>",
-          "new_concept_name": "<consolidated_name>",
-          "new_concept_description": "<enhanced_description>"
+          "primary_entity_id": "<actual_concept_entity_id_from_input>",
+          "secondary_entity_ids": ["<actual_concept_entity_id_1>", "<actual_concept_entity_id_2>"],
+          "merge_rationale": "<why_these_concepts_should_be_merged>",
+          "new_concept_title": "<consolidated_concept_name>",
+          "new_concept_content": "<enhanced_concept_description>"
         }
       ],
       "concepts_to_archive": [
         {
-          "concept_id": "<actual_concept_id_from_input>",
-          "archive_rationale": "<why_no_longer_relevant>",
-          "replacement_concept_id": "<actual_concept_id_or_null>"
+          "entity_id": "<actual_concept_entity_id_from_input>",
+          "archive_rationale": "<why_concept_no_longer_relevant>",
+          "replacement_entity_id": "<actual_concept_entity_id_or_null>"
         }
       ],
       "new_strategic_relationships": [
         {
-          "source_id": "<entity_id>",
-          "target_id": "<entity_id>",
+          "source_id": "<concept_or_memory_unit_entity_id>",
+          "target_id": "<concept_or_memory_unit_entity_id>",
           "relationship_type": "STRATEGIC_ALIGNMENT" | "GROWTH_CATALYST" | "KNOWLEDGE_BRIDGE" | "SYNERGY_POTENTIAL",
           "strength": <number 0-1>,
           "strategic_value": "<why_this_connection_matters>"
@@ -1126,35 +1127,35 @@ insight_worker_current_analysis: |
       "community_structures": [
         {
           "community_id": "<generate_new_uuid_if_creating_new_community>",
-          "member_concept_ids": ["<actual_concept_id_1>", "<actual_concept_id_2>"],
+          "member_entity_ids": ["<actual_concept_entity_id_1>", "<actual_concept_entity_id_2>"],
           "theme": "<overarching_theme>",
           "strategic_importance": <number_between_1_and_10>
         }
       ],
       "concept_description_synthesis": [
         {
-          "concept_id": "<actual_concept_id_from_input>",
-          "synthesized_description": "<clean_polished_description_without_timestamps>"
+          "entity_id": "<actual_concept_entity_id_from_input>",
+          "synthesized_content": "<clean_polished_concept_description_without_timestamps>"
         }
       ]
     },
     "derived_artifacts": [
       {
-        "artifact_type": "opening" | "deeper_story" | "hidden_connection" | "values_revolution" | "mastery_quest" | "breakthrough_moment" | "synergy_discovery" | "authentic_voice" | "leadership_evolution" | "creative_renaissance" | "wisdom_integration" | "vision_crystallization" | "legacy_building" | "horizon_expansion" | "transformation_phase" | "insight" | "pattern" | "recommendation" | "synthesis" | "identified_pattern" | "emerging_theme" | "focus_area" | "blind_spot" | "celebration_moment",
+        "type": "opening" | "deeper_story" | "hidden_connection" | "values_revolution" | "mastery_quest" | "breakthrough_moment" | "synergy_discovery" | "authentic_voice" | "leadership_evolution" | "creative_renaissance" | "wisdom_integration" | "vision_crystallization" | "legacy_building" | "horizon_expansion" | "transformation_phase" | "insight" | "pattern" | "recommendation" | "synthesis" | "identified_pattern" | "emerging_theme" | "focus_area" | "blind_spot" | "celebration_moment",
         "title": "<artifact_title>",
         "content": "<detailed_content>",
         "confidence_score": <number_between_0_and_1>,
         "supporting_evidence": ["<evidence_1>", "<evidence_2>"],
         "actionability": "immediate" | "short_term" | "long_term" | "aspirational",
-        "source_concept_ids": ["<concept_id_1>", "<concept_id_2>"],
-        "source_memory_unit_ids": ["<memory_unit_id_1>", "<memory_unit_id_2>"]
+        "source_concept_ids": ["<actual_concept_entity_id_1>", "<actual_concept_entity_id_2>"],
+        "source_memory_unit_ids": ["<actual_memory_unit_entity_id_1>", "<actual_memory_unit_entity_id_2>"]
       }
     ],
     "proactive_prompts": [
       {
-        "prompt_type": "pattern_exploration" | "values_articulation" | "future_visioning" | "wisdom_synthesis" | "creative_expression" | "storytelling" | "metaphor_discovery" | "inspiration_hunting" | "synergy_building" | "legacy_planning" | "assumption_challenging" | "horizon_expanding" | "meaning_making" | "identity_integration" | "gratitude_deepening" | "wisdom_sharing" | "reflection" | "exploration" | "goal_setting" | "skill_development",
+        "type": "pattern_exploration" | "values_articulation" | "future_visioning" | "wisdom_synthesis" | "creative_expression" | "storytelling" | "metaphor_discovery" | "inspiration_hunting" | "synergy_building" | "legacy_planning" | "assumption_challenging" | "horizon_expanding" | "meaning_making" | "identity_integration" | "gratitude_deepening" | "wisdom_sharing" | "reflection" | "exploration" | "goal_setting" | "skill_development",
         "title": "<prompt_title>",
-        "prompt_text": "<engaging_question_or_prompt>",
+        "content": "<engaging_question_or_prompt>",
         "context_explanation": "<why_this_prompt_now>",
         "timing_suggestion": "next_conversation" | "weekly_check_in" | "monthly_review" | "quarterly_planning",
         "priority_level": <number 1-10>
@@ -1162,9 +1163,9 @@ insight_worker_current_analysis: |
     ],
     "growth_events": [
       {
-        "dimension_key": "know_self" | "act_self" | "show_self" | "know_world" | "act_world" | "show_world",
+        "type": "know_self" | "act_self" | "show_self" | "know_world" | "act_world" | "show_world",
         "delta_value": <number_between_-5.0_and_5.0>,
-        "rationale": "<strategic_recommendation_content>",
+        "content": "<strategic_recommendation_content>",
         "source_concept_ids": ["<concept_id_1>", "<concept_id_2>"],
         "source_memory_unit_ids": ["<memory_unit_id_1>", "<memory_unit_id_2>"],
         "confidence_score": <number_between_0_and_1>,
@@ -1193,13 +1194,13 @@ insight_worker_current_analysis: |
   - **CRITICAL**: Use actual values like "opening", "values_articulation", "know_self" - NOT schema syntax like "opening | deeper_story | ..."
 
   **EXAMPLES OF CORRECT vs INCORRECT:**
-  ✅ CORRECT: "artifact_type": "opening"
-  ❌ WRONG: "artifact_type": "opening" | "deeper_story" | "hidden_connection"
+  ✅ CORRECT (derived_artifacts): "type": "opening"
+  ❌ WRONG: "type": "opening" | "deeper_story" | "hidden_connection"
   
-  ✅ CORRECT: "prompt_type": "values_articulation"  
-  ❌ WRONG: "prompt_type": "pattern_exploration" | "values_articulation" | "future_visioning"
+  ✅ CORRECT (proactive_prompts): "type": "values_articulation"  
+  ❌ WRONG: "type": "pattern_exploration" | "values_articulation" | "future_visioning"
   
-  ✅ CORRECT: "dimension_key": "know_self"
-  ❌ WRONG: "dimension_key": "know_self" | "act_self" | "show_self"
+  ✅ CORRECT (growth_events): "type": "know_self"
+  ❌ WRONG: "type": "know_self" | "act_self" | "show_self"
 
   Remember: Output ONLY the JSON object, no markers, no additional text. 

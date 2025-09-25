@@ -7,7 +7,7 @@
  */
 export interface TUser {
   /** Unique identifier for the user (UUID) */
-  user_id: string;
+  entity_id: string;
   /** User's email address (unique) */
   email: string;
   /** User's display name */
@@ -34,8 +34,8 @@ export interface TUserPerceivedConcept {
   concept_id: string;
   /** Type of perception (e.g., 'holds_value', 'has_interest') */
   perception_type: string;
-  /** Current importance/salience of this perception (0.0-1.0) */
-  current_salience?: number | null;
+  /** Current importance score of this perception (0.0-1.0) */
+  current_importance_score?: number | null;
   /** Date when this perception began */
   start_date?: Date | null;
   /** Date when this perception ended (null if currently active) */

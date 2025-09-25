@@ -49,7 +49,7 @@ export interface NewCardAvailablePayload {
   userId: string;
   card: {
     card_id: string;
-    card_type: string;
+    type: string;
     display_data: {
       title: string;
     };

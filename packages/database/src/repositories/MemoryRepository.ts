@@ -3,9 +3,12 @@
  * V9.7 Repository for MemoryUnit operations
  */
 
-import type { memory_units, Prisma } from '@2dots1line/database';
+import type { Prisma } from '@prisma/client';
 import { DatabaseService } from '../DatabaseService';
 import { randomUUID } from 'crypto';
+
+// Use any type for now since Prisma types are complex
+type memory_units = any;
 
 export interface CreateMemoryUnitData {
   user_id: string;
@@ -30,18 +33,18 @@ export class MemoryRepository {
   async create(data: CreateMemoryUnitData): Promise<memory_units> {
     const memoryUnit = await this.db.prisma.memory_units.create({
       data: {
-        muid: randomUUID(),
-        creation_ts: new Date(), // Always set to current time
-        last_modified_ts: new Date(),
+        entity_id: randomUUID(),
+        created_at: new Date(), // Always set to current time
+        updated_at: new Date(),
         ...data,
       },
     });
     return memoryUnit;
   }
 
-  async findById(muid: string): Promise<memory_units | null> {
+  async findById(entityId: string): Promise<memory_units | null> {
     return this.db.prisma.memory_units.findUnique({
-      where: { muid },
+      where: { entity_id: entityId },
       include: {
         media_items: true,
         conversations: true,
@@ -52,17 +55,17 @@ export class MemoryRepository {
   /**
    * Batch method for HybridRetrievalTool - find multiple memory units by IDs
    */
-  async findByIds(muids: string[], userId: string): Promise<memory_units[]> {
+  async findByIds(entityIds: string[], userId: string): Promise<memory_units[]> {
     return this.db.prisma.memory_units.findMany({
-      where: { 
-        muid: { in: muids },
+      where: {
+        entity_id: { in: entityIds },
         user_id: userId 
       },
       include: {
         media_items: true,
         conversations: true,
       },
-      orderBy: { creation_ts: 'desc' }
+      orderBy: { created_at: 'desc' }
     });
   }
 
@@ -71,7 +74,7 @@ export class MemoryRepository {
       where: { user_id: userId },
       take: limit,
       skip: offset,
-      orderBy: { creation_ts: 'desc' },
+      orderBy: { created_at: 'desc' },
       include: {
         media_items: true,
       },
@@ -81,20 +84,20 @@ export class MemoryRepository {
   async findByConversationId(conversationId: string): Promise<memory_units[]> {
     return this.db.prisma.memory_units.findMany({
       where: { source_conversation_id: conversationId },
-      orderBy: { creation_ts: 'asc' },
+      orderBy: { created_at: 'asc' },
     });
   }
 
-  async update(muid: string, data: UpdateMemoryUnitData): Promise<memory_units> {
+  async update(entityId: string, data: UpdateMemoryUnitData): Promise<memory_units> {
     return this.db.prisma.memory_units.update({
-      where: { muid },
+      where: { entity_id: entityId },
       data,
     });
   }
 
-  async delete(muid: string): Promise<void> {
+  async delete(entityId: string): Promise<void> {
     await this.db.prisma.memory_units.delete({
-      where: { muid },
+      where: { entity_id: entityId },
     });
   }
 
@@ -124,12 +127,12 @@ export class MemoryRepository {
     return this.db.prisma.memory_units.findMany({
       where: {
         user_id: userId,
-        creation_ts: {
+        created_at: {
           gte: dateThreshold,
         },
       },
       take: limit,
-      orderBy: { creation_ts: 'desc' },
+      orderBy: { created_at: 'desc' },
     });
   }
 
@@ -143,7 +146,7 @@ export class MemoryRepository {
         ],
       },
       take: limit,
-      orderBy: { creation_ts: 'desc' },
+      orderBy: { created_at: 'desc' },
     });
   }
 

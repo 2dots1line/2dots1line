@@ -10,28 +10,15 @@ import { randomUUID } from 'crypto';
 export interface CreateUserCycleData {
   cycle_id?: string; // Optional, will generate if not provided
   user_id: string;
-  job_id?: string;
-  cycle_start_date: Date;
-  cycle_end_date: Date;
-  cycle_type?: string;
-  cycle_duration_days?: number;
-  trigger_source?: string;
+  type?: string;
+  created_at: Date;
+  ended_at?: Date;
 }
 
 export interface UpdateUserCycleData {
   status?: string;
   completed_at?: Date;
-  artifacts_created?: number;
-  prompts_created?: number;
-  concepts_merged?: number;
-  relationships_created?: number;
-  processing_duration_ms?: number;
-  llm_tokens_used?: number;
-  error_count?: number;
-  validation_score?: number;
-  insights_summary?: any;
-  growth_metrics?: any;
-  dashboard_ready?: boolean;
+  ended_at?: Date;
 }
 
 export class UserCycleRepository {
@@ -44,12 +31,9 @@ export class UserCycleRepository {
       data: {
         cycle_id: cycleId,
         user_id: data.user_id,
-        job_id: data.job_id ?? null,
-        cycle_start_date: data.cycle_start_date,
-        cycle_end_date: data.cycle_end_date,
-        cycle_type: data.cycle_type ?? 'strategic_analysis',
-        cycle_duration_days: data.cycle_duration_days ?? 2,
-        trigger_source: data.trigger_source ?? 'scheduled',
+        type: data.type ?? 'strategic_analysis',
+        created_at: data.created_at,
+        ended_at: data.ended_at,
       },
     });
     return cycle;
@@ -92,8 +76,7 @@ export class UserCycleRepository {
     return this.db.prisma.user_cycles.findMany({
       where: { 
         user_id: userId,
-        status: 'completed',
-        dashboard_ready: true
+        status: 'completed'
       },
       take: limit,
       orderBy: { completed_at: 'desc' },
@@ -117,35 +100,22 @@ export class UserCycleRepository {
     total_cycles: number;
     completed_cycles: number;
     failed_cycles: number;
-    avg_processing_time: number;
-    total_artifacts_created: number;
   }> {
     const cycles = await this.db.prisma.user_cycles.findMany({
       where: { user_id: userId },
       select: {
         status: true,
-        processing_duration_ms: true,
-        artifacts_created: true,
       },
     });
 
     const totalCycles = cycles.length;
-    const completedCycles = cycles.filter(c => c.status === 'completed').length;
-    const failedCycles = cycles.filter(c => c.status === 'failed').length;
-    
-    const completedWithDuration = cycles.filter(c => c.status === 'completed' && c.processing_duration_ms);
-    const avgProcessingTime = completedWithDuration.length > 0 
-      ? completedWithDuration.reduce((sum, c) => sum + (c.processing_duration_ms || 0), 0) / completedWithDuration.length
-      : 0;
-
-    const totalArtifacts = cycles.reduce((sum, c) => sum + (c.artifacts_created || 0), 0);
+    const completedCycles = cycles.filter((c: any) => c.status === 'completed').length;
+    const failedCycles = cycles.filter((c: any) => c.status === 'failed').length;
 
     return {
       total_cycles: totalCycles,
       completed_cycles: completedCycles,
       failed_cycles: failedCycles,
-      avg_processing_time: avgProcessingTime,
-      total_artifacts_created: totalArtifacts,
     };
   }
 }

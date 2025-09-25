@@ -11,19 +11,19 @@
  */
 export interface TInteractionLog {
   /** Unique identifier for the interaction log (UUID) */
-  interaction_id: string;
+  entity_id: string;
   /** ID of the user who performed the interaction */
   user_id: string;
   /** Timestamp when the interaction occurred */
-  timestamp: Date;
+  created_at: Date;
   /** Type of interaction (e.g., 'annotation', 'highlight', 'reflection') */
-  interaction_type: string;
+  type: string;
   /** ID of the target entity (optional) */
   target_entity_id?: string | null;
   /** Type of the target entity (optional) */
   target_entity_type?: string | null;
   /** Text content of the interaction (optional) */
-  content_text?: string | null;
+  content?: string | null;
   /** Structured content data (JSON object, optional) */
   content_structured?: Record<string, unknown> | null;
   /** Additional metadata (JSON object, optional) */

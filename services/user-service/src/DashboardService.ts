@@ -139,8 +139,8 @@ export class DashboardService {
       let eventCount = 0;
       
       for (const event of events) {
-        if (event.growth_dimensions && Array.isArray(event.growth_dimensions)) {
-          const dimEvent = event.growth_dimensions.find((d: any) => d.dim_key === dimension.key);
+        if (event.metadata && Array.isArray((event.metadata as any).growth_dimensions)) {
+          const dimEvent = (event.metadata as any).growth_dimensions.find((d: any) => d.dim_key === dimension.key);
           if (dimEvent && typeof dimEvent === 'object' && 'delta' in dimEvent && typeof dimEvent.delta === 'number') {
             score += dimEvent.delta;
             eventCount++;
@@ -174,10 +174,10 @@ export class DashboardService {
     const artifacts = await this.derivedArtifactRepository.findByUserId(userId, limit);
     
     return artifacts.map(artifact => ({
-      id: artifact.artifact_id,
+      id: artifact.entity_id,
       title: artifact.title,
-      description: artifact.content_narrative || 'AI-generated insight',
-      type: artifact.artifact_type,
+      description: artifact.content || 'AI-generated insight',
+      type: artifact.type,
       createdAt: artifact.created_at.toISOString(),
       relatedEntities: [
         ...(artifact.source_memory_unit_ids || []),
@@ -201,22 +201,22 @@ export class DashboardService {
     // Add growth events
     for (const event of growthEvents) {
       activities.push({
-        id: event.event_id,
+        id: event.entity_id,
         type: 'growth',
         title: `Growth in ${event.source}`,
         description: `Activity in ${event.source}`,
         timestamp: event.created_at.toISOString(),
-        dimension: this.extractPrimaryDimension(event.growth_dimensions)
+        dimension: this.extractPrimaryDimension((event.metadata as any)?.growth_dimensions)
       });
     }
 
     // Add insights
     for (const insight of insights) {
       activities.push({
-        id: insight.artifact_id,
+        id: insight.entity_id,
         type: 'insight',
         title: insight.title,
-        description: insight.content_narrative || 'New insight discovered',
+        description: insight.content || 'New insight discovered',
         timestamp: insight.created_at.toISOString()
       });
     }
@@ -224,11 +224,11 @@ export class DashboardService {
     // Add memories
     for (const memory of memories) {
       activities.push({
-        id: memory.muid,
+        id: memory.entity_id,
         type: 'journal',
         title: memory.title,
         description: memory.content.substring(0, 100) + (memory.content.length > 100 ? '...' : ''),
-        timestamp: memory.creation_ts.toISOString()
+        timestamp: memory.created_at.toISOString()
       });
     }
 

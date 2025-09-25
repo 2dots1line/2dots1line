@@ -57,7 +57,7 @@ export class ConceptMerger {
         try {
           await this.conceptRepository.update(secondaryId, {
             status: 'merged',
-            merged_into_concept_id: merge.primary_concept_id
+            merged_into_entity_id: merge.primary_concept_id
           });
           console.log(`[ConceptMerger] Marked concept ${secondaryId} as merged into ${merge.primary_concept_id}`);
           
@@ -78,8 +78,8 @@ export class ConceptMerger {
       // Update primary concept with new name and description
       try {
         await this.conceptRepository.update(merge.primary_concept_id, {
-          name: merge.new_concept_name,
-          description: merge.new_concept_description
+          title: merge.new_concept_name,
+          content: merge.new_concept_description
         });
         console.log(`[ConceptMerger] Updated primary concept ${merge.primary_concept_id} with new name: ${merge.new_concept_name}`);
       } catch (updateError) {
@@ -220,7 +220,7 @@ export class ConceptMerger {
     const mergeInfo = `Merged with: ${merge.secondary_concept_ids.join(', ')}. Rationale: ${merge.merge_rationale || 'Strategic consolidation'}`;
     
     await this.conceptRepository.update(merge.primary_concept_id, {
-      description: mergeInfo,
+      content: mergeInfo,
       status: 'active' // Keep primary concept active
     });
     

@@ -47,7 +47,7 @@ export const StrategicSynthesisOutputSchema = z.object({
     }))
   }),
   derived_artifacts: z.array(z.object({
-    artifact_type: z.enum(['opening', 'deeper_story', 'hidden_connection', 'values_revolution', 'mastery_quest', 'breakthrough_moment', 'synergy_discovery', 'authentic_voice', 'leadership_evolution', 'creative_renaissance', 'wisdom_integration', 'vision_crystallization', 'legacy_building', 'horizon_expansion', 'transformation_phase', 'insight', 'pattern', 'recommendation', 'synthesis', 'identified_pattern', 'emerging_theme', 'focus_area', 'blind_spot', 'celebration_moment']),
+    type: z.enum(['opening', 'deeper_story', 'hidden_connection', 'values_revolution', 'mastery_quest', 'breakthrough_moment', 'synergy_discovery', 'authentic_voice', 'leadership_evolution', 'creative_renaissance', 'wisdom_integration', 'vision_crystallization', 'legacy_building', 'horizon_expansion', 'transformation_phase', 'insight', 'pattern', 'recommendation', 'synthesis', 'identified_pattern', 'emerging_theme', 'focus_area', 'blind_spot', 'celebration_moment']),
     title: z.string(),
     content: z.string(),
     confidence_score: z.number().min(0).max(1),
@@ -57,9 +57,9 @@ export const StrategicSynthesisOutputSchema = z.object({
     source_memory_unit_ids: z.array(z.string()).optional()
   })),
   proactive_prompts: z.array(z.object({
-    prompt_type: z.enum(['pattern_exploration', 'values_articulation', 'future_visioning', 'wisdom_synthesis', 'creative_expression', 'storytelling', 'metaphor_discovery', 'inspiration_hunting', 'synergy_building', 'legacy_planning', 'assumption_challenging', 'horizon_expanding', 'meaning_making', 'identity_integration', 'gratitude_deepening', 'wisdom_sharing', 'reflection', 'exploration', 'goal_setting', 'skill_development']),
+    type: z.enum(['pattern_exploration', 'values_articulation', 'future_visioning', 'wisdom_synthesis', 'creative_expression', 'storytelling', 'metaphor_discovery', 'inspiration_hunting', 'synergy_building', 'legacy_planning', 'assumption_challenging', 'horizon_expanding', 'meaning_making', 'identity_integration', 'gratitude_deepening', 'wisdom_sharing', 'reflection', 'exploration', 'goal_setting', 'skill_development']),
     title: z.string(),
-    prompt_text: z.string(),
+    content: z.string(),
     context_explanation: z.string(),
     timing_suggestion: z.enum(['next_conversation', 'weekly_check_in', 'monthly_review', 'quarterly_planning']),
     priority_level: z.number().min(1).max(10)

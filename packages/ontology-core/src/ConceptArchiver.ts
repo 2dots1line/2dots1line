@@ -22,7 +22,7 @@ export class ConceptArchiver {
       await this.conceptRepository.update(archive.concept_id, {
         status: 'archived',
         // Store archive rationale in description or metadata if available
-        description: `ARCHIVED: ${archive.archive_rationale}${archive.replacement_concept_id ? ` (Replaced by: ${archive.replacement_concept_id})` : ''}`
+        content: `ARCHIVED: ${archive.archive_rationale}${archive.replacement_concept_id ? ` (Replaced by: ${archive.replacement_concept_id})` : ''}`
       });
       console.log(`[ConceptArchiver] Archived concept ${archive.concept_id} with rationale: ${archive.archive_rationale}`);
       

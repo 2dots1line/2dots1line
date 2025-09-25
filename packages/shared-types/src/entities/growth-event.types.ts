@@ -9,15 +9,15 @@
  */
 export interface TGrowthEvent {
   /** Unique identifier for the growth event (UUID) */
-  event_id: string;
+  entity_id: string;
   /** ID of the user this growth event belongs to */
   user_id: string;
   /** ID of the entity that triggered this growth event */
-  entity_id: string;
+  source_entity_id: string;
   /** Type of entity that triggered this growth event */
   entity_type: string;
   /** The dimension key (one of the 6D dimensions) */
-  dim_key: string;
+  type: string;
   /** The growth delta value (positive or negative) */
   delta: number;
   /** Source that generated this growth event */
@@ -25,7 +25,7 @@ export interface TGrowthEvent {
   /** Timestamp when the growth event was created */
   created_at: Date;
   /** Additional details about the growth event (JSON object) */
-  details?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 /**

@@ -93,19 +93,19 @@ export class HydrationAdapter {
         
         for (const memoryUnit of memoryUnits) {
           results.push({
-            id: memoryUnit.muid,
+            id: memoryUnit.entity_id,
             type: 'MemoryUnit',
             data: memoryUnit,
             metadata: {
               importance_score: memoryUnit.importance_score,
-              creation_ts: memoryUnit.creation_ts,
-              last_modified_ts: memoryUnit.last_modified_ts
+              created_at: memoryUnit.created_at,
+              updated_at: memoryUnit.updated_at
             }
           });
         }
 
         // Track not found memory units
-        const foundIds = memoryUnits.map((mu: any) => mu.muid);
+        const foundIds = memoryUnits.map((mu: any) => mu.entity_id);
         const notFoundMemoryUnits = memoryUnitIds.filter(id => !foundIds.includes(id));
         notFound.push(...notFoundMemoryUnits);
       }
@@ -116,19 +116,19 @@ export class HydrationAdapter {
         
         for (const concept of concepts) {
           results.push({
-            id: concept.concept_id,
+            id: concept.entity_id,
             type: 'Concept',
             data: concept,
             metadata: {
-              salience: concept.salience,
+              importance_score: concept.importance_score,
               created_at: concept.created_at,
-              last_updated_ts: concept.last_updated_ts
+              updated_at: concept.updated_at
             }
           });
         }
 
         // Track not found concepts
-        const foundIds = concepts.map((c: any) => c.concept_id);
+        const foundIds = concepts.map((c: any) => c.entity_id);
         const notFoundConcepts = conceptIds.filter(id => !foundIds.includes(id));
         notFound.push(...notFoundConcepts);
       }
@@ -191,12 +191,12 @@ export class HydrationAdapter {
             // Query Neo4j for relationships of this entity
             const cypher = `
               MATCH (source)-[r]->(target)
-              WHERE (source.muid = $entityId OR source.concept_id = $entityId)
+              WHERE (source.entity_id = $entityId)
                 AND source.user_id = $userId
               RETURN r, target, 'outgoing' as direction
               UNION
               MATCH (source)-[r]->(target)
-              WHERE (target.muid = $entityId OR target.concept_id = $entityId)
+              WHERE (target.entity_id = $entityId)
                 AND target.user_id = $userId
               RETURN r, source as target, 'incoming' as direction
               LIMIT 20
@@ -220,10 +220,10 @@ export class HydrationAdapter {
                 created_at: relationship.created_at,
                 source: relationship.source || 'Unknown',
                 relatedEntity: {
-                  id: relatedNode.muid || relatedNode.concept_id,
-                  type: relatedNode.type || (relatedNode.muid ? 'MemoryUnit' : 'Concept'),
-                  name: relatedNode.title || relatedNode.name,
-                  importance: relatedNode.importance_score || relatedNode.salience || 0
+                  id: relatedNode.entity_id,
+                  type: relatedNode.type || relatedNode.entity_type,
+                  name: relatedNode.title,
+                  importance: relatedNode.importance_score || 0
                 }
               };
             });

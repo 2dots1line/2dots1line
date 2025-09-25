@@ -4,8 +4,10 @@
  */
 
 import { DatabaseService } from '../DatabaseService';
-import type { users } from '@2dots1line/database';
 import { randomUUID } from 'crypto';
+
+// Use any type for now since Prisma types are complex
+type users = any;
 
 export interface CreateUserData {
   email: string;

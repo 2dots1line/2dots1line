@@ -16,6 +16,7 @@ import type {
 } from '@2dots1line/database';
 import { HolisticAnalysisTool, HolisticAnalysisOutput, SemanticSimilarityTool } from '@2dots1line/tools';
 import type { SemanticSimilarityInput, SemanticSimilarityResult } from '@2dots1line/tools';
+import { getEntityTypeMapping } from '@2dots1line/core-utils';
 import { Job , Queue } from 'bullmq';
 
 export interface IngestionJobData {
@@ -109,7 +110,7 @@ export class IngestionAnalyst {
       
         // Update conversation with error information
         await this.conversationRepository.update(conversationId, {
-        context_summary: `Analysis failed: ${error instanceof Error ? error.message : String(error)}`,
+        content: `Analysis failed: ${error instanceof Error ? error.message : String(error)}`,
           importance_score: 0,
           status: 'failed'
         });
@@ -195,7 +196,7 @@ export class IngestionAnalyst {
       
       // Update conversation with context fields
       await this.conversationRepository.update(conversationId, {
-        context_summary: persistence_payload.conversation_summary,
+        content: persistence_payload.conversation_summary,
         importance_score: persistence_payload.conversation_importance_score,
         status: 'processed',
         proactive_greeting: forward_looking_context.proactive_greeting,
@@ -213,7 +214,7 @@ export class IngestionAnalyst {
     try {
       // Update conversation
       await this.conversationRepository.update(conversationId, {
-        context_summary: persistence_payload.conversation_summary,
+        content: persistence_payload.conversation_summary,
         importance_score: persistence_payload.conversation_importance_score,
         status: 'processed'
       });
@@ -232,34 +233,25 @@ export class IngestionAnalyst {
       try {
         // ENHANCED: Process memory units with deduplication decisions
         for (const memoryUnit of deduplicationDecisions.memoryUnitsToCreate) {
-            const memoryData: CreateMemoryUnitData = {
+          const createdMemory = await this.createEntityWithNeo4j(
+            'MemoryUnit',
+            {
               user_id: userId,
               title: memoryUnit.title,
               content: memoryUnit.content,
-            importance_score: memoryUnit.importance_score || persistence_payload.conversation_importance_score || 5,
-            sentiment_score: memoryUnit.sentiment_score || 0,
+              importance_score: memoryUnit.importance_score || persistence_payload.conversation_importance_score || 5,
+              sentiment_score: memoryUnit.sentiment_score || 0,
               source_conversation_id: conversationId
-            };
-
-            const createdMemory = await this.memoryRepository.create(memoryData);
-            newEntities.push({ id: createdMemory.muid, type: 'MemoryUnit' });
-            
+            },
+            neo4jTransaction,
+            userId
+          );
+          
+          newEntities.push({ id: createdMemory.entity_id, type: 'MemoryUnit' });
+          
           // Update entity mapping - map both title and temp_id to the actual memory unit ID
-          deduplicationDecisions.entityMappings.set(memoryUnit.title, createdMemory.muid);
-          deduplicationDecisions.entityMappings.set(memoryUnit.temp_id, createdMemory.muid);
-            
-          // Create Neo4j node
-            await this.createNeo4jNodeInTransaction(neo4jTransaction, 'MemoryUnit', {
-              id: createdMemory.muid,
-              userId: userId,
-              title: createdMemory.title,
-              content: createdMemory.content,
-              importance_score: createdMemory.importance_score,
-              sentiment_score: createdMemory.sentiment_score,
-            creation_ts: new Date().toISOString(),
-              source_conversation_id: createdMemory.source_conversation_id,
-              source: 'IngestionAnalyst'
-            });
+          deduplicationDecisions.entityMappings.set(memoryUnit.title, createdMemory.entity_id);
+          deduplicationDecisions.entityMappings.set(memoryUnit.temp_id, createdMemory.entity_id);
         }
 
         // ENHANCED: Process memory units to reuse (update existing)
@@ -289,33 +281,23 @@ export class IngestionAnalyst {
 
         // ENHANCED: Process concepts with deduplication decisions
         for (const concept of deduplicationDecisions.conceptsToCreate) {
-        const conceptData: CreateConceptData = {
-          user_id: userId,
-            name: concept.name,
-            type: concept.type || 'theme',
-            description: concept.description || `Concept extracted from conversation: ${concept.name}`,
-            salience: concept.salience || 0.5
-        };
-
-        const createdConcept = await this.conceptRepository.create(conceptData);
-        newEntities.push({ id: createdConcept.concept_id, type: 'Concept' });
-        
+          const createdConcept = await this.createEntityWithNeo4j(
+            'Concept',
+            {
+              user_id: userId,
+              title: concept.name,
+              type: concept.type || 'theme',
+              content: concept.description || `Concept extracted from conversation: ${concept.name}`,
+              importance_score: concept.importance_score || 0.5
+            },
+            neo4jTransaction,
+            userId
+          );
+          
+          newEntities.push({ id: createdConcept.entity_id, type: 'Concept' });
+          
           // Update entity mapping
-          deduplicationDecisions.entityMappings.set(concept.name, createdConcept.concept_id);
-        
-          // Create Neo4j node
-        await this.createNeo4jNodeInTransaction(neo4jTransaction, 'Concept', {
-          id: createdConcept.concept_id,
-          userId: userId,
-          name: createdConcept.name,
-          description: createdConcept.description,
-          type: createdConcept.type,
-          salience: conceptData.salience,
-          status: createdConcept.status,
-          created_at: createdConcept.created_at.toISOString(),
-          community_id: createdConcept.community_id,
-          source: 'IngestionAnalyst'
-        });
+          deduplicationDecisions.entityMappings.set(concept.name, createdConcept.entity_id);
         }
 
         // ENHANCED: Process concepts to reuse (update existing)
@@ -339,13 +321,13 @@ export class IngestionAnalyst {
           }
           
           const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-          const newDescription = currentConcept.description 
-            ? `${currentConcept.description}\n[${timestamp}] ${decision.candidate.description}`
+          const newDescription = currentConcept.content 
+            ? `${currentConcept.content}\n[${timestamp}] ${decision.candidate.description}`
             : `[${timestamp}] ${decision.candidate.description}`;
 
           await this.conceptRepository.update(conceptId, {
-            description: newDescription,
-            last_updated_ts: new Date()
+            content: newDescription,
+            updated_at: new Date()
           });
           
           // Update entity mapping
@@ -367,21 +349,20 @@ export class IngestionAnalyst {
           for (const growthEvent of persistence_payload.detected_growth_events) {
             const growthData: CreateGrowthEventData = {
               user_id: userId,
-              related_memory_units: growthEvent.source_memory_unit_ids || [],
-              related_concepts: growthEvent.source_concept_ids || [],
-              growth_dimensions: [],
+              source_memory_unit_ids: growthEvent.source_memory_unit_ids || [],
+              source_concept_ids: growthEvent.source_concept_ids || [],
               source: 'IngestionAnalyst',
-              details: {
+              metadata: {
                 entity_id: conversationId,
                 entity_type: 'conversation'
               },
-              dimension_key: growthEvent.dim_key,
+              type: growthEvent.dim_key,
               delta_value: growthEvent.delta,
-              rationale: growthEvent.rationale
+              content: growthEvent.rationale
             };
 
             const createdGrowthEvent = await this.growthEventRepository.create(growthData);
-            newEntities.push({ id: createdGrowthEvent.event_id, type: 'GrowthEvent' });
+            newEntities.push({ id: createdGrowthEvent.entity_id, type: 'GrowthEvent' });
           }
         }
 
@@ -439,7 +420,7 @@ export class IngestionAnalyst {
       return entityNameOrId;
     }
     
-    // FIX: If it's a UUID, treat it as an existing entity ID
+    // If it's a UUID, treat it as an existing entity ID
     if (this.isUUID(entityNameOrId)) {
       console.log(`🔍 [IngestionAnalyst] DEBUG: Entity "${entityNameOrId}" is a UUID, treating as existing entity ID`);
       return entityNameOrId;
@@ -609,52 +590,72 @@ export class IngestionAnalyst {
   }
 
   /**
+   * Generic method to fetch entity by type and ID
+   */
+  private async fetchEntityByType(entityType: string, entityId: string): Promise<any> {
+    try {
+      switch (entityType) {
+        case 'MemoryUnit':
+          return await this.memoryRepository.findById(entityId);
+        case 'Concept':
+          return await this.conceptRepository.findById(entityId);
+        case 'GrowthEvent':
+          return await this.growthEventRepository.findById(entityId);
+        case 'DerivedArtifact':
+          return await this.derivedArtifactRepository.findById(entityId);
+        case 'Community':
+          return await this.dbService.prisma.communities.findUnique({
+            where: { entity_id: entityId }
+          });
+        case 'ProactivePrompt':
+          return await this.proactivePromptRepository.findById(entityId);
+        case 'User':
+          return await this.userRepository.findById(entityId);
+        default:
+          console.warn(`[IngestionAnalyst] Unknown entity type: ${entityType}`);
+          return null;
+      }
+    } catch (error) {
+      console.error(`[IngestionAnalyst] Error fetching ${entityType} ${entityId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Generic method to extract text content from any entity
+   */
+  private extractTextContent(entity: any, entityType: string): string {
+    if (!entity) return '';
+
+    switch (entityType) {
+      case 'MemoryUnit':
+        return `${entity.title}\n${entity.content}`;
+      case 'Concept':
+        return entity.title || '';
+      case 'GrowthEvent':
+        const details = entity.metadata as any;
+        return `${entity.type} Growth Event: ${details?.rationale || entity.content || 'Growth event recorded'}`;
+      case 'DerivedArtifact':
+        return `${entity.title}\n\n${entity.content || 'Derived artifact content'}`;
+      case 'Community':
+        return `${entity.title}: ${entity.content || 'Community description'}`;
+      case 'ProactivePrompt':
+        return `Proactive Prompt: ${entity.content || 'Prompt content'}`;
+      case 'User':
+        return `${entity.name || entity.email}: User profile`;
+      default:
+        return '';
+    }
+  }
+
+  /**
    * Publish events for new entities
    */
   private async publishEvents(userId: string, newEntities: Array<{ id: string; type: string }>) {
     // Publish embedding jobs for each new entity
     for (const entity of newEntities) {
-      let textContent = '';
-      
-      if (entity.type === 'MemoryUnit') {
-        const memory = await this.memoryRepository.findById(entity.id);
-        textContent = memory ? `${memory.title}\n${memory.content}` : '';
-      } else if (entity.type === 'Concept') {
-        const concept = await this.conceptRepository.findById(entity.id);
-        textContent = concept ? concept.name : '';
-      } else if (entity.type === 'GrowthEvent') {
-        const growthEvent = await this.growthEventRepository.findById(entity.id);
-        if (growthEvent) {
-          const details = growthEvent.details as any;
-          textContent = `${growthEvent.dimension_key} Growth Event: ${details?.rationale || growthEvent.rationale || 'Growth event recorded'}`;
-        }
-      } else if (entity.type === 'DerivedArtifact') {
-        const artifact = await this.derivedArtifactRepository.findById(entity.id);
-        if (artifact) {
-          textContent = `${artifact.title}\n\n${artifact.content_narrative || 'Derived artifact content'}`;
-        }
-      } else if (entity.type === 'Community') {
-        try {
-          const community = await this.dbService.prisma.communities.findUnique({
-            where: { community_id: entity.id }
-          });
-          if (community) {
-            textContent = `${community.name}: ${community.description || 'Community description'}`;
-          }
-        } catch (error) {
-          console.warn(`[IngestionAnalyst] ⚠️ Error fetching community ${entity.id}:`, error);
-        }
-      } else if (entity.type === 'ProactivePrompt') {
-        const prompt = await this.proactivePromptRepository.findById(entity.id);
-        if (prompt) {
-          textContent = `Proactive Prompt: ${prompt.prompt_text || 'Prompt content'}`;
-        }
-      } else if (entity.type === 'User') {
-        const user = await this.userRepository.findById(entity.id);
-        if (user) {
-          textContent = `${user.name || user.email}: User profile`;
-        }
-      }
+      const entityData = await this.fetchEntityByType(entity.type, entity.id);
+      const textContent = this.extractTextContent(entityData, entity.type);
 
       if (textContent) {
         await this.embeddingQueue.add('create_embedding', {
@@ -690,6 +691,70 @@ export class IngestionAnalyst {
   }
 
   /**
+   * Generic method to create entity with Neo4j node in transaction
+   */
+  private async createEntityWithNeo4j(
+    entityType: string, 
+    entityData: any, 
+    neo4jTransaction: any, 
+    userId: string
+  ): Promise<any> {
+    let createdEntity;
+    
+    // Create entity in database
+    switch (entityType) {
+      case 'MemoryUnit':
+        createdEntity = await this.memoryRepository.create(entityData);
+        break;
+      case 'Concept':
+        createdEntity = await this.conceptRepository.create(entityData);
+        break;
+      case 'GrowthEvent':
+        createdEntity = await this.growthEventRepository.create(entityData);
+        break;
+      case 'DerivedArtifact':
+        createdEntity = await this.derivedArtifactRepository.create(entityData);
+        break;
+      case 'Community':
+        createdEntity = await this.dbService.prisma.communities.create({
+          data: entityData
+        });
+        break;
+      case 'ProactivePrompt':
+        createdEntity = await this.proactivePromptRepository.create(entityData);
+        break;
+      default:
+        throw new Error(`Unknown entity type: ${entityType}`);
+    }
+    
+    // Create Neo4j node with standardized properties
+    const neo4jProperties = {
+      id: createdEntity.entity_id,
+      userId: userId,
+      title: createdEntity.title,
+      content: createdEntity.content,
+      importance_score: createdEntity.importance_score,
+      created_at: new Date().toISOString(),
+      source: 'IngestionAnalyst',
+      ...entityData // Include any additional properties
+    };
+    
+    // Add type-specific properties
+    if (entityType === 'MemoryUnit') {
+      neo4jProperties.sentiment_score = createdEntity.sentiment_score;
+      neo4jProperties.source_conversation_id = createdEntity.source_conversation_id;
+    } else if (entityType === 'Concept') {
+      neo4jProperties.type = createdEntity.type;
+      neo4jProperties.status = createdEntity.status;
+      neo4jProperties.community_id = createdEntity.community_id;
+    }
+    
+    await this.createNeo4jNodeInTransaction(neo4jTransaction, entityType, neo4jProperties);
+    
+    return createdEntity;
+  }
+
+  /**
    * Create Neo4j node in transaction
    */
   private async createNeo4jNodeInTransaction(transaction: any, label: string, properties: any): Promise<void> {
@@ -717,8 +782,8 @@ export class IngestionAnalyst {
       if (sourceId && targetId) {
         const cypher = `
           MATCH (source), (target)
-          WHERE (source.muid = $sourceId OR source.concept_id = $sourceId OR source.event_id = $sourceId)
-            AND (target.muid = $targetId OR target.concept_id = $targetId OR target.event_id = $targetId)
+          WHERE (source.entity_id = $sourceId)
+            AND (target.entity_id = $targetId)
           CREATE (source)-[r:${relationship.relationship_type} {description: $description}]->(target)
         `;
         
@@ -732,7 +797,7 @@ export class IngestionAnalyst {
   }
 
   /**
-   * Map relationship ID to actual node ID
+   * Map relationship ID to actual node ID using centralized entity mapping
    */
   private async mapRelationshipIdToNodeId(entityIdOrName: string, userId: string): Promise<string | null> {
     // If it's already an ID, return as-is
@@ -740,52 +805,60 @@ export class IngestionAnalyst {
       return entityIdOrName;
     }
 
-    // FIX: If it's a UUID, it's likely a concept ID, so return it directly
+    // If it's a UUID, it's likely a concept ID, so return it directly
     if (this.isUUID(entityIdOrName)) {
       console.log(`🔍 [IngestionAnalyst] DEBUG: Mapped ID "${entityIdOrName}" is a UUID, treating as concept ID`);
       return entityIdOrName;
     }
 
-    // Try to find existing concept by name
-    const concepts = await this.conceptRepository.searchByName(userId, entityIdOrName, 1);
-    if (concepts.length > 0) {
-      return concepts[0].concept_id;
-    }
-
-    // Try to find existing memory unit by title
-    const memories = await this.memoryRepository.searchByContent(userId, entityIdOrName, 1);
-    if (memories.length > 0) {
-      return memories[0].muid;
-    }
-
-    // Try to find existing growth event by event_id
-    const growthEvent = await this.growthEventRepository.findById(entityIdOrName);
-    if (growthEvent) {
-      return growthEvent.event_id;
-    }
-
-    // FIX: Don't create concepts for memory unit temp_ids or growth dimensions
-    if (this.isMemoryUnitTempId(entityIdOrName)) {
-      console.log(`🔍 [IngestionAnalyst] DEBUG: Skipping concept creation for memory unit temp_id: ${entityIdOrName}`);
+    // Don't create concepts for memory unit temp_ids or growth dimensions
+    if (this.isMemoryUnitTempId(entityIdOrName) || this.isGrowthDimension(entityIdOrName)) {
+      console.log(`🔍 [IngestionAnalyst] DEBUG: Skipping concept creation for special entity: ${entityIdOrName}`);
       return null;
     }
-    
-    if (this.isGrowthDimension(entityIdOrName)) {
-      console.log(`🔍 [IngestionAnalyst] DEBUG: Skipping concept creation for growth dimension: ${entityIdOrName}`);
-      return null;
+
+    // Try to find existing entity by name using generic search
+    const entityId = await this.findExistingEntityByName(entityIdOrName, userId);
+    if (entityId) {
+      return entityId;
     }
     
     // Auto-create concept as fallback
     console.log(`🔍 [IngestionAnalyst] DEBUG: Auto-creating concept for: ${entityIdOrName}`);
     const createdConcept = await this.conceptRepository.create({
-            user_id: userId,
-      name: entityIdOrName,
+      user_id: userId,
+      title: entityIdOrName,
       type: 'auto_generated',
-      description: `Auto-generated concept from relationship: ${entityIdOrName}`,
-      salience: 0.5
+      content: `Auto-generated concept from relationship: ${entityIdOrName}`,
+      importance_score: 0.5
     });
 
-    return createdConcept.concept_id;
+    return createdConcept.entity_id;
+  }
+
+  /**
+   * Generic method to find existing entity by name
+   */
+  private async findExistingEntityByName(entityName: string, userId: string): Promise<string | null> {
+    // Try to find existing concept by name
+    const concepts = await this.conceptRepository.searchByName(userId, entityName, 1);
+    if (concepts.length > 0) {
+      return concepts[0].entity_id;
+    }
+
+    // Try to find existing memory unit by title
+    const memories = await this.memoryRepository.searchByContent(userId, entityName, 1);
+    if (memories.length > 0) {
+      return memories[0].entity_id;
+    }
+
+    // Try to find existing growth event by entity_id
+    const growthEvent = await this.growthEventRepository.findById(entityName);
+    if (growthEvent) {
+      return growthEvent.entity_id;
+    }
+
+    return null;
   }
 
 

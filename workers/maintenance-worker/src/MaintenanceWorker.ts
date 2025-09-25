@@ -289,7 +289,7 @@ export class MaintenanceWorker {
         
         // Get concepts for this user from PostgreSQL
         const conceptsInPg = await this.dbService.prisma.concepts.findMany({
-          select: { concept_id: true },
+          select: { entity_id: true },
           where: { user_id: userId },
           take: this.config.INTEGRITY_CHECK_BATCH_SIZE
         });
@@ -307,12 +307,12 @@ export class MaintenanceWorker {
           
           const result = await neo4jSession.run(
             'MATCH (c:Concept {id: $conceptId, userId: $userId}) RETURN c.id AS conceptId LIMIT 1',
-            { conceptId: concept.concept_id, userId: userId }
+            { conceptId: concept.entity_id, userId: userId }
           );
           
           if (result.records.length === 0) {
             totalOrphanedCount++;
-            console.log(`[MaintenanceWorker] ❌ Orphaned concept: ${concept.concept_id} (user: ${userId}) - exists in PostgreSQL but not in Neo4j`);
+            console.log(`[MaintenanceWorker] ❌ Orphaned concept: ${concept.entity_id} (user: ${userId}) - exists in PostgreSQL but not in Neo4j`);
           }
         }
         
@@ -355,7 +355,7 @@ export class MaintenanceWorker {
         
         // Get memory units for this user from PostgreSQL
         const memoryUnitsInPg = await this.dbService.prisma.memory_units.findMany({
-          select: { muid: true },
+          select: { entity_id: true },
           where: { user_id: userId },
           take: this.config.INTEGRITY_CHECK_BATCH_SIZE
         });
@@ -373,12 +373,12 @@ export class MaintenanceWorker {
           
           const result = await neo4jSession.run(
             'MATCH (m:MemoryUnit {id: $muid, userId: $userId}) RETURN m.id AS muid LIMIT 1',
-            { muid: memoryUnit.muid, userId: userId }
+            { muid: memoryUnit.entity_id, userId: userId }
           );
           
           if (result.records.length === 0) {
             totalOrphanedCount++;
-            console.log(`[MaintenanceWorker] ❌ Orphaned memory unit: ${memoryUnit.muid} (user: ${userId}) - exists in PostgreSQL but not in Neo4j`);
+            console.log(`[MaintenanceWorker] ❌ Orphaned memory unit: ${memoryUnit.entity_id} (user: ${userId}) - exists in PostgreSQL but not in Neo4j`);
           }
         }
         
@@ -570,17 +570,17 @@ export class MaintenanceWorker {
       // Get all concepts that exist in PostgreSQL but not in Neo4j
       const missingConcepts = await this.dbService.prisma.concepts.findMany({
         where: {
-          concept_id: {
+          entity_id: {
             notIn: await this.getExistingNeo4jConceptIds()
           }
         },
         select: {
-          concept_id: true,
-          name: true,
-          description: true,
+          entity_id: true,
+          title: true,
+          content: true,
           user_id: true,
           created_at: true,
-          last_updated_ts: true
+          updated_at: true
         }
       });
 
@@ -607,18 +607,18 @@ export class MaintenanceWorker {
                 updatedAt: $updatedAt
               })
             `, {
-              conceptId: concept.concept_id,
-              name: concept.name || '',
-              description: concept.description || '',
+              conceptId: concept.entity_id,
+              name: concept.title || '',
+              description: concept.content || '',
               userId: concept.user_id,
               createdAt: concept.created_at,
-              updatedAt: concept.last_updated_ts
+              updatedAt: concept.updated_at
             });
 
             createdCount++;
-            console.log(`[MaintenanceWorker] ✅ Created Neo4j concept: ${concept.concept_id}`);
+            console.log(`[MaintenanceWorker] ✅ Created Neo4j concept: ${concept.entity_id}`);
           } catch (error) {
-            console.error(`[MaintenanceWorker] ❌ Failed to create concept ${concept.concept_id}:`, error);
+            console.error(`[MaintenanceWorker] ❌ Failed to create concept ${concept.entity_id}:`, error);
           }
         }
       } finally {
@@ -639,16 +639,16 @@ export class MaintenanceWorker {
       // Get all memory units that exist in PostgreSQL but not in Neo4j
       const missingMemoryUnits = await this.dbService.prisma.memory_units.findMany({
         where: {
-          muid: {
+          entity_id: {
             notIn: await this.getExistingNeo4jMemoryUnitIds()
           }
         },
         select: {
-          muid: true,
+          entity_id: true,
           content: true,
           user_id: true,
-          creation_ts: true,
-          last_modified_ts: true
+          created_at: true,
+          updated_at: true
         }
       });
 
@@ -674,17 +674,17 @@ export class MaintenanceWorker {
                 updatedAt: $updatedAt
               })
             `, {
-              muid: memoryUnit.muid,
+              muid: memoryUnit.entity_id,
               content: memoryUnit.content || '',
               userId: memoryUnit.user_id,
-              createdAt: memoryUnit.creation_ts,
-              updatedAt: memoryUnit.last_modified_ts
+              createdAt: memoryUnit.created_at,
+              updatedAt: memoryUnit.updated_at
             });
 
             createdCount++;
-            console.log(`[MaintenanceWorker] ✅ Created Neo4j memory unit: ${memoryUnit.muid}`);
+            console.log(`[MaintenanceWorker] ✅ Created Neo4j memory unit: ${memoryUnit.entity_id}`);
           } catch (error) {
-            console.error(`[MaintenanceWorker] ❌ Failed to create memory unit ${memoryUnit.muid}:`, error);
+            console.error(`[MaintenanceWorker] ❌ Failed to create memory unit ${memoryUnit.entity_id}:`, error);
           }
         }
       } finally {

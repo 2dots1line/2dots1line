@@ -97,7 +97,7 @@ export const CardTile: React.FC<CardTileProps> = ({
   });
   
   // Determine display values
-  const displayTitle = card.title || card.card_type?.replace(/_/g, ' ') || 'Card';
+  const displayTitle = card.title || card.type?.replace(/_/g, ' ') || 'Card';
   const displaySubtitle = card.subtitle || card.source_entity_type?.replace(/_/g, ' ') || 'Item';
   const displayDescription = card.description || `${displayTitle} from ${displaySubtitle}`;
   
@@ -219,7 +219,7 @@ export const CardTile: React.FC<CardTileProps> = ({
               <Heart size={12} className="text-red-400 fill-current drop-shadow-sm" />
             )}
             <span className="text-xs text-white/90 drop-shadow-sm">
-              {getTypeIcon(card.card_type)}
+              {getTypeIcon(card.type)}
             </span>
           </div>
           

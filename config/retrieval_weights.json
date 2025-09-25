@@ -6,25 +6,25 @@
       "balanced": {
         "alpha_semantic_similarity": 0.5,
         "beta_recency": 0.3,
-        "gamma_salience": 0.2,
+        "gamma_importance_score": 0.2,
         "delta_user_preference": 0.0
       },
       "recent_focused": {
         "alpha_semantic_similarity": 0.4,
         "beta_recency": 0.4,
-        "gamma_salience": 0.2,
+        "gamma_importance_score": 0.2,
         "delta_user_preference": 0.0
       },
       "salience_focused": {
         "alpha_semantic_similarity": 0.4,
         "beta_recency": 0.2,
-        "gamma_salience": 0.4,
+        "gamma_importance_score": 0.4,
         "delta_user_preference": 0.0
       },
       "semantic_focused": {
         "alpha_semantic_similarity": 0.6,
         "beta_recency": 0.25,
-        "gamma_salience": 0.15,
+        "gamma_importance_score": 0.15,
         "delta_user_preference": 0.0
       }
     },

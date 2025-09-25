@@ -8,7 +8,10 @@
     "isolatedModules": false,
     "lib": ["es2020"],
     "paths": {},
-    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo",
+    "skipLibCheck": true,
+    "typeRoots": ["../../node_modules/@types"],
+    "types": []
   },
   "include": [
     "src/**/*.ts"

@@ -4,29 +4,29 @@ import type { Prisma } from '@prisma/client';
 export interface CreateCommunityData {
   community_id: string;
   user_id: string;
-  name: string;
-  description?: string | null;
+  title: string;
+  content?: string | null;
   created_at?: Date;
-  last_analyzed_ts?: Date | null;
+  updated_at?: Date | null;
 }
 
 export interface UpdateCommunityData {
-  name?: string;
-  description?: string | null;
-  last_analyzed_ts?: Date | null;
+  title?: string;
+  content?: string | null;
+  updated_at?: Date | null;
 }
 
 export interface CommunityWithConcepts {
-  community_id: string;
+  entity_id: string;
   user_id: string;
-  name: string;
-  description: string | null;
+  title: string;
+  content: string | null;
   created_at: Date;
-  last_analyzed_ts: Date | null;
+  updated_at: Date | null;
   concepts: Array<{
-    concept_id: string;
-    name: string;
-    description: string | null;
+    entity_id: string;
+    title: string;
+    content: string | null;
     type: string;
     status: string;
   }>;
@@ -39,22 +39,22 @@ export class CommunityRepository {
    * Create a new community
    */
   async create(data: CreateCommunityData): Promise<{
-    community_id: string;
+    entity_id: string;
     user_id: string;
-    name: string;
-    description: string | null;
+    title: string;
+    content: string | null;
     created_at: Date;
-    last_analyzed_ts: Date | null;
+    updated_at: Date | null;
   }> {
     try {
       const community = await this.dbService.prisma.communities.create({
         data: {
-          community_id: data.community_id,
+          entity_id: data.community_id,
           user_id: data.user_id,
-          name: data.name,
-          description: data.description,
+          title: data.title,
+          content: data.content,
           created_at: data.created_at || new Date(),
-          last_analyzed_ts: data.last_analyzed_ts
+          updated_at: data.updated_at
         }
       });
 
@@ -68,28 +68,28 @@ export class CommunityRepository {
   /**
    * Update an existing community
    */
-  async update(communityId: string, data: UpdateCommunityData): Promise<{
-    community_id: string;
+  async update(entityId: string, data: UpdateCommunityData): Promise<{
+    entity_id: string;
     user_id: string;
-    name: string;
-    description: string | null;
+    title: string;
+    content: string | null;
     created_at: Date;
-    last_analyzed_ts: Date | null;
+    updated_at: Date | null;
   }> {
     try {
       const community = await this.dbService.prisma.communities.update({
-        where: { community_id: communityId },
+        where: { entity_id: entityId },
         data: {
-          name: data.name,
-          description: data.description,
-          last_analyzed_ts: data.last_analyzed_ts
+          title: data.title,
+          content: data.content,
+          updated_at: data.updated_at
         }
       });
 
       return community;
     } catch (error) {
       console.error('[CommunityRepository] Error updating community:', error);
-      throw new Error(`Failed to update community ${communityId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(`Failed to update community ${entityId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -99,13 +99,13 @@ export class CommunityRepository {
   async getByIdWithConcepts(communityId: string): Promise<CommunityWithConcepts | null> {
     try {
       const community = await this.dbService.prisma.communities.findUnique({
-        where: { community_id: communityId },
+        where: { entity_id: communityId },
         include: {
           concepts: {
             select: {
-              concept_id: true,
-              name: true,
-              description: true,
+               entity_id: true,
+               title: true,
+               content: true,
               type: true,
               status: true
             }
@@ -124,21 +124,21 @@ export class CommunityRepository {
    * Get all communities for a user
    */
   async getByUserId(userId: string): Promise<Array<{
-    community_id: string;
-    name: string;
-    description: string | null;
+    entity_id: string;
+    title: string;
+    content: string | null;
     created_at: Date;
-    last_analyzed_ts: Date | null;
+    updated_at: Date | null;
   }>> {
     try {
       const communities = await this.dbService.prisma.communities.findMany({
         where: { user_id: userId },
         select: {
-          community_id: true,
-          name: true,
-          description: true,
+          entity_id: true,
+          title: true,
+          content: true,
           created_at: true,
-          last_analyzed_ts: true
+          updated_at: true
         },
         orderBy: { created_at: 'desc' }
       });
@@ -153,14 +153,14 @@ export class CommunityRepository {
   /**
    * Delete a community
    */
-  async delete(communityId: string): Promise<void> {
+  async delete(entityId: string): Promise<void> {
     try {
       await this.dbService.prisma.communities.delete({
-        where: { community_id: communityId }
+        where: { entity_id: entityId }
       });
     } catch (error) {
       console.error('[CommunityRepository] Error deleting community:', error);
-      throw new Error(`Failed to delete community ${communityId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(`Failed to delete community ${entityId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -172,7 +172,7 @@ export class CommunityRepository {
       // Update all concepts to reference this community
       await this.dbService.prisma.concepts.updateMany({
         where: {
-          concept_id: { in: conceptIds }
+          entity_id: { in: conceptIds }
         },
         data: {
           community_id: communityId
@@ -193,7 +193,7 @@ export class CommunityRepository {
     try {
       await this.dbService.prisma.concepts.updateMany({
         where: {
-          concept_id: { in: conceptIds }
+          entity_id: { in: conceptIds }
         },
         data: {
           community_id: null

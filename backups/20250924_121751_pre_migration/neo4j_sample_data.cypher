@@ -1,0 +1,2 @@
+n
+(:MemoryUnit {sentiment_score: 0.9, creation_ts: "2025-08-29T12:54:15.298Z", source: "IngestionAnalyst", id: "f2ee9e83-5765-4921-9ca2-e68402bb489b", title: "Quit McKinsey to pursue AI startup", userId: "dev-user-123", source_conversation_id: "cf6d6727-ae5e-4731-aa89-5f6c54dc8599", importance_score: 10.0, content: "Danni recently quit her 12-year career at McKinsey to pursue an AI startup, marking a significant career transition.", updatedAt: 2025-08-29T12:54:15.334Z})

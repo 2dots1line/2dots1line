@@ -205,7 +205,7 @@ export class EmbeddingWorker {
       let entityStatus = 'active'; // Default for memory units and derived artifacts
       if (data.entityType === 'Concept') {
         const concept = await this.databaseService.prisma.concepts.findUnique({
-          where: { concept_id: data.entityId },
+          where: { entity_id: data.entityId },
           select: { status: true }
         });
         entityStatus = concept?.status || 'active';

@@ -162,7 +162,7 @@ export class ConversationController {
           // Update conversation to the new one
           conversation = newConversation;
           
-          console.log(`✅ Created new conversation ${newConversation.id} in session ${conversation.session_id}`);
+          console.log(`✅ Created new conversation ${newConversation.conversation_id} in session ${conversation.session_id}`);
         }
 
         // Use the conversation's existing session
@@ -197,7 +197,7 @@ export class ConversationController {
           session_id: session.session_id,
         });
         
-        console.log(`🆕 Created new conversation ${conversation.id} in existing session ${session.session_id}`);
+        console.log(`🆕 Created new conversation ${conversation.conversation_id} in existing session ${session.session_id}`);
 
       } else {
         // New chat - create new session and conversation
@@ -211,14 +211,14 @@ export class ConversationController {
           session_id: session.session_id,
         });
         
-        console.log(`🆕 Created new session ${session.session_id} and conversation ${conversation.id}`);
+        console.log(`🆕 Created new session ${session.session_id} and conversation ${conversation.conversation_id}`);
       }
-      const actualConversationId = conversation!.id; // Use non-null assertion since we just created it
+      const actualConversationId = conversation!.conversation_id; // Use non-null assertion since we just created it
 
       // STEP 2: Log the USER'S message immediately
       await this.conversationRepository.addMessage({
         conversation_id: actualConversationId,
-        role: 'user',
+        type: 'user',
         content: message,
       });
 
@@ -240,15 +240,15 @@ export class ConversationController {
       // STEP 5: Log the ASSISTANT'S response
       await this.conversationRepository.addMessage({
         conversation_id: actualConversationId,
-        role: 'assistant',
+        type: 'assistant',
         content: agentResult.response_text,
-        llm_call_metadata: agentResult.metadata || {}
+        metadata: agentResult.metadata || {}
       });
       
       // STEP 6: Send the final response to the client
       res.status(200).json({
         success: true,
-        conversation_id: conversation.id, // Use the actual conversation ID (may be new if ended conversation was replaced)
+        conversation_id: conversation.conversation_id, // Use the actual conversation ID (may be new if ended conversation was replaced)
         session_id: session.session_id, // NEW: Include session ID
         conversation_title: conversation?.title || `Conversation: ${new Date().toISOString()}`, // NEW: Include conversation title with null safety
         response_text: agentResult.response_text,
@@ -351,14 +351,14 @@ export class ConversationController {
           });
           
           // Update the conversation with the new session_id
-          await this.conversationRepository.update(conversation.id, {
+          await this.conversationRepository.update(conversation.conversation_id, {
             session_id: session.session_id
           });
           
-          console.log(`🔗 Created new session ${session.session_id} for legacy conversation ${conversation.id}`);
+          console.log(`🔗 Created new session ${session.session_id} for legacy conversation ${conversation.conversation_id}`);
         }
 
-        console.log(`✅ Using existing conversation ${conversation.id} in session ${session.session_id}`);
+        console.log(`✅ Using existing conversation ${conversation.conversation_id} in session ${session.session_id}`);
 
       } else if (session_id) {
         // New conversation in existing session
@@ -384,7 +384,7 @@ export class ConversationController {
           }
         });
         
-        console.log(`🆕 Created new conversation ${conversation.id} in existing session ${session.session_id}`);
+        console.log(`🆕 Created new conversation ${conversation.conversation_id} in existing session ${session.session_id}`);
 
       } else {
         // New chat - create new session and conversation
@@ -404,10 +404,10 @@ export class ConversationController {
           }
         });
         
-        console.log(`🆕 Created new session ${session.session_id} and conversation ${conversation.id}`);
+        console.log(`🆕 Created new session ${session.session_id} and conversation ${conversation.conversation_id}`);
       }
 
-      const conversationId = conversation.id;
+      const conversationId = conversation.conversation_id;
       
       // Set/reset conversation timeout for background processing trigger
       await this.setConversationTimeout(conversationId);
@@ -470,7 +470,7 @@ export class ConversationController {
       try {
         await this.conversationRepository.addMessage({
           conversation_id: conversationId,
-          role: 'user',
+          type: 'user',
           content: enhancedMessage,
           media_ids: mediaRecord ? [mediaRecord.media_id] : [] // RESTORED: Link media to message
         });
@@ -499,7 +499,7 @@ export class ConversationController {
         // Store the vision analysis as a separate message for record keeping
         await this.conversationRepository.addMessage({
           conversation_id: conversationId,
-          role: 'assistant',
+          type: 'assistant',
           content: result.vision_analysis,
           media_ids: mediaRecord ? [mediaRecord.media_id] : []
         });
@@ -510,7 +510,7 @@ export class ConversationController {
         // Store the document analysis as a separate message for record keeping
         await this.conversationRepository.addMessage({
           conversation_id: conversationId,
-          role: 'assistant',
+          type: 'assistant',
           content: result.document_analysis,
           media_ids: mediaRecord ? [mediaRecord.media_id] : []
         });
@@ -522,9 +522,9 @@ export class ConversationController {
       // STEP 4: Save the main assistant's response to the database
       await this.conversationRepository.addMessage({
         conversation_id: conversationId,
-        role: 'assistant',
+        type: 'assistant',
         content: result.response_text,
-        llm_call_metadata: result.metadata || {},
+        metadata: result.metadata || {},
         media_ids: mediaRecord ? [mediaRecord.media_id] : [] // RESTORED: Link media to assistant message
       });
 
@@ -605,7 +605,7 @@ export class ConversationController {
       // STEP 1: Save the user's message to the database
       await this.conversationRepository.addMessage({
         conversation_id: conversationId,
-        role: 'user',
+        type: 'user',
         content: message,
       });
       
@@ -618,9 +618,9 @@ export class ConversationController {
       // STEP 2: Save the assistant's response to the database
       await this.conversationRepository.addMessage({
         conversation_id: conversationId,
-        role: 'assistant',
+        type: 'assistant',
         content: result.response_text,
-        llm_call_metadata: result.metadata || {}
+        metadata: result.metadata || {}
       });
 
       res.json(result);
@@ -649,7 +649,7 @@ export class ConversationController {
         title: `Conversation started at ${new Date().toISOString()}`,
         session_id: session.session_id
       });
-      const conversationId = conversation.id;
+      const conversationId = conversation.conversation_id;
       console.log(`✅ Conversation record created: ${conversationId} in session ${session.session_id}`);
       
       // Set/reset conversation timeout for background processing trigger
@@ -784,10 +784,10 @@ export class ConversationController {
       
       // Transform to frontend-friendly format
       const conversationHistory = conversations.map((conv: any) => ({
-        id: conv.id,
-        title: conv.title || `Conversation ${conv.id.slice(0, 8)}`,
+        id: conv.conversation_id,
+        title: conv.title || `Conversation ${conv.conversation_id.slice(0, 8)}`,
         lastMessage: conv.conversation_messages?.[0]?.content || 'No messages',
-        timestamp: conv.conversation_messages?.[0]?.timestamp || conv.start_time,
+        timestamp: conv.conversation_messages?.[0]?.created_at || conv.created_at,
         messageCount: conv.conversation_messages?.length || 0,
         status: conv.status as 'active' | 'ended'
       }));
@@ -852,10 +852,10 @@ export class ConversationController {
 
       // Transform messages to frontend format
       const messages = ((conversation as any).conversation_messages || []).map((msg: any) => ({
-        id: msg.id,
-        type: msg.role === 'user' ? 'user' : 'bot',
+        id: msg.message_id,
+        type: msg.type === 'user' ? 'user' : 'bot',
         content: msg.content,
-        timestamp: msg.timestamp,
+        timestamp: msg.created_at,
         conversation_id: msg.conversation_id
       }));
 
@@ -863,7 +863,7 @@ export class ConversationController {
         success: true,
         data: {
           conversation: {
-            id: conversation.id,
+            id: conversation.conversation_id,
             title: conversation.title,
             status: conversation.status,
             start_time: conversation.start_time,
@@ -922,10 +922,10 @@ export class ConversationController {
           most_recent_conversation_title: conversations[0]?.title || 'New Chat',
           conversation_count: conversations.length,
           conversations: conversations.map((conv: any) => ({
-            id: conv.id,
+            id: conv.conversation_id,
             title: conv.title,
             lastMessage: conv.conversation_messages?.[0]?.content || 'No messages yet',
-            timestamp: conv.start_time,
+            timestamp: conv.created_at,
             messageCount: conv.conversation_messages?.length || 0,
             status: conv.status
           }))

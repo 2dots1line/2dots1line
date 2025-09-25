@@ -8,19 +8,21 @@
  */
 export interface TConcept {
   /** Unique identifier for the concept (UUID) */
-  concept_id: string;
+  entity_id: string;
   /** ID of the user who owns or has defined this version of the concept */
   user_id: string;
   /** Canonical name of the concept (e.g., "Patience", "Project Alpha") */
-  name: string;
+  title: string;
   /** Type from the controlled ontology (e.g., 'value', 'person', 'project_theme') */
   type: string;
   /** AI-generated or user-provided description of the concept */
-  description?: string | null;
+  content?: string | null;
   /** True if explicitly created or heavily modified by the user */
   user_defined?: boolean;
   /** AI's confidence in this concept's identification/typing (0.0-1.0) */
   confidence?: number | null;
+  /** AI-assigned importance score for this concept (0.0-1.0) */
+  importance_score?: number | null;
   /** Optional: ID of a Community this concept belongs to */
   community_id?: string | null;
   /** Optional: Reference to vector in Weaviate (if concept has an embedding) */
@@ -30,7 +32,7 @@ export interface TConcept {
   /** Timestamp when the concept was created */
   created_at: Date;
   /** Timestamp when the concept was last updated */
-  last_updated_ts: Date;
+  updated_at: Date;
   /** Additional metadata (JSON object, e.g., synonyms, alternative labels) */
   metadata?: Record<string, unknown> | null;
 }
@@ -67,15 +69,15 @@ export interface TConceptRelationship {
  */
 export interface IConcept {
   /** Unique identifier for the concept */
-  conceptId: string;
+  entityId: string;
   /** Each user has their own view/version of concepts */
   userId: string;
   /** Canonical name of the concept (e.g., "Patience", "McKinsey") */
-  name: string;
+  title: string;
   /** Type from the controlled ontology */
   type: ConceptType;
   /** AI-generated or user-provided description */
-  description: string | null;
+  content: string | null;
   /** True if explicitly created or heavily modified by the user */
   userDefined: boolean;
   /** AI's confidence in this concept's identification/typing (0.0-1.0) */
@@ -89,7 +91,7 @@ export interface IConcept {
   /** When this concept was first created */
   createdAt: Date;
   /** When this concept was last updated */
-  lastUpdatedTs: Date;
+  updatedAt: Date;
   /** e.g., synonyms, alternative labels */
   metadata: Record<string, unknown>;
 }

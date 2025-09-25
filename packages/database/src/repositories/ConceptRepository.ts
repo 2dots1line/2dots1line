@@ -3,28 +3,29 @@
  * V9.7 Repository for Concept operations
  */
 
-import type { concepts } from '@2dots1line/database';
+// Use any type for now since Prisma types are complex
+type concepts = any;
 import { DatabaseService } from '../DatabaseService';
 import { randomUUID } from 'crypto';
 
 export interface CreateConceptData {
   user_id: string;
-  name: string;
+  title: string;
   type: string;
-  description?: string;
-  salience?: number;
+  content?: string;
+  importance_score?: number;
   community_id?: string;
 }
 
 export interface UpdateConceptData {
-  name?: string;
+  title?: string;
   type?: string;
-  description?: string;
+  content?: string;
   status?: string;
-  salience?: number;
+  importance_score?: number;
   community_id?: string;
-  merged_into_concept_id?: string;
-  last_updated_ts?: Date;
+  merged_into_entity_id?: string;
+  updated_at?: Date;
 }
 
 export class ConceptRepository {
@@ -33,9 +34,14 @@ export class ConceptRepository {
   async create(data: CreateConceptData): Promise<concepts> {
     const concept = await this.db.prisma.concepts.create({
       data: {
-        concept_id: randomUUID(),
-        last_updated_ts: new Date(),
-        ...data,
+        entity_id: randomUUID(),
+        user_id: data.user_id,
+        updated_at: new Date(),
+        title: data.title,
+        content: data.content,
+        type: data.type,
+        importance_score: data.importance_score,
+        community_id: data.community_id || null,
       },
     });
     return concept;
@@ -44,10 +50,10 @@ export class ConceptRepository {
   /**
    * Find concept by ID - only returns active concepts
    */
-  async findById(conceptId: string): Promise<concepts | null> {
+  async findById(entityId: string): Promise<concepts | null> {
     return this.db.prisma.concepts.findUnique({
       where: { 
-        concept_id: conceptId,
+        entity_id: entityId,
         status: 'active'
       },
       include: {
@@ -61,9 +67,9 @@ export class ConceptRepository {
   /**
    * Find concept by ID without status filtering - used for special cases like MergedConcepts
    */
-  async findByIdUnfiltered(conceptId: string): Promise<concepts | null> {
+  async findByIdUnfiltered(entityId: string): Promise<concepts | null> {
     return this.db.prisma.concepts.findUnique({
-      where: { concept_id: conceptId },
+      where: { entity_id: entityId },
       include: {
         communities: true,
         concepts: true,
@@ -75,10 +81,10 @@ export class ConceptRepository {
   /**
    * Batch method for HybridRetrievalTool - find multiple concepts by IDs
    */
-  async findByIds(conceptIds: string[], userId: string): Promise<concepts[]> {
+  async findByIds(entityIds: string[], userId: string): Promise<concepts[]> {
     return this.db.prisma.concepts.findMany({
       where: {
-        concept_id: { in: conceptIds },
+        entity_id: { in: entityIds },
         user_id: userId,
         status: 'active',
       },
@@ -87,7 +93,7 @@ export class ConceptRepository {
         concepts: true,
         other_concepts: true,
       },
-      orderBy: { salience: 'desc' },
+      orderBy: { importance_score: 'desc' },
     });
   }
 
@@ -122,7 +128,7 @@ export class ConceptRepository {
         status: 'active',
       },
       take: limit,
-      orderBy: { salience: 'desc' },
+      orderBy: { importance_score: 'desc' },
     });
   }
 
@@ -132,16 +138,16 @@ export class ConceptRepository {
         community_id: communityId,
         status: 'active',
       },
-      orderBy: { salience: 'desc' },
+      orderBy: { importance_score: 'desc' },
     });
   }
 
   async update(
-    conceptId: string,
+    entityId: string,
     data: UpdateConceptData
   ): Promise<concepts> {
     return this.db.prisma.concepts.update({
-      where: { concept_id: conceptId },
+      where: { entity_id: entityId },
       data,
     });
   }
@@ -151,7 +157,7 @@ export class ConceptRepository {
     targetConceptId: string
   ): Promise<concepts> {
     return this.db.prisma.concepts.update({
-      where: { concept_id: sourceConceptId },
+      where: { entity_id: sourceConceptId },
       data: {
         status: 'merged',
         merged_into_concept_id: targetConceptId,
@@ -159,16 +165,16 @@ export class ConceptRepository {
     });
   }
 
-  async archiveConcept(conceptId: string): Promise<concepts> {
+  async archiveConcept(entityId: string): Promise<concepts> {
     return this.db.prisma.concepts.update({
-      where: { concept_id: conceptId },
+      where: { entity_id: entityId },
       data: { status: 'archived' },
     });
   }
 
-  async delete(conceptId: string): Promise<void> {
+  async delete(entityId: string): Promise<void> {
     await this.db.prisma.concepts.delete({
-      where: { concept_id: conceptId },
+      where: { entity_id: entityId },
     });
   }
 
@@ -182,13 +188,13 @@ export class ConceptRepository {
       where: {
         user_id: userId,
         status: 'active',
-        salience: {
+        importance_score: {
           gte: minSalience,
           lte: maxSalience,
         },
       },
       take: limit,
-      orderBy: { salience: 'desc' },
+      orderBy: { importance_score: 'desc' },
     });
   }
 
@@ -201,10 +207,10 @@ export class ConceptRepository {
       where: {
         user_id: userId,
         status: 'active',
-        name: { contains: searchTerm, mode: 'insensitive' },
+        title: { contains: searchTerm, mode: 'insensitive' },
       },
       take: limit,
-      orderBy: { salience: 'desc' },
+      orderBy: { importance_score: 'desc' },
     });
   }
 
@@ -213,10 +219,10 @@ export class ConceptRepository {
       where: {
         user_id: userId,
         status: 'active',
-        salience: { not: null },
+        importance_score: { not: null },
       },
       take: limit,
-      orderBy: { salience: 'desc' },
+      orderBy: { importance_score: 'desc' },
     });
   }
 
@@ -241,12 +247,12 @@ export class ConceptRepository {
       where: {
         user_id: userId,
         status: 'active',
-        last_updated_ts: {
+        updated_at: {
           gte: dateThreshold,
         },
       },
       take: limit,
-      orderBy: { last_updated_ts: 'desc' },
+      orderBy: { updated_at: 'desc' },
     });
   }
 

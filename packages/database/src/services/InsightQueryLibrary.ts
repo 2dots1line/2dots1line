@@ -4,7 +4,7 @@ import { Driver, Session, Record as Neo4jRecord } from 'neo4j-driver';
 export interface TopSalientValue {
   name: string;
   type: 'value';
-  salience: number;
+  importance_score: number;
   recent_connections: number;
   supporting_memories: string[];
 }
@@ -109,7 +109,7 @@ export class InsightQueryLibrary {
 
   /**
    * Identity Insights: Top Salient Values
-   * Finds the user's most important values based on salience and recent activity.
+   * Finds the user's most important values based on importance_score and recent activity.
    */
   public async getTopSalientValues(userId: string): Promise<TopSalientValue[]> {
     const cypher = `
@@ -121,14 +121,14 @@ export class InsightQueryLibrary {
       WITH v, 
            count(DISTINCT connected) as connection_count,
            collect(DISTINCT mu.muid)[0..3] as recent_memories,
-           v.salience as base_salience
-      WHERE base_salience > 0.3
+           v.importance_score as base_importance_score
+      WHERE base_importance_score > 0.3
       RETURN v.name as name,
              v.type as type,
-             base_salience as salience,
+             base_importance_score as importance_score,
              connection_count as recent_connections,
              recent_memories as supporting_memories
-      ORDER BY base_salience DESC, connection_count DESC
+      ORDER BY base_importance_score DESC, connection_count DESC
       LIMIT 5
     `;
     
@@ -136,7 +136,7 @@ export class InsightQueryLibrary {
     return records.map(record => ({
       name: record.get('name'),
       type: record.get('type'),
-      salience: record.get('salience'),
+      importance_score: record.get('importance_score'),
       recent_connections: record.get('recent_connections').toNumber(),
       supporting_memories: record.get('supporting_memories')
     }));
@@ -187,7 +187,7 @@ export class InsightQueryLibrary {
   public async getValueActionAlignment(userId: string, cycleStartDate: string): Promise<ValueActionAlignment[]> {
     const cypher = `
       MATCH (v:Concept {userId: $userId, type: 'value', status: 'active'})
-      WHERE v.salience > 0.4
+      WHERE v.importance_score > 0.4
       OPTIONAL MATCH (v)-[r:RELATED_TO {relationship_label: 'supports_action'}]->(action:Concept)
       WHERE action.userId = $userId AND action.type IN ['project', 'goal', 'habit']
       OPTIONAL MATCH (v)-[r2:RELATED_TO {relationship_label: 'conflicts_with'}]->(conflict:Concept)

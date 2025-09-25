@@ -21,7 +21,7 @@ import {
   HybridRetrievalTool 
 } from '@2dots1line/tools';
 import { IExecutableTool } from '@2dots1line/shared-types';
-import { LLMRetryHandler } from '@2dots1line/core-utils';
+import { LLMRetryHandler, getEntityTypeMapping } from '@2dots1line/core-utils';
 import { Redis } from 'ioredis';
 
 import { ConfigService } from '../../config-service/src/ConfigService';
@@ -197,6 +197,144 @@ export class DialogueAgent {
   }
 
   /**
+   * Generic method to process different media types
+   */
+  private async processMediaByType(mediaItem: {
+    type: string;
+    url?: string;
+    content?: string;
+  }): Promise<{ text: string; analysis?: string }> {
+    const { type, url, content } = mediaItem;
+    const mediaData = url || content;
+    
+    if (type.startsWith('image/') && mediaData) {
+      return await this.processImageMedia(mediaData, type);
+    } else if (type.startsWith('audio/') && mediaData) {
+      return await this.processAudioMedia(mediaData, type);
+    } else if (type.startsWith('application/') && mediaData) {
+      return await this.processDocumentMedia(mediaData, type);
+    } else {
+      return { text: `\n[Unsupported media type: ${type}]` };
+    }
+  }
+
+  /**
+   * Process image media using VisionCaptionTool
+   */
+  private async processImageMedia(imageData: string, imageType: string): Promise<{ text: string; analysis?: string }> {
+    try {
+      const visionResult = await this.visionCaptionTool.execute({
+        payload: {
+          imageUrl: imageData,
+          imageType: imageType,
+          prompt: "Describe what you see in this image in detail, including any people, animals, objects, or scenes."
+        }
+      });
+      
+      if (visionResult.status === 'success' && visionResult.result?.caption) {
+        const caption = visionResult.result.caption as string;
+        return {
+          text: `\n[Image Analysis: ${caption}]`,
+          analysis: caption
+        };
+      } else {
+        console.warn(`⚠️ DialogueAgent - Vision analysis failed:`, visionResult.error);
+        return { text: `\n[Image provided but analysis failed]` };
+      }
+    } catch (error) {
+      console.error(`❌ DialogueAgent - Error processing image:`, error);
+      return { text: `\n[Image processing error]` };
+    }
+  }
+
+  /**
+   * Process audio media (placeholder for future implementation)
+   */
+  private async processAudioMedia(audioData: string, audioType: string): Promise<{ text: string; analysis?: string }> {
+    // TODO: Implement audio transcription
+    return { text: `\n[Audio file provided - transcription not yet implemented]` };
+  }
+
+  /**
+   * Process document media using DocumentExtractTool
+   */
+  private async processDocumentMedia(documentData: string, documentType: string): Promise<{ text: string; analysis?: string }> {
+    try {
+      // Handle base64 data URL
+      let tempFilePath: string | null = null;
+      
+      if (documentData.startsWith('data:')) {
+        tempFilePath = await this.createTempFileFromBase64(documentData, documentType);
+      } else {
+        tempFilePath = documentData;
+      }
+      
+      if (!tempFilePath) {
+        return { text: `\n[Document processing failed - could not create temp file]` };
+      }
+      
+      const documentResult = await this.documentExtractTool.execute({
+        payload: {
+          documentUrl: tempFilePath,
+          documentType: documentType
+        }
+      });
+      
+      if (documentResult.status === 'success' && documentResult.result?.extractedText) {
+        const extractedText = documentResult.result.extractedText as string;
+        return {
+          text: `\n[Document Analysis: ${extractedText}]`,
+          analysis: extractedText
+        };
+      } else {
+        console.warn(`⚠️ DialogueAgent - Document extraction failed:`, documentResult.error);
+        return { text: `\n[Document provided but extraction failed]` };
+      }
+    } catch (error) {
+      console.error(`❌ DialogueAgent - Error processing document:`, error);
+      return { text: `\n[Document processing error]` };
+    }
+  }
+
+  /**
+   * Create temporary file from base64 data URL
+   */
+  private async createTempFileFromBase64(dataUrl: string, mimeType: string): Promise<string | null> {
+    try {
+      const parts = dataUrl.split(',');
+      if (parts.length !== 2) {
+        throw new Error('Invalid data URL format');
+      }
+      
+      const base64Data = parts[1];
+      const buffer = Buffer.from(base64Data, 'base64');
+      
+      const fs = require('fs');
+      const path = require('path');
+      const os = require('os');
+      
+      // Determine file extension from MIME type
+      const extensionMap: Record<string, string> = {
+        'application/pdf': '.pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+        'application/msword': '.doc',
+        'text/plain': '.txt'
+      };
+      
+      const extension = extensionMap[mimeType] || '.pdf';
+      const tempDir = os.tmpdir();
+      const fileName = `temp_document_${Date.now()}${extension}`;
+      const tempFilePath = path.join(tempDir, fileName);
+      
+      fs.writeFileSync(tempFilePath, buffer);
+      return tempFilePath;
+    } catch (error) {
+      console.error(`❌ DialogueAgent - Error creating temp file:`, error);
+      return null;
+    }
+  }
+
+  /**
    * Converts any user input into a single text string.
    * Processes images using VisionCaptionTool and other media using appropriate tools.
    */
@@ -215,124 +353,20 @@ export class DialogueAgent {
       
       for (const mediaItem of media) {
         try {
-          console.log(`🔍 DialogueAgent - Processing media item:`, {
-            type: mediaItem.type,
-            hasUrl: !!mediaItem.url,
-            hasContent: !!mediaItem.content,
-            urlLength: mediaItem.url?.length,
-            contentLength: mediaItem.content?.length
-          });
+          const result = await this.processMediaByType(mediaItem);
+          mediaText += result.text;
           
-          if (mediaItem.type.startsWith('image/') && (mediaItem.url || mediaItem.content)) {
-            const imageUrl = mediaItem.url || mediaItem.content;
-            console.log(`📸 DialogueAgent - Processing image: ${imageUrl?.substring(0, 100)}...`);
-            
-            // Call VisionCaptionTool to analyze the image
-            const visionResult = await this.visionCaptionTool.execute({
-              payload: {
-                imageUrl: imageUrl!,
-                imageType: mediaItem.type,
-                prompt: "Describe what you see in this image in detail, including any people, animals, objects, or scenes."
-              }
-            });
-            
-            if (visionResult.status === 'success' && visionResult.result?.caption) {
-              const caption = visionResult.result.caption as string;
-              mediaText += `\n[Image Analysis: ${caption}]`;
-              visionAnalysis = caption; // Store the full vision analysis for record keeping
-              console.log(`✅ DialogueAgent - Image analysis completed: ${caption.substring(0, 100)}...`);
-            } else {
-              console.warn(`⚠️ DialogueAgent - Vision analysis failed:`, visionResult.error);
-              mediaText += `\n[Image provided but analysis failed]`;
+          // Store analysis results for record keeping
+          if (result.analysis) {
+            if (mediaItem.type.startsWith('image/')) {
+              visionAnalysis = result.analysis;
+            } else if (mediaItem.type.startsWith('application/')) {
+              documentAnalysis = result.analysis;
             }
-          } else if (mediaItem.type.startsWith('audio/') && mediaItem.url) {
-            console.log(`🎵 DialogueAgent - Processing audio: ${mediaItem.url}`);
-            // TODO: Implement audio transcription
-            mediaText += `\n[Audio file provided - transcription not yet implemented]`;
-          } else if (mediaItem.type.startsWith('application/') && (mediaItem.url || mediaItem.content)) {
-            const documentData = mediaItem.url || mediaItem.content;
-            console.log(`📄 DialogueAgent - Processing document: ${documentData?.substring(0, 100)}...`);
-            
-            try {
-              // Handle base64 data URL
-              let tempFilePath: string | null = null;
-              
-              if (documentData?.startsWith('data:')) {
-                // Extract base64 data from data URL
-                const parts = documentData.split(',');
-                if (parts.length !== 2) {
-                  throw new Error('Invalid data URL format');
-                }
-                const base64Data = parts[1];
-                const buffer = Buffer.from(base64Data, 'base64');
-                
-                // Create temporary file with proper extension
-                const fs = require('fs');
-                const path = require('path');
-                const os = require('os');
-                
-                // Determine file extension from MIME type
-                let extension = '.pdf'; // default
-                if (mediaItem.type === 'application/pdf') {
-                  extension = '.pdf';
-                } else if (mediaItem.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-                  extension = '.docx';
-                } else if (mediaItem.type === 'application/msword') {
-                  extension = '.doc';
-                } else if (mediaItem.type === 'text/plain') {
-                  extension = '.txt';
-                }
-                
-                const tempDir = os.tmpdir();
-                const fileName = `temp_document_${Date.now()}${extension}`;
-                tempFilePath = path.join(tempDir, fileName);
-                
-                fs.writeFileSync(tempFilePath, buffer);
-                console.log(`📄 DialogueAgent - Created temporary file: ${tempFilePath}`);
-              } else {
-                tempFilePath = documentData!;
-              }
-              
-              // Call DocumentExtractTool to analyze the document
-              const documentResult = await this.documentExtractTool.execute({
-                payload: {
-                  documentUrl: tempFilePath,
-                  documentType: mediaItem.type,
-                  prompt: "Extract and summarize the key content from this document."
-                }
-              });
-              
-              if (documentResult.status === 'success' && documentResult.result?.extractedText) {
-                const extractedText = documentResult.result.extractedText as string;
-                mediaText += `\n[Document Analysis: ${extractedText}]`;
-                documentAnalysis = extractedText; // Store the full document analysis for record keeping
-                console.log(`✅ DialogueAgent - Document analysis completed: ${extractedText.substring(0, 100)}...`);
-              } else {
-                console.warn(`⚠️ DialogueAgent - Document analysis failed:`, documentResult.error);
-                mediaText += `\n[Document provided but analysis failed]`;
-              }
-              
-              // Clean up temporary file
-              if (tempFilePath && documentData?.startsWith('data:')) {
-                try {
-                  const fs = require('fs');
-                  fs.unlinkSync(tempFilePath);
-                  console.log(`📄 DialogueAgent - Cleaned up temporary file: ${tempFilePath}`);
-                } catch (cleanupError) {
-                  console.warn(`⚠️ DialogueAgent - Failed to clean up temporary file:`, cleanupError);
-                }
-              }
-            } catch (error) {
-              console.error(`❌ DialogueAgent - Error processing document:`, error);
-              mediaText += `\n[Document provided but analysis failed]`;
-            }
-          } else {
-            console.log(`📎 DialogueAgent - Unsupported media type: ${mediaItem.type}`);
-            mediaText += `\n[Unsupported media type: ${mediaItem.type}]`;
           }
         } catch (error) {
-          console.error(`❌ DialogueAgent - Error processing media:`, error);
-          mediaText += `\n[Error processing media: ${mediaItem.type}]`;
+          console.error(`❌ DialogueAgent - Error processing media item:`, error);
+          mediaText += `\n[Media processing error]`;
         }
       }
     }
@@ -375,7 +409,7 @@ export class DialogueAgent {
     if (conversationHistory.length > 0) {
       console.log(`[DialogueAgent] Raw conversation history from DB (${conversationHistory.length} messages):`);
       conversationHistory.forEach((msg, index) => {
-        console.log(`  [${index}] Role: ${msg.role}, Content: ${msg.content.substring(0, 50)}..., Timestamp: ${msg.timestamp}`);
+        console.log(`  [${index}] Role: ${msg.type}, Content: ${msg.content.substring(0, 50)}..., Timestamp: ${msg.created_at}`);
       });
     }
 
@@ -483,9 +517,9 @@ export class DialogueAgent {
    * Ensures proper chronological order and validates message roles
    */
   private formatHistoryForLLM(messages: Array<{
-    role: string;
+    type: string;
     content: string;
-    timestamp?: Date;
+    created_at?: Date;
   }>): Array<{role: "assistant" | "user"; content: string; timestamp?: string}> {
     if (!messages || messages.length === 0) {
       return [];
@@ -497,19 +531,19 @@ export class DialogueAgent {
     const chronologicalMessages = [...messages].reverse();
     
     // Validate that the first message is from user
-    if (chronologicalMessages.length > 0 && chronologicalMessages[0].role !== 'user') {
-      console.warn(`DialogueAgent: First message in chronological order has role '${chronologicalMessages[0].role}', expected 'user'. This may cause LLM issues.`);
+    if (chronologicalMessages.length > 0 && chronologicalMessages[0].type !== 'user') {
+      console.warn(`DialogueAgent: First message in chronological order has type '${chronologicalMessages[0].type}', expected 'user'. This may cause LLM issues.`);
       
       // If the first message is not from user, try to find the first user message
-      const firstUserMessageIndex = chronologicalMessages.findIndex(msg => msg.role === 'user');
+      const firstUserMessageIndex = chronologicalMessages.findIndex(msg => msg.type === 'user');
       if (firstUserMessageIndex !== -1) {
         // Start from the first user message
         const validMessages = chronologicalMessages.slice(firstUserMessageIndex);
         console.log(`DialogueAgent: Starting conversation history from first user message at index ${firstUserMessageIndex}`);
         return validMessages.map(msg => ({
-          role: msg.role as "assistant" | "user",
+          role: msg.type as "assistant" | "user",
           content: msg.content,
-          timestamp: msg.timestamp?.toISOString()
+          timestamp: msg.created_at?.toISOString()
         }));
       } else {
         // No user messages found, this is a problem
@@ -520,9 +554,9 @@ export class DialogueAgent {
     
     // Normal case: first message is from user
     return chronologicalMessages.map(msg => ({
-      role: msg.role as "assistant" | "user",
+      role: msg.type as "assistant" | "user",
       content: msg.content,
-      timestamp: msg.timestamp?.toISOString()
+      timestamp: msg.created_at?.toISOString()
     }));
   }
 

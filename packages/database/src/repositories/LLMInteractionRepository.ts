@@ -200,13 +200,13 @@ export class LLMInteractionRepository {
       averagePromptLength: averages._avg.prompt_length || 0,
       averageResponseLength: averages._avg.response_length || 0,
       byWorkerType: Object.fromEntries(
-        byWorkerType.map(item => [item.worker_type, item._count.worker_type])
+        byWorkerType.map((item: any) => [item.worker_type, item._count.worker_type])
       ),
       byModel: Object.fromEntries(
-        byModel.map(item => [item.model_name, item._count.model_name])
+        byModel.map((item: any) => [item.model_name, item._count.model_name])
       ),
       byStatus: Object.fromEntries(
-        byStatus.map(item => [item.status, item._count.status])
+        byStatus.map((item: any) => [item.status, item._count.status])
       )
     };
   }

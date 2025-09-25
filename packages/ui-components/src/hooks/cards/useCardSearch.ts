@@ -121,8 +121,8 @@ function calculateRelevanceScore(card: DisplayCard, query: string): number {
   }
   
   // Type matches
-  if (card.card_type) {
-    const typeLower = card.card_type.toLowerCase();
+  if (card.type) {
+    const typeLower = card.type.toLowerCase();
     searchTerms.forEach(term => {
       if (typeLower.includes(term)) {
         score += 3;
@@ -219,7 +219,7 @@ function applyFilters(cards: DisplayCard[], filters: FilterState): DisplayCard[]
     }
     
     // Type filter
-    if (filters.type && card.card_type !== filters.type) {
+    if (filters.type && card.type !== filters.type) {
       return false;
     }
     
@@ -274,7 +274,7 @@ function sortResults(results: SearchResult[], sort: SortState): SearchResult[] {
         comparison = new Date(a.card.updated_at).getTime() - new Date(b.card.updated_at).getTime();
         break;
       case 'type':
-        comparison = a.card.card_type.localeCompare(b.card.card_type);
+        comparison = a.card.type.localeCompare(b.card.type);
         break;
       case 'status':
         comparison = a.card.status.localeCompare(b.card.status);

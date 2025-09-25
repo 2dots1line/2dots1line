@@ -1,5 +1,7 @@
 import { DatabaseService, UserRepository, ConceptRepository, ConversationRepository } from '@2dots1line/database';
-import type { users as User } from '@2dots1line/database';
+
+// Use any type for now since Prisma types are complex
+type User = any;
 
 /**
  * UserService - Pure business logic for user operations
@@ -62,14 +64,14 @@ export class UserService {
       // Create a User concept for this user
       const userConceptData = {
         user_id: userId,
-        name: userName,
+        title: userName,
         type: 'person',
-        description: `The user (${userName}) in this knowledge graph - the central person whose experiences, interests, and growth are being tracked.`,
-        salience: 10 // High salience since user is central to their own knowledge graph
+        content: `The user (${userName}) in this knowledge graph - the central person whose experiences, interests, and growth are being tracked.`,
+        importance_score: 10 // High importance since user is central to their own knowledge graph
       };
 
       const userConcept = await conceptRepo.create(userConceptData);
-      console.log(`[UserService] ✅ Created User concept for ${userName}: ${userConcept.concept_id}`);
+      console.log(`[UserService] ✅ Created User concept for ${userName}: ${userConcept.entity_id}`);
 
       // V11.1.1 ENHANCEMENT: Trigger onboarding ingestion with proactive prompts
       await this.triggerOnboardingIngestion(userId, userName);
@@ -126,7 +128,8 @@ export class UserService {
         await this.databaseService.prisma.conversation_messages.create({
           data: {
             ...message,
-            id: crypto.randomUUID()
+            message_id: crypto.randomUUID(),
+            type: message.role
           }
         });
       }

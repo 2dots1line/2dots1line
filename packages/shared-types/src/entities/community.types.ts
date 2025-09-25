@@ -8,17 +8,17 @@
  */
 export interface TCommunity {
   /** Unique identifier for the community (UUID) */
-  community_id: string;
+  entity_id: string;
   /** ID of the user to whom this community belongs */
   user_id: string;
   /** AI-generated or user-assigned name for the community */
-  name: string;
+  title: string;
   /** AI-generated summary of the community's theme */
-  description?: string | null;
+  content?: string | null;
   /** Timestamp when the community was created */
   created_at: Date;
   /** Timestamp when the community was last analyzed or updated */
-  last_analyzed_ts?: Date | null;
+  updated_at?: Date | null;
 }
 
 /**

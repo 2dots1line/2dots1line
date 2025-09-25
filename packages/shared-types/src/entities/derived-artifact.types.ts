@@ -9,15 +9,15 @@
  */
 export interface TDerivedArtifact {
   /** Unique identifier for the derived artifact (UUID) */
-  artifact_id: string;
+  entity_id: string;
   /** ID of the user this artifact belongs to */
   user_id: string;
   /** Type of artifact ('insight_summary', 'cycle_report', 'trophy') */
-  artifact_type: string;
+  type: string;
   /** Title of the artifact */
   title: string;
   /** Narrative content of the artifact (optional) */
-  content_narrative: string | null;
+  content: string | null;
   /** IDs of the source memory units (optional) */
   source_memory_unit_ids: string[];
   /** IDs of the source concepts (optional) */

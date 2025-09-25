@@ -29,7 +29,7 @@ export class CardController {
 
       // Parse query parameters
       const filters = {
-        cardType: req.query.card_type as 'memory_unit' | 'concept' | 'derived_artifact' | undefined,
+        cardType: req.query.type as 'memory_unit' | 'concept' | 'derived_artifact' | undefined,
         evolutionState: req.query.evolution_state as string | undefined,
         minImportanceScore: req.query.min_importance_score ? parseFloat(req.query.min_importance_score as string) : undefined,
         limit: req.query.limit ? parseInt(req.query.limit as string) : 200, // Increased default limit for better UX

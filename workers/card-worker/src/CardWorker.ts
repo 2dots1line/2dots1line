@@ -193,33 +193,8 @@ export class CardWorker {
           reason: `Unsupported entity type: ${entity.type}` 
         };
       }
-      // Fetch full entity data
-      let entityData: any = null;
-      if (entityType === 'Concept') {
-        entityData = await this.conceptRepository.findById(entity.id);
-      } else if (entityType === 'MemoryUnit') {
-        entityData = await this.memoryRepository.findById(entity.id);
-      } else if (entityType === 'DerivedArtifact') {
-        entityData = await this.derivedArtifactRepository.findById(entity.id);
-      } else if (entityType === 'ProactivePrompt') {
-        entityData = await this.proactivePromptRepository.findById(entity.id);
-      } else if (entityType === 'Community') {
-        // Note: CommunityRepository doesn't have findById, so we'll use a direct Prisma query
-        try {
-          entityData = await this.databaseService.prisma.communities.findUnique({
-            where: { community_id: entity.id }
-          });
-        } catch (error) {
-          console.warn(`[CardWorker] Error fetching community ${entity.id}:`, error);
-        }
-      } else if (entityType === 'GrowthEvent') {
-        entityData = await this.growthEventRepository.findById(entity.id);
-      } else if (entityType === 'User') {
-        entityData = await this.userRepository.findById(entity.id);
-      } else if (entityType === 'MergedConcept') {
-        // MergedConcepts are stored in the concepts table, use unfiltered method to allow merged status
-        entityData = await this.conceptRepository.findByIdUnfiltered(entity.id);
-      }
+      // Fetch full entity data using generic method
+      const entityData = await this.fetchEntityByType(entityType, entity.id);
       if (!entityData) {
         console.log(`[CardWorker] Entity not found in DB: ${entityType} ${entity.id}`);
         return { created: false, reason: `Entity not found in DB: ${entityType} ${entity.id}` };
@@ -231,9 +206,9 @@ export class CardWorker {
       if (entityType === 'Concept') {
         const rules = eligibilityRules.Concept;
         if (rules) {
-          if (typeof entityData.salience === 'number' && entityData.salience < rules.min_salience) {
+          if (typeof entityData.importance_score === 'number' && entityData.importance_score < rules.min_importance_score) {
             eligible = false;
-            skipReason = `Concept salience ${entityData.salience} < min_salience ${rules.min_salience}`;
+            skipReason = `Concept importance_score ${entityData.importance_score} < min_importance_score ${rules.min_importance_score}`;
           }
           if (rules.eligible_types && !rules.eligible_types.includes(entityData.type)) {
             eligible = false;
@@ -254,9 +229,9 @@ export class CardWorker {
         }
       } else if (entityType === 'DerivedArtifact') {
         const rules = eligibilityRules.DerivedArtifact;
-        if (rules && rules.eligible_types && !rules.eligible_types.includes(entityData.artifact_type)) {
+        if (rules && rules.eligible_types && !rules.eligible_types.includes(entityData.type)) {
           eligible = false;
-          skipReason = `DerivedArtifact artifact_type ${entityData.artifact_type} not in eligible_types`;
+          skipReason = `DerivedArtifact type ${entityData.type} not in eligible_types`;
         }
       } else if (entityType === 'ProactivePrompt') {
         const rules = eligibilityRules.ProactivePrompt;
@@ -291,9 +266,9 @@ export class CardWorker {
         } else {
           const rules = eligibilityRules.Concept; // Use Concept rules since MergedConcepts are concepts
           if (rules) {
-            if (typeof entityData.salience === 'number' && entityData.salience < rules.min_salience) {
+            if (typeof entityData.importance_score === 'number' && entityData.importance_score < rules.min_importance_score) {
               eligible = false;
-              skipReason = `MergedConcept salience ${entityData.salience} < min_salience ${rules.min_salience}`;
+              skipReason = `MergedConcept importance_score ${entityData.importance_score} < min_importance_score ${rules.min_importance_score}`;
             }
             if (rules.eligible_types && !rules.eligible_types.includes(entityData.type)) {
               eligible = false;
@@ -319,7 +294,7 @@ export class CardWorker {
       // Create new card
       const cardData = {
         user_id: userId,
-        card_type: entityType.toLowerCase(),
+        type: entityType.toLowerCase(),
         source_entity_id: entity.id,
         source_entity_type: entityType,
         display_data: entityData // Optionally, filter/transform for display
@@ -333,7 +308,7 @@ export class CardWorker {
         const title =
           (newCard as any)?.display_data?.title ??
           (entityData as any)?.title ??
-          (entityData as any)?.name ??
+          (entityData as any)?.title ??
           `${entityType} ${entity.id}`;
 
         const payload = {
@@ -341,7 +316,7 @@ export class CardWorker {
           userId,
           card: {
             card_id: (newCard as any).card_id,
-            card_type: (newCard as any).card_type ?? entityType.toLowerCase(),
+            type: (newCard as any).type ?? entityType.toLowerCase(),
             display_data: { title },
           },
         };
@@ -427,5 +402,45 @@ export class CardWorker {
     // Close dedicated Redis connection
     await this.redisConnection.quit();
     console.log('[CardWorker] Shutdown complete');
+  }
+
+  /**
+   * Generic method to fetch entity by type using standardized field names
+   * This replaces the need for separate if/else chains since all entities now use:
+   * - entity_id (primary key)
+   * - user_id (for filtering)
+   * - title, content, created_at, updated_at (standardized fields)
+   */
+  private async fetchEntityByType(entityType: string, entityId: string): Promise<any> {
+    try {
+      switch (entityType) {
+        case 'Concept':
+          return await this.conceptRepository.findById(entityId);
+        case 'MemoryUnit':
+          return await this.memoryRepository.findById(entityId);
+        case 'DerivedArtifact':
+          return await this.derivedArtifactRepository.findById(entityId);
+        case 'ProactivePrompt':
+          return await this.proactivePromptRepository.findById(entityId);
+        case 'Community':
+          // Note: CommunityRepository doesn't have findById, so we'll use a direct Prisma query
+          return await this.databaseService.prisma.communities.findUnique({
+            where: { entity_id: entityId }
+          });
+        case 'GrowthEvent':
+          return await this.growthEventRepository.findById(entityId);
+        case 'User':
+          return await this.userRepository.findById(entityId);
+        case 'MergedConcept':
+          // MergedConcepts are stored in the concepts table, use unfiltered method to allow merged status
+          return await this.conceptRepository.findByIdUnfiltered(entityId);
+        default:
+          console.warn(`[CardWorker] Unknown entity type: ${entityType}`);
+          return null;
+      }
+    } catch (error) {
+      console.error(`[CardWorker] Error fetching ${entityType} ${entityId}:`, error);
+      return null;
+    }
   }
 }

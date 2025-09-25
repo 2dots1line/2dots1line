@@ -18,9 +18,9 @@ export interface Orb {
 
 // Basic DerivedArtifact - this should eventually be moved to entities/
 export interface DerivedArtifact {
-  artifact_id: string;
+  entity_id: string;
   user_id: string;
-  artifact_type: string;
+  type: string;
   title?: string | null;
   content_summary?: string | null;
   insight_content?: unknown; // JSON

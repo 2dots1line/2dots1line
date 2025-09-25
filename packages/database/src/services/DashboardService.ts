@@ -103,12 +103,12 @@ export class DashboardService {
         sections,
         cycle_info: {
           cycle_id: cycle.cycle_id,
-          cycle_start_date: cycle.cycle_start_date.toISOString(),
-          cycle_end_date: cycle.cycle_end_date.toISOString(),
+          cycle_start_date: cycle.created_at.toISOString(),
+          cycle_end_date: cycle.ended_at?.toISOString() || null,
           status: cycle.status,
-          processing_duration_ms: cycle.processing_duration_ms,
-          artifacts_created: cycle.artifacts_created,
-          prompts_created: cycle.prompts_created,
+          processing_duration_ms: undefined, // Field removed in migration
+          artifacts_created: 0, // Field removed in migration
+          prompts_created: 0, // Field removed in migration
         }
       };
     } catch (error) {
@@ -138,12 +138,12 @@ export class DashboardService {
         sections,
         cycle_info: {
           cycle_id: cycle.cycle_id,
-          cycle_start_date: cycle.cycle_start_date.toISOString(),
-          cycle_end_date: cycle.cycle_end_date.toISOString(),
+          cycle_start_date: cycle.created_at.toISOString(),
+          cycle_end_date: cycle.ended_at?.toISOString() || null,
           status: cycle.status,
-          processing_duration_ms: cycle.processing_duration_ms,
-          artifacts_created: cycle.artifacts_created,
-          prompts_created: cycle.prompts_created,
+          processing_duration_ms: undefined, // Field removed in migration
+          artifacts_created: 0, // Field removed in migration
+          prompts_created: 0, // Field removed in migration
         }
       };
     } catch (error) {
@@ -171,8 +171,8 @@ export class DashboardService {
     // DEBUG: Log what we're actually getting from the database
     console.log(`[DashboardService] DEBUG: Querying artifacts for user ${userId}, cycle ${cycleId}`);
     console.log(`[DashboardService] DEBUG: Found ${artifacts.length} total artifacts`);
-    console.log(`[DashboardService] DEBUG: Artifact types:`, artifacts.map((a: any) => a.artifact_type));
-    console.log(`[DashboardService] DEBUG: Legacy artifacts:`, artifacts.filter((a: any) => ['insight', 'pattern', 'recommendation', 'synthesis'].includes(a.artifact_type)).map((a: any) => ({ type: a.artifact_type, title: a.title, cycle_id: a.cycle_id })));
+    console.log(`[DashboardService] DEBUG: Artifact types:`, artifacts.map((a: any) => a.type));
+    console.log(`[DashboardService] DEBUG: Legacy artifacts:`, artifacts.filter((a: any) => ['insight', 'pattern', 'recommendation', 'synthesis'].includes(a.type)).map((a: any) => ({ type: a.type, title: a.title, cycle_id: a.cycle_id })));
 
     // Get all proactive prompts for this cycle
     const prompts = await this.db.prisma.proactive_prompts.findMany({
@@ -201,7 +201,7 @@ export class DashboardService {
     const recentCards = await this.db.prisma.cards.findMany({
       where: {
         user_id: userId,
-        card_type: {
+        type: {
           in: ['concept', 'memoryunit']
         }
       },
@@ -213,13 +213,13 @@ export class DashboardService {
     const openingArtifact = await this.db.prisma.derived_artifacts.findFirst({
       where: {
         user_id: userId,
-        artifact_type: 'opening'
+        type: 'opening'
       },
       orderBy: { created_at: 'desc' }
     });
 
     console.log(`[DashboardService] DEBUG: Found opening artifact:`, openingArtifact ? {
-      id: openingArtifact.artifact_id,
+      id: openingArtifact.entity_id,
       title: openingArtifact.title,
       cycle_id: openingArtifact.cycle_id,
       created_at: openingArtifact.created_at
@@ -243,7 +243,7 @@ export class DashboardService {
         } else if (sectionKey.startsWith('growth_')) {
           // Growth-specific sections
           const artifactType = sectionKey.replace('growth_', '');
-          return [sectionKey, await this.createSection(sectionKey, artifacts.filter((a: any) => a.artifact_type === artifactType))];
+          return [sectionKey, await this.createSection(sectionKey, artifacts.filter((a: any) => a.type === artifactType))];
         } else if (sectionKey.endsWith('_prompts')) {
           // Prompt sections
           const promptType = sectionKey.replace('_prompts', '');
@@ -263,7 +263,7 @@ export class DashboardService {
                              // New artifact types - direct mapping (no transformation needed)
                              sectionKey;
           
-          return [sectionKey, await this.createSection(sectionKey, artifacts.filter((a: any) => a.artifact_type === artifactType))];
+          return [sectionKey, await this.createSection(sectionKey, artifacts.filter((a: any) => a.type === artifactType))];
         }
       } catch (error) {
         console.error(`[DashboardService] ERROR: Failed to create section ${sectionKey}:`, error);
@@ -297,12 +297,12 @@ export class DashboardService {
     const sectionConfig = config.dashboard_sections[sectionType];
     
     const items = artifacts.map(artifact => ({
-      id: artifact.artifact_id,
+      id: artifact.entity_id,
       title: artifact.title,
-      content: artifact.content_narrative || '',
+      content: artifact.content || '',
       created_at: artifact.created_at.toISOString(),
       metadata: {
-        artifact_type: artifact.artifact_type,
+        artifact_type: artifact.type,
         cycle_id: artifact.cycle_id,
         source_concept_ids: artifact.source_concept_ids,
         source_memory_unit_ids: artifact.source_memory_unit_ids
@@ -323,9 +323,9 @@ export class DashboardService {
    */
   private createPromptSection(sectionType: string, prompts: any[]): DashboardSectionData {
     const items = prompts.map(prompt => ({
-      id: prompt.prompt_id,
+      id: prompt.entity_id,
       title: prompt.metadata?.title || 'Prompt',
-      content: prompt.prompt_text,
+      content: prompt.content,
       confidence: prompt.metadata?.priority_level ? prompt.metadata.priority_level / 10 : undefined,
       actionability: prompt.metadata?.timing_suggestion,
       priority: prompt.metadata?.priority_level,
@@ -408,36 +408,36 @@ export class DashboardService {
       
       // Fallback logic for different card types when title is empty
       if (!title) {
-        switch (card.card_type) {
+        switch (card.type) {
           case 'concept':
             title = card.display_data?.name || 
                    card.display_data?.description || 
-                   card.display_data?.concept_id || 
+                   card.display_data?.entity_id || 
                    `Concept: ${card.card_id}`;
             break;
           case 'proactive_prompt':
             title = card.display_data?.prompt_text || 
-                   card.display_data?.prompt_id || 
+                   card.display_data?.entity_id || 
                    `Proactive Prompt: ${card.card_id}`;
             break;
           case 'derived_artifact':
             title = card.display_data?.title || 
-                   card.display_data?.artifact_type || 
-                   card.display_data?.artifact_id || 
+                   card.display_data?.type || 
+                   card.display_data?.entity_id || 
                    `Derived Artifact: ${card.card_id}`;
             break;
           case 'community':
             title = card.display_data?.name || 
-                   card.display_data?.community_id || 
+                   card.display_data?.entity_id || 
                    `Community: ${card.card_id}`;
             break;
           case 'memoryunit':
             title = card.display_data?.title || 
-                   card.display_data?.memory_id || 
+                   card.display_data?.entity_id || 
                    `Memory Unit: ${card.card_id}`;
             break;
           default:
-            title = `${card.card_type.charAt(0).toUpperCase() + card.card_type.slice(1)}: ${card.card_id}`;
+            title = card.type ? `${card.type.charAt(0).toUpperCase() + card.type.slice(1)}: ${card.card_id}` : `Card: ${card.card_id}`;
         }
       }
 
@@ -478,12 +478,12 @@ export class DashboardService {
     }
 
     const item = {
-      id: openingArtifact.artifact_id,
+      id: openingArtifact.entity_id,
       title: openingArtifact.title,
-      content: openingArtifact.content_narrative || '',
+      content: openingArtifact.content || '',
       created_at: openingArtifact.created_at.toISOString(),
       metadata: {
-        artifact_type: openingArtifact.artifact_type,
+        artifact_type: openingArtifact.type,
         cycle_id: openingArtifact.cycle_id,
         source_concept_ids: openingArtifact.source_concept_ids,
         source_memory_unit_ids: openingArtifact.source_memory_unit_ids
@@ -533,13 +533,13 @@ export class DashboardService {
         rows: dimensions.map(dimension => {
           // Get "What's New" events (IngestionAnalyst - observant tracker)
           const whatsNewEvents = growthEvents.filter(event => 
-            event.dimension_key === dimension.key && 
+            event.title === dimension.key && 
             event.source === 'IngestionAnalyst'
           ).slice(0, 3); // Show up to 3 recent events
 
           // Get "What's Next" events (InsightWorker - strategic adviser)
           const whatsNextEvents = growthEvents.filter(event => 
-            event.dimension_key === dimension.key && 
+            event.title === dimension.key && 
             event.source === 'InsightWorker'
           ).slice(0, 3); // Show up to 3 recent events
 
@@ -672,10 +672,10 @@ export class DashboardService {
         // Latest cycle date range
         this.db.prisma.user_cycles.findFirst({
           where: { user_id: userId },
-          orderBy: { cycle_start_date: 'desc' },
+          orderBy: { created_at: 'desc' },
           select: {
-            cycle_start_date: true,
-            cycle_end_date: true
+            created_at: true,
+            ended_at: true
           }
         })
       ]);
@@ -686,8 +686,8 @@ export class DashboardService {
         growth_events_count: growthEventsCount,
         cards_count: cardsCount,
         latest_cycle_date_range: {
-          start_date: latestCycle?.cycle_start_date?.toISOString() || null,
-          end_date: latestCycle?.cycle_end_date?.toISOString() || null
+          start_date: latestCycle?.created_at?.toISOString() || null,
+          end_date: latestCycle?.ended_at?.toISOString() || null
         },
         total_artifacts: artifactsCount,
         total_prompts: promptsCount

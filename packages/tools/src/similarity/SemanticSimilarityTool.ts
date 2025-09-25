@@ -201,7 +201,7 @@ export class SemanticSimilarityTool {
     try {
       if (entityType === 'Concept') {
         const concept = await this.dbService.prisma.concepts.findUnique({
-          where: { concept_id: entityId },
+          where: { entity_id: entityId },
           select: { status: true }
         });
         return concept?.status === 'active';

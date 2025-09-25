@@ -312,8 +312,8 @@ export class CardService {
 
       // Convert Prisma card to CardData format
       const convertedCardData: CardData = {
-        id: cardData.card_id,
-        type: cardData.card_type as 'memory_unit' | 'concept' | 'derived_artifact',
+        id: cardData.entity_id,
+        type: cardData.type as 'memory_unit' | 'concept' | 'derived_artifact',
         title: (cardData.display_data as any)?.title || 'Untitled',
         preview: (cardData.display_data as any)?.preview || 'No preview available',
         evolutionState: 'seed', // Default value
@@ -379,8 +379,8 @@ export class CardService {
       // Convert Prisma card to CardData format
       const cardData = cardDataArray[0];
       const convertedCardData: CardData = {
-        id: cardData.card_id,
-        type: cardData.card_type as 'memory_unit' | 'concept' | 'derived_artifact',
+        id: cardData.entity_id,
+        type: cardData.type as 'memory_unit' | 'concept' | 'derived_artifact',
         title: (cardData.display_data as any)?.title || 'Untitled',
         preview: (cardData.display_data as any)?.preview || 'No preview available',
         evolutionState: 'seed', // Default value
@@ -415,7 +415,7 @@ export class CardService {
         // Count relationships for this entity
         const result = await session.run(`
           MATCH (source)-[r]-(target)
-          WHERE source.id = $sourceEntityId OR source.concept_id = $sourceEntityId OR source.muid = $sourceEntityId
+          WHERE source.entity_id = $sourceEntityId OR source.id = $sourceEntityId
           RETURN count(r) as connectionCount
         `, { sourceEntityId });
 
@@ -446,8 +446,8 @@ export class CardService {
         // Query for related entities through relationships
         const result = await session.run(`
           MATCH (source)-[r]-(target)
-          WHERE source.id = $sourceEntityId OR source.concept_id = $sourceEntityId OR source.muid = $sourceEntityId
-          RETURN DISTINCT target.id as id, labels(target)[0] as type, type(r) as relationshipType
+          WHERE source.entity_id = $sourceEntityId OR source.id = $sourceEntityId
+          RETURN DISTINCT target.entity_id as id, labels(target)[0] as type, type(r) as relationshipType
           ORDER BY target.importance_score DESC
           LIMIT $limit
         `, { sourceEntityId, limit });

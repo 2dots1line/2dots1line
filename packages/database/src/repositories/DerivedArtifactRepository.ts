@@ -10,16 +10,16 @@ import { randomUUID } from 'crypto';
 export interface CreateDerivedArtifactData {
   user_id: string;
   cycle_id?: string; // For dashboard grouping
-  artifact_type: string;
+  type: string;
   title: string;
-  content_narrative?: string;
+  content?: string;
   source_memory_unit_ids?: string[];
   source_concept_ids?: string[];
 }
 
 export interface UpdateDerivedArtifactData {
   title?: string;
-  content_narrative?: string;
+  content?: string;
 }
 
 export class DerivedArtifactRepository {
@@ -28,12 +28,12 @@ export class DerivedArtifactRepository {
   async create(data: CreateDerivedArtifactData): Promise<any> {
     const artifact = await this.db.prisma.derived_artifacts.create({
       data: {
-        artifact_id: randomUUID(),
+        entity_id: randomUUID(),
         user_id: data.user_id,
         cycle_id: data.cycle_id ?? null,
-        artifact_type: data.artifact_type,
+        type: data.type,
         title: data.title,
-        content_narrative: data.content_narrative ?? null,
+        content: data.content ?? null,
         source_memory_unit_ids: data.source_memory_unit_ids ?? [],
         source_concept_ids: data.source_concept_ids ?? [],
       },
@@ -41,9 +41,9 @@ export class DerivedArtifactRepository {
     return artifact;
   }
 
-  async findById(artifactId: string): Promise<any> {
+  async findById(entityId: string): Promise<any> {
     return this.db.prisma.derived_artifacts.findUnique({
-      where: { artifact_id: artifactId },
+      where: { entity_id: entityId },
     });
   }
 
@@ -56,11 +56,11 @@ export class DerivedArtifactRepository {
     });
   }
 
-  async findByType(userId: string, artifactType: string, limit = 50): Promise<any[]> {
+  async findByType(userId: string, type: string, limit = 50): Promise<any[]> {
     return this.db.prisma.derived_artifacts.findMany({
       where: {
         user_id: userId,
-        artifact_type: artifactType,
+        type: type,
       },
       take: limit,
       orderBy: { created_at: 'desc' },
@@ -81,16 +81,16 @@ export class DerivedArtifactRepository {
     });
   }
 
-  async update(artifactId: string, data: UpdateDerivedArtifactData): Promise<any> {
+  async update(entityId: string, data: UpdateDerivedArtifactData): Promise<any> {
     return this.db.prisma.derived_artifacts.update({
-      where: { artifact_id: artifactId },
+      where: { entity_id: entityId },
       data,
     });
   }
 
-  async delete(artifactId: string): Promise<void> {
+  async delete(entityId: string): Promise<void> {
     await this.db.prisma.derived_artifacts.delete({
-      where: { artifact_id: artifactId },
+      where: { entity_id: entityId },
     });
   }
 

@@ -4,6 +4,7 @@
 import { Request, Response } from 'express';
 import type { TApiResponse } from '@2dots1line/shared-types';
 import { Neo4jService, DatabaseService } from '@2dots1line/database';
+import { getEntityTypeMapping } from '@2dots1line/core-utils';
 import Redis from 'ioredis';
 
 export class GraphController {
@@ -167,62 +168,18 @@ export class GraphController {
         return;
       }
       
-      // Fetch entity details based on mapped type
-      switch (entityTypeMapping.tableName) {
-        case 'concepts':
-          entityData = await this.databaseService.prisma.concepts.findFirst({
-            where: { 
-              concept_id: nodeId,
-              user_id: userId
-            }
-          });
-          break;
-          
-        case 'memory_units':
-          entityData = await this.databaseService.prisma.memory_units.findFirst({
-            where: { 
-              muid: nodeId,
-              user_id: userId
-            }
-          });
-          break;
-          
-        case 'derived_artifacts':
-          entityData = await this.databaseService.prisma.derived_artifacts.findFirst({
-            where: { 
-              artifact_id: nodeId,
-              user_id: userId
-            }
-          });
-          break;
-          
-        case 'communities':
-          entityData = await this.databaseService.prisma.communities.findFirst({
-            where: { 
-              community_id: nodeId,
-              user_id: userId
-            }
-          });
-          break;
-          
-        case 'proactive_prompts':
-          entityData = await this.databaseService.prisma.proactive_prompts.findFirst({
-            where: { 
-              prompt_id: nodeId,
-              user_id: userId
-            }
-          });
-          break;
-          
-        default:
-          res.status(400).json({
-            success: false,
-            error: {
-              code: 'INVALID_ENTITY_TYPE',
-              message: `Unsupported entity type: ${entityType}`
-            }
-          } as TApiResponse<any>);
-          return;
+      // Fetch entity details using generic approach (standardized field names)
+      entityData = await this.fetchEntityByType(entityTypeMapping.tableName, nodeId, userId);
+      
+      if (!entityData) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_ENTITY_TYPE',
+            message: `Unsupported entity type: ${entityType}`
+          }
+        } as TApiResponse<any>);
+        return;
       }
 
       if (!entityData) {
@@ -260,119 +217,45 @@ export class GraphController {
 
   /**
    * Map card entity types to database table names and entity types
+   * Now uses centralized entity mapping utility
    */
   private mapCardEntityTypeToDatabaseTable(cardEntityType: string): { tableName: string; entityType: string } | null {
-    const normalizedType = cardEntityType.toLowerCase();
-    
-    switch (normalizedType) {
-      case 'concept':
-        return { tableName: 'concepts', entityType: 'concept' };
-      case 'memoryunit':
-      case 'memory_unit':
-        return { tableName: 'memory_units', entityType: 'memoryunit' };
-      case 'derivedartifact':
-      case 'derived_artifact':
-        return { tableName: 'derived_artifacts', entityType: 'derivedartifact' };
-      case 'community':
-        return { tableName: 'communities', entityType: 'community' };
-      case 'proactiveprompt':
-      case 'proactive_prompt':
-        return { tableName: 'proactive_prompts', entityType: 'proactiveprompt' };
-      default:
-        return null;
+    const mapping = getEntityTypeMapping(cardEntityType);
+    if (!mapping) {
+      return null;
     }
+    
+    return {
+      tableName: mapping.tableName,
+      entityType: mapping.entityType
+    };
   }
 
   /**
    * Transform entity data for frontend consumption
    */
   private transformEntityData(entityData: any, entityType: string): any {
-    // Normalize entity type for consistent handling
-    const normalizedType = entityType.toLowerCase();
-    
-    switch (normalizedType) {
-      case 'concept':
-        return {
-          id: entityData.concept_id,
-          type: 'Concept',
-          title: entityData.name,
-          description: entityData.description || 'No description available',
-          importance: entityData.salience || 0.5,
-          metadata: {
-            conceptType: entityData.type,
-            status: entityData.status,
-            createdAt: entityData.created_at,
-            lastUpdated: entityData.last_updated_ts,
-            communityId: entityData.community_id,
-            mergedInto: entityData.merged_into_concept_id
-          }
-        };
-        
-      case 'memoryunit':
-      case 'memory_unit':
-        return {
-          id: entityData.muid,
-          type: 'MemoryUnit',
-          title: entityData.title,
-          description: entityData.content || 'No content available',
-          importance: entityData.importance_score || 0.5,
-          metadata: {
-            sentimentScore: entityData.sentiment_score,
-            createdAt: entityData.creation_ts,
-            lastModified: entityData.last_modified_ts,
-            ingestionDate: entityData.ingestion_ts,
-            sourceConversationId: entityData.source_conversation_id
-          }
-        };
-        
-      case 'derivedartifact':
-      case 'derived_artifact':
-        return {
-          id: entityData.artifact_id,
-          type: 'DerivedArtifact',
-          title: entityData.title,
-          description: entityData.content_narrative || 'No narrative available',
-          importance: 0.7, // Default importance for artifacts
-          metadata: {
-            artifactType: entityData.artifact_type,
-            createdAt: entityData.created_at,
-            sourceMemoryUnitIds: entityData.source_memory_unit_ids,
-            sourceConceptIds: entityData.source_concept_ids
-          }
-        };
-        
-      case 'community':
-        return {
-          id: entityData.community_id,
-          type: 'Community',
-          title: entityData.name,
-          description: entityData.description || 'No description available',
-          importance: 0.8, // Default importance for communities
-          metadata: {
-            createdAt: entityData.created_at,
-            lastAnalyzed: entityData.last_analyzed_ts
-          }
-        };
-        
-      case 'proactiveprompt':
-      case 'proactive_prompt':
-        return {
-          id: entityData.prompt_id,
-          type: 'ProactivePrompt',
-          title: entityData.prompt_text || 'Proactive Prompt',
-          description: entityData.prompt_text || 'No prompt text available',
-          importance: 0.6, // Default importance for prompts
-          metadata: {
-            promptType: entityData.prompt_type,
-            createdAt: entityData.created_at,
-            lastTriggered: entityData.last_triggered_ts,
-            triggerConditions: entityData.trigger_conditions
-          }
-        };
-        
-      default:
-        return entityData;
+    // Use centralized entity mapping for consistent transformation
+    const mapping = getEntityTypeMapping(entityType);
+    if (!mapping) {
+      return entityData; // Return as-is for unknown types
     }
+
+    // Generic transformation using standardized field names
+    return {
+      id: entityData.entity_id,
+      type: mapping.displayType,
+      title: entityData.title || 'Untitled',
+      description: entityData.content || 'No description available',
+      importance: entityData.importance_score || mapping.defaultImportance,
+      metadata: {
+        ...entityData, // Include all original fields as metadata
+        // Override specific fields for consistency
+        createdAt: entityData.created_at,
+        lastUpdated: entityData.updated_at,
+        lastModified: entityData.updated_at
+      }
+    };
   }
 
   /**
@@ -463,4 +346,38 @@ export class GraphController {
       }
     }
   };
+
+  /**
+   * Generic method to fetch entity by type using standardized field names
+   * This replaces the need for separate switch cases since all entities now use:
+   * - entity_id (primary key)
+   * - user_id (for filtering)
+   * - title, content, created_at, updated_at (standardized fields)
+   */
+  private async fetchEntityByType(tableName: string, entityId: string, userId: string): Promise<any> {
+    const prisma = this.databaseService.prisma;
+    
+    // Map table names to Prisma model accessors
+    const tableModelMap: Record<string, any> = {
+      'concepts': prisma.concepts,
+      'memory_units': prisma.memory_units,
+      'derived_artifacts': prisma.derived_artifacts,
+      'communities': prisma.communities,
+      'proactive_prompts': prisma.proactive_prompts,
+      'growth_events': prisma.growth_events
+    };
+
+    const model = tableModelMap[tableName];
+    if (!model) {
+      return null;
+    }
+
+    // All entities now use standardized field names
+    return await model.findFirst({
+      where: {
+        entity_id: entityId,
+        user_id: userId
+      }
+    });
+  }
 } 

@@ -3,16 +3,19 @@
  * V9.7 Repository for InteractionLog operations
  */
 
-import type { interaction_logs, Prisma } from '@2dots1line/database';
+import type { Prisma } from '@prisma/client';
 import { DatabaseService } from '../DatabaseService';
 import { randomUUID } from 'crypto';
 
+// Use any type for now since Prisma types are complex
+type interaction_logs = any;
+
 export interface CreateInteractionLogData {
   user_id: string;
-  interaction_type: string;
+  type: string;
   target_entity_id?: string;
   target_entity_type?: string;
-  content_text?: string;
+  content?: string;
   content_structured?: any;
   metadata?: any;
 }
@@ -40,7 +43,7 @@ export class InteractionLogRepository {
       where: { user_id: userId },
       take: limit,
       skip: offset,
-      orderBy: { timestamp: 'desc' },
+      orderBy: { created_at: 'desc' },
     });
   }
 
@@ -48,10 +51,10 @@ export class InteractionLogRepository {
     return this.db.prisma.interaction_logs.findMany({
       where: {
         user_id: userId,
-        interaction_type: interactionType,
+        type: interactionType,
       },
       take: limit,
-      orderBy: { timestamp: 'desc' },
+      orderBy: { created_at: 'desc' },
     });
   }
 
@@ -61,7 +64,7 @@ export class InteractionLogRepository {
         target_entity_id: targetEntityId,
         target_entity_type: targetEntityType,
       },
-      orderBy: { timestamp: 'desc' },
+      orderBy: { created_at: 'desc' },
     });
   }
 
@@ -72,12 +75,12 @@ export class InteractionLogRepository {
     return this.db.prisma.interaction_logs.findMany({
       where: {
         user_id: userId,
-        timestamp: {
+        created_at: {
           gte: dateThreshold,
         },
       },
       take: limit,
-      orderBy: { timestamp: 'desc' },
+      orderBy: { created_at: 'desc' },
     });
   }
 
@@ -85,7 +88,7 @@ export class InteractionLogRepository {
     return this.db.prisma.interaction_logs.count({
       where: {
         ...(userId && { user_id: userId }),
-        ...(interactionType && { interaction_type: interactionType }),
+        ...(interactionType && { type: interactionType }),
       },
     });
   }
@@ -106,17 +109,17 @@ export class InteractionLogRepository {
     const interactions = await this.db.prisma.interaction_logs.findMany({
       where: {
         user_id: userId,
-        timestamp: {
+        created_at: {
           gte: dateThreshold,
         },
       },
-      select: { interaction_type: true },
+      select: { type: true },
     });
 
     const interaction_types: Record<string, number> = {};
-    interactions.forEach(interaction => {
-      interaction_types[interaction.interaction_type] = 
-        (interaction_types[interaction.interaction_type] || 0) + 1;
+    interactions.forEach((interaction: any) => {
+      interaction_types[interaction.type] = 
+        (interaction_types[interaction.type] || 0) + 1;
     });
 
     return {

@@ -25,10 +25,10 @@ export class CommunityCreator {
     const communityData = {
       community_id: generatedCommunityId,
       user_id: userId,
-      name: community.theme,
-      description: `Strategic importance: ${community.strategic_importance}/10. Members: ${community.member_concept_ids.length} concepts.`,
+      title: community.theme,
+      content: `Strategic importance: ${community.strategic_importance}/10. Members: ${community.member_concept_ids.length} concepts.`,
       created_at: new Date(),
-      last_analyzed_ts: new Date()
+      updated_at: new Date()
     };
 
     // Actually create the community in the database
@@ -37,13 +37,13 @@ export class CommunityCreator {
     // Assign concepts to this community
     if (community.member_concept_ids.length > 0) {
       await this.dbService.communityRepository.assignConceptsToCommunity(
-        createdCommunity.community_id, 
+        createdCommunity.entity_id, 
         community.member_concept_ids
       );
     }
 
     console.log(`[CommunityCreator] Created community: ${community.theme} with ID ${generatedCommunityId} and ${community.member_concept_ids.length} members`);
-    return createdCommunity.community_id;
+    return createdCommunity.entity_id;
   }
 
   /**

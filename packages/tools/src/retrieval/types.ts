@@ -33,7 +33,7 @@ export interface ScoredEntity {
   scoreBreakdown: {
     semantic: number;
     recency: number;
-    salience: number;
+    importance_score: number;
   };
   wasSeedEntity: boolean;
   hopDistance?: number;
@@ -44,8 +44,7 @@ export interface ScoredEntity {
 export interface EntityMetadata {
   entityId: string;
   entityType: 'MemoryUnit' | 'Concept' | 'DerivedArtifact';
-  importanceScore?: number;
-  salience?: number;
+  importance_score?: number;
   createdAt: Date;
   lastModified: Date;
 }
@@ -60,7 +59,7 @@ export interface ScoringContext {
 export interface RetrievalWeights {
   alpha_semantic_similarity: number;
   beta_recency: number;
-  gamma_salience: number;
+  gamma_importance_score: number;
   delta_user_preference?: number; // Optional in V9.5
 }
 

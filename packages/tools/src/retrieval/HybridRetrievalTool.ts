@@ -83,7 +83,7 @@ export class HybridRetrievalTool {
       const defaultWeights: RetrievalWeights = retrievalWeights?.scoring_weights?.profiles?.balanced || {
         alpha_semantic_similarity: 0.5,
         beta_recency: 0.3,
-        gamma_salience: 0.2
+        gamma_importance_score: 0.2
       };
       this.entityScorer = new EntityScorer(defaultWeights);
       
@@ -233,7 +233,7 @@ export class HybridRetrievalTool {
                 operands: [
                   {
                     operator: 'Equal' as const,
-                    path: ['sourceEntityType'],
+                    path: ['entity_type'],
                     valueString: 'MemoryUnit'
                   },
                   {
@@ -241,7 +241,7 @@ export class HybridRetrievalTool {
                     operands: [
                       {
                         operator: 'Equal' as const,
-                        path: ['sourceEntityType'],
+                        path: ['entity_type'],
                         valueString: 'Concept'
                       },
                         {
@@ -270,7 +270,7 @@ export class HybridRetrievalTool {
             .graphql
             .get()
             .withClassName('UserKnowledgeItem')
-            .withFields('externalId sourceEntityType textContent _additional { distance }')
+            .withFields('entity_id entity_type content _additional { distance }')
             .withWhere(whereClause)
             .withNearVector({ vector: searchVector })
             .withLimit(3)
@@ -279,20 +279,20 @@ export class HybridRetrievalTool {
           if (result?.data?.Get?.UserKnowledgeItem) {
             for (const item of result.data.Get.UserKnowledgeItem) {
               // Validate that we have valid data before creating seed entity
-              if (item.externalId && item.sourceEntityType) {
+              if (item.entity_id && item.entity_type) {
                 const distance = item._additional?.distance || 1.0;
                 const similarity = 1.0 - distance;
                 
                 if (similarity > 0.1) {
                   // Weaviate already filters by status='active', so all results are active
                   seedEntities.push({
-                    id: item.externalId,
-                    type: item.sourceEntityType,
+                    id: item.entity_id,
+                    type: item.entity_type,
                     weaviateScore: similarity
                   });
                 }
               } else {
-                console.warn(`[HRT ${context.requestId}] Skipping item with null externalId or sourceEntityType:`, item);
+                console.warn(`[HRT ${context.requestId}] Skipping item with null entity_id or entity_type:`, item);
               }
             }
           }
@@ -463,21 +463,21 @@ export class HybridRetrievalTool {
       if (memoryUnitIds.length > 0) {
         promises.push(
           this.db.prisma.memory_units.findMany({
-            where: { muid: { in: memoryUnitIds }, user_id: userId },
+            where: { entity_id: { in: memoryUnitIds }, user_id: userId },
             select: {
-              muid: true,
+              entity_id: true,
               importance_score: true,
-              creation_ts: true,
-              last_modified_ts: true
+              created_at: true,
+              updated_at: true
             }
           }).then((results: any[]) => {
             results.forEach((mu: any) => {
-              metadataMap.set(mu.muid, {
-                entityId: mu.muid,
+              metadataMap.set(mu.entity_id, {
+                entityId: mu.entity_id,
                 entityType: 'MemoryUnit',
-                importanceScore: mu.importance_score || 0,
-                createdAt: mu.creation_ts,
-                lastModified: mu.last_modified_ts || mu.creation_ts
+                importance_score: mu.importance_score || 0,
+                createdAt: mu.created_at,
+                lastModified: mu.updated_at || mu.created_at
               });
             });
           })
@@ -487,21 +487,21 @@ export class HybridRetrievalTool {
       if (conceptIds.length > 0) {
         promises.push(
           this.db.prisma.concepts.findMany({
-            where: { concept_id: { in: conceptIds }, user_id: userId, status: 'active' },
+            where: { entity_id: { in: conceptIds }, user_id: userId, status: 'active' },
             select: {
-              concept_id: true,
-              salience: true,
+              entity_id: true,
+              importance_score: true,
               created_at: true,
-              last_updated_ts: true
+              updated_at: true
             }
           }).then((results: any[]) => {
             results.forEach((concept: any) => {
-              metadataMap.set(concept.concept_id, {
-                entityId: concept.concept_id,
+              metadataMap.set(concept.entity_id, {
+                entityId: concept.entity_id,
                 entityType: 'Concept',
-                salience: concept.salience || 0,
+                importance_score: concept.importance_score || 0,
                 createdAt: concept.created_at,
-                lastModified: concept.last_updated_ts || concept.created_at
+                lastModified: concept.updated_at || concept.created_at
               });
             });
           })
@@ -571,7 +571,7 @@ export class HybridRetrievalTool {
         id: c.id,
         type: c.type,
         finalScore: 0.5,
-        scoreBreakdown: { semantic: 0.5, recency: 0.5, salience: 0.5 },
+        scoreBreakdown: { semantic: 0.5, recency: 0.5, importance_score: 0.5 },
         wasSeedEntity: c.wasSeedEntity,
         hopDistance: c.hopDistance,
         weaviateScore: c.weaviateScore
@@ -594,7 +594,7 @@ export class HybridRetrievalTool {
       const { retrievedMemoryUnits, retrievedConcepts } = await this.hydrationAdapter!.hydrateTopEntities(scoredEntities, userId);
       
       // Generate retrieval summary
-      const retrievalSummary = `Retrieved ${(retrievedMemoryUnits || []).length} memories and ${(retrievedConcepts || []).length} concepts based on ${context.keyPhrasesCount} key phrases. Top results prioritized by semantic similarity, recency, and salience.`;
+      const retrievalSummary = `Retrieved ${(retrievedMemoryUnits || []).length} memories and ${(retrievedConcepts || []).length} concepts based on ${context.keyPhrasesCount} key phrases. Top results prioritized by semantic similarity, recency, and importance score.`;
       
       context.timings.postgresLatency += Date.now() - stageStart;
       context.stageResults.hydration = {

@@ -5,17 +5,15 @@
       "description": "A unified searchable item representing textual content from any source entity.",
       "vectorizer": "none",
       "properties": [
-        { "name": "externalId", "dataType": ["uuid"] },
-        { "name": "userId", "dataType": ["string"], "indexFilterable": true, "indexSearchable": true },
-        { "name": "sourceEntityType", "dataType": ["string"], "indexFilterable": true, "indexSearchable": true },
-        { "name": "sourceEntityId", "dataType": ["uuid"], "indexFilterable": true },
-        { "name": "textContent", "dataType": ["text"] },
+        { "name": "entity_id", "dataType": ["uuid"], "indexFilterable": true, "indexSearchable": false },
+        { "name": "user_id", "dataType": ["text"], "indexFilterable": true, "indexSearchable": true, "tokenization": "whitespace" },
+        { "name": "entity_type", "dataType": ["text"], "indexFilterable": true, "indexSearchable": true, "tokenization": "whitespace" },
+        { "name": "content", "dataType": ["text"], "indexFilterable": true, "indexSearchable": true, "tokenization": "word" },
         { "name": "title", "dataType": ["text"], "indexFilterable": true, "indexSearchable": true, "tokenization": "word" },
-        { "name": "embeddingModelVersion", "dataType": ["string"], "indexFilterable": true, "indexSearchable": true },
-        { "name": "createdAt", "dataType": ["date"], "indexFilterable": true },
-        { "name": "importanceScore", "dataType": ["number"], "indexFilterable": true },
-        { "name": "tags", "dataType": ["text[]"], "indexFilterable": true, "indexSearchable": true, "tokenization": "word" },
-        { "name": "status", "dataType": ["text"], "indexFilterable": true, "indexSearchable": false }
+        { "name": "type", "dataType": ["text"], "indexFilterable": true, "indexSearchable": true, "tokenization": "whitespace" },
+        { "name": "embedding_model_version", "dataType": ["text"], "indexFilterable": true, "indexSearchable": true, "tokenization": "whitespace" },
+        { "name": "created_at", "dataType": ["date"], "indexFilterable": true, "indexSearchable": false },
+        { "name": "status", "dataType": ["text"], "indexFilterable": true, "indexSearchable": false, "tokenization": "whitespace" }
       ]
     }
   ]

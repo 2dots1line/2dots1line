@@ -27,13 +27,13 @@ export class EntityScorer {
 
       const semanticScore = this.calculateSemanticScore(candidate, context.seedEntitiesWithSimilarity);
       const recencyScore = this.calculateRecencyScore(entityMetadata);
-      const salienceScore = this.calculateSalienceScore(entityMetadata);
+      const importanceScore = this.calculateImportanceScore(entityMetadata);
       
       // V9.5 scoring formula (user preference factor dropped)
       const finalScore = 
         (this.weights.alpha_semantic_similarity * semanticScore) +
         (this.weights.beta_recency * recencyScore) +
-        (this.weights.gamma_salience * salienceScore);
+        (this.weights.gamma_importance_score * importanceScore);
 
       return {
         id: candidate.id,
@@ -42,7 +42,7 @@ export class EntityScorer {
         scoreBreakdown: { 
           semantic: semanticScore, 
           recency: recencyScore, 
-          salience: salienceScore 
+          importance_score: importanceScore 
         },
         wasSeedEntity: candidate.wasSeedEntity,
         hopDistance: candidate.hopDistance,
@@ -81,12 +81,12 @@ export class EntityScorer {
   }
 
   /**
-   * Calculate salience/importance score
+   * Calculate importance score
    */
-  private calculateSalienceScore(metadata: EntityMetadata): number {
+  private calculateImportanceScore(metadata: EntityMetadata): number {
     if (!metadata) return 0.5;
     
-    const rawScore = metadata.importanceScore || metadata.salience || 0;
+    const rawScore = metadata.importance_score || 0;
     return Math.min(rawScore / 10.0, 1.0); // Normalize to 0-1 range
   }
 

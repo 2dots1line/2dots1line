@@ -20,7 +20,7 @@ import type {
 import { StrategicSynthesisTool, StrategicSynthesisOutput, StrategicSynthesisInput, HybridRetrievalTool, LLMChatTool } from '@2dots1line/tools';
 import { ConceptMerger, ConceptArchiver, CommunityCreator } from '@2dots1line/ontology-core';
 import { ConfigService } from '@2dots1line/config-service';
-import { LLMRetryHandler } from '@2dots1line/core-utils';
+import { LLMRetryHandler, getEntityTypeMapping } from '@2dots1line/core-utils';
 import { Job , Queue } from 'bullmq';
 import { randomUUID } from 'crypto';
 import type { ExtendedAugmentedMemoryContext } from '@2dots1line/tools';
@@ -91,18 +91,14 @@ export class InsightEngine {
 
     // Create cycle record
     const cycleData: CreateUserCycleData = {
-      cycle_id: cycleId,
       user_id: userId,
-      job_id: job.id,
-      cycle_start_date: cycleDates.cycleStartDate,
-      cycle_end_date: cycleDates.cycleEndDate,
-      cycle_type: 'strategic_analysis',
-      cycle_duration_days: 2,
-      trigger_source: 'scheduled'
+      created_at: cycleDates.cycleStartDate,
+      ended_at: cycleDates.cycleEndDate,
+      type: 'strategic_analysis'
     };
 
     const cycle = await this.userCycleRepository.create(cycleData);
-    console.log(`[InsightEngine] Created cycle record: ${cycle.cycle_id}`);
+    console.log(`[InsightEngine] Created cycle record: ${cycle.entity_id}`);
 
     const startTime = Date.now();
 
@@ -193,13 +189,7 @@ export class InsightEngine {
 
       await this.userCycleRepository.update(cycleId, {
         status: 'completed',
-        completed_at: new Date(),
-        artifacts_created: artifactsCreated,
-        prompts_created: promptsCreated,
-        concepts_merged: conceptsMerged,
-        relationships_created: relationshipsCreated,
-        processing_duration_ms: processingDuration,
-        dashboard_ready: true
+        ended_at: new Date()
       });
 
       console.log(`[InsightEngine] Successfully completed strategic cycle for user ${userId}, created ${newEntities.length} new entities`);
@@ -240,10 +230,7 @@ export class InsightEngine {
       const processingDuration = Date.now() - startTime;
       await this.userCycleRepository.update(cycleId, {
         status: 'failed',
-        completed_at: new Date(),
-        processing_duration_ms: processingDuration,
-        error_count: 1,
-        dashboard_ready: false
+        ended_at: new Date()
       });
       
       // All errors are non-retryable at BullMQ level - only LLM retries are handled by LLMRetryHandler
@@ -296,14 +283,14 @@ export class InsightEngine {
     const conversationSummaries = await this.dbService.prisma.conversations.findMany({
       where: {
         user_id: userId,
-        start_time: {
+        created_at: {
           gte: cycleDates.cycleStartDate,
           lte: cycleDates.cycleEndDate
         },
         importance_score: { gte: 5 } // Pre-filter for high importance conversations
       },
       select: {
-        context_summary: true
+        content: true
       },
       orderBy: { importance_score: 'desc' }
     });
@@ -311,9 +298,9 @@ export class InsightEngine {
     // Build knowledge graph data for key phrase generation
     const knowledgeGraph = {
       conversations: conversationSummaries
-        .filter((conv: { context_summary: string | null }) => conv.context_summary)
-        .map((conv: { context_summary: string | null }) => ({
-          context_summary: conv.context_summary || 'No summary available'
+        .filter((conv: { content: string | null }) => conv.content)
+        .map((conv: { content: string | null }) => ({
+          context_summary: conv.content || 'No summary available'
         })),
       memoryUnits: await this.getUserMemoryUnits(userId, cycleDates),
       concepts: await this.getUserConcepts(userId, cycleDates),
@@ -330,8 +317,8 @@ export class InsightEngine {
           take: 20
         });
         return growthEvents.map((event: any) => ({
-          id: event.event_id,
-          rationale: event.rationale
+          id: event.entity_id,
+          rationale: event.content
         }));
       })()
     };
@@ -535,32 +522,18 @@ export class InsightEngine {
     try {
       console.log(`[InsightEngine] Fetching concepts for user ${userId}`);
       
-      // Get active concepts for the user within the cycle period, excluding already merged ones
-      // Pre-filter by importance (salience) and exclude merged concepts
-      const concepts = await this.dbService.prisma.concepts.findMany({
-        where: { 
-          user_id: userId, 
-          status: 'active',
-          merged_into_concept_id: null, // Exclude already merged concepts
-          salience: { gte: 0.3 }, // Pre-filter for high importance concepts
-          created_at: {
-            gte: cycleDates.cycleStartDate,
-            lte: cycleDates.cycleEndDate
-          }
-        },
-        select: {
-          concept_id: true,
-          name: true,
-          description: true
-        },
-        orderBy: { salience: 'desc' }
+      // Use generic method with concept-specific filters
+      const concepts = await this.fetchEntitiesByTypeAndDateRange('concepts', userId, cycleDates, {
+        status: 'active',
+        merged_into_entity_id: null, // Exclude already merged concepts
+        importance_score: { gte: 0.3 } // Pre-filter for high importance concepts
       });
 
       // Map to simplified interface
       const mappedConcepts = concepts.map((concept: any) => ({
-        id: concept.concept_id,
-        name: concept.name,
-        description: concept.description || ''
+        id: concept.entity_id,
+        name: concept.title,
+        description: concept.content || ''
       }));
 
       console.log(`[InsightEngine] Retrieved ${mappedConcepts.length} new concepts from current cycle`);
@@ -583,26 +556,14 @@ export class InsightEngine {
     try {
       console.log(`[InsightEngine] Fetching memory units for user ${userId}`);
       
-      // Get memory units for the user within the cycle period, pre-filtered by importance
-      const memoryUnits = await this.dbService.prisma.memory_units.findMany({
-        where: { 
-          user_id: userId,
-          importance_score: { gte: 2 }, // Pre-filter for high importance memory units
-          last_modified_ts: {
-            gte: cycleDates.cycleStartDate,
-            lte: cycleDates.cycleEndDate
-          }
-        },
-        select: {
-          muid: true,
-          content: true
-        },
-        orderBy: { importance_score: 'desc' }
+      // Use generic method with memory unit-specific filters
+      const memoryUnits = await this.fetchEntitiesByTypeAndDateRange('memory_units', userId, cycleDates, {
+        importance_score: { gte: 2 } // Pre-filter for high importance memory units
       });
 
       // Map to simplified interface
       const mappedMemoryUnits = memoryUnits.map((mu: any) => ({
-        id: mu.muid,
+        id: mu.entity_id,
         content: mu.content
       }));
 
@@ -675,48 +636,47 @@ export class InsightEngine {
       for (const artifact of derived_artifacts) {
         const artifactData: CreateDerivedArtifactData = {
           user_id: userId,
-          cycle_id: currentCycleId, // ✅ Include cycle_id for dashboard grouping
-          artifact_type: artifact.artifact_type,
+          type: artifact.type,
           title: artifact.title,
-          content_narrative: artifact.content,
-          source_concept_ids: artifact.source_concept_ids || [], // ✅ Include source concepts
+          content: artifact.content,
+          source_concept_ids: artifact.source_concept_ids || [], // ✅ Include source entities
           source_memory_unit_ids: artifact.source_memory_unit_ids || [] // ✅ Include source memory units
         };
 
         const createdArtifact = await this.derivedArtifactRepository.create(artifactData);
-        newEntities.push({ id: createdArtifact.artifact_id, type: 'DerivedArtifact' });
+        newEntities.push({ id: createdArtifact.entity_id, type: 'DerivedArtifact' });
         
         // CRITICAL FIX: Create Neo4j artifact node immediately
         if (this.dbService.neo4j) {
           await this.createNeo4jArtifact(createdArtifact);
         }
         
-        console.log(`[InsightEngine] Created derived artifact: ${createdArtifact.artifact_id}`);
+        console.log(`[InsightEngine] Created derived artifact: ${createdArtifact.entity_id}`);
       }
 
       // Create Proactive Prompts
       for (const prompt of proactive_prompts) {
         const promptData: CreateProactivePromptData = {
           user_id: userId,
-          cycle_id: currentCycleId, // ✅ Include cycle_id for dashboard grouping
-          prompt_text: prompt.prompt_text,
-          source_agent: 'InsightEngine',
+          content: prompt.content,
+          type: prompt.type,
           metadata: {
-            prompt_type: prompt.prompt_type,
+            title: prompt.title,
+            context_explanation: prompt.context_explanation,
             timing_suggestion: prompt.timing_suggestion,
             priority_level: prompt.priority_level
           }
         };
 
         const createdPrompt = await this.proactivePromptRepository.create(promptData);
-        newEntities.push({ id: createdPrompt.prompt_id, type: 'ProactivePrompt' });
+        newEntities.push({ id: createdPrompt.entity_id, type: 'ProactivePrompt' });
         
         // CRITICAL FIX: Create Neo4j prompt node immediately
         if (this.dbService.neo4j) {
           await this.createNeo4jPrompt(createdPrompt);
         }
         
-        console.log(`[InsightEngine] Created proactive prompt: ${createdPrompt.prompt_id} - ${prompt.title}`);
+        console.log(`[InsightEngine] Created proactive prompt: ${createdPrompt.entity_id} - ${prompt.title}`);
       }
 
       // Create strategic growth events from LLM output
@@ -724,22 +684,21 @@ export class InsightEngine {
         for (const growthEvent of analysisOutput.growth_events) {
           const growthData: CreateGrowthEventData = {
             user_id: userId,
-            related_memory_units: growthEvent.source_memory_unit_ids || [],
-            related_concepts: growthEvent.source_concept_ids || [],
-            growth_dimensions: [], // Empty array as per IngestionAnalyst pattern
+            source_memory_unit_ids: growthEvent.source_memory_unit_ids || [],
+            source_concept_ids: growthEvent.source_concept_ids || [],
             source: 'InsightWorker', // Critical: This makes it appear in "What's Next"
-            details: {
+            metadata: {
               confidence_score: growthEvent.confidence_score,
               actionability: growthEvent.actionability,
               cycle_id: currentCycleId
             },
-            dimension_key: growthEvent.dimension_key,
+            type: growthEvent.dimension_key,
             delta_value: growthEvent.delta_value,
-            rationale: growthEvent.rationale
+            content: growthEvent.rationale
           };
 
           const createdGrowthEvent = await this.growthEventRepository.create(growthData);
-          newEntities.push({ id: createdGrowthEvent.event_id, type: 'GrowthEvent' });
+          newEntities.push({ id: createdGrowthEvent.entity_id, type: 'GrowthEvent' });
         }
         console.log(`[InsightEngine] Created ${analysisOutput.growth_events.length} strategic growth events`);
       }
@@ -836,54 +795,162 @@ export class InsightEngine {
   }
 
   /**
+   * Generic method to create entity with standardized field names
+   */
+  private async createEntityWithStandardizedFields(
+    entityType: string,
+    entityData: any,
+    userId: string
+  ): Promise<any> {
+    let createdEntity;
+    
+    // Create entity in database using standardized field names
+    switch (entityType) {
+      case 'DerivedArtifact':
+        createdEntity = await this.derivedArtifactRepository.create(entityData);
+        break;
+      case 'ProactivePrompt':
+        createdEntity = await this.proactivePromptRepository.create(entityData);
+        break;
+      case 'GrowthEvent':
+        createdEntity = await this.growthEventRepository.create(entityData);
+        break;
+      case 'Community':
+        createdEntity = await this.dbService.prisma.communities.create({
+          data: entityData
+        });
+        break;
+      default:
+        throw new Error(`Unknown entity type for creation: ${entityType}`);
+    }
+    
+    return createdEntity;
+  }
+
+  /**
+   * Generic method to fetch entities by type and date range
+   */
+  private async fetchEntitiesByTypeAndDateRange(
+    entityType: string, 
+    userId: string, 
+    cycleDates: CycleDates,
+    additionalFilters: any = {}
+  ): Promise<any[]> {
+    try {
+      const baseWhere = {
+        user_id: userId,
+        created_at: {
+          gte: cycleDates.cycleStartDate,
+          lte: cycleDates.cycleEndDate
+        },
+        ...additionalFilters
+      };
+
+      switch (entityType) {
+        case 'concepts':
+          return await this.dbService.prisma.concepts.findMany({
+            where: baseWhere,
+            select: {
+              entity_id: true,
+              title: true,
+              content: true,
+              importance_score: true
+            },
+            orderBy: { importance_score: 'desc' }
+          });
+        case 'memory_units':
+          return await this.dbService.prisma.memory_units.findMany({
+            where: baseWhere,
+            select: {
+              entity_id: true,
+              content: true,
+              importance_score: true
+            },
+            orderBy: { importance_score: 'desc' }
+          });
+        case 'growth_events':
+          return await this.dbService.prisma.growth_events.findMany({
+            where: baseWhere,
+            select: {
+              entity_id: true,
+              content: true,
+              type: true
+            },
+            orderBy: { created_at: 'desc' }
+          });
+        default:
+          console.warn(`[InsightEngine] Unknown entity type for date range fetch: ${entityType}`);
+          return [];
+      }
+    } catch (error) {
+      console.error(`[InsightEngine] Error fetching ${entityType} entities:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Generic method to fetch entity by type and ID
+   */
+  private async fetchEntityByType(entityType: string, entityId: string): Promise<any> {
+    try {
+      switch (entityType) {
+        case 'DerivedArtifact':
+          return await this.derivedArtifactRepository.findById(entityId);
+        case 'ProactivePrompt':
+          return await this.proactivePromptRepository.findById(entityId);
+        case 'MergedConcept':
+        case 'Concept':
+          return await this.conceptRepository.findById(entityId);
+        case 'Community':
+          return await this.dbService.communityRepository.getByIdWithConcepts(entityId);
+        case 'MemoryUnit':
+          return await this.memoryRepository.findById(entityId);
+        case 'GrowthEvent':
+          return await this.growthEventRepository.findById(entityId);
+        default:
+          console.warn(`[InsightEngine] Unknown entity type: ${entityType}`);
+          return null;
+      }
+    } catch (error) {
+      console.error(`[InsightEngine] Error fetching ${entityType} ${entityId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Generic method to extract text content from any entity
+   */
+  private extractTextContent(entity: any, entityType: string): string {
+    if (!entity) return '';
+
+    switch (entityType) {
+      case 'DerivedArtifact':
+        return `${entity.title}\n\n${entity.content}`;
+      case 'ProactivePrompt':
+        return entity.content || '';
+      case 'MergedConcept':
+      case 'Concept':
+        return entity.title || '';
+      case 'Community':
+        const memberCount = entity.concepts?.length || 0;
+        return `${entity.title}: ${entity.content || 'Strategic community'}. Members: ${memberCount} concepts.`;
+      case 'MemoryUnit':
+        return `${entity.title}\n${entity.content}`;
+      case 'GrowthEvent':
+        return `${entity.type} Growth Event: ${entity.content || 'Growth event recorded'}`;
+      default:
+        return '';
+    }
+  }
+
+  /**
    * Extract text content for embedding based on entity type
    * Includes content length validation
    */
   private async extractTextContentForEntity(entityId: string, entityType: string): Promise<string | null> {
     try {
-      let textContent: string | null = null;
-      
-      switch (entityType) {
-        case 'DerivedArtifact':
-          const artifact = await this.derivedArtifactRepository.findById(entityId);
-          if (artifact) {
-            textContent = `${artifact.title}\n\n${artifact.content_narrative}`;
-          }
-          break;
-          
-        case 'ProactivePrompt':
-          const prompt = await this.proactivePromptRepository.findById(entityId);
-          if (prompt) {
-            textContent = prompt.prompt_text;
-          }
-          break;
-          
-        case 'MergedConcept':
-          const concept = await this.conceptRepository.findById(entityId);
-          if (concept) {
-            textContent = concept.name;
-          }
-          break;
-          
-        case 'Community':
-          try {
-            const community = await this.dbService.communityRepository.getByIdWithConcepts(entityId);
-            if (community) {
-              const memberCount = community.concepts?.length || 0;
-              textContent = `${community.name}: ${community.description || 'Strategic community'}. Members: ${memberCount} concepts.`;
-            } else {
-              textContent = `Community ${entityId} - Strategic community with member concepts`;
-            }
-          } catch (error: unknown) {
-            console.error(`[InsightEngine] Error extracting community content for ${entityId}:`, error);
-            textContent = `Community ${entityId} - Strategic community`;
-          }
-          break;
-          
-        default:
-          console.warn(`[InsightEngine] Unknown entity type for embedding: ${entityType}`);
-          return null;
-      }
+      const entity = await this.fetchEntityByType(entityType, entityId);
+      const textContent = this.extractTextContent(entity, entityType);
 
       // Validate content length
       if (textContent) {
@@ -958,8 +1025,8 @@ export class InsightEngine {
       });
 
       return recentQuests.map((quest: any) => ({
-        prompt_text: quest.prompt_text,
-        source_agent: quest.source_agent,
+        content: quest.content,
+        type: quest.type,
         status: quest.status,
         created_at: quest.created_at,
         metadata: quest.metadata
@@ -976,12 +1043,12 @@ export class InsightEngine {
       const recentConversations = await this.dbService.prisma.conversations.findMany({
         where: {
           user_id: userId,
-          start_time: {
+          created_at: {
             gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // Last 30 days
           }
         },
         select: {
-          context_summary: true
+          content: true
         },
         take: 20
       });
@@ -1061,8 +1128,8 @@ export class InsightEngine {
         `;
         
         const result = await session.run(cypher, {
-          primaryId: merge.primary_concept_id,
-          secondaryId: merge.secondary_concept_ids[0], // Handle first secondary for now
+          primaryId: merge.primary_entity_id,
+          secondaryId: merge.secondary_entity_ids[0], // Handle first secondary for now
           newName: merge.new_concept_name,
           newDescription: merge.new_concept_description
         });
@@ -1070,7 +1137,7 @@ export class InsightEngine {
         if (result.records.length > 0) {
           const mergedId = result.records[0].get('mergedId');
           mergedConceptIds.push(mergedId);
-          console.log(`[InsightEngine] Merged concept ${merge.secondary_concept_ids[0]} into ${merge.primary_concept_id}`);
+          console.log(`[InsightEngine] Merged concept ${merge.secondary_entity_ids[0]} into ${merge.primary_entity_id}`);
         }
       }
     } catch (error: unknown) {
@@ -1157,15 +1224,15 @@ export class InsightEngine {
         key_insights: derived_artifacts?.map(artifact => ({
           title: artifact.title,
           content: artifact.content,
-          type: artifact.artifact_type,
+          type: artifact.type,
           confidence: artifact.confidence_score,
           actionability: artifact.actionability
         })) || [],
         // Proactive guidance
         proactive_guidance: proactive_prompts?.map(prompt => ({
           title: prompt.title,
-          prompt_text: prompt.prompt_text,
-          type: prompt.prompt_type,
+          content: prompt.content,
+          type: prompt.type,
           timing: prompt.timing_suggestion,
           priority: prompt.priority_level
         })) || []
@@ -1199,7 +1266,7 @@ export class InsightEngine {
       const whereClause: any = { 
         user_id: userId, 
         status: 'active',
-        merged_into_concept_id: null // Exclude already merged concepts
+        merged_into_entity_id: null // Exclude already merged concepts
       };
       
       // If cycleStartDate is provided, filter by last_updated_ts within cycle period
@@ -1220,15 +1287,15 @@ export class InsightEngine {
       const concepts = await this.dbService.prisma.concepts.findMany({
         where: whereClause,
         select: {
-          concept_id: true,
-          name: true,
-          description: true
+          entity_id: true,
+          title: true,
+          content: true
         }
       });
 
       // Map to simplified interface
       const mappedConcepts = concepts.map((concept: any) => ({
-        id: concept.concept_id,
+        id: concept.entity_id,
         name: concept.name,
         description: concept.description || ''
       }));
@@ -1265,7 +1332,7 @@ export class InsightEngine {
 
         // Only update if we have valid data
         await this.conceptRepository.update(concept.concept_id, {
-          description: concept.synthesized_description
+          content: concept.synthesized_description
         });
         console.log(`[InsightEngine] Successfully synthesized description for concept ${concept.concept_id}`);
         
@@ -1302,15 +1369,15 @@ export class InsightEngine {
         key_insights: derived_artifacts?.map(artifact => ({
           title: artifact.title,
           content: artifact.content,
-          type: artifact.artifact_type,
+          type: artifact.type,
           confidence: artifact.confidence_score,
           actionability: artifact.actionability
         })) || [],
         // Proactive guidance
         proactive_guidance: proactive_prompts?.map(prompt => ({
           title: prompt.title,
-          prompt_text: prompt.prompt_text,
-          type: prompt.prompt_type,
+          content: prompt.content,
+          type: prompt.type,
           timing: prompt.timing_suggestion,
           priority: prompt.priority_level,
           context_explanation: prompt.context_explanation
@@ -1320,7 +1387,7 @@ export class InsightEngine {
           ?.filter(prompt => prompt.timing_suggestion === 'next_conversation')
           ?.map(prompt => ({
             title: prompt.title,
-            prompt_text: prompt.prompt_text,
+            content: prompt.content,
             priority: prompt.priority_level,
             context: prompt.context_explanation
           })) || []
@@ -1357,11 +1424,11 @@ export class InsightEngine {
       const createCommunityCypher = `
         CREATE (c:Community {
           community_id: $communityId,
-          name: $name,
-          description: $description,
+          title: $title,
+          content: $content,
           userId: $userId,
           created_at: datetime(),
-          last_analyzed_ts: datetime(),
+          updated_at: datetime(),
           strategic_importance: $strategicImportance
         })
         RETURN c.community_id as communityId
@@ -1369,8 +1436,8 @@ export class InsightEngine {
 
       const communityResult = await session.run(createCommunityCypher, {
         communityId: generatedCommunityId, // Use the generated UUID
-        name: community.name,
-        description: community.description,
+        title: community.title,
+        content: community.content,
         userId: community.user_id,
         strategicImportance: community.strategic_importance || 5
       });
@@ -1434,11 +1501,11 @@ export class InsightEngine {
         CREATE (a:DerivedArtifact {
           artifact_id: $artifactId,
           title: $title,
-          artifact_type: $artifactType,
-          content_narrative: $contentNarrative,
+          type: $type,
+          content: $content,
           userId: $userId,
           created_at: datetime(),
-          source_concept_ids: $sourceConceptIds,
+          source_entity_ids: $sourceEntityIds,
           source_memory_unit_ids: $sourceMemoryUnitIds
         })
         RETURN a.artifact_id as artifactId
@@ -1447,10 +1514,10 @@ export class InsightEngine {
       const artifactResult = await session.run(createArtifactCypher, {
         artifactId: artifact.artifact_id,
         title: artifact.title,
-        artifactType: artifact.artifact_type,
-        contentNarrative: artifact.content_narrative,
+        type: artifact.type,
+        content: artifact.content,
         userId: artifact.user_id,
-        sourceConceptIds: artifact.source_concept_ids || [],
+        sourceEntityIds: artifact.source_entity_ids || [],
         sourceMemoryUnitIds: artifact.source_memory_unit_ids || []
       });
 
@@ -1461,7 +1528,7 @@ export class InsightEngine {
       console.log(`[InsightEngine] Created DerivedArtifact node in Neo4j: ${artifact.artifact_id}`);
 
       // Create DERIVED_FROM relationships with source concepts
-      if (artifact.source_concept_ids && artifact.source_concept_ids.length > 0) {
+      if (artifact.source_entity_ids && artifact.source_entity_ids.length > 0) {
         const sourceRelationshipCypher = `
           MATCH (a:DerivedArtifact {artifact_id: $artifactId})
           MATCH (c:Concept {id: $conceptId})
@@ -1472,7 +1539,7 @@ export class InsightEngine {
           RETURN r
         `;
 
-        for (const conceptId of artifact.source_concept_ids) {
+        for (const conceptId of artifact.source_entity_ids) {
           try {
             await session.run(sourceRelationshipCypher, {
               artifactId: artifact.artifact_id,
@@ -1535,8 +1602,8 @@ export class InsightEngine {
       // Create or update ProactivePrompt node (use MERGE to avoid constraint violations)
       const createPromptCypher = `
         MERGE (p:ProactivePrompt {prompt_id: $promptId})
-        SET p.prompt_text = $promptText,
-            p.source_agent = $sourceAgent,
+        SET p.content = $content,
+            p.type = $type,
             p.prompt_type = $promptType,
             p.timing_suggestion = $timingSuggestion,
             p.priority_level = $priorityLevel,
@@ -1548,8 +1615,8 @@ export class InsightEngine {
 
       const promptResult = await session.run(createPromptCypher, {
         promptId: prompt.prompt_id,
-        promptText: prompt.prompt_text,
-        sourceAgent: prompt.source_agent,
+        content: prompt.content,
+        type: prompt.type,
         promptType: prompt.metadata?.prompt_type || 'general',
         timingSuggestion: prompt.metadata?.timing_suggestion || 'when_ready',
         priorityLevel: prompt.metadata?.priority_level || 'medium',
@@ -1594,7 +1661,7 @@ export class InsightEngine {
           SET c.status = $status,
               c.archived_at = datetime(),
               c.archive_rationale = $archiveRationale,
-              c.replacement_concept_id = $replacementConceptId
+              c.replacement_entity_id = $replacementEntityId
           RETURN c.id as conceptId
         `;
         
@@ -1602,21 +1669,21 @@ export class InsightEngine {
           conceptId,
           status,
           archiveRationale: metadata?.archive_rationale || 'Archived by InsightEngine',
-          replacementConceptId: metadata?.replacement_concept_id || null
+          replacementEntityId: metadata?.replacement_entity_id || null
         };
       } else if (status === 'merged') {
         cypher = `
           MATCH (c:Concept {id: $conceptId})
           SET c.status = $status,
               c.merged_at = datetime(),
-              c.merged_into_concept_id = $mergedIntoConceptId
+              c.merged_into_entity_id = $mergedIntoEntityId
           RETURN c.id as conceptId
         `;
         
         params = {
           conceptId,
           status,
-          mergedIntoConceptId: metadata?.merged_into_concept_id || null
+          mergedIntoEntityId: metadata?.merged_into_entity_id || null
         };
       } else {
         // Handle other status updates
@@ -1673,25 +1740,25 @@ export class InsightEngine {
       `;
 
       await session.run(updatePrimaryCypher, {
-        primaryId: merge.primary_concept_id,
+        primaryId: merge.primary_entity_id,
         newName: merge.new_concept_name,
         newDescription: merge.new_concept_description,
-        mergeCount: merge.secondary_concept_ids.length
+        mergeCount: merge.secondary_entity_ids.length
       });
 
       // Update secondary concepts to mark them as merged
-      for (const secondaryId of merge.secondary_concept_ids) {
+      for (const secondaryId of merge.secondary_entity_ids) {
         const updateSecondaryCypher = `
           MATCH (c:Concept {id: $secondaryId})
           SET c.status = 'merged',
               c.merged_at = datetime(),
-              c.merged_into_concept_id = $primaryId
+              c.merged_into_entity_id = $primaryId
           RETURN c.id as conceptId
         `;
 
         await session.run(updateSecondaryCypher, {
           secondaryId,
-          primaryId: merge.primary_concept_id
+          primaryId: merge.primary_entity_id
         });
       }
 
@@ -1709,17 +1776,17 @@ export class InsightEngine {
         RETURN count(newRel) as redirectedCount
       `;
 
-      for (const secondaryId of merge.secondary_concept_ids) {
+      for (const secondaryId of merge.secondary_entity_ids) {
         const result = await session.run(redirectRelationshipsCypher, {
           secondaryId,
-          primaryId: merge.primary_concept_id
+          primaryId: merge.primary_entity_id
         });
         
         const redirectedCount = result.records[0]?.get('redirectedCount') || 0;
-        console.log(`[InsightEngine] Redirected ${redirectedCount} relationships from concept ${secondaryId} to ${merge.primary_concept_id}`);
+        console.log(`[InsightEngine] Redirected ${redirectedCount} relationships from concept ${secondaryId} to ${merge.primary_entity_id}`);
       }
 
-      console.log(`[InsightEngine] Successfully updated Neo4j for concept merge: ${merge.primary_concept_id} absorbed ${merge.secondary_concept_ids.length} concepts`);
+      console.log(`[InsightEngine] Successfully updated Neo4j for concept merge: ${merge.primary_entity_id} absorbed ${merge.secondary_entity_ids.length} concepts`);
 
     } catch (error: unknown) {
       console.error(`[InsightEngine] Error updating Neo4j for concept merge:`, error);
@@ -1735,19 +1802,19 @@ export class InsightEngine {
   private async updatePrimaryConceptMetadata(merge: any): Promise<void> {
     // Update primary concept status and merged_into_concept_id in PostgreSQL
     // Note: We'll store merge information in the description field since metadata is not supported
-    const mergeInfo = `Merged with: ${merge.secondary_concept_ids.join(', ')}. Rationale: ${merge.merge_rationale || 'Strategic consolidation'}`;
+    const mergeInfo = `Merged with: ${merge.secondary_entity_ids.join(', ')}. Rationale: ${merge.merge_rationale || 'Strategic consolidation'}`;
     
-    await this.conceptRepository.update(merge.primary_concept_id, {
-      description: mergeInfo,
+    await this.conceptRepository.update(merge.primary_entity_id, {
+      content: mergeInfo,
       status: 'active' // Keep primary concept active
     });
     
     // Update primary concept metadata in Neo4j
-    await this.updateNeo4jPrimaryConceptMetadata(merge.primary_concept_id, {
-      merged_concepts: merge.secondary_concept_ids,
+    await this.updateNeo4jPrimaryConceptMetadata(merge.primary_entity_id, {
+      merged_concepts: merge.secondary_entity_ids,
       merge_rationale: merge.merge_rationale,
       merged_at: new Date().toISOString(),
-      total_merged_concepts: merge.secondary_concept_ids.length + 1
+      total_merged_concepts: merge.secondary_entity_ids.length + 1
     });
   }
 

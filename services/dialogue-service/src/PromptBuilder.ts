@@ -1,5 +1,9 @@
 import { ConfigService } from '@2dots1line/config-service';
-import { UserRepository, ConversationRepository, conversation_messages } from '@2dots1line/database';
+import { UserRepository, ConversationRepository } from '@2dots1line/database';
+import { getEntityTypeMapping } from '@2dots1line/core-utils';
+
+// Use any type for now since Prisma types are complex
+type conversation_messages = any;
 import { 
   AugmentedMemoryContext
 } from '@2dots1line/shared-types';
@@ -33,6 +37,44 @@ export class PromptBuilder {
   ) {}
 
   /**
+   * Generic method to fetch all required data in parallel
+   */
+  private async fetchAllPromptData(userId: string, conversationId: string): Promise<{
+    user: any;
+    conversationHistory: any[];
+    recentSummaries: any[];
+    turnContextStr: string | null;
+    sessionContext: any[];
+    recentConversation: any;
+  }> {
+    // Fetch all data in parallel for better performance
+    const [
+      user,
+      conversationHistory,
+      recentSummaries,
+      turnContextStr,
+      sessionContext,
+      recentConversation
+    ] = await Promise.all([
+      this.userRepository.findUserByIdWithContext(userId),
+      this.conversationRepository.getMostRecentMessages(conversationId, 10),
+      this.conversationRepository.getRecentImportantConversationSummaries(userId),
+      this.redisClient.get(`turn_context:${conversationId}`),
+      this.getSessionContext(userId, conversationId),
+      this.conversationRepository.getMostRecentProcessedConversationWithContext(userId)
+    ]);
+
+    return {
+      user,
+      conversationHistory,
+      recentSummaries,
+      turnContextStr,
+      sessionContext,
+      recentConversation
+    };
+  }
+
+  /**
    * V11.0 STANDARD: Build separate system and user prompts + conversation history
    * READ-ONLY: No side effects, no database writes
    */
@@ -49,12 +91,8 @@ export class PromptBuilder {
     });
 
     // --- STEP 1: FETCH ALL DYNAMIC DATA IN PARALLEL (READ-ONLY) ---
-    const userPromise = this.userRepository.findUserByIdWithContext(userId);
-    const historyPromise = this.conversationRepository.getMostRecentMessages(conversationId, 10);
-    const summariesPromise = this.conversationRepository.getRecentImportantConversationSummaries(userId);
-    const turnContextPromise = this.redisClient.get(`turn_context:${conversationId}`);
-    const sessionContextPromise = this.getSessionContext(userId, conversationId); // NEW: Session context
-    const recentConversationPromise = this.conversationRepository.getMostRecentProcessedConversationWithContext(userId); // NEW: Get proactive greeting
+    const { user, conversationHistory, recentSummaries, turnContextStr, sessionContext, recentConversation } = 
+      await this.fetchAllPromptData(userId, conversationId);
     
     // Get new optimized templates
     const coreIdentityTpl = this.configService.getTemplate('core_identity_section');
@@ -62,16 +100,6 @@ export class PromptBuilder {
     const dynamicContextTpl = this.configService.getTemplate('dynamic_context_section');
     const currentTurnTpl = this.configService.getTemplate('current_turn_section');
     const coreIdentity = this.configService.getCoreIdentity();
-
-    // --- STEP 2: AWAIT ALL DATA ---
-    const [user, conversationHistory, recentSummaries, turnContextStr, sessionContext, recentConversation] = await Promise.all([
-      userPromise,
-      historyPromise,
-      summariesPromise,
-      turnContextPromise,
-      sessionContextPromise, // NEW
-      recentConversationPromise // NEW
-    ]);
 
     if (!user) {
       throw new Error(`PromptBuilder Error: User not found for userId: ${userId}`);
@@ -145,6 +173,7 @@ export class PromptBuilder {
     };
   }
 
+
   /**
    * A helper to format a component into an XML-like tag structure.
    * If content is null, undefined, or an empty array, it returns null so it gets filtered out.
@@ -201,7 +230,7 @@ export class PromptBuilder {
   private formatConversationHistory(messages: conversation_messages[]): string {
     // The history is fetched most-recent-first, so we reverse it for chronological order.
     return [...messages].reverse().map(msg => 
-      `${msg.role.toUpperCase()}: ${this.decodeHtmlEntities(msg.content)}`
+      `${msg.type.toUpperCase()}: ${this.decodeHtmlEntities(msg.content)}`
     ).join('\n');
   }
 
@@ -289,6 +318,24 @@ export class PromptBuilder {
   }
 
   /**
+   * Generic method to build context with standardized field names
+   */
+  private buildContextWithStandardizedFields(contextData: any, contextType: string): string {
+    if (!contextData) return '';
+    
+    switch (contextType) {
+      case 'session':
+        return this.formatSessionContext(contextData);
+      case 'turn':
+        return this.formatContextFromLastTurn(contextData, 'User');
+      case 'conversation':
+        return this.formatConversationHistory(contextData);
+      default:
+        return JSON.stringify(contextData, null, 2);
+    }
+  }
+
+  /**
    * NEW METHOD: Get session context from previous conversations in same session
    */
   private async getSessionContext(userId: string, conversationId: string): Promise<conversation_messages[]> {
@@ -298,7 +345,7 @@ export class PromptBuilder {
       // Get current conversation to find its session
       const conversation = await this.conversationRepository.findByIdWithSessionId(conversationId);
       console.log(`🔍 PromptBuilder.getSessionContext - Conversation found:`, {
-        id: conversation?.id,
+        id: conversation?.conversation_id,
         session_id: conversation?.session_id,
         status: conversation?.status,
         hasSessionId: !!conversation?.session_id
@@ -337,7 +384,7 @@ export class PromptBuilder {
     
     const contextText = messages
       .reverse() // Show in chronological order
-      .map(msg => `${msg.role.toUpperCase()}: ${this.decodeHtmlEntities(msg.content)}`)
+      .map(msg => `${msg.type.toUpperCase()}: ${this.decodeHtmlEntities(msg.content)}`)
       .join('\n');
     
     return `## Session Context (Previous Conversation in Same Chat Window)

@@ -434,7 +434,7 @@ export class GraphProjectionWorker {
           type: nodeType,
           title: node.properties.title || node.properties.name || 'Untitled',
           content: node.properties.content || node.properties.description || '',
-          importance: node.properties.importance_score || node.properties.salience || 0.5,
+          importance: node.properties.importance_score || 0.5,
           createdAt: node.properties.created_at || node.properties.creation_ts || new Date().toISOString(),
           connections,
           metadata: {

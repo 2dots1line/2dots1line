@@ -13,14 +13,13 @@ type GrowthEvent = Prisma.growth_eventsGetPayload<{}>;
 
 export interface CreateGrowthEventData {
   user_id: string;
-  related_memory_units: string[];
-  related_concepts: string[];
-  growth_dimensions: any;
+  source_memory_unit_ids: string[];
+  source_concept_ids: string[];
   source: string;
-  details: any;
-  dimension_key: string;
+  metadata: any;
+  type: string;
   delta_value: number;
-  rationale: string;
+  content: string;
 }
 
 export interface GrowthDimensionData {
@@ -37,16 +36,16 @@ export class GrowthEventRepository {
   async create(data: CreateGrowthEventData): Promise<GrowthEvent> {
     const event = await this.db.prisma.growth_events.create({
       data: {
-        event_id: randomUUID(),
+        entity_id: randomUUID(),
         ...data,
       },
     });
     return event;
   }
 
-  async findById(eventId: string): Promise<GrowthEvent | null> {
+  async findById(entityId: string): Promise<GrowthEvent | null> {
     return this.db.prisma.growth_events.findUnique({
-      where: { event_id: eventId },
+      where: { entity_id: entityId },
     });
   }
 
@@ -62,9 +61,9 @@ export class GrowthEventRepository {
   async findByEntity(entityId: string, entityType: 'memory_unit' | 'concept'): Promise<GrowthEvent[]> {
     const whereClause: Prisma.growth_eventsWhereInput = {};
     if (entityType === 'memory_unit') {
-      whereClause.related_memory_units = { has: entityId };
+      whereClause.source_memory_unit_ids = { has: entityId };
     } else {
-      whereClause.related_concepts = { has: entityId };
+      whereClause.source_concept_ids = { has: entityId };
     }
     return this.db.prisma.growth_events.findMany({
       where: whereClause,
@@ -76,10 +75,7 @@ export class GrowthEventRepository {
     return this.db.prisma.growth_events.findMany({
       where: {
         user_id: userId,
-        growth_dimensions: {
-          path: ['$[*].dim_key'],
-          array_contains: dimKey
-        }
+        type: dimKey
       },
       take: limit,
       orderBy: { created_at: 'desc' },
@@ -135,19 +131,16 @@ export class GrowthEventRepository {
       where.user_id = userId;
     }
     if (dimKey) {
-      where.growth_dimensions = {
-        path: ['$[*].dim_key'],
-        array_contains: dimKey,
-      };
+      where.type = dimKey;
     }
     return this.db.prisma.growth_events.count({
       where,
     });
   }
 
-  async delete(eventId: string): Promise<void> {
+  async delete(entityId: string): Promise<void> {
     await this.db.prisma.growth_events.delete({
-      where: { event_id: eventId },
+      where: { entity_id: entityId },
     });
   }
 }

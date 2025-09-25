@@ -17,13 +17,9 @@ import {
   GrowthEventRepository,
   UserRepository,
   DatabaseService,
-  CreateCardData,
-  cards as Card,
-  proactive_prompts,
-  communities,
-  growth_events,
-  users
+  CreateCardData
 } from '@2dots1line/database';
+import type { Prisma } from '@prisma/client';
 import {
   TConcept,
   TDerivedArtifact,
@@ -34,7 +30,14 @@ import {
 } from '@2dots1line/shared-types';
 import { ConfigService } from '@2dots1line/config-service';
 
-type CreatableEntity = TMemoryUnit | TConcept | TDerivedArtifact | proactive_prompts | communities | growth_events | users;
+// Define types locally (using any for now since Prisma types are complex)
+type Card = any;
+type ProactivePrompt = any;
+type Community = any;
+type GrowthEvent = any;
+type User = any;
+
+type CreatableEntity = TMemoryUnit | TConcept | TDerivedArtifact | ProactivePrompt | Community | GrowthEvent | User;
 type EntityType = 'MemoryUnit' | 'Concept' | 'DerivedArtifact' | 'ProactivePrompt' | 'Community' | 'GrowthEvent' | 'User';
 
 interface CreateCardResult {
@@ -124,33 +127,7 @@ export class CardFactory {
   }
 
   private async fetchEntity(id: string, type: EntityType): Promise<CreatableEntity | null> {
-    switch (type) {
-      case 'MemoryUnit':
-        return this.memoryRepository.findById(id);
-      case 'Concept':
-        return this.conceptRepository.findById(id);
-      case 'DerivedArtifact':
-        return this.derivedArtifactRepository.findById(id) as unknown as Promise<CreatableEntity | null>;
-      case 'ProactivePrompt':
-        return this.proactivePromptRepository.findById(id);
-      case 'Community':
-        // Note: CommunityRepository doesn't have findById, so we'll use a direct Prisma query
-        try {
-          return await this.databaseService.prisma.communities.findUnique({
-            where: { community_id: id }
-          });
-        } catch (error) {
-          console.warn(`[CardFactory] Error fetching community ${id}:`, error);
-          return null;
-        }
-      case 'GrowthEvent':
-        return this.growthEventRepository.findById(id);
-      case 'User':
-        return this.userRepository.findById(id);
-      default:
-        console.warn(`[CardFactory] Unknown entity type: ${type}`);
-        return null;
-    }
+    return await this.fetchEntityByType(type, id);
   }
 
   private checkEligibility(entity: CreatableEntity, type: EntityType): boolean {
@@ -169,24 +146,24 @@ export class CardFactory {
         return muEligible;
       case 'Concept':
         const concept = entity as TConcept;
-        const salience = concept.metadata?.salience ?? concept.confidence ?? (entity as any).salience ?? 0;
+        const importanceScore = concept.importance_score ?? concept.confidence ?? 0;
         const typeEligible = rules.eligible_types.includes(concept.type || (entity as any).type);
-        const salienceEligible = salience >= rules.min_salience;
-        const conceptEligible = salienceEligible && typeEligible;
+        const importanceEligible = importanceScore >= rules.min_importance_score;
+        const conceptEligible = importanceEligible && typeEligible;
         console.log(`[CardFactory] Concept eligibility:`, {
-          salience, 
-          threshold: rules.min_salience,
+          importanceScore, 
+          threshold: rules.min_importance_score,
           type: concept.type || (entity as any).type,
           eligibleTypes: rules.eligible_types,
-          salienceEligible,
+          importanceEligible,
           typeEligible,
           conceptEligible
         });
         return conceptEligible;
       case 'DerivedArtifact':
         const da = entity as TDerivedArtifact;
-        const daEligible = rules.eligible_types.includes(da.artifact_type);
-        console.log(`[CardFactory] DerivedArtifact eligibility: type=${da.artifact_type}, eligibleTypes=${rules.eligible_types}, eligible=${daEligible}`);
+        const daEligible = rules.eligible_types.includes(da.type);
+        console.log(`[CardFactory] DerivedArtifact eligibility: type=${da.type}, eligibleTypes=${rules.eligible_types}, eligible=${daEligible}`);
         return daEligible;
       case 'Community':
         const community = entity as any;
@@ -223,7 +200,7 @@ export class CardFactory {
             templateKey = `Concept_${conceptType}`;
         }
     } else if (type === 'DerivedArtifact') {
-        const artifactType = (entity as TDerivedArtifact).artifact_type;
+        const artifactType = (entity as TDerivedArtifact).type;
         // e.g. "DerivedArtifact_cycle_report"
         if (this.cardTemplates[`DerivedArtifact_${artifactType}`]) {
             templateKey = `DerivedArtifact_${artifactType}`;
@@ -235,42 +212,16 @@ export class CardFactory {
 
     const displayData = this.buildDisplayData(entity, template.display_data);
 
-    // Map entity to correct ID field based on type
-    let sourceEntityId: string;
-    switch (type) {
-      case 'MemoryUnit':
-        sourceEntityId = (entity as any).muid;
-        break;
-      case 'Concept':
-        sourceEntityId = (entity as any).concept_id;
-        break;
-      case 'DerivedArtifact':
-        sourceEntityId = (entity as any).artifact_id;
-        break;
-      case 'ProactivePrompt':
-        sourceEntityId = (entity as any).prompt_id;
-        break;
-      case 'Community':
-        sourceEntityId = (entity as any).community_id;
-        break;
-      case 'GrowthEvent':
-        sourceEntityId = (entity as any).event_id;
-        break;
-      case 'User':
-        sourceEntityId = (entity as any).user_id;
-        break;
-      default:
-        console.warn(`[CardFactory] Unknown entity type for card construction: ${type}`);
-        return null;
-    }
-
+    // All entities now use standardized entity_id field
+    const sourceEntityId = (entity as any).entity_id;
     if (!sourceEntityId) {
+      console.warn(`[CardFactory] Entity missing entity_id: ${type}`);
       return null;
     }
 
     return {
       user_id: userId,
-      card_type: template.card_type,
+      type: template.type,
       source_entity_id: sourceEntityId,
       source_entity_type: type,
       display_data: displayData,
@@ -290,5 +241,42 @@ export class CardFactory {
       title,
       previewText: preview,
     };
+  }
+
+  /**
+   * Generic method to fetch entity by type using standardized field names
+   * This replaces the need for separate switch cases since all entities now use:
+   * - entity_id (primary key)
+   * - user_id (for filtering)
+   * - title, content, created_at, updated_at (standardized fields)
+   */
+  private async fetchEntityByType(type: EntityType, id: string): Promise<CreatableEntity | null> {
+    try {
+      switch (type) {
+        case 'MemoryUnit':
+          return this.memoryRepository.findById(id);
+        case 'Concept':
+          return this.conceptRepository.findById(id);
+        case 'DerivedArtifact':
+          return this.derivedArtifactRepository.findById(id) as unknown as Promise<CreatableEntity | null>;
+        case 'ProactivePrompt':
+          return this.proactivePromptRepository.findById(id);
+        case 'Community':
+          // Note: CommunityRepository doesn't have findById, so we'll use a direct Prisma query
+          return await this.databaseService.prisma.communities.findUnique({
+            where: { entity_id: id }
+          });
+        case 'GrowthEvent':
+          return this.growthEventRepository.findById(id);
+        case 'User':
+          return this.userRepository.findById(id);
+        default:
+          console.warn(`[CardFactory] Unknown entity type: ${type}`);
+          return null;
+      }
+    } catch (error) {
+      console.error(`[CardFactory] Error fetching ${type} ${id}:`, error);
+      return null;
+    }
   }
 }

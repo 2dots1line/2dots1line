@@ -3,15 +3,16 @@
  * V9.7 Repository for ProactivePrompt operations
  */
 
-import type { proactive_prompts, Prisma } from '@2dots1line/database';
+// Use any type for now since Prisma types are complex
+type proactive_prompts = any;
 import { DatabaseService } from '../DatabaseService';
 import { randomUUID } from 'crypto';
 
 export interface CreateProactivePromptData {
   user_id: string;
   cycle_id?: string; // For dashboard grouping
-  prompt_text: string;
-  source_agent: string;
+  content: string;
+  type: string;
   metadata?: any;
 }
 
@@ -26,19 +27,19 @@ export class ProactivePromptRepository {
   async create(data: CreateProactivePromptData): Promise<proactive_prompts> {
     return this.db.prisma.proactive_prompts.create({
       data: {
-        prompt_id: randomUUID(),
+        entity_id: randomUUID(),
         user_id: data.user_id,
         cycle_id: data.cycle_id ?? null,
-        prompt_text: data.prompt_text,
-        source_agent: data.source_agent,
+        content: data.content,
+        type: data.type,
         metadata: data.metadata ?? null,
       },
     });
   }
 
-  async findById(promptId: string): Promise<proactive_prompts | null> {
+  async findById(entityId: string): Promise<proactive_prompts | null> {
     return this.db.prisma.proactive_prompts.findUnique({
-      where: { prompt_id: promptId },
+      where: { entity_id: entityId },
     });
   }
 
@@ -74,44 +75,44 @@ export class ProactivePromptRepository {
     return this.db.prisma.proactive_prompts.findMany({
       where: {
         user_id: userId,
-        source_agent: sourceAgent,
+        type: sourceAgent,
       },
       take: limit,
       orderBy: { created_at: 'desc' },
     });
   }
 
-  async update(promptId: string, data: UpdateProactivePromptData): Promise<proactive_prompts> {
+  async update(entityId: string, data: UpdateProactivePromptData): Promise<proactive_prompts> {
     return this.db.prisma.proactive_prompts.update({
-      where: { prompt_id: promptId },
+      where: { entity_id: entityId },
       data,
     });
   }
 
-  async markAsDelivered(promptId: string): Promise<proactive_prompts> {
+  async markAsDelivered(entityId: string): Promise<proactive_prompts> {
     return this.db.prisma.proactive_prompts.update({
-      where: { prompt_id: promptId },
+      where: { entity_id: entityId },
       data: { status: 'delivered' },
     });
   }
 
-  async markAsRead(promptId: string): Promise<proactive_prompts> {
+  async markAsRead(entityId: string): Promise<proactive_prompts> {
     return this.db.prisma.proactive_prompts.update({
-      where: { prompt_id: promptId },
+      where: { entity_id: entityId },
       data: { status: 'read' },
     });
   }
 
-  async markAsActioned(promptId: string): Promise<proactive_prompts> {
+  async markAsActioned(entityId: string): Promise<proactive_prompts> {
     return this.db.prisma.proactive_prompts.update({
-      where: { prompt_id: promptId },
+      where: { entity_id: entityId },
       data: { status: 'actioned' },
     });
   }
 
-  async delete(promptId: string): Promise<void> {
+  async delete(entityId: string): Promise<void> {
     await this.db.prisma.proactive_prompts.delete({
-      where: { prompt_id: promptId },
+      where: { entity_id: entityId },
     });
   }
 

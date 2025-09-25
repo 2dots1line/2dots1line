@@ -13,7 +13,7 @@ export interface TCard {
   /** ID of the user who owns this card */
   user_id: string;
   /** Type of card (e.g., 'memory_unit', 'concept', 'derived_artifact') */
-  card_type: string;
+  type: string;
   /** ID of the source entity this card represents */
   source_entity_id: string;
   /** Type of the source entity ('MemoryUnit', 'Concept', 'DerivedArtifact', 'ProactivePrompt') */

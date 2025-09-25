@@ -82,7 +82,7 @@ function calculateSemanticSimilarity(card: DisplayCard, image: ImageMetadata): n
   let score = 0;
   
   // Base similarity from card type
-  if (image.cardTypes && image.cardTypes.includes(card.card_type)) {
+  if (image.cardTypes && image.cardTypes.includes(card.type)) {
     score += 0.4;
   }
   
@@ -91,7 +91,7 @@ function calculateSemanticSimilarity(card: DisplayCard, image: ImageMetadata): n
     card.title,
     card.subtitle,
     card.description,
-    card.card_type,
+    card.type,
     card.source_entity_type
   ].filter(Boolean).join(' ').toLowerCase();
   
@@ -167,7 +167,7 @@ export function useCardImage(card: DisplayCard) {
     }
     
     // Use card type-specific gradient instead of trying to load missing images
-    return getCardTypeGradient(card.card_type);
+    return getCardTypeGradient(card.type);
   }, [card]);
   
   // Get suggested images for background selection
@@ -248,7 +248,7 @@ export function useCardImage(card: DisplayCard) {
 export function getCardTitle(card: DisplayCard): string {
   return (typeof card.title === 'string' ? card.title : '') || 
          (typeof card.display_data?.title === 'string' ? card.display_data.title : '') || 
-         (typeof card.card_type === 'string' ? card.card_type.replace(/_/g, ' ') : '') || 
+          (typeof card.type === 'string' ? card.type.replace(/_/g, ' ') : '') ||
          'Card';
 }
 

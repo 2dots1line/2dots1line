@@ -186,7 +186,7 @@ export const InfiniteCardCanvas: React.FC<InfiniteCardCanvasProps> = ({
           // Determine display values with resilient fallbacks
           const displayTitle =
             card?.title ||
-            (typeof card?.card_type === 'string' ? card.card_type.replace(/_/g, ' ') : '') ||
+            (typeof card?.type === 'string' ? card.type.replace(/_/g, ' ') : '') ||
             'Card';
           const displaySubtitle =
             card?.subtitle ||

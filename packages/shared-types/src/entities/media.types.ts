@@ -8,7 +8,7 @@
  */
 export interface TMedia {
   /** Unique identifier for the media item (UUID) */
-  media_id: string;
+  entity_id: string;
   /** ID of the user who owns this media item */
   user_id: string;
   /** Optional: ID of the MemoryUnit this media is primarily associated with */

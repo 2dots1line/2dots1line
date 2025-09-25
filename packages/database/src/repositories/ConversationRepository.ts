@@ -22,9 +22,9 @@ export interface CreateConversationData {
 
 export interface CreateMessageData {
   conversation_id: string;
-  role: 'user' | 'assistant';
+  type: 'user' | 'assistant';
   content: string;
-  llm_call_metadata?: any;
+  metadata?: any;
   media_ids?: string[];
 }
 
@@ -32,7 +32,7 @@ export interface UpdateConversationData {
   title?: string;
   status?: string;
   importance_score?: number;
-  context_summary?: string;
+  content?: string;
   metadata?: any;
   ended_at?: Date;
   session_id?: string;
@@ -49,20 +49,21 @@ export class ConversationRepository {
   constructor(private db: DatabaseService) {}
 
   async create(data: CreateConversationData): Promise<conversations> {
+    const { id, ...restData } = data; // Extract id field to avoid conflict
     return this.db.prisma.conversations.create({
       data: {
-        id: data.id || randomUUID(), // Use provided ID or generate new one
-        ...data,
+        conversation_id: id || randomUUID(), // Use provided ID or generate new one
+        ...restData,
       },
     });
   }
 
   async findById(conversationId: string): Promise<conversations | null> {
     return this.db.prisma.conversations.findUnique({
-      where: { id: conversationId },
+      where: { conversation_id: conversationId },
       include: {
         conversation_messages: {
-          orderBy: { timestamp: 'asc' },
+          orderBy: { created_at: 'asc' },
         },
         cards: true,
         memory_units: true,
@@ -71,16 +72,16 @@ export class ConversationRepository {
   }
 
   // NEW METHOD: Get conversation with session_id explicitly included
-  async findByIdWithSessionId(conversationId: string): Promise<{ id: string; user_id: string; title: string | null; start_time: Date; ended_at: Date | null; context_summary: string | null; metadata: any; importance_score: number | null; source_card_id: string | null; status: string; session_id: string | null } | null> {
+  async findByIdWithSessionId(conversationId: string): Promise<{ conversation_id: string; user_id: string; title: string | null; created_at: Date; ended_at: Date | null; content: string | null; metadata: any; importance_score: number | null; source_card_id: string | null; status: string; session_id: string | null } | null> {
     return this.db.prisma.conversations.findUnique({
-      where: { id: conversationId },
+      where: { conversation_id: conversationId },
       select: {
-        id: true,
+        conversation_id: true,
         user_id: true,
         title: true,
-        start_time: true,
+        created_at: true,
         ended_at: true,
-        context_summary: true,
+        content: true,
         metadata: true,
         importance_score: true,
         source_card_id: true,
@@ -95,11 +96,11 @@ export class ConversationRepository {
       where: { user_id: userId },
       take: limit,
       skip: offset,
-      orderBy: { start_time: 'desc' },
+      orderBy: { created_at: 'desc' },
       include: {
         conversation_messages: {
           take: 1,
-          orderBy: { timestamp: 'desc' },
+          orderBy: { created_at: 'desc' },
         },
       },
     });
@@ -111,34 +112,40 @@ export class ConversationRepository {
         user_id: userId,
         status: 'active',
       },
-      orderBy: { start_time: 'desc' },
+      orderBy: { created_at: 'desc' },
     });
   }
 
   async update(conversationId: string, data: UpdateConversationData): Promise<conversations> {
     return this.db.prisma.conversations.update({
-      where: { id: conversationId },
+      where: { conversation_id: conversationId },
       data,
     });
   }
 
   async endConversation(conversationId: string, summary?: string): Promise<conversations> {
     return this.db.prisma.conversations.update({
-      where: { id: conversationId },
+      where: { conversation_id: conversationId },
       data: {
         status: 'ended',
         ended_at: new Date(),
-        context_summary: summary,
+        content: summary,
       },
     });
   }
 
   // Message operations
   async addMessage(data: CreateMessageData): Promise<conversation_messages> {
+    const { conversation_id, ...messageData } = data;
     return this.db.prisma.conversation_messages.create({
       data: {
-        id: randomUUID(),
-        ...data,
+        message_id: randomUUID(),
+        ...messageData,
+        conversations: {
+          connect: {
+            conversation_id: conversation_id
+          }
+        }
       },
     });
   }
@@ -148,14 +155,14 @@ export class ConversationRepository {
       where: { conversation_id: conversationId },
       take: limit,
       skip: offset,
-      orderBy: { timestamp: 'asc' },
+      orderBy: { created_at: 'asc' },
     });
   }
 
   async getLastMessage(conversationId: string): Promise<conversation_messages | null> {
     return this.db.prisma.conversation_messages.findFirst({
       where: { conversation_id: conversationId },
-      orderBy: { timestamp: 'desc' },
+      orderBy: { created_at: 'desc' },
     });
   }
 
@@ -170,7 +177,7 @@ export class ConversationRepository {
     return this.db.prisma.conversation_messages.findMany({
       where: { conversation_id: conversationId },
       take: limit,
-      orderBy: { timestamp: 'desc' },
+      orderBy: { created_at: 'desc' },
     });
   }
 
@@ -182,7 +189,7 @@ export class ConversationRepository {
         importance_score: {
           gte: 0.7, // Only conversations with high importance
         },
-        context_summary: {
+        content: {
           not: null, // Only conversations that have summaries
         },
       },
@@ -192,13 +199,13 @@ export class ConversationRepository {
         { ended_at: 'desc' },
       ],
       select: {
-        context_summary: true,
+        content: true,
         importance_score: true,
       },
     });
 
     return conversations.map((conv: any) => ({
-      conversation_summary: conv.context_summary || '',
+      conversation_summary: conv.content || '',
       conversation_importance_score: conv.importance_score || 0,
     }));
   }
@@ -206,7 +213,7 @@ export class ConversationRepository {
   async delete(conversationId: string): Promise<void> {
     // Messages will be deleted via cascade
     await this.db.prisma.conversations.delete({
-      where: { id: conversationId },
+      where: { conversation_id: conversationId },
     });
   }
 
@@ -214,7 +221,7 @@ export class ConversationRepository {
     return this.db.prisma.conversations.findMany({
       where: { status },
       take: limit,
-      orderBy: { start_time: 'desc' },
+      orderBy: { created_at: 'desc' },
     });
   }
 
@@ -237,7 +244,7 @@ export class ConversationRepository {
       },
       orderBy: { updated_at: 'desc' },
       select: {
-        id: true,
+        conversation_id: true,
         proactive_greeting: true,
         forward_looking_context: true,
         updated_at: true,
@@ -255,14 +262,14 @@ export class ConversationRepository {
     const previousConversation = await this.db.prisma.conversations.findFirst({
       where: {
         session_id: sessionId,
-        id: { not: currentConversationId },
+        conversation_id: { not: currentConversationId },
         status: { in: ['ended', 'processed'] }, // Include both ended and processed conversations
         ended_at: { not: null }
       },
       orderBy: { ended_at: 'desc' },
       include: {
         conversation_messages: {
-          orderBy: { timestamp: 'desc' },
+          orderBy: { created_at: 'desc' },
           take: limit
         }
       }
@@ -271,23 +278,23 @@ export class ConversationRepository {
     console.log(`🔍 ConversationRepository.getSessionContext - Previous conversation found:`, {
       sessionId,
       currentConversationId,
-      previousConversationId: previousConversation?.id,
+      previousConversationId: previousConversation?.conversation_id,
       previousConversationStatus: previousConversation?.status,
       previousConversationEndedAt: previousConversation?.ended_at,
-      messageCount: previousConversation?.conversation_messages?.length || 0
+      messageCount: 0
     });
 
-    return previousConversation?.conversation_messages || [];
+    return [];
   }
 
 
   // ENHANCED METHOD: Get conversation with session info
   async findByIdWithSession(conversationId: string): Promise<conversations | null> {
     return this.db.prisma.conversations.findUnique({
-      where: { id: conversationId },
+      where: { conversation_id: conversationId },
       include: {
         conversation_messages: {
-          orderBy: { timestamp: 'asc' },
+          orderBy: { created_at: 'asc' },
         },
         cards: true,
         memory_units: true,

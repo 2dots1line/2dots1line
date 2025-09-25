@@ -9,17 +9,17 @@
  */
 export interface TConversationMessage {
   /** Unique identifier for the message (UUID) */
-  id: string;
+  message_id: string;
   /** ID of the conversation this message belongs to */
   conversation_id: string;
   /** Sender type ('user' or 'assistant') */
-  role: 'user' | 'assistant';
+  type: 'user' | 'assistant';
   /** Text content of the message */
   content: string;
   /** Timestamp of the message */
-  timestamp: Date;
+  created_at: Date;
   /** LLM call metadata (JSON object) */
-  llm_call_metadata?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown> | null;
   /** Media IDs associated with this message */
   media_ids: string[];
 }
@@ -30,13 +30,13 @@ export interface TConversationMessage {
  */
 export interface TConversation {
   /** Unique identifier for the conversation (UUID) */
-  id: string;
+  conversation_id: string;
   /** ID of the user */
   user_id: string;
   /** AI-generated or user-provided title for the conversation */
   title?: string | null;
   /** Timestamp when the conversation started */
-  start_time: Date;
+  created_at: Date;
   /** Timestamp when the conversation ended */
   ended_at?: Date | null;
   /** Status of the conversation ('active', 'ended', 'processing', 'processed') */
@@ -44,7 +44,7 @@ export interface TConversation {
   /** Importance score of the conversation */
   importance_score?: number | null;
   /** Summary of the conversation context */
-  context_summary?: string | null;
+  content?: string | null;
   /** Additional conversation metadata (JSON object) */
   metadata?: Record<string, unknown> | null;
   /** ID of the source card that initiated this conversation */

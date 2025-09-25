@@ -10,7 +10,9 @@
  */
 
 import { DatabaseService } from '../DatabaseService';
-import type { user_sessions, conversations } from '@2dots1line/database';
+// Use any types for now since Prisma types are complex
+type user_sessions = any;
+type conversations = any;
 import { randomUUID } from 'crypto';
 
 export interface CreateSessionData {
@@ -77,10 +79,10 @@ export class SessionRepository {
   async getConversationsInSession(sessionId: string): Promise<conversations[]> {
     return this.db.prisma.conversations.findMany({
       where: { session_id: sessionId },
-      orderBy: { start_time: 'desc' },
+      orderBy: { created_at: 'desc' },
       include: {
         conversation_messages: {
-          orderBy: { timestamp: 'desc' },
+          orderBy: { created_at: 'desc' },
           take: 5 // Get last 5 messages from each conversation
         }
       }
@@ -97,7 +99,7 @@ export class SessionRepository {
       orderBy: { last_active_at: 'desc' },
       include: {
         conversations: {
-          orderBy: { start_time: 'desc' }
+          orderBy: { created_at: 'desc' }
           // Get all conversations for the session
         }
       }

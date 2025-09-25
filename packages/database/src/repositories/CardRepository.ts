@@ -10,7 +10,7 @@ import { GrowthDimensionData } from './GrowthEventRepository';
 
 export interface CreateCardData {
   user_id: string;
-  card_type: string;
+  type: string;
   source_entity_id: string;
   source_entity_type: string;
   display_data?: any;
@@ -170,7 +170,7 @@ export class CardRepository {
     return this.db.prisma.cards.findMany({
       where: {
         user_id: userId,
-        card_type: cardType,
+        type: cardType,
       },
       take: limit,
       orderBy: { created_at: 'desc' },
@@ -204,7 +204,7 @@ export class CardRepository {
     const cards = await this.db.prisma.cards.findMany({
       where: {
         user_id: userId,
-        ...(filters.cardType && { card_type: filters.cardType }),
+        ...(filters.cardType && { type: filters.cardType }),
         // Note: evolutionState filtering would need proper implementation with business logic
       },
       take: filters.limit || 200, // Increased default limit for better UX
@@ -215,7 +215,7 @@ export class CardRepository {
     const total = await this.db.prisma.cards.count({
       where: {
         user_id: userId,
-        ...(filters.cardType && { card_type: filters.cardType }),
+        ...(filters.cardType && { type: filters.cardType }),
       },
     });
 
@@ -232,7 +232,7 @@ export class CardRepository {
       }
       return {
         id: card.card_id,
-        type: card.card_type as 'memory_unit' | 'concept' | 'derived_artifact' | 'memoryunit' | 'growthevent' | 'proactiveprompt' | 'community',
+        type: card.type as 'memory_unit' | 'concept' | 'derived_artifact' | 'memoryunit' | 'growthevent' | 'proactiveprompt' | 'community',
         title: displayData.title || displayData.name || '',
         preview: displayData.preview || displayData.previewText || displayData.description || '',
         evolutionState: 'seed', // Simplified - should calculate based on business logic
@@ -270,7 +270,7 @@ export class CardRepository {
 
     return {
       id: card.card_id,
-      type: card.card_type as 'memory_unit' | 'concept' | 'derived_artifact',
+      type: card.type as 'memory_unit' | 'concept' | 'derived_artifact',
       title: `Card ${card.card_id}`,
       preview: `Preview for ${card.card_id}`,
       evolutionState: 'seed',
@@ -293,7 +293,7 @@ export class CardRepository {
 
     return cards.map((card: any) => ({
       id: card.card_id,
-      type: card.card_type as 'memory_unit' | 'concept' | 'derived_artifact',
+      type: card.type as 'memory_unit' | 'concept' | 'derived_artifact',
       title: `Card ${card.card_id}`,
       preview: `Preview for ${card.card_id}`,
       evolutionState: state,
@@ -316,7 +316,7 @@ export class CardRepository {
 
     return cards.map((card: any) => ({
       id: card.card_id,
-      type: card.card_type as 'memory_unit' | 'concept' | 'derived_artifact',
+      type: card.type as 'memory_unit' | 'concept' | 'derived_artifact',
       title: `Card ${card.card_id}`,
       preview: `Preview for ${card.card_id}`,
       evolutionState: 'sprout',
