@@ -28,30 +28,30 @@ model cards {
 }
 
 model communities {
-  entity_id  String     @id @default(uuid())
-  user_id    String
-  created_at DateTime   @default(now())
-  title      String
-  content    String?
-  type       String?
-  updated_at DateTime?  @db.Timestamp(6)
-  status     String     @default("active")
+  entity_id  String     @id @default(uuid())  // 1. Primary Key
+  user_id    String                           // 2. User Reference
+  title      String                           // 3. Core Content
+  content    String?                          // 3. Core Content
+  type       String?                          // 4. Classification
+  status     String     @default("active")    // 4. Classification
+  created_at DateTime   @default(now())       // 9. Timestamps
+  updated_at DateTime?  @db.Timestamp(6)      // 9. Timestamps (nullable)
   users      users      @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
   concepts   concepts[]
 }
 
 model concepts {
-  entity_id              String       @id @default(uuid())
-  user_id                String
-  type                   String
-  community_id           String?
-  created_at             DateTime     @default(now())
-  merged_into_concept_id String?
-  status                 String       @default("active")
-  title                  String
-  content                String?
-  updated_at             DateTime?    @db.Timestamp(6)
-  importance_score       Float?
+  entity_id              String       @id @default(uuid())  // 1. Primary Key
+  user_id                String                              // 2. User Reference
+  title                  String                              // 3. Core Content
+  content                String?                             // 3. Core Content
+  type                   String                              // 4. Classification
+  status                 String       @default("active")     // 4. Classification
+  importance_score       Float?                              // 5. Scores & Metrics
+  community_id           String?                             // 6. Relationships
+  merged_into_concept_id String?                             // 6. Relationships
+  created_at             DateTime     @default(now())        // 9. Timestamps
+  updated_at             DateTime?    @db.Timestamp(6)       // 9. Timestamps (nullable)
   communities            communities? @relation(fields: [community_id], references: [entity_id])
   concepts               concepts?    @relation("conceptsToconcepts", fields: [merged_into_concept_id], references: [entity_id], onDelete: NoAction, onUpdate: NoAction)
   other_concepts         concepts[]   @relation("conceptsToconcepts")
@@ -59,33 +59,33 @@ model concepts {
 }
 
 model conversation_messages {
-  conversation_id String
-  media_ids       String[]      @default([])
-  content         String
-  message_id      String        @id @default(uuid())
-  created_at      DateTime      @default(now()) @db.Timestamp(6)
-  status          String        @default("active")
-  type            String
-  metadata        Json?
+  message_id      String        @id @default(uuid())  // 1. Primary Key
+  conversation_id String                                // 2. User Reference (via conversation)
+  content         String                                // 3. Core Content
+  type            String                                // 4. Classification (role: user/assistant/system)
+  status          String        @default("active")     // 4. Classification
+  media_ids       String[]      @default([])           // 7. Arrays & Complex Data
+  metadata        Json?                                // 8. Metadata (standardized)
+  created_at      DateTime      @default(now())        // 9. Timestamps
   conversations   conversations @relation(fields: [conversation_id], references: [conversation_id], onDelete: Cascade)
 }
 
 model conversations {
-  user_id                 String
-  title                   String?
-  created_at              DateTime                @default(now())
-  ended_at                DateTime?
-  metadata                Json?
-  conversation_id         String                  @id @default(uuid())
-  importance_score        Float?
-  source_card_id          String?
-  status                  String                  @default("active")
-  session_id              String?
-  forward_looking_context Json?
-  proactive_greeting      String?
-  updated_at              DateTime                @default(now())
-  content                 String?
-  type                    String?
+  conversation_id         String                  @id @default(uuid())  // 1. Primary Key
+  user_id                 String                                        // 2. User Reference
+  title                   String?                                      // 3. Core Content
+  content                 String?                                      // 3. Core Content
+  type                    String?                                      // 4. Classification
+  status                  String                  @default("active")    // 4. Classification
+  importance_score        Float?                                       // 5. Scores & Metrics
+  source_card_id          String?                                      // 6. Relationships
+  session_id              String?                                      // 6. Relationships
+  proactive_greeting      String?                                      // 8. Metadata
+  forward_looking_context Json?                                        // 8. Metadata
+  metadata                Json?                                        // 8. Metadata
+  created_at              DateTime                @default(now())       // 9. Timestamps
+  ended_at                DateTime?                                    // 9. Timestamps
+  updated_at              DateTime                @default(now())       // 9. Timestamps
   conversation_messages   conversation_messages[]
   user_sessions           user_sessions?          @relation(fields: [session_id], references: [session_id])
   cards                   cards?                  @relation(fields: [source_card_id], references: [card_id])
@@ -99,51 +99,51 @@ model conversations {
 }
 
 model derived_artifacts {
-  entity_id              String    @id @default(uuid())
-  user_id                String
-  title                  String
-  created_at             DateTime  @default(now())
-  source_concept_ids     String[]
-  source_memory_unit_ids String[]
-  cycle_id               String?
-  content                String?
-  type                   String
-  updated_at             DateTime? @db.Timestamp(6)
-  status                 String    @default("active")
+  entity_id              String    @id @default(uuid())  // 1. Primary Key
+  user_id                String                          // 2. User Reference
+  title                  String                          // 3. Core Content
+  content                String?                         // 3. Core Content
+  type                   String                          // 4. Classification
+  status                 String    @default("active")    // 4. Classification
+  cycle_id               String?                         // 6. Relationships
+  source_concept_ids     String[]                        // 7. Arrays & Complex Data
+  source_memory_unit_ids String[]                        // 7. Arrays & Complex Data
+  created_at             DateTime  @default(now())       // 9. Timestamps
+  updated_at             DateTime? @db.Timestamp(6)       // 9. Timestamps (nullable)
   users                  users     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@index([user_id, cycle_id])
 }
 
 model growth_events {
-  entity_id              String    @id @default(uuid())
-  user_id                String
-  source                 String
-  created_at             DateTime  @default(now())
-  delta_value            Decimal   @db.Decimal(3, 1)
-  title                  String?
-  content                String
-  type                   String?
-  updated_at             DateTime? @db.Timestamp(6)
-  status                 String    @default("active")
-  source_concept_ids     String[]  @default([])
-  source_memory_unit_ids String[]  @default([])
-  metadata               Json?
+  entity_id              String    @id @default(uuid())  // 1. Primary Key
+  user_id                String                          // 2. User Reference
+  title                  String?                         // 3. Core Content (generated by IngestionAnalyst)
+  content                String                          // 3. Core Content
+  type                   String?                         // 4. Classification (from dimension_key)
+  status                 String    @default("active")    // 4. Classification
+  delta_value            Decimal   @db.Decimal(3, 1)     // 5. Scores & Metrics
+  source_concept_ids     String[]  @default([])          // 7. Arrays & Complex Data (standardized)
+  source_memory_unit_ids String[]  @default([])          // 7. Arrays & Complex Data (standardized)
+  source                 String                          // 8. Metadata
+  metadata               Json?                           // 8. Metadata (standardized)
+  created_at             DateTime  @default(now())       // 9. Timestamps
+  updated_at             DateTime? @db.Timestamp(6)      // 9. Timestamps (nullable)
   users                  users     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@index([delta_value])
 }
 
 model interaction_logs {
-  interaction_id     String   @id @default(uuid())
-  user_id            String
-  target_entity_id   String?
-  target_entity_type String?
-  content_structured Json?
-  metadata           Json?
-  created_at         DateTime @default(now()) @db.Timestamp(6)
-  content            String?
-  type               String
+  interaction_id     String   @id @default(uuid())  // 1. Primary Key
+  user_id            String                         // 2. User Reference
+  content            String?                        // 3. Core Content
+  type               String                         // 4. Classification
+  target_entity_id   String?                        // 6. Relationships
+  target_entity_type String?                        // 6. Relationships
+  content_structured Json?                          // 8. Metadata
+  metadata           Json?                          // 8. Metadata
+  created_at         DateTime @default(now())       // 9. Timestamps
   users              users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 }
 
@@ -170,32 +170,32 @@ model media_items {
 }
 
 model memory_units {
-  entity_id              String         @id @default(uuid())
-  user_id                String
-  title                  String
-  content                String
-  importance_score       Float?
-  sentiment_score        Float?
-  source_conversation_id String?
-  created_at             DateTime       @default(now()) @db.Timestamp(6)
-  updated_at             DateTime?      @db.Timestamp(6)
-  status                 String         @default("active")
-  type                   String?
+  entity_id              String         @id @default(uuid())  // 1. Primary Key
+  user_id                String                                // 2. User Reference
+  title                  String                                // 3. Core Content
+  content                String                                // 3. Core Content
+  type                   String?                               // 4. Classification
+  status                 String         @default("active")     // 4. Classification
+  importance_score       Float?                                // 5. Scores & Metrics
+  sentiment_score        Float?                                // 5. Scores & Metrics
+  source_conversation_id String?                               // 6. Relationships
+  created_at             DateTime       @default(now())        // 9. Timestamps
+  updated_at             DateTime?      @db.Timestamp(6)       // 9. Timestamps (nullable)
   media_items            media_items[]
   conversations          conversations? @relation(fields: [source_conversation_id], references: [conversation_id])
   users                  users          @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 }
 
 model proactive_prompts {
-  entity_id  String    @id @default(uuid())
-  user_id    String
-  status     String    @default("pending")
-  created_at DateTime  @default(now())
-  metadata   Json?
-  cycle_id   String?
-  content    String
-  type       String
-  updated_at DateTime? @db.Timestamp(6)
+  entity_id  String    @id @default(uuid())  // 1. Primary Key
+  user_id    String                          // 2. User Reference
+  content    String                          // 3. Core Content
+  type       String                          // 4. Classification
+  status     String    @default("pending")   // 4. Classification
+  cycle_id   String?                         // 6. Relationships
+  metadata   Json?                           // 8. Metadata
+  created_at DateTime  @default(now())       // 9. Timestamps
+  updated_at DateTime? @db.Timestamp(6)      // 9. Timestamps (nullable)
   users      users     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@index([user_id, cycle_id])
@@ -213,13 +213,13 @@ model user_challenges {
 }
 
 model user_cycles {
-  cycle_id              String    @id @default(uuid())
-  user_id               String
-  created_at            DateTime  @default(now())
-  completed_at          DateTime?
-  status                String    @default("pending")
-  type                  String
-  ended_at              DateTime? @db.Timestamp(6)
+  cycle_id              String    @id @default(uuid())  // 1. Primary Key
+  user_id               String                          // 2. User Reference
+  type                  String                          // 4. Classification
+  status                String    @default("pending")   // 4. Classification
+  created_at            DateTime  @default(now())       // 9. Timestamps
+  ended_at              DateTime? @db.Timestamp(6)      // 9. Timestamps
+  completed_at          DateTime?                       // 9. Timestamps
   users                 users     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@index([user_id, created_at])
