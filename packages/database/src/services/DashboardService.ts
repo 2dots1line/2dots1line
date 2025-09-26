@@ -235,7 +235,7 @@ export class DashboardService {
       try {
         // Map section types to data sources
         if (sectionKey === 'recent_cards') {
-          return [sectionKey, this.createCardSection(sectionKey, recentCards)];
+          return [sectionKey, await this.createCardSection(sectionKey, recentCards)];
         } else if (sectionKey === 'opening_words') {
           return [sectionKey, this.createOpeningWordsSection(sectionKey, openingArtifact)];
         } else if (sectionKey === 'growth_dimensions') {
@@ -399,41 +399,85 @@ export class DashboardService {
   }
 
   /**
+   * Load entity data from source entity table
+   */
+  private async loadEntityData(sourceEntityId: string, sourceEntityType: string): Promise<any> {
+    try {
+      switch (sourceEntityType) {
+        case 'MemoryUnit':
+          return await this.db.prisma.memory_units.findUnique({
+            where: { entity_id: sourceEntityId }
+          });
+        case 'Concept':
+          return await this.db.prisma.concepts.findUnique({
+            where: { entity_id: sourceEntityId }
+          });
+        case 'DerivedArtifact':
+          return await this.db.prisma.derived_artifacts.findUnique({
+            where: { entity_id: sourceEntityId }
+          });
+        case 'ProactivePrompt':
+          return await this.db.prisma.proactive_prompts.findUnique({
+            where: { entity_id: sourceEntityId }
+          });
+        case 'Community':
+          return await this.db.prisma.communities.findUnique({
+            where: { entity_id: sourceEntityId }
+          });
+        case 'GrowthEvent':
+          return await this.db.prisma.growth_events.findUnique({
+            where: { entity_id: sourceEntityId }
+          });
+        default:
+          console.warn(`[DashboardService] Unknown entity type: ${sourceEntityType}`);
+          return null;
+      }
+    } catch (error) {
+      console.error(`[DashboardService] Error loading entity data for ${sourceEntityType}:${sourceEntityId}:`, error);
+      return null;
+    }
+  }
+
+  /**
    * Create a section for cards
    */
-  private createCardSection(sectionType: string, cards: any[]): DashboardSectionData {
-    const items = cards.map(card => {
-      // Apply the same title generation logic as CardService
-      let title = card.title;
+  private async createCardSection(sectionType: string, cards: any[]): Promise<DashboardSectionData> {
+    const items = await Promise.all(cards.map(async (card) => {
+      // Load entity data from source entity table
+      const entityData = await this.loadEntityData(card.source_entity_id, card.source_entity_type);
+      
+      // Use custom title/content if available, otherwise use entity data
+      let title = card.custom_title || entityData?.title || '';
+      let content = card.custom_content || entityData?.content || '';
       
       // Fallback logic for different card types when title is empty
       if (!title) {
         switch (card.type) {
           case 'concept':
-            title = card.display_data?.title || 
-                   card.display_data?.content || 
-                   card.display_data?.entity_id || 
+            title = entityData?.title || 
+                   entityData?.content || 
+                   entityData?.entity_id || 
                    `Concept: ${card.card_id}`;
             break;
           case 'proactive_prompt':
-            title = card.display_data?.prompt_text || 
-                   card.display_data?.entity_id || 
+            title = entityData?.prompt_text || 
+                   entityData?.entity_id || 
                    `Proactive Prompt: ${card.card_id}`;
             break;
           case 'derived_artifact':
-            title = card.display_data?.title || 
-                   card.display_data?.type || 
-                   card.display_data?.entity_id || 
+            title = entityData?.title || 
+                   entityData?.type || 
+                   entityData?.entity_id || 
                    `Derived Artifact: ${card.card_id}`;
             break;
           case 'community':
-            title = card.display_data?.title || 
-                   card.display_data?.entity_id || 
+            title = entityData?.title || 
+                   entityData?.entity_id || 
                    `Community: ${card.card_id}`;
             break;
           case 'memoryunit':
-            title = card.display_data?.title || 
-                   card.display_data?.entity_id || 
+            title = entityData?.title || 
+                   entityData?.entity_id || 
                    `Memory Unit: ${card.card_id}`;
             break;
           default:
@@ -441,18 +485,24 @@ export class DashboardService {
         }
       }
 
+      // Ensure we have some content
+      if (!content) {
+        content = entityData?.content || entityData?.description || '';
+      }
+
       return {
         id: card.card_id,
         title: title,
-        content: card.description || card.display_data?.content || card.subtitle || '',
+        content: content,
         created_at: card.created_at,
         metadata: {
-          card_type: card.card_type,
+          card_type: card.type,
           background_image_url: card.background_image_url,
-          display_data: card.display_data
+          source_entity_id: card.source_entity_id,
+          source_entity_type: card.source_entity_type
         }
       };
-    });
+    }));
 
     return {
       section_type: sectionType,
