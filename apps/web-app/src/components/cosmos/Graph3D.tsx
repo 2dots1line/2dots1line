@@ -52,7 +52,7 @@ export const Graph3D: React.FC<Graph3DProps> = ({
 
   // Debug: Log all unique entity types
   const entityTypes = [...new Set(graphData.nodes.map(node => 
-    node.entityType || node.type || node.category || 'unknown'
+    node.type || node.entityType || node.category || 'unknown'
   ))];
   console.log('🔍 Graph3D: Entity types found:', entityTypes);
 

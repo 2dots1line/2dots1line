@@ -64,7 +64,7 @@ export class GraphController {
         }
         
         return {
-          id: node.id,
+          id: node.entity_id || node.id,
           title: node.properties?.title || node.title || 'Untitled',
           content: node.properties?.content || node.content || '',
           type: node.properties?.type || node.type || 'Unknown',

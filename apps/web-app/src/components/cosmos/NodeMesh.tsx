@@ -62,7 +62,7 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
     let baseColor;
     
     // Get entity type from node properties
-    const entityType = node.entityType || node.type || node.category || 'unknown';
+    const entityType = node.type || node.entityType || node.category || 'unknown';
     
     // Color coding by entity type
     switch (entityType) {
