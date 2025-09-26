@@ -247,7 +247,7 @@ export class DashboardService {
         } else if (sectionKey.endsWith('_prompts')) {
           // Prompt sections
           const promptType = sectionKey.replace('_prompts', '');
-          return [sectionKey, this.createPromptSection(sectionKey, prompts.filter((p: any) => (p.metadata as any)?.prompt_type === promptType))];
+          return [sectionKey, this.createPromptSection(sectionKey, prompts.filter((p: any) => p.type === promptType))];
         } else {
           // Regular artifact sections - map section keys to singular artifact types
           const artifactType = sectionKey === 'insights' ? 'insight' :

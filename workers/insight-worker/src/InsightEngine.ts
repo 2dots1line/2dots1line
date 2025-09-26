@@ -696,7 +696,8 @@ export class InsightEngine {
               title: prompt.title,
               context_explanation: prompt.context_explanation,
               timing_suggestion: prompt.timing_suggestion,
-              priority_level: prompt.priority_level
+              priority_level: prompt.priority_level,
+              prompt_type: prompt.type
             },
             created_at: new Date(),
             updated_at: undefined
