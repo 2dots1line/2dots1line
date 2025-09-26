@@ -227,4 +227,90 @@ export class CardController {
       } as TApiResponse<any>);
     }
   };
+
+  /**
+   * GET /api/v1/cards/ids
+   * Get all card IDs for a user (for random selection)
+   */
+  public getAllCardIds = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authorization required'
+          }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      // Call the CardService to get all card IDs
+      const cardIds = await this.cardService.getAllCardIds(userId);
+
+      res.status(200).json({
+        success: true,
+        data: {
+          cardIds
+        }
+      } as TApiResponse<any>);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to get card IDs';
+      console.error('Card controller get all card IDs error:', error);
+      res.status(500).json({
+        success: false,
+        error: { code: 'GET_CARD_IDS_FAILED', message }
+      } as TApiResponse<any>);
+    }
+  };
+
+  /**
+   * POST /api/v1/cards/by-ids
+   * Get cards by specific IDs (for random loading)
+   */
+  public getCardsByIds = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authorization required'
+          }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      const { cardIds } = req.body;
+      if (!Array.isArray(cardIds) || cardIds.length === 0) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_REQUEST',
+            message: 'cardIds must be a non-empty array'
+          }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      // Call the CardService to get cards by IDs
+      const cards = await this.cardService.getCardsByIds(cardIds);
+
+      res.status(200).json({
+        success: true,
+        data: {
+          cards
+        }
+      } as TApiResponse<any>);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to get cards by IDs';
+      console.error('Card controller get cards by IDs error:', error);
+      res.status(500).json({
+        success: false,
+        error: { code: 'GET_CARDS_BY_IDS_FAILED', message }
+      } as TApiResponse<any>);
+    }
+  };
 }

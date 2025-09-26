@@ -159,9 +159,14 @@ export class DialogueAgent {
       
       // A. Execute retrieval
       console.log(`[${executionId}] 🔍 Executing memory retrieval with key phrases:`, keyPhrases);
+      
+      // Load user-specific HRT parameters
+      const userParameters = await this.loadUserHRTParameters(input.userId);
+      
       const augmentedContext = await this.hybridRetrievalTool.execute({
         keyPhrasesForRetrieval: keyPhrases,
-        userId: input.userId
+        userId: input.userId,
+        userParameters: userParameters
       });
       
       console.log(`[${executionId}] 📊 Memory retrieval results:`, {
@@ -600,5 +605,86 @@ export class DialogueAgent {
     }
   }
 
+  /**
+   * Load user-specific HRT parameters from Redis
+   */
+  private async loadUserHRTParameters(userId: string): Promise<any> {
+    try {
+      const key = `hrt_parameters:${userId}`;
+      const storedParams = await this.redis.get(key);
+
+      if (!storedParams) {
+        // Return default parameters if none found
+        return this.getDefaultHRTParameters();
+      }
+
+      const parameters = JSON.parse(storedParams);
+      
+      // Validate the loaded parameters
+      this.validateHRTParameters(parameters);
+      
+      return parameters;
+    } catch (error) {
+      console.error('Failed to load HRT parameters for user:', userId, error);
+      // Return default parameters on error
+      return this.getDefaultHRTParameters();
+    }
+  }
+
+  /**
+   * Get default HRT parameters
+   */
+  private getDefaultHRTParameters(): any {
+    return {
+      weaviate: {
+        resultsPerPhrase: 3,
+        similarityThreshold: 0.1,
+        timeoutMs: 5000,
+      },
+      neo4j: {
+        maxResultLimit: 100,
+        maxGraphHops: 3,
+        maxSeedEntities: 10,
+        queryTimeoutMs: 10000,
+      },
+      scoring: {
+        topNCandidatesForHydration: 10,
+        recencyDecayRate: 0.1,
+        diversityThreshold: 0.3,
+      },
+      scoringWeights: {
+        alphaSemanticSimilarity: 0.5,
+        betaRecency: 0.3,
+        gammaImportanceScore: 0.2,
+      },
+      performance: {
+        maxRetrievalTimeMs: 5000,
+        enableParallelProcessing: true,
+        cacheResults: true,
+      },
+      qualityFilters: {
+        minimumRelevanceScore: 0.1,
+        dedupeSimilarResults: true,
+        boostRecentContent: true,
+      },
+    };
+  }
+
+  /**
+   * Validate HRT parameters
+   */
+  private validateHRTParameters(parameters: any): void {
+    // Basic validation - ensure required fields exist
+    if (!parameters.weaviate || !parameters.neo4j || !parameters.scoring || !parameters.scoringWeights) {
+      throw new Error('Invalid HRT parameters: missing required sections');
+    }
+
+    // Validate scoring weights sum to 1.0
+    const { alphaSemanticSimilarity, betaRecency, gammaImportanceScore } = parameters.scoringWeights;
+    const total = alphaSemanticSimilarity + betaRecency + gammaImportanceScore;
+    if (Math.abs(total - 1.0) > 0.01) {
+      throw new Error(`Invalid scoring weights: must sum to 1.0 (current: ${total.toFixed(3)})`);
+    }
+  }
 
 } 

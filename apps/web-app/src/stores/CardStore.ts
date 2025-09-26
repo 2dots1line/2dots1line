@@ -1,9 +1,11 @@
-// CardStore.ts - Simplified card state management for V11.0 real database cards
+// CardStore.ts - Optimized card state management with batched loading
 import { DisplayCard } from '@2dots1line/shared-types';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 import { cardService } from '../services/cardService';
+import { RandomCardLoader } from '../services/RandomCardLoader';
+import { SortedCardLoader } from '../services/SortedCardLoader';
 
 // Proactively remove legacy oversized localStorage key on the client to free space
 if (typeof window !== 'undefined') {
@@ -18,28 +20,32 @@ if (typeof window !== 'undefined') {
   }
 }
 
-// Simplified card state focused on real database cards
+// Optimized card state with batched loading and request cancellation
 interface CardState {
   // Core data
   cards: DisplayCard[];
   selectedCard: DisplayCard | null;
   
-  // Pagination state
-  totalCount: number;
-  hasMore: boolean;
-  currentOffset: number;
+  // Loader instances
+  randomLoader: RandomCardLoader | null;
+  sortedLoader: SortedCardLoader | null;
   
   // UI state
   isLoading: boolean;
   error: string | null;
   
+  // Request cancellation
+  currentAbortController: AbortController | null;
+  
   // Actions
-  loadCards: (limit?: number) => Promise<void>;
-  loadMoreCards: () => Promise<void>;
+  initializeRandomLoader: () => Promise<void>;
+  initializeSortedLoader: (sortKey?: 'newest' | 'oldest' | 'title_asc' | 'title_desc') => Promise<void>;
+  loadMoreRandomCards: () => Promise<DisplayCard[]>;
+  loadMoreSortedCards: () => Promise<DisplayCard[]>;
   setSelectedCard: (card: DisplayCard | null) => void;
-  refreshCards: () => Promise<void>;
   updateCardBackground: (cardId: string, url: string) => void;
-  loadAllCards: () => Promise<void>; // NEW
+  clearCards: () => void;
+  cancelCurrentRequest: () => void;
 }
 
 export const useCardStore = create<CardState>()(
@@ -48,145 +54,233 @@ export const useCardStore = create<CardState>()(
       // Initial state
       cards: [],
       selectedCard: null,
-      totalCount: 0,
-      hasMore: false,
-      currentOffset: 0,
+      randomLoader: null,
+      sortedLoader: null,
       isLoading: false,
       error: null,
+      currentAbortController: null,
       
-      // Simplified card loading - only from API
-      loadCards: async (limit: number = 200) => {
-        console.log('CardStore.loadCards - Starting card load with limit:', limit);
-        set({ isLoading: true, error: null, currentOffset: 0 });
+      // Initialize random loader for infinite canvas
+      initializeRandomLoader: async () => {
+        console.log('CardStore.initializeRandomLoader - Starting initialization');
+        
+        // Cancel any existing request
+        const state = get();
+        if (state.currentAbortController) {
+          state.currentAbortController.abort();
+        }
+        
+        // Create new abort controller
+        const abortController = new AbortController();
+        set({ isLoading: true, error: null, currentAbortController: abortController });
+        
         try {
-          console.log('CardStore.loadCards - Calling cardService.getCards()');
-          const response = await cardService.getCards({ limit, offset: 0 });
-          console.log('CardStore.loadCards - Response received:', {
-            success: response.success,
-            cardsCount: response.cards?.length || 0,
-            totalCount: response.total_count,
-            hasMore: response.has_more,
-            hasError: !!response.error
+          const loader = new RandomCardLoader();
+          await loader.initialize();
+          
+          // Check if request was cancelled
+          if (abortController.signal.aborted) {
+            console.log('CardStore.initializeRandomLoader - Request cancelled');
+            return;
+          }
+          
+          // Load initial batch
+          const initialCards = await loader.loadNextBatch(50);
+          
+          // Check again if request was cancelled
+          if (abortController.signal.aborted) {
+            console.log('CardStore.initializeRandomLoader - Request cancelled after loading');
+            return;
+          }
+          
+          set({
+            randomLoader: loader,
+            cards: initialCards,
+            isLoading: false,
+            currentAbortController: null,
           });
           
-          if (response.success && response.cards) {
-            console.log('CardStore.loadCards - Setting cards');
-            set({ 
-              cards: response.cards, 
-              totalCount: response.total_count || 0,
-              hasMore: response.has_more || false,
-              currentOffset: response.cards.length,
-              isLoading: false 
-            });
-            console.log('CardStore.loadCards - Cards loaded successfully');
-          } else {
-            console.error('CardStore.loadCards - API returned error:', response.error);
-            set({ error: response.error || 'Failed to load cards', isLoading: false });
-          }
+          console.log('CardStore.initializeRandomLoader - Initialized with', initialCards.length, 'cards');
         } catch (error) {
-          console.error('CardStore.loadCards - Exception caught:', error);
-          set({ 
-            error: error instanceof Error ? error.message : 'Failed to load cards', 
-            isLoading: false 
+          if (abortController.signal.aborted) {
+            console.log('CardStore.initializeRandomLoader - Request was cancelled');
+            return;
+          }
+          
+          console.error('CardStore.initializeRandomLoader - Error:', error);
+          set({
+            error: error instanceof Error ? error.message : 'Failed to initialize random loader',
+            isLoading: false,
+            currentAbortController: null,
           });
         }
       },
 
-      // Load more cards for pagination
-      loadMoreCards: async () => {
-        const state = get();
-        if (state.isLoading || !state.hasMore) return;
+      // Initialize sorted loader for sorted view
+      initializeSortedLoader: async (sortKey: 'newest' | 'oldest' | 'title_asc' | 'title_desc' = 'newest') => {
+        console.log('CardStore.initializeSortedLoader - Starting initialization with sort:', sortKey);
         
-        console.log('CardStore.loadMoreCards - Loading more cards from offset:', state.currentOffset);
+        // Cancel any existing request
+        const state = get();
+        if (state.currentAbortController) {
+          state.currentAbortController.abort();
+        }
+        
+        // Create new abort controller
+        const abortController = new AbortController();
+        set({ isLoading: true, error: null, currentAbortController: abortController });
+        
+        try {
+          const loader = new SortedCardLoader();
+          const initialCards = await loader.loadInitialCards(sortKey);
+          
+          // Check if request was cancelled
+          if (abortController.signal.aborted) {
+            console.log('CardStore.initializeSortedLoader - Request cancelled');
+            return;
+          }
+          
+          set({
+            sortedLoader: loader,
+            cards: initialCards,
+            isLoading: false,
+            currentAbortController: null,
+          });
+          
+          console.log('CardStore.initializeSortedLoader - Initialized with', initialCards.length, 'cards');
+        } catch (error) {
+          if (abortController.signal.aborted) {
+            console.log('CardStore.initializeSortedLoader - Request was cancelled');
+            return;
+          }
+          
+          console.error('CardStore.initializeSortedLoader - Error:', error);
+          set({
+            error: error instanceof Error ? error.message : 'Failed to initialize sorted loader',
+            isLoading: false,
+            currentAbortController: null,
+          });
+        }
+      },
+
+      // Load more random cards
+      loadMoreRandomCards: async () => {
+        const state = get();
+        if (!state.randomLoader || state.isLoading) return [];
+        
         set({ isLoading: true, error: null });
         
         try {
-          const response = await cardService.getCards({ 
-            limit: 50, // Load smaller batches for pagination
-            offset: state.currentOffset 
+          const newCards = await state.randomLoader.loadNextBatch(50);
+          const updatedCards = [...state.cards, ...newCards];
+          
+          set({
+            cards: updatedCards,
+            isLoading: false,
           });
           
-          if (response.success && response.cards) {
-            const newCards = [...state.cards, ...response.cards];
-            set({ 
-              cards: newCards,
-              currentOffset: newCards.length,
-              hasMore: response.has_more || false,
-              isLoading: false 
-            });
-            console.log('CardStore.loadMoreCards - Loaded', response.cards.length, 'more cards');
-          } else {
-            set({ error: response.error || 'Failed to load more cards', isLoading: false });
-          }
+          console.log('CardStore.loadMoreRandomCards - Loaded', newCards.length, 'more cards');
+          return newCards;
         } catch (error) {
-          console.error('CardStore.loadMoreCards - Exception caught:', error);
-          set({ 
-            error: error instanceof Error ? error.message : 'Failed to load more cards', 
-            isLoading: false 
+          console.error('CardStore.loadMoreRandomCards - Error:', error);
+          set({
+            error: error instanceof Error ? error.message : 'Failed to load more random cards',
+            isLoading: false,
           });
+          return [];
         }
       },
-      
-      setSelectedCard: (card) => set({ selectedCard: card }),
-      
-      refreshCards: async () => {
-        await get().loadCards();
+
+      // Load more sorted cards
+      loadMoreSortedCards: async () => {
+        const state = get();
+        if (!state.sortedLoader || state.isLoading) return [];
+        
+        set({ isLoading: true, error: null });
+        
+        try {
+          const newCards = await state.sortedLoader.loadNextPage();
+          const updatedCards = [...state.cards, ...newCards];
+          
+          set({
+            cards: updatedCards,
+            isLoading: false,
+          });
+          
+          console.log('CardStore.loadMoreSortedCards - Loaded', newCards.length, 'more cards');
+          return newCards;
+        } catch (error) {
+          console.error('CardStore.loadMoreSortedCards - Error:', error);
+          set({
+            error: error instanceof Error ? error.message : 'Failed to load more sorted cards',
+            isLoading: false,
+          });
+          return [];
+        }
       },
 
-      updateCardBackground: (cardId: string, url: string) => {
-        set((state) => {
-          const updated = state.cards.map((c) =>
-            c.card_id === cardId ? { ...c, background_image_url: url } : c
-          );
-          const selected =
-            state.selectedCard?.card_id === cardId
-              ? { ...state.selectedCard, background_image_url: url }
-              : state.selectedCard || null;
-          return { cards: updated, selectedCard: selected };
+      // Set selected card
+      setSelectedCard: (card: DisplayCard | null) => {
+        console.log('CardStore.setSelectedCard - Setting selected card:', card?.card_id || 'null');
+        set({ selectedCard: card });
+      },
+
+      // Update card background
+      updateCardBackground: async (cardId: string, url: string) => {
+        console.log('CardStore.updateCardBackground - Updating background for card:', cardId);
+        try {
+          const response = await cardService.updateCardBackground(cardId, url);
+          if (response.success) {
+            // Update the card in the store
+            const state = get();
+            const updatedCards = state.cards.map(card => 
+              card.card_id === cardId 
+                ? { ...card, background_image_url: url }
+                : card
+            );
+            set({ cards: updatedCards });
+            console.log('CardStore.updateCardBackground - Background updated successfully');
+          } else {
+            console.error('CardStore.updateCardBackground - Failed to update background:', response.error);
+          }
+        } catch (error) {
+          console.error('CardStore.updateCardBackground - Exception:', error);
+        }
+      },
+
+      // Clear all cards
+      clearCards: () => {
+        console.log('CardStore.clearCards - Clearing all cards');
+        
+        // Cancel any ongoing request
+        const state = get();
+        if (state.currentAbortController) {
+          state.currentAbortController.abort();
+        }
+        
+        set({
+          cards: [],
+          selectedCard: null,
+          randomLoader: null,
+          sortedLoader: null,
+          error: null,
+          currentAbortController: null,
         });
       },
-      // NEW: Load ALL cards from the database by paging through until completion
-      loadAllCards: async () => {
-        console.log('CardStore.loadAllCards - Fetching entire card set via pagination');
-        set({ isLoading: true, error: null, currentOffset: 0, hasMore: false });
-        const pageSize = 200; // conservative page size; adjust if needed
-        let offset = 0;
-        let all: DisplayCard[] = [];
-        try {
-          // Safety cap to avoid infinite loop in case of API bug
-          const maxPages = 200;
-          for (let page = 0; page < maxPages; page++) {
-            const response = await cardService.getCards({ limit: pageSize, offset });
-            if (!response.success) {
-              throw new Error(response.error || 'Failed to fetch cards');
-            }
-            const batch = response.cards || [];
-            all = all.concat(batch);
-            offset += batch.length;
-            const hasMore = !!response.has_more && batch.length > 0;
-            console.log(`CardStore.loadAllCards - Page ${page + 1}, fetched ${batch.length}, total ${all.length}, hasMore=${hasMore}`);
-            if (!hasMore) break;
-          }
-          set({
-            cards: all,
-            totalCount: all.length,
-            hasMore: false,
-            currentOffset: all.length,
-            isLoading: false,
-          });
-          console.log('CardStore.loadAllCards - Completed. Total cards:', all.length);
-        } catch (error) {
-          console.error('CardStore.loadAllCards - Exception:', error);
-          set({
-            error: error instanceof Error ? error.message : 'Failed to load all cards',
-            isLoading: false,
-          });
+
+      // Cancel current request
+      cancelCurrentRequest: () => {
+        const state = get();
+        if (state.currentAbortController) {
+          console.log('CardStore.cancelCurrentRequest - Cancelling current request');
+          state.currentAbortController.abort();
+          set({ currentAbortController: null, isLoading: false });
         }
       },
     }),
     {
       // Use a new key and persist nothing heavy to avoid quota issues
-      name: 'card-storage-v2',
+      name: 'card-storage-v3',
       partialize: () => ({}),
     }
   )

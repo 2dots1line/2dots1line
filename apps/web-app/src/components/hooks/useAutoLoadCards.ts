@@ -6,10 +6,11 @@ import { useUserStore } from '../../stores/UserStore';
 /**
  * Hook to automatically load cards when user is authenticated
  * This ensures cards are available as soon as the user logs in
+ * Note: With the new batched loading system, cards are loaded when the cards view becomes active
  */
 export const useAutoLoadCards = () => {
   const { isAuthenticated, hasHydrated } = useUserStore();
-  const { cards, loadCards, isLoading } = useCardStore();
+  const { cards, isLoading } = useCardStore();
 
   useEffect(() => {
     console.log('useAutoLoadCards - State check:', {
@@ -19,22 +20,10 @@ export const useAutoLoadCards = () => {
       isLoading
     });
 
-    // Only load cards if user is authenticated, hydration is complete,
-    // cards array is empty, and not already loading
-    if (isAuthenticated && hasHydrated && cards.length === 0 && !isLoading) {
-      console.log('useAutoLoadCards - Loading cards for authenticated user');
-      loadCards(200).catch(error => {
-        console.error('useAutoLoadCards - Error loading cards:', error);
-      });
-    } else {
-      console.log('useAutoLoadCards - Skipping card load:', {
-        reason: !isAuthenticated ? 'not authenticated' :
-                !hasHydrated ? 'not hydrated' :
-                cards.length > 0 ? 'cards already loaded' :
-                isLoading ? 'already loading' : 'unknown'
-      });
-    }
-  }, [isAuthenticated, hasHydrated, cards.length, isLoading, loadCards]);
+    // With the new system, cards are loaded when the cards view becomes active
+    // This hook now just provides status information
+    console.log('useAutoLoadCards - Cards will be loaded when cards view becomes active');
+  }, [isAuthenticated, hasHydrated, cards.length, isLoading]);
 
   return {
     isLoading,

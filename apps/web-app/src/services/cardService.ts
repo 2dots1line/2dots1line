@@ -14,6 +14,8 @@ export interface GetCardsRequest {
   limit?: number;
   offset?: number;
   favorited?: boolean;
+  sortBy?: 'created_at' | 'title';
+  sortOrder?: 'asc' | 'desc';
 }
 
 export interface GetCardsResponse {
@@ -23,6 +25,22 @@ export interface GetCardsResponse {
   has_more?: boolean;
   error?: string;
   details?: string;
+}
+
+export interface GetAllCardIdsResponse {
+  success: boolean;
+  cardIds?: string[];
+  error?: string;
+}
+
+export interface GetCardsByIdsRequest {
+  cardIds: string[];
+}
+
+export interface GetCardsByIdsResponse {
+  success: boolean;
+  cards?: DisplayCard[];
+  error?: string;
 }
 
 export interface UpdateCardRequest {
@@ -101,7 +119,7 @@ class CardService {
   /**
    * Get cards for the authenticated user
    */
-  async getCards(request: GetCardsRequest = {}): Promise<GetCardsResponse> {
+  async getCards(request: GetCardsRequest = {}, signal?: AbortSignal): Promise<GetCardsResponse> {
     console.log('cardService.getCards - Starting API call with request:', request);
     
     try {
@@ -112,6 +130,8 @@ class CardService {
       if (request.limit) params.append('limit', request.limit.toString());
       if (request.offset) params.append('offset', request.offset.toString());
       if (request.favorited !== undefined) params.append('favorited', request.favorited.toString());
+      if (request.sortBy) params.append('sort_by', request.sortBy);
+      if (request.sortOrder) params.append('sort_order', request.sortOrder);
 
       const headers = this.getAuthHeaders();
       console.log('cardService.getCards - Making request to:', `${API_BASE_URL}/api/v1/cards?${params}`);
@@ -120,6 +140,7 @@ class CardService {
       const response = await fetch(`${API_BASE_URL}/api/v1/cards?${params}`, {
         method: 'GET',
         headers: headers,
+        signal, // Add abort signal support
       });
 
       const data = await response.json();
@@ -173,6 +194,10 @@ class CardService {
         error: data.error
       };
     } catch (error) {
+      if (signal?.aborted) {
+        console.log('cardService.getCards - Request was cancelled');
+        throw new Error('Request was cancelled');
+      }
       console.error('cardService.getCards - Exception:', error);
       throw error;
     }
@@ -434,6 +459,115 @@ class CardService {
     } catch (error) {
       console.error('Error checking card health:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Get all card IDs for a user (for random selection)
+   */
+  async getAllCardIds(): Promise<GetAllCardIdsResponse> {
+    console.log('cardService.getAllCardIds - Starting API call');
+    
+    try {
+      const headers = this.getAuthHeaders();
+      console.log('cardService.getAllCardIds - Making request to:', `${API_BASE_URL}/api/v1/cards/ids`);
+
+      const response = await fetch(`${API_BASE_URL}/api/v1/cards/ids`, {
+        method: 'GET',
+        headers: headers,
+      });
+
+      const data = await response.json();
+      console.log('cardService.getAllCardIds - Raw API response:', { 
+        ok: response.ok, 
+        status: response.status, 
+        cardIdsCount: data.data?.cardIds?.length || 0,
+        hasError: !!data.error
+      });
+
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return {
+        success: true,
+        cardIds: data.data?.cardIds || [],
+      };
+    } catch (error) {
+      console.error('cardService.getAllCardIds - Error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to get card IDs',
+      };
+    }
+  }
+
+  /**
+   * Get cards by specific IDs (for random loading)
+   */
+  async getCardsByIds(request: GetCardsByIdsRequest): Promise<GetCardsByIdsResponse> {
+    console.log('cardService.getCardsByIds - Starting API call with request:', request);
+    
+    try {
+      const headers = this.getAuthHeaders();
+      console.log('cardService.getCardsByIds - Making request to:', `${API_BASE_URL}/api/v1/cards/by-ids`);
+
+      const response = await fetch(`${API_BASE_URL}/api/v1/cards/by-ids`, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(request),
+      });
+
+      const data = await response.json();
+      console.log('cardService.getCardsByIds - Raw API response:', { 
+        ok: response.ok, 
+        status: response.status, 
+        cardsCount: data.data?.cards?.length || 0,
+        hasError: !!data.error
+      });
+
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      // Transform API response to match DisplayCard interface
+      const transformedCards = (data.data?.cards || []).map((apiCard: any) => {
+        return {
+          // Map API fields to TCard interface
+          card_id: apiCard.id,
+          user_id: 'dev-user-123', // Default for development
+          type: apiCard.type,
+          source_entity_id: apiCard.source_entity_id || apiCard.id,
+          source_entity_type: apiCard.source_entity_type || apiCard.type,
+          status: 'active_canvas', // Default status
+          is_favorited: false, // Default
+          is_synced: true,
+          created_at: new Date(apiCard.createdAt),
+          updated_at: new Date(apiCard.updatedAt),
+          background_image_url: apiCard.background_image_url || null,
+          display_order: apiCard.display_order || null,
+          is_selected: apiCard.is_selected || false,
+          custom_title: apiCard.custom_title || null,
+          custom_content: apiCard.custom_content || null,
+          // DisplayCard extensions
+          title: apiCard.title || 'Untitled',
+          subtitle: apiCard.content || `${apiCard.type} entity`,
+          content: apiCard.content || '',
+          entity_type: apiCard.source_entity_type || apiCard.type,
+          entity_id: apiCard.source_entity_id || apiCard.id,
+        };
+      });
+
+      return {
+        success: true,
+        cards: transformedCards,
+      };
+    } catch (error) {
+      console.error('cardService.getCardsByIds - Error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to get cards by IDs',
+      };
     }
   }
 }

@@ -99,7 +99,7 @@ export const CosmosModal: React.FC<CosmosModalProps> = ({
   const [sidePanelOpen, setSidePanelOpen] = useState(false);
   
   // Card store
-  const { cards, refreshCards } = useCardStore();
+  const { cards } = useCardStore();
   
   // Generate cosmos nodes from cards
   const cosmosNodes = useMemo(() => {
@@ -209,13 +209,6 @@ export const CosmosModal: React.FC<CosmosModalProps> = ({
     orbitSpeed: 0.5,
   });
   
-  // Load cards on mount
-  useEffect(() => {
-    if (isOpen && cards.length === 0) {
-      loadCards();
-    }
-  }, [isOpen, cards.length]);
-  
   // Load cards from API
   const loadCards = useCallback(async () => {
     setIsLoading(true);
@@ -227,7 +220,8 @@ export const CosmosModal: React.FC<CosmosModalProps> = ({
       });
       
       if (response.success && response.cards) {
-        // setCards(response.cards); // TODO: Update for simplified CardStore
+        // Cards are now managed by CardStore, no need to set local state
+        console.log('CosmosModal: Loaded', response.cards.length, 'cards for visualization');
       } else {
         setError(response.error || 'Failed to load cards');
       }
@@ -237,6 +231,18 @@ export const CosmosModal: React.FC<CosmosModalProps> = ({
       setIsLoading(false);
     }
   }, []);
+  
+  // Load cards on mount - NON-BLOCKING
+  useEffect(() => {
+    if (isOpen && cards.length === 0) {
+      // Use setTimeout to defer the API call to next tick, allowing UI to render first
+      const loadTimeout = setTimeout(() => {
+        loadCards();
+      }, 0); // Defer to next tick
+      
+      return () => clearTimeout(loadTimeout);
+    }
+  }, [isOpen, cards.length, loadCards]);
   
   // Handle node selection
   const handleNodeSelect = useCallback(async (node: SimpleCosmosNode) => {
@@ -268,9 +274,6 @@ export const CosmosModal: React.FC<CosmosModalProps> = ({
       });
       
       if (response.success) {
-        // Refresh cards from server to get latest data
-        refreshCards();
-        
         // Update selected card if it's the same
         if (selectedCard && (selectedCard as any).card_id === cardId) {
           setSelectedCard((prev: DisplayCard | null) => prev ? { ...prev, is_favorited: !(prev as any).is_favorited } : null);
@@ -279,7 +282,7 @@ export const CosmosModal: React.FC<CosmosModalProps> = ({
     } catch (err) {
       console.error('Failed to toggle favorite:', err);
     }
-  }, [cards, selectedCard, refreshCards]);
+  }, [cards, selectedCard]);
   
   if (!isOpen) return null;
   

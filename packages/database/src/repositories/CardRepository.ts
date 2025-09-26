@@ -113,6 +113,107 @@ export class CardRepository {
   }
 
   /**
+   * Batch load entity data for multiple cards to avoid N+1 queries
+   */
+  private async loadEntityDataBatch(cards: any[]): Promise<CardData[]> {
+    if (cards.length === 0) return [];
+
+    // Group cards by entity type for batch loading
+    const cardsByType = cards.reduce((acc, card) => {
+      const type = card.source_entity_type;
+      if (!acc[type]) acc[type] = [];
+      acc[type].push(card);
+      return acc;
+    }, {} as Record<string, any[]>);
+
+    // Batch load entity data for each type
+    const entityDataMap = new Map<string, any>();
+    
+    for (const [entityType, typeCards] of Object.entries(cardsByType)) {
+      const entityIds = (typeCards as any[]).map((card: any) => card.source_entity_id);
+      
+      try {
+        let entities: any[] = [];
+        
+        switch (entityType) {
+          case 'MemoryUnit':
+            entities = await this.db.prisma.memory_units.findMany({
+              where: { entity_id: { in: entityIds } }
+            });
+            break;
+          case 'Concept':
+            entities = await this.db.prisma.concepts.findMany({
+              where: { entity_id: { in: entityIds } }
+            });
+            break;
+          case 'DerivedArtifact':
+            entities = await this.db.prisma.derived_artifacts.findMany({
+              where: { entity_id: { in: entityIds } }
+            });
+            break;
+          case 'ProactivePrompt':
+            entities = await this.db.prisma.proactive_prompts.findMany({
+              where: { entity_id: { in: entityIds } }
+            });
+            break;
+          case 'Community':
+            entities = await this.db.prisma.communities.findMany({
+              where: { entity_id: { in: entityIds } }
+            });
+            break;
+          case 'GrowthEvent':
+            entities = await this.db.prisma.growth_events.findMany({
+              where: { entity_id: { in: entityIds } }
+            });
+            break;
+          case 'User':
+            entities = await this.db.prisma.users.findMany({
+              where: { user_id: { in: entityIds } }
+            });
+            break;
+          default:
+            console.warn(`[CardRepository] Unknown entity type for batch loading: ${entityType}`);
+            continue;
+        }
+        
+        // Map entities by their ID for quick lookup
+        entities.forEach(entity => {
+          // For User entities, use user_id; for all others, use entity_id
+          const id = entityType === 'User' ? entity.user_id : entity.entity_id;
+          entityDataMap.set(id, entity);
+        });
+        
+      } catch (error) {
+        console.error(`[CardRepository] Error batch loading ${entityType} entities:`, error);
+      }
+    }
+
+    // Transform cards with their entity data
+    return cards.map((card: any) => {
+      const entityData = entityDataMap.get(card.source_entity_id);
+      
+      return {
+        id: card.card_id,
+        type: card.type as 'memory_unit' | 'concept' | 'derived_artifact' | 'memoryunit' | 'growthevent' | 'proactiveprompt' | 'community',
+        title: card.custom_title || entityData?.title || 'Untitled',
+        content: card.custom_content || entityData?.content || '',
+        evolutionState: 'seed', // Simplified - should calculate based on business logic
+        importanceScore: 0.5, // Simplified - should calculate from data
+        createdAt: card.created_at,
+        updatedAt: card.updated_at,
+        background_image_url: card.background_image_url || null,
+        display_order: card.display_order,
+        is_selected: card.is_selected,
+        custom_title: card.custom_title,
+        custom_content: card.custom_content,
+        // Include source entity information
+        source_entity_id: card.source_entity_id,
+        source_entity_type: card.source_entity_type,
+      };
+    });
+  }
+
+  /**
    * Get card with entity data loaded
    */
   async getCardWithEntityData(cardId: string): Promise<any> {
@@ -297,6 +398,31 @@ export class CardRepository {
   }
 
   /**
+   * Get cards by specific IDs (for random loading)
+   */
+  async getCardsByIds(cardIds: string[]): Promise<CardData[]> {
+    if (cardIds.length === 0) return [];
+
+    const cards = await this.db.prisma.cards.findMany({
+      where: { card_id: { in: cardIds } }
+    });
+
+    return this.loadEntityDataBatch(cards);
+  }
+
+  /**
+   * Get all card IDs for a user (for random selection)
+   */
+  async getAllCardIds(userId: string): Promise<string[]> {
+    const cards = await this.db.prisma.cards.findMany({
+      where: { user_id: userId },
+      select: { card_id: true }
+    });
+    
+    return cards.map(card => card.card_id);
+  }
+
+  /**
    * Get cards with advanced filtering and entity data loaded
    */
   async getCards(userId: string, filters: CardFilters): Promise<CardResultWithMeta> {
@@ -319,31 +445,8 @@ export class CardRepository {
       },
     });
 
-    // Load entity data for each card
-    const cardData: CardData[] = await Promise.all(
-      cards.map(async (card: any) => {
-        const entityData = await this.loadEntityData(card.source_entity_id, card.source_entity_type);
-        
-        return {
-          id: card.card_id,
-          type: card.type as 'memory_unit' | 'concept' | 'derived_artifact' | 'memoryunit' | 'growthevent' | 'proactiveprompt' | 'community',
-          title: card.custom_title || entityData?.title || 'Untitled',
-          content: card.custom_content || entityData?.content || '',
-          evolutionState: 'seed', // Simplified - should calculate based on business logic
-          importanceScore: 0.5, // Simplified - should calculate from data
-          createdAt: card.created_at,
-          updatedAt: card.updated_at,
-          background_image_url: card.background_image_url || null,
-          display_order: card.display_order,
-          is_selected: card.is_selected,
-          custom_title: card.custom_title,
-          custom_content: card.custom_content,
-          // Include source entity information
-          source_entity_id: card.source_entity_id,
-          source_entity_type: card.source_entity_type,
-        };
-      })
-    );
+    // Batch load entity data to avoid N+1 queries
+    const cardData: CardData[] = await this.loadEntityDataBatch(cards);
 
     return {
       cards: cardData,

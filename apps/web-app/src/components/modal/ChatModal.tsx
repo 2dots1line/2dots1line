@@ -151,35 +151,46 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
     }
   }, [isOpen, isInitialized, setMessages, setInitialized]);
 
-  // Refresh session history when modal opens to ensure up-to-date information
+  // Refresh session history when modal opens to ensure up-to-date information - NON-BLOCKING
   useEffect(() => {
     if (isOpen && sessionHistory.length > 0) {
-      // Refresh session history to get latest conversation data
-      const refreshSessionHistory = async () => {
+      // Use setTimeout to defer the API call to next tick, allowing UI to render first
+      const refreshTimeout = setTimeout(async () => {
         try {
+          console.log('🔄 Refreshing session history in background...');
           const sessions = await chatService.getSessions(50);
           setSessionHistory(sessions);
           console.log('🔄 Refreshed session history on modal open');
         } catch (error) {
           console.error('Error refreshing session history:', error);
         }
-      };
+      }, 0); // Defer to next tick
       
-      refreshSessionHistory();
+      return () => clearTimeout(refreshTimeout);
     }
   }, [isOpen, setSessionHistory]);
 
-  // Load existing conversation if we have a conversation ID
+  // Load existing conversation if we have a conversation ID - NON-BLOCKING
   useEffect(() => {
     if (isOpen && currentConversationId && messages.length === 0) {
-      loadExistingConversation();
+      // Use setTimeout to defer the API call to next tick, allowing UI to render first
+      const loadTimeout = setTimeout(() => {
+        loadExistingConversation();
+      }, 0); // Defer to next tick
+      
+      return () => clearTimeout(loadTimeout);
     }
   }, [isOpen, currentConversationId]);
 
-  // Check for proactive messages when returning to chat
+  // Check for proactive messages when returning to chat - NON-BLOCKING
   useEffect(() => {
     if (isOpen && currentConversationId && messages.length > 0) {
-      checkForProactiveMessages();
+      // Use setTimeout to defer the API call to next tick, allowing UI to render first
+      const checkTimeout = setTimeout(() => {
+        checkForProactiveMessages();
+      }, 0); // Defer to next tick
+      
+      return () => clearTimeout(checkTimeout);
     }
   }, [isOpen, currentConversationId]);
 

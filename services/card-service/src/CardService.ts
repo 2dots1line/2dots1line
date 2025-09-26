@@ -211,7 +211,7 @@ export class CardService {
       importanceScore: cardData.importanceScore || 0.5,
       createdAt: cardData.createdAt,
       updatedAt: cardData.updatedAt,
-      connections: await this.getConnectionCount(cardData.source_entity_id || null, cardData.source_entity_type || null), // Calculate actual connections
+      connections: 0, // Removed connection count calculation for performance
       insights: 0,
       tags: [],
       background_image_url: cardData.background_image_url || null,
@@ -418,35 +418,6 @@ export class CardService {
     }
   }
 
-  /**
-   * Get connection count for a source entity
-   */
-  private async getConnectionCount(sourceEntityId: string | null, sourceEntityType: string | null): Promise<number> {
-    try {
-      if (!sourceEntityId || !sourceEntityType || !this.databaseService.neo4j) {
-        return 0;
-      }
-
-      const session = this.databaseService.neo4j.session();
-      
-      try {
-        // Count relationships for this entity
-        const result = await session.run(`
-          MATCH (source)-[r]-(target)
-          WHERE source.entity_id = $sourceEntityId OR source.id = $sourceEntityId
-          RETURN count(r) as connectionCount
-        `, { sourceEntityId });
-
-        const connectionCount = result.records[0]?.get('connectionCount')?.toNumber() || 0;
-        return connectionCount;
-      } finally {
-        session.close();
-      }
-    } catch (error) {
-      console.error('Error getting connection count:', error);
-      return 0;
-    }
-  }
 
   /**
    * Query Neo4j for related entities
@@ -523,5 +494,30 @@ export class CardService {
     }
     console.log(`Update complete. cardId=${cardId} updated_at=${updated.updatedAt.toISOString()}`);
     return updated;
+  }
+
+  /**
+   * Get all card IDs for a user (for random selection)
+   */
+  async getAllCardIds(userId: string): Promise<string[]> {
+    console.log(`[CardService] Getting all card IDs for user: ${userId}`);
+    return this.cardRepository.getAllCardIds(userId);
+  }
+
+  /**
+   * Get cards by specific IDs (for random loading)
+   */
+  async getCardsByIds(cardIds: string[]): Promise<Card[]> {
+    console.log(`[CardService] Getting cards by IDs: ${cardIds.length} cards`);
+    
+    const cardData = await this.cardRepository.getCardsByIds(cardIds);
+    
+    // Transform to Card interface
+    const cards = await Promise.all(
+      cardData.map(async (data) => this.transformCardData(data))
+    );
+    
+    console.log(`[CardService] Successfully loaded ${cards.length} cards by IDs`);
+    return cards;
   }
 }

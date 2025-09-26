@@ -14,6 +14,13 @@ export class EntityScorer {
   }
 
   /**
+   * Update scoring weights dynamically
+   */
+  public updateWeights(newWeights: RetrievalWeights): void {
+    this.weights = newWeights;
+  }
+
+  /**
    * Score and prioritize candidates using V9.5 multi-factor algorithm
    */
   public scoreAndPrioritize(
@@ -88,13 +95,6 @@ export class EntityScorer {
     
     const rawScore = metadata.importance_score || 0;
     return Math.min(rawScore / 10.0, 1.0); // Normalize to 0-1 range
-  }
-
-  /**
-   * Update scoring weights dynamically
-   */
-  public updateWeights(newWeights: RetrievalWeights): void {
-    this.weights = newWeights;
   }
 
   /**

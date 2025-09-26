@@ -9,6 +9,7 @@ import { CardController } from '../../controllers/card.controller';
 import { UserController } from '../../controllers/user.controller';
 import { GraphController } from '../../controllers/graph.controller';
 import { MediaController } from '../../controllers/media.controller';
+import { HRTParametersController } from '../../controllers/hrtParameters.controller';
 import { createAgentRoutes } from './agent.routes';
 import dashboardRoutes from '../../routes/dashboard';
 
@@ -18,7 +19,8 @@ export function createV1Routes(
   cardController: CardController,
   conversationController: ConversationController,
   graphController: GraphController,
-  mediaController: MediaController
+  mediaController: MediaController,
+  hrtParametersController: HRTParametersController
 ): IRouter {
   const v1Router: IRouter = Router();
 
@@ -58,6 +60,8 @@ v1Router.get('/sessions/:sessionId', authMiddleware, conversationController.getS
 
 // --- Card Routes (Authenticated) ---
 v1Router.get('/cards', authMiddleware, cardController.getCards);
+v1Router.get('/cards/ids', authMiddleware, cardController.getAllCardIds);
+v1Router.post('/cards/by-ids', authMiddleware, cardController.getCardsByIds);
 v1Router.get('/cards/by-source/:entityId', authMiddleware, cardController.getCardBySourceEntity);
 v1Router.get('/cards/dashboard/evolution', authMiddleware, cardController.getCardsByEvolutionStateDashboard);
 v1Router.get('/cards/top-growth', authMiddleware, cardController.getTopGrowthCards);
@@ -100,6 +104,11 @@ v1Router.get('/media/videos/:id', mediaController.getVideoDetails.bind(mediaCont
 v1Router.get('/media/photos/:id', mediaController.getPhotoDetails.bind(mediaController));
 
 
+
+// --- HRT Parameters Routes (Authenticated) ---
+v1Router.post('/hrt/parameters', authMiddleware, hrtParametersController.saveParameters);
+v1Router.get('/hrt/parameters/:userId', authMiddleware, hrtParametersController.loadParameters);
+v1Router.post('/hrt/parameters/:userId/reset', authMiddleware, hrtParametersController.resetParameters);
 
 // Agent routes
 v1Router.use('/agent', createAgentRoutes(conversationController));

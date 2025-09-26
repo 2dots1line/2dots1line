@@ -45,6 +45,8 @@ model communities {
   status     String     @default("active")
   users      users      @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
   concepts   concepts[]
+
+  @@index([entity_id])
 }
 
 model concepts {
@@ -63,6 +65,8 @@ model concepts {
   concepts               concepts?    @relation("conceptsToconcepts", fields: [merged_into_entity_id], references: [entity_id], onDelete: NoAction, onUpdate: NoAction)
   other_concepts         concepts[]   @relation("conceptsToconcepts")
   users                  users        @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@index([entity_id])
 }
 
 model conversation_messages {
@@ -120,6 +124,7 @@ model derived_artifacts {
   users                  users     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@index([user_id, cycle_id])
+  @@index([entity_id])
 }
 
 model growth_events {
@@ -139,6 +144,7 @@ model growth_events {
   users                  users     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@index([delta_value])
+  @@index([entity_id])
 }
 
 model interaction_logs {
@@ -191,6 +197,8 @@ model memory_units {
   media_items            media_items[]
   conversations          conversations? @relation(fields: [source_conversation_id], references: [conversation_id])
   users                  users          @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@index([entity_id])
 }
 
 model proactive_prompts {
@@ -206,6 +214,7 @@ model proactive_prompts {
   users      users     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@index([user_id, cycle_id])
+  @@index([entity_id])
 }
 
 model user_challenges {

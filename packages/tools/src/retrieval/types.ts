@@ -3,12 +3,48 @@
  * Comprehensive type definitions for HybridRetrievalTool V9.5
  */
 
+// User-specific HRT Parameters
+export interface HRTUserParameters {
+  weaviate: {
+    resultsPerPhrase: number;
+    similarityThreshold: number;
+    timeoutMs: number;
+  };
+  neo4j: {
+    maxResultLimit: number;
+    maxGraphHops: number;
+    maxSeedEntities: number;
+    queryTimeoutMs: number;
+  };
+  scoring: {
+    topNCandidatesForHydration: number;
+    recencyDecayRate: number;
+    diversityThreshold: number;
+  };
+  scoringWeights: {
+    alphaSemanticSimilarity: number;
+    betaRecency: number;
+    gammaImportanceScore: number;
+  };
+  performance: {
+    maxRetrievalTimeMs: number;
+    enableParallelProcessing: boolean;
+    cacheResults: boolean;
+  };
+  qualityFilters: {
+    minimumRelevanceScore: number;
+    dedupeSimilarResults: boolean;
+    boostRecentContent: boolean;
+  };
+}
+
 // Core Input/Output Types
 export interface HRTInput {
   keyPhrasesForRetrieval: string[];
   userId: string;
   retrievalScenario?: string;
   maxResults?: number;
+  userParameters?: HRTUserParameters; // Optional user-specific parameters
 }
 
 // Entity Types

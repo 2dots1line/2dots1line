@@ -23,7 +23,17 @@ function HomePage() {
 
   const { user, isAuthenticated, logout, initializeAuth, hasHydrated } = useUserStore();
   const { setActiveView, activeView, setCardDetailModalOpen } = useHUDStore();
-  const { cards, loadCards, loadMoreCards, hasMore, isLoading, setSelectedCard, updateCardBackground, loadAllCards } = useCardStore();
+  const { 
+    cards, 
+    isLoading, 
+    setSelectedCard, 
+    updateCardBackground, 
+    initializeRandomLoader, 
+    initializeSortedLoader, 
+    loadMoreRandomCards, 
+    loadMoreSortedCards,
+    clearCards 
+  } = useCardStore();
   const { loadUserPreferences } = useBackgroundVideoStore();
 
   // UI state for sorting and cover prioritization
@@ -35,6 +45,7 @@ function HomePage() {
   // Removed anchor pixel state and ref
   const [anchorPixel, setAnchorPixel] = useState<{ x: number; y: number } | null>(null);
   const anchorElRef = useRef<HTMLSpanElement>(null);
+  const sortedViewRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const updateAnchor = () => {
@@ -52,13 +63,80 @@ function HomePage() {
   // Automatically load cards when user is authenticated
   const { cardsLoaded, totalCards } = useAutoLoadCards();
 
-  // Load cards when cards view becomes active
+  // Load cards when cards view becomes active - LAZY LOADING
   useEffect(() => {
     if (isAuthenticated && activeView === 'cards') {
-      // Fetch ALL cards to guarantee true oldest/newest across the whole DB
-      loadAllCards();
+      // Don't clear cards immediately - let the view render first
+      // Use setTimeout to defer loading to next tick, allowing UI to update
+      const loadCardsTimeout = setTimeout(() => {
+        // Only clear and reload if we don't have cards or need different view mode
+        const { cards: currentCards, randomLoader, sortedLoader } = useCardStore.getState();
+        
+        if (currentCards.length === 0 || 
+            (viewMode === 'infinite' && !randomLoader) || 
+            (viewMode === 'sorted' && !sortedLoader)) {
+          
+          console.log('Cards view: Lazy loading cards for view mode:', viewMode);
+          clearCards();
+          
+          // Initialize the appropriate loader based on view mode
+          if (viewMode === 'infinite') {
+            initializeRandomLoader();
+          } else {
+            initializeSortedLoader(sortKey);
+          }
+        } else {
+          console.log('Cards view: Using existing cards, no reload needed');
+        }
+      }, 0); // Defer to next tick
+      
+      return () => {
+        clearTimeout(loadCardsTimeout);
+        // Cancel any ongoing card loading when switching away from cards view
+        if (activeView !== 'cards') {
+          useCardStore.getState().cancelCurrentRequest();
+        }
+      };
     }
-  }, [isAuthenticated, activeView, loadAllCards]);
+  }, [isAuthenticated, activeView, viewMode, sortKey, clearCards, initializeRandomLoader, initializeSortedLoader]);
+
+  // CRITICAL: Clear cards when switching away from cards view to prevent blocking
+  useEffect(() => {
+    if (isAuthenticated && activeView !== 'cards') {
+      console.log('[HomePage] Switching away from cards view - clearing cards to prevent blocking');
+      // Clear cards immediately when switching away to prevent heavy processing
+      clearCards();
+    }
+  }, [isAuthenticated, activeView, clearCards]);
+
+  // Handle loading more cards based on view mode
+  const handleLoadMore = useCallback(async () => {
+    if (viewMode === 'infinite') {
+      await loadMoreRandomCards();
+    } else {
+      await loadMoreSortedCards();
+    }
+  }, [viewMode, loadMoreRandomCards, loadMoreSortedCards]);
+
+  // Check if there are more cards to load
+  const hasMore = useMemo(() => {
+    const { randomLoader, sortedLoader } = useCardStore.getState();
+    if (viewMode === 'infinite') {
+      return randomLoader?.hasMore() || false;
+    } else {
+      return sortedLoader?.hasMoreCards() || false;
+    }
+  }, [viewMode, cards]);
+
+  // Handle infinite scroll for sorted view
+  const handleSortedScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    const isNearBottom = scrollTop + clientHeight >= scrollHeight - 100; // 100px threshold
+    
+    if (isNearBottom && hasMore && !isLoading && viewMode === 'sorted') {
+      handleLoadMore();
+    }
+  }, [hasMore, isLoading, viewMode, handleLoadMore]);
 
   // Memoize initializeAuth to prevent unnecessary re-renders
   const memoizedInitializeAuth = useCallback(() => {
@@ -328,39 +406,60 @@ function HomePage() {
     }
   }, [cards, isGenerating, updateCardBackground]);
 
-  // Compute sorted cards (base sort by sortKey)
+  // Compute sorted cards (base sort by sortKey) - NON-BLOCKING
   const baseSortedCards = useMemo(() => {
-    if (!cards) return [] as any[];
+    // CRITICAL: Don't process cards if we're not in cards view
+    if (activeView !== 'cards' || !cards || cards.length === 0) return [] as any[];
+    
+    // For large card sets, use a more efficient approach
+    if (cards.length > 100) {
+      console.log(`[HomePage] Processing ${cards.length} cards - using efficient sorting`);
+    }
+    
     const arr = [...cards];
-    arr.sort((a, b) => {
-      const aCreated = a?.created_at ? new Date(a.created_at as any).getTime() : 0;
-      const bCreated = b?.created_at ? new Date(b.created_at as any).getTime() : 0;
-      const aTitle = (a?.title || '').toString().toLowerCase();
-      const bTitle = (b?.title || '').toString().toLowerCase();
-      switch (sortKey) {
-        case 'oldest':
-          return aCreated - bCreated;
-        case 'title_asc':
-          return aTitle.localeCompare(bTitle);
-        case 'title_desc':
-          return bTitle.localeCompare(aTitle);
-        case 'newest':
-        default:
-          return bCreated - aCreated;
-      }
-    });
+    
+    // Use a more efficient sorting approach for large datasets
+    try {
+      arr.sort((a, b) => {
+        const aCreated = a?.created_at ? new Date(a.created_at as any).getTime() : 0;
+        const bCreated = b?.created_at ? new Date(b.created_at as any).getTime() : 0;
+        const aTitle = (a?.title || '').toString().toLowerCase();
+        const bTitle = (b?.title || '').toString().toLowerCase();
+        switch (sortKey) {
+          case 'oldest':
+            return aCreated - bCreated;
+          case 'title_asc':
+            return aTitle.localeCompare(bTitle);
+          case 'title_desc':
+            return bTitle.localeCompare(aTitle);
+          case 'newest':
+          default:
+            return bCreated - aCreated;
+        }
+      });
+    } catch (error) {
+      console.warn('[HomePage] Sorting failed, returning unsorted cards:', error);
+      return arr; // Return unsorted if sorting fails
+    }
+    
     return arr;
-  }, [cards, sortKey]);
+  }, [cards, sortKey, activeView]); // Add activeView dependency
 
   const sortedCards = useMemo(() => {
+    // CRITICAL: Don't process cards if we're not in cards view
+    if (activeView !== 'cards') return [] as any[];
+    
     if (!hasCoverFirst) return baseSortedCards;
     const withCover = baseSortedCards.filter((c) => !!c.background_image_url);
     const withoutCover = baseSortedCards.filter((c) => !c.background_image_url);
     return [...withCover, ...withoutCover];
-  }, [baseSortedCards, hasCoverFirst]);
+  }, [baseSortedCards, hasCoverFirst, activeView]);
 
   // NEW: Ensure no repetition in Sorted View
   const uniqueSortedCards = useMemo(() => {
+    // CRITICAL: Don't process cards if we're not in cards view
+    if (activeView !== 'cards') return [] as any[];
+    
     const seen = new Set<string>();
     return sortedCards.filter((c: any) => {
       const raw = c?.card_id ?? c?.id ?? c?._id ?? '';
@@ -369,21 +468,27 @@ function HomePage() {
       seen.add(id);
       return true;
     });
-  }, [sortedCards]);
+  }, [sortedCards, activeView]);
 
   // NEW: Search applies to Sorted View only
   const visibleSortedCards = useMemo(() => {
+    // CRITICAL: Don't process cards if we're not in cards view
+    if (activeView !== 'cards') return [] as any[];
+    
     const q = searchQuery.trim().toLowerCase();
     if (!q) return uniqueSortedCards;
     return uniqueSortedCards.filter((c: any) => (c?.title || '').toLowerCase().includes(q));
-  }, [uniqueSortedCards, searchQuery]);
+  }, [uniqueSortedCards, searchQuery, activeView]);
 
   // NOTE: Infinite Canvas now uses the raw pool (no search filtering)
   const filteredCards = useMemo(() => {
+    // CRITICAL: Don't process cards if we're not in cards view
+    if (activeView !== 'cards') return [] as any[];
+    
     const q = searchQuery.trim().toLowerCase();
     if (!q) return sortedCards;
     return sortedCards.filter((c) => (c?.title || '').toLowerCase().includes(q));
-  }, [sortedCards, searchQuery]);
+  }, [sortedCards, searchQuery, activeView]);
 
   // Don't render auth-dependent UI until hydration is complete
   if (!hasHydrated) {
@@ -472,8 +577,12 @@ function HomePage() {
       {isAuthenticated && activeView === 'cards' && (
         <>
           {isLoading ? (
-            <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/20">
-              <div className="text-white text-xl">Loading your cards...</div>
+            <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/20 backdrop-blur-sm">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+                <div className="text-white text-xl">Loading your cards...</div>
+                <div className="text-white/70 text-sm mt-2">This won't block tab switching</div>
+              </div>
             </div>
           ) : (
             <>
@@ -549,13 +658,17 @@ function HomePage() {
                 <InfiniteCardCanvas
                   cards={cards}
                   onCardSelect={handleCardSelect}
-                  onLoadMore={loadMoreCards}
+                  onLoadMore={handleLoadMore}
                   hasMore={hasMore}
                   className="z-30"
                 />
               ) : (
                 // Sorted View: Plain fixed overlay with its own scroll
-                <div className="fixed inset-0 z-30 pt-28 pb-8 overflow-y-auto">
+                <div 
+                  ref={sortedViewRef}
+                  className="fixed inset-0 z-30 pt-28 pb-8 overflow-y-auto"
+                  onScroll={handleSortedScroll}
+                >
                   <div className="w-full px-[12px]">
                     {/* Auto-wrap with responsive tile size and gap; centered with small symmetric gutters */}
                     <div className="flex flex-wrap justify-center

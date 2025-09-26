@@ -9,6 +9,7 @@ import { WeaviateClient } from 'weaviate-ts-client';
 // import { Driver as Neo4jDriver } from 'neo4j-driver'; // Commented out due to missing dependency
 import { CypherBuilder, EntityScorer, HydrationAdapter } from './internal';
 import { TextEmbeddingTool } from '../ai/TextEmbeddingTool';
+import { HRTParametersLoader } from './HRTParametersLoader';
 import type { IExecutableTool, TTextEmbeddingInputPayload, TTextEmbeddingResult } from '@2dots1line/shared-types';
 import { 
   HRTInput, 
@@ -19,7 +20,8 @@ import {
   EntityMetadata,
   ScoringContext,
   ExtendedAugmentedMemoryContext,
-  RetrievalWeights
+  RetrievalWeights,
+  HRTUserParameters
 } from './types';
 
 export class HybridRetrievalTool {
@@ -32,11 +34,13 @@ export class HybridRetrievalTool {
   private entityScorer: EntityScorer | null = null;
   private hydrationAdapter: HydrationAdapter | null = null;
   private embeddingTool!: IExecutableTool<TTextEmbeddingInputPayload, TTextEmbeddingResult>;
+  private parametersLoader: HRTParametersLoader;
 
   constructor(databaseService: DatabaseService, configService: any) {
     this.db = databaseService;
     this.weaviate = databaseService.weaviate;
     this.neo4j = databaseService.neo4j;
+    this.parametersLoader = new HRTParametersLoader(databaseService);
     
     // Initialize internal modules with loaded configurations
     this.initializeInternalModules(configService);
@@ -121,7 +125,15 @@ export class HybridRetrievalTool {
         throw new Error(`HybridRetrievalTool: CypherBuilder missing required methods: ${missingMethods.join(', ')}`);
       }
 
-    const context: HRTExecutionContext = this.createExecutionContext(input);
+      // Load user-specific parameters
+      const userParameters = input.userParameters || await this.parametersLoader.loadUserParameters(input.userId);
+      console.log(`[HRT] Using user parameters for ${input.userId}:`, {
+        resultsPerPhrase: userParameters.weaviate.resultsPerPhrase,
+        maxGraphHops: userParameters.neo4j.maxGraphHops,
+        topNCandidates: userParameters.scoring.topNCandidatesForHydration
+      });
+
+    const context: HRTExecutionContext = this.createExecutionContext(input, userParameters);
     
     try {
       console.log(`[HRT ${context.requestId}] Starting V9.5 six-stage retrieval pipeline`);
@@ -130,16 +142,16 @@ export class HybridRetrievalTool {
       const processedPhrases = await this.processKeyPhrases(input.keyPhrasesForRetrieval, context);
       
       // Stage 2: Semantic Grounding (Weaviate)
-      const seedEntities = await this.semanticGrounding(processedPhrases, input.userId, context);
+      const seedEntities = await this.semanticGrounding(processedPhrases, input.userId, context, userParameters);
       
       // Stage 3: Graph Traversal (Neo4j) - USES CypherBuilder
-      const candidateEntities = await this.graphTraversal(seedEntities, input.userId, input.retrievalScenario || 'neighborhood', context);
+      const candidateEntities = await this.graphTraversal(seedEntities, input.userId, input.retrievalScenario || 'neighborhood', context, userParameters);
       
       // Stage 4: Pre-Hydration (PostgreSQL Metadata)
       const metadataMap = await this.preHydration(candidateEntities, input.userId, context);
       
       // Stage 5: Scoring & Prioritization - USES EntityScorer
-      const scoredEntities = await this.scoringAndPrioritization(candidateEntities, seedEntities, metadataMap, context);
+      const scoredEntities = await this.scoringAndPrioritization(candidateEntities, seedEntities, metadataMap, context, userParameters);
       
       // Stage 6: Full Content Hydration - USES HydrationAdapter
       const augmentedContext = await this.fullContentHydration(scoredEntities, input.userId, context);
@@ -185,7 +197,7 @@ export class HybridRetrievalTool {
   }
 
   // Stage 2: Semantic Grounding (Weaviate)
-  private async semanticGrounding(phrases: string[], userId: string, context: HRTExecutionContext): Promise<SeedEntity[]> {
+  private async semanticGrounding(phrases: string[], userId: string, context: HRTExecutionContext, userParameters: HRTUserParameters): Promise<SeedEntity[]> {
     const stageStart = Date.now();
     
     try {
@@ -263,7 +275,7 @@ export class HybridRetrievalTool {
             .withFields('entity_id entity_type content _additional { distance }')
             .withWhere(whereClause)
             .withNearVector({ vector: searchVector })
-            .withLimit(3)
+            .withLimit(userParameters.weaviate.resultsPerPhrase)
             .do();
           
           if (result?.data?.Get?.UserKnowledgeItem) {
@@ -317,7 +329,8 @@ export class HybridRetrievalTool {
     seedEntities: SeedEntity[],
     userId: string,
     scenario: string,
-    context: HRTExecutionContext
+    context: HRTExecutionContext,
+    userParameters: HRTUserParameters
   ): Promise<CandidateEntity[]> {
     const stageStart = Date.now();
     
@@ -348,20 +361,21 @@ export class HybridRetrievalTool {
       
       // Use the appropriate CypherBuilder method based on scenario
       let query;
+      const maxResults = userParameters.neo4j.maxResultLimit;
       switch (scenario) {
         case 'neighborhood':
-          query = this.cypherBuilder!.buildNeighborhoodQuery(seedEntityParams, userId, 20);
+          query = this.cypherBuilder!.buildNeighborhoodQuery(seedEntityParams, userId, maxResults);
           break;
         case 'timeline':
-          query = this.cypherBuilder!.buildTimelineQuery(seedEntityParams, userId, 20);
+          query = this.cypherBuilder!.buildTimelineQuery(seedEntityParams, userId, maxResults);
           break;
         case 'conceptual':
-          query = this.cypherBuilder!.buildConceptualQuery(seedEntityParams, userId, 20);
+          query = this.cypherBuilder!.buildConceptualQuery(seedEntityParams, userId, maxResults);
           break;
         default:
           // Fallback to neighborhood if unknown scenario
           console.log(`[HRT ${context.requestId}] Stage 3: Unknown scenario '${scenario}', using neighborhood traversal`);
-          query = this.cypherBuilder!.buildNeighborhoodQuery(seedEntityParams, userId, 20);
+          query = this.cypherBuilder!.buildNeighborhoodQuery(seedEntityParams, userId, maxResults);
       }
       
       // Execute the query
@@ -524,7 +538,8 @@ export class HybridRetrievalTool {
     candidates: CandidateEntity[],
     seedEntities: SeedEntity[],
     metadataMap: Map<string, EntityMetadata>,
-    context: HRTExecutionContext
+    context: HRTExecutionContext,
+    userParameters: HRTUserParameters
   ): Promise<ScoredEntity[]> {
     const stageStart = Date.now();
     
@@ -537,7 +552,15 @@ export class HybridRetrievalTool {
         metadataMap
       };
       
-      const topN = 10; // TODO: Load from config
+      // Update EntityScorer with user-specific weights
+      const userWeights: RetrievalWeights = {
+        alpha_semantic_similarity: userParameters.scoringWeights.alphaSemanticSimilarity,
+        beta_recency: userParameters.scoringWeights.betaRecency,
+        gamma_importance_score: userParameters.scoringWeights.gammaImportanceScore
+      };
+      this.entityScorer!.updateWeights(userWeights);
+      
+      const topN = userParameters.scoring.topNCandidatesForHydration;
       const prioritizedEntities = this.entityScorer!.scoreAndPrioritize(candidates, scoringContext, topN);
       
       context.timings.scoringDuration = Date.now() - stageStart;
@@ -636,7 +659,7 @@ export class HybridRetrievalTool {
   }
 
   // Helper methods
-  private createExecutionContext(input: HRTInput): HRTExecutionContext {
+  private createExecutionContext(input: HRTInput, userParameters?: HRTUserParameters): HRTExecutionContext {
     return {
       requestId: `hrt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       userId: input.userId,

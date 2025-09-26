@@ -11,6 +11,7 @@ import { useBackgroundVideoStore, type ViewType } from '../../stores/BackgroundV
 import { useNotificationPreferencesStore, type NotificationPosition, type NotificationType } from '../../stores/NotificationPreferencesStore';
 import { useNotificationStore } from '../../stores/NotificationStore';
 import { PexelsSearchModal } from './PexelsSearchModal';
+import { HRTControlPanel } from '../settings/HRTControlPanel';
 
 import { EnhancedCardModal } from './EnhancedCardModal';
 import ChatModal from './ChatModal';
@@ -280,10 +281,9 @@ const SettingsModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
           </div>
         </div>
 
-        {/* Placeholder for other settings */}
+        {/* HRT Control Panel */}
         <div className="border-t border-white/20 pt-6">
-          <h3 className="text-xl font-semibold text-white mb-4">Other Settings</h3>
-          <p className="text-white/80">Additional application settings will appear here.</p>
+          <HRTControlPanel />
         </div>
         
         {/* Pexels Search Modal */}

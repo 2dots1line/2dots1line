@@ -85,7 +85,12 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
 
   useEffect(() => {
     if (isOpen) {
-      loadDashboardData();
+      // Use setTimeout to defer the API calls to next tick, allowing UI to render first
+      const loadTimeout = setTimeout(() => {
+        loadDashboardData();
+      }, 0); // Defer to next tick
+      
+      return () => clearTimeout(loadTimeout);
     }
   }, [isOpen]);
 

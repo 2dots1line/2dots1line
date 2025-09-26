@@ -12,6 +12,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 
 import { useHUDStore, ViewType } from '../../stores/HUDStore';
+import { useCardStore } from '../../stores/CardStore';
 
 interface HUDContainerProps {
   onViewSelect?: (view: ViewType) => void;
@@ -104,6 +105,8 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
 
   // Handle view button click
   const handleButtonClick = (viewId: ViewType) => {
+    console.log(`[HUDContainer] Switching to view: ${viewId}`);
+    
     if (viewId === 'cosmos') {
       // Navigate to cosmos page
       router.push('/cosmos');
@@ -115,6 +118,12 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
         router.push('/');
       } else {
         // We're on main page, just set the active view
+        // Cancel any ongoing card loading when switching away from cards
+        if (activeView === 'cards' && viewId !== 'cards') {
+          const { cancelCurrentRequest } = useCardStore.getState();
+          cancelCurrentRequest();
+        }
+        
         setActiveView(viewId);
         onViewSelect?.(viewId);
       }
@@ -129,6 +138,15 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
       setPendingView(null);
     }
   }, [pathname, pendingView, setActiveView, onViewSelect]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // Cancel any ongoing card loading when HUD unmounts
+      const { cancelCurrentRequest } = useCardStore.getState();
+      cancelCurrentRequest();
+    };
+  }, []);
 
   // Determine active view based on current route
   const getCurrentActiveView = (): ViewType => {
