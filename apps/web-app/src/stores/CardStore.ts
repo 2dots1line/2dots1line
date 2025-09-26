@@ -229,7 +229,7 @@ export const useCardStore = create<CardState>()(
       updateCardBackground: async (cardId: string, url: string) => {
         console.log('CardStore.updateCardBackground - Updating background for card:', cardId);
         try {
-          const response = await cardService.updateCardBackground(cardId, url);
+          const response = await cardService.updateCardBackground({ card_id: cardId, background_image_url: url });
           if (response.success) {
             // Update the card in the store
             const state = get();
