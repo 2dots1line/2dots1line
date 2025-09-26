@@ -51,7 +51,7 @@ export interface GraphProjectionWorkerConfig {
 }
 
 export interface Node3D {
-  id: string;
+  entity_id: string;
   type: 'MemoryUnit' | 'Concept' | 'DerivedArtifact' | 'Community' | 'ProactivePrompt' | 'GrowthEvent' | 'User';
   title: string;
   content: string;
@@ -304,12 +304,12 @@ export class GraphProjectionWorker {
           .graphql
           .get()
           .withClassName('UserKnowledgeItem')
-          .withFields('externalId')
+          .withFields('entity_id')
           .withWhere({
             operator: 'And',
             operands: [
-              { path: ['sourceEntityType'], operator: 'Equal', valueString: entity.type },
-              { path: ['sourceEntityId'], operator: 'Equal', valueString: entity.id }
+              { path: ['entity_type'], operator: 'Equal', valueString: entity.type },
+              { path: ['entity_id'], operator: 'Equal', valueString: entity.id }
             ]
           })
           .withLimit(1)
@@ -362,7 +362,7 @@ export class GraphProjectionWorker {
    */
   private async fetchGraphStructureFromNeo4j(userId: string): Promise<{
     nodes: Array<{
-      id: string;
+      entity_id: string;
       type: string;
       title: string;
       content: string;
@@ -399,7 +399,7 @@ export class GraphProjectionWorker {
             nodeType = 'Concept';
             // Add merged status to metadata for visual distinction
             node.properties.isMerged = true;
-            node.properties.mergedIntoConceptId = node.properties.merged_into_concept_id;
+            node.properties.mergedIntoEntityId = node.properties.merged_into_entity_id;
           } else {
             nodeType = 'Concept';
           }
@@ -410,41 +410,39 @@ export class GraphProjectionWorker {
         } else if (node.labels.includes('Community')) {
           nodeType = 'Community';
         } else {
-          console.error(`[GraphProjectionWorker] ❌ Unsupported node type: ${node.labels.join(', ')} for node ${node.id}`);
+          console.error(`[GraphProjectionWorker] ❌ Unsupported node type: ${node.labels.join(', ')} for node ${node.entity_id}`);
           throw new Error(`Unsupported node type: ${node.labels.join(', ')}`);
         }
         
-        // Extract actual UUID from properties instead of Neo4j internal ID
-        const entityId = node.properties.prompt_id || node.properties.muid || node.properties.id || 
-                        node.properties.community_id || node.properties.artifact_id ||
-                        node.properties.event_id || node.properties.userId;
+        // Extract actual UUID from the standardized entity_id field
+        const entityId = node.entity_id;
         
         if (!entityId || !this.isValidUuid(entityId)) {
-          console.error(`[GraphProjectionWorker] ❌ Invalid or missing UUID for node ${node.id}: ${entityId}`);
-          throw new Error(`Invalid UUID for node ${node.id}: ${entityId}`);
+          console.warn(`[GraphProjectionWorker] ⚠️ Skipping node with invalid UUID: ${entityId} (labels: ${node.labels.join(', ')})`);
+          return null; // Skip this node
         }
         
         // Extract connections from edges
         const connections = graphStructure.edges
-          .filter(edge => edge.source === node.id)
+          .filter(edge => edge.source === entityId)
           .map(edge => edge.target);
         
         return {
-          id: entityId, // Use actual UUID, not Neo4j internal ID
+          entity_id: entityId, // Use standardized entity_id field
           type: nodeType,
-          title: node.properties.title || node.properties.name || 'Untitled',
-          content: node.properties.content || node.properties.description || '',
+          title: node.properties.title || 'Untitled',
+          content: node.properties.content || '',
           importance: node.properties.importance_score || 0.5,
-          createdAt: node.properties.created_at || node.properties.creation_ts || new Date().toISOString(),
+          createdAt: node.properties.created_at || new Date().toISOString(),
           connections,
           metadata: {
             // Add merged concept information
-            isMerged: node.properties.isMerged || false,
-            mergedIntoConceptId: node.properties.mergedIntoConceptId || null,
+            isMerged: node.properties.status === 'merged',
+            mergedIntoEntityId: node.properties.merged_into_entity_id || null,
             status: node.properties.status || 'active'
           }
         };
-      }).filter(Boolean); // Remove any null nodes (should be none now)
+      }).filter((node): node is NonNullable<typeof node> => node !== null); // Remove any null nodes
       
       // Process edges to match the expected format
       const processedEdges = graphStructure.edges.map(edge => ({
@@ -479,42 +477,42 @@ export class GraphProjectionWorker {
       
       for (const node of nodes) {
         try {
-          // Validate if node.id is a valid UUID before querying Weaviate
-          if (!this.isValidUuid(node.id)) {
-            console.warn(`[GraphProjectionWorker] ⚠️ Node ID "${node.id}" is not a valid UUID, using fallback vector`);
+          // Validate if node.entity_id is a valid UUID before querying Weaviate
+          if (!this.isValidUuid(node.entity_id)) {
+            console.warn(`[GraphProjectionWorker] ⚠️ Node entity_id "${node.entity_id}" is not a valid UUID, using fallback vector`);
             const fallbackVector = this.generateSemanticFallbackVector(node);
             vectors.push(fallbackVector);
             continue;
           }
 
-          // Use unified UserKnowledgeItem class with sourceEntityType filter
+          // Use unified UserKnowledgeItem class with entity_type filter
           const result = await this.databaseService.weaviate
             .graphql
             .get()
             .withClassName('UserKnowledgeItem')
-            .withFields('externalId sourceEntityType sourceEntityId _additional { vector }')
+            .withFields('entity_id entity_type _additional { vector }')
             .withWhere({
               operator: 'And',
               operands: [
                 {
-                  path: ['sourceEntityType'],
+                  path: ['entity_type'],
                   operator: 'Equal',
                   valueString: node.type
                 },
                 {
-                  path: ['sourceEntityId'],
+                  path: ['entity_id'],
                   operator: 'Equal',
-                  valueString: node.id
+                  valueString: node.entity_id
                 }
               ]
             })
             .withLimit(1)
             .do();
 
-          if (result.data?.Get?.UserKnowledgeItem?.[0]?._additional?.vector) {
+          if (result.data?.Get?.UserKnowledgeItem?.[0]?._additional?.vector && result.data.Get.UserKnowledgeItem[0]._additional.vector.length > 0) {
             const embedding = result.data.Get.UserKnowledgeItem[0]._additional.vector;
             vectors.push(embedding);
-            console.log(`[GraphProjectionWorker] ✅ Retrieved embedding for ${node.type} ${node.id}`);
+            console.log(`[GraphProjectionWorker] ✅ Retrieved embedding for ${node.type} ${node.entity_id}`);
           } else {
             // Try alternative query with content similarity if direct ID lookup fails
             // Generate a temporary embedding for the fallback search
@@ -524,9 +522,9 @@ export class GraphProjectionWorker {
               .graphql
               .get()
               .withClassName('UserKnowledgeItem')
-              .withFields('externalId sourceEntityType sourceEntityId _additional { vector }')
+              .withFields('entity_id entity_type _additional { vector }')
               .withWhere({
-                path: ['sourceEntityType'],
+                path: ['entity_type'],
                 operator: 'Equal',
                 valueString: node.type
               })
@@ -537,21 +535,21 @@ export class GraphProjectionWorker {
               .withLimit(1)
               .do();
 
-            if (fallbackResult.data?.Get?.UserKnowledgeItem?.[0]?._additional?.vector) {
+            if (fallbackResult.data?.Get?.UserKnowledgeItem?.[0]?._additional?.vector && fallbackResult.data.Get.UserKnowledgeItem[0]._additional.vector.length > 0) {
               const embedding = fallbackResult.data.Get.UserKnowledgeItem[0]._additional.vector;
               vectors.push(embedding);
-              console.log(`[GraphProjectionWorker] ✅ Retrieved fallback embedding for ${node.type} ${node.id}`);
+              console.log(`[GraphProjectionWorker] ✅ Retrieved fallback embedding for ${node.type} ${node.entity_id}`);
             } else {
               // If even the fallback search fails, use the generated fallback vector
               vectors.push(fallbackVector);
-              console.log(`[GraphProjectionWorker] ⚠️ Using generated fallback vector for ${node.type} ${node.id} (no similar embeddings found)`);
+              console.log(`[GraphProjectionWorker] ⚠️ Using generated fallback vector for ${node.type} ${node.entity_id} (no similar embeddings found)`);
             }
           }
                  } catch (nodeError: any) {
            // Generate fallback vector for this specific node
            const fallbackVector = this.generateSemanticFallbackVector(node);
            vectors.push(fallbackVector);
-           console.warn(`[GraphProjectionWorker] ⚠️ Using fallback vector for ${node.id}:`, nodeError?.message || 'Unknown error');
+           console.warn(`[GraphProjectionWorker] ⚠️ Using fallback vector for ${node.entity_id}:`, nodeError?.message || 'Unknown error');
         }
       }
       
@@ -627,7 +625,7 @@ export class GraphProjectionWorker {
         // Convert GraphProjection to GraphProjectionData format
         const projectionData: GraphProjectionData = {
           nodes: projection.nodes.map((node: any) => ({
-          id: node.id,
+          entity_id: node.entity_id,
           position: { 
             x: node.position[0], 
             y: node.position[1], 
@@ -670,9 +668,9 @@ export class GraphProjectionWorker {
           },
           statistics: {
             nodeCount: projection.statistics.totalNodes,
-            edgeCount: projection.statistics.connections,
+            edgeCount: edges.length,
             density: projection.statistics.totalNodes > 0 ? 
-              projection.statistics.connections / (projection.statistics.totalNodes * (projection.statistics.totalNodes - 1)) : 0
+              edges.length / (projection.statistics.totalNodes * (projection.statistics.totalNodes - 1)) : 0
           }
         }
       };
@@ -738,7 +736,7 @@ export class GraphProjectionWorker {
   private generateSemanticFallbackVector(node: any): number[] {
     // Create a deterministic but varied vector based on node properties
     const content = (node.content || node.title || '').toLowerCase();
-    const seed = this.hashString(content + node.id);
+    const seed = this.hashString(content + node.entity_id);
     
     const vector: number[] = [];
     let currentSeed = seed;
@@ -808,7 +806,7 @@ export class GraphProjectionWorker {
       // Use golden ratio spiral for better distribution
       const goldenRatio = (1 + Math.sqrt(5)) / 2;
       const angle = i * 2 * Math.PI / goldenRatio;
-      const y = 1 - (i / (nodeCount - 1)) * 2; // [-1, 1]
+      const y = nodeCount === 1 ? 0 : 1 - (i / (nodeCount - 1)) * 2; // [-1, 1]
       const radiusAtY = Math.sqrt(1 - y * y);
       
       const x = Math.cos(angle) * radiusAtY * radius;
@@ -829,8 +827,8 @@ export class GraphProjectionWorker {
     coordinates3D: number[][]
   ): GraphProjection {
     const nodes: Node3D[] = graphData.nodes.map((node: any, index: number) => ({
-      id: node.id,
-      type: node.type as 'MemoryUnit' | 'Concept',
+      entity_id: node.entity_id,
+      type: node.type as 'MemoryUnit' | 'Concept' | 'DerivedArtifact' | 'Community' | 'ProactivePrompt' | 'GrowthEvent' | 'User',
       title: node.title,
       content: node.content,
       position: coordinates3D[index] as [number, number, number],
@@ -839,7 +837,10 @@ export class GraphProjectionWorker {
       metadata: {
         createdAt: node.createdAt || new Date().toISOString(),
         lastUpdated: new Date().toISOString(),
-        userId
+        userId,
+        isMerged: node.metadata?.isMerged || false,
+        mergedIntoConceptId: node.metadata?.mergedIntoConceptId || null,
+        status: node.metadata?.status || 'active'
       }
     }));
 

@@ -3,7 +3,7 @@ import { Driver, Session, Record as Neo4jRecord, Integer } from 'neo4j-driver';
 import { v5 as uuidv5 } from 'uuid';
 
 export interface GraphNode {
-  id: string;
+  entity_id: string;
   labels: string[];
   properties: Record<string, any>;
 }
@@ -70,13 +70,13 @@ export class Neo4jService {
    */
   public async fetchFullGraphStructure(userId: string): Promise<GraphStructure> {
     const cypher = `
-      MATCH (n) WHERE n.userId = $userId AND (n.status = 'active' OR n.status IS NULL)
-      OPTIONAL MATCH (n)-[r]->(m) WHERE m.userId = $userId AND (m.status = 'active' OR m.status IS NULL)
+      MATCH (n) WHERE n.user_id = $userId AND (n.status = 'active' OR n.status IS NULL)
+      OPTIONAL MATCH (n)-[r]->(m) WHERE m.user_id = $userId AND (m.status = 'active' OR m.status IS NULL)
       RETURN n, r, m, 
              id(n) as nId, 
              id(m) as mId,
-             COALESCE(n.id, n.muid, n.conceptId, n.artifact_id, n.community_id, toString(id(n))) as nExternalId,
-             COALESCE(m.id, m.muid, m.conceptId, m.artifact_id, m.community_id, toString(id(m))) as mExternalId
+             n.entity_id as nEntityId,
+             m.entity_id as mEntityId
     `;
     
     const records = await this.runReadQuery(cypher, { userId });
@@ -91,29 +91,29 @@ export class Neo4jService {
       const nodeM = record.get('m');
       const nId = record.get('nId');
       const mId = record.get('mId');
-      const nExternalId = record.get('nExternalId');
-      const mExternalId = record.get('mExternalId');
+      const nEntityId = record.get('nEntityId');
+      const mEntityId = record.get('mEntityId');
 
-      if (nodeN && nExternalId) {
+      if (nodeN && nEntityId) {
         const internalId = nId instanceof Integer ? nId.toString() : nId.toString();
-        internalToExternalId.set(internalId, nExternalId);
+        internalToExternalId.set(internalId, nEntityId);
         
-        if (!nodes.has(nExternalId)) {
-          nodes.set(nExternalId, {
-            id: nExternalId,
+        if (!nodes.has(nEntityId)) {
+          nodes.set(nEntityId, {
+            entity_id: nEntityId,
             labels: nodeN.labels,
             properties: this.cleanProperties(nodeN.properties)
           });
         }
       }
 
-      if (nodeM && mExternalId) {
+      if (nodeM && mEntityId) {
         const internalId = mId instanceof Integer ? mId.toString() : mId.toString();
-        internalToExternalId.set(internalId, mExternalId);
+        internalToExternalId.set(internalId, mEntityId);
         
-        if (!nodes.has(mExternalId)) {
-          nodes.set(mExternalId, {
-            id: mExternalId,
+        if (!nodes.has(mEntityId)) {
+          nodes.set(mEntityId, {
+            entity_id: mEntityId,
             labels: nodeM.labels,
             properties: this.cleanProperties(nodeM.properties)
           });
@@ -237,7 +237,7 @@ export class Neo4jService {
       const externalId = node.properties.id || node.properties.muid || (nodeId instanceof Integer ? nodeId.toString() : nodeId.toString());
       
       return {
-        id: externalId,
+        entity_id: externalId,
         labels: node.labels,
         properties: this.cleanProperties(node.properties)
       };

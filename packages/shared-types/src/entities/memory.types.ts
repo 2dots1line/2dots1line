@@ -78,7 +78,7 @@ export interface TRawContent {
   /** For ordered content (like conversation messages), indicates the sequence */
   sequence_order?: number | null;
   /** Timestamp of original content creation */
-  creation_ts: Date;
+  created_at: Date;
   /** Hash of the content to detect duplicates or changes */
   content_hash?: string | null;
   /** Additional content-specific metadata (JSON object) */

@@ -179,7 +179,7 @@ export const EnhancedCardModal: React.FC<EnhancedCardModalProps> = ({
                     </div>
                     <div className="text-sm">
                       <span className="text-white/60">Card Type: </span>
-                      <span className="text-white/90">{card.card_type?.replace(/_/g, ' ')}</span>
+                      <span className="text-white/90">{card.type?.replace(/_/g, ' ')}</span>
                     </div>
                     <div className="text-sm">
                       <span className="text-white/60">Status: </span>

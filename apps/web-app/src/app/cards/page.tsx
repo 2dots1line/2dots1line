@@ -27,7 +27,7 @@ export default function CardsPage() {
       const t = v ? new Date(v).getTime() : 0;
       return Number.isFinite(t) ? t : 0;
     };
-    const getTitle = (c: UICard) => (c?.title || c?.description || '').toString();
+    const getTitle = (c: UICard) => (c?.title || c?.content || '').toString();
 
     arr.sort((a, b) => {
       if (hasCoverFirst) {
@@ -65,7 +65,7 @@ export default function CardsPage() {
             id: c.card_id || `${c.title || 'card'}-${idx}`,
             title: c.title || (c as any).subtitle || 'Untitled',
             subtitle: (c as any).subtitle || null,
-            description: c.description || '',
+            content: c.content || '',
             background_image_url: (c as any).background_image_url || null,
             created_at: (c as any).created_at ?? null,
           }));
@@ -102,7 +102,7 @@ export default function CardsPage() {
           id: c.card_id || `${c.title || 'card'}-${idx}`,
           title: c.title || (c as any).subtitle || 'Untitled',
           subtitle: (c as any).subtitle || null,
-          description: c.description || '',
+          content: c.content || '',
           background_image_url: (c as any).background_image_url || null
         }));
         setCards(list);
@@ -228,7 +228,7 @@ function makeDemoCards(): BasicCardInput[] {
   return titles.map((t, i) => ({
     id: `demo-${i}`,
     title: t,
-    description:
+    content:
       'A short note about progress, reflections, and small wins. This demonstrates adaptive covers based on text.',
   }));
 }

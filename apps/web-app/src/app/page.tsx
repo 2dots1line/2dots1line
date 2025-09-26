@@ -159,7 +159,7 @@ function HomePage() {
       (typeof card.title === 'string' && card.title.trim()) ||
       (typeof card.subtitle === 'string' && card.subtitle.trim()) ||
       (typeof card.display_data?.preview === 'string' && card.display_data.preview.trim()) ||
-      card.card_type ||
+      card.type ||
       'abstract motif';
 
     const payload = {

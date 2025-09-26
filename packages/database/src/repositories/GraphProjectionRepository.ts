@@ -3,7 +3,7 @@ import { DatabaseService } from '../DatabaseService';
 
 export interface GraphProjectionData {
   nodes: Array<{
-    id: string;
+    entity_id: string;
     position: { x: number; y: number; z: number };
     properties: Record<string, any>;
   }>;

@@ -69,10 +69,12 @@ export class WeaviateService {
             entity_id: item.entity_id,
             user_id: item.user_id,
             entity_type: item.entity_type,
-            content: item.content,
+            sourceEntityId: item.entity_id, // Map entity_id to sourceEntityId for schema compatibility
+            sourceEntityType: item.entity_type, // Map entity_type to sourceEntityType for schema compatibility
+            textContent: item.content, // Map content to textContent for schema compatibility
             title: item.title,
-            created_at: item.created_at,
-            updated_at: item.updated_at,
+            createdAt: item.created_at, // Map created_at to createdAt for schema compatibility
+            updatedAt: item.updated_at, // Map updated_at to updatedAt for schema compatibility
             ...(item.status && { status: item.status })
           }
         };
@@ -245,12 +247,12 @@ export class WeaviateService {
               id: item.id || id,
               externalId: String(item.properties.entity_id || ''),
               userId: String(item.properties.user_id || ''),
-              sourceEntityType: String(item.properties.entity_type || ''),
-              sourceEntityId: String(item.properties.entity_id || ''),
-              textContent: String(item.properties.content || ''),
+              sourceEntityType: String(item.properties.sourceEntityType || item.properties.entity_type || ''),
+              sourceEntityId: String(item.properties.sourceEntityId || item.properties.entity_id || ''),
+              textContent: String(item.properties.textContent || item.properties.content || ''),
               title: String(item.properties.title || ''),
-              createdAt: String(item.properties.created_at || ''),
-              updatedAt: String(item.properties.updated_at || ''),
+              createdAt: String(item.properties.createdAt || item.properties.created_at || ''),
+              updatedAt: String(item.properties.updatedAt || item.properties.updated_at || ''),
               vector: item.vector
             });
           }

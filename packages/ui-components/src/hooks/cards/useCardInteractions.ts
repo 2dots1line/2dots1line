@@ -251,7 +251,7 @@ export function useCardInteractions(config: UseCardInteractionsConfig = {}) {
       try {
         await navigator.share({
           title: card.title || 'Card',
-          text: card.description || 'Check out this card',
+          text: card.content || 'Check out this card',
           url: window.location.href
         });
         
@@ -267,7 +267,7 @@ export function useCardInteractions(config: UseCardInteractionsConfig = {}) {
       }
     } else {
       // Fallback to clipboard
-      const shareText = `${card.title || 'Card'}\n${card.description || ''}\n${window.location.href}`;
+      const shareText = `${card.title || 'Card'}\n${card.content || ''}\n${window.location.href}`;
       
       try {
         await navigator.clipboard.writeText(shareText);

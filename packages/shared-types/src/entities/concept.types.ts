@@ -57,7 +57,7 @@ export interface TConceptRelationship {
   /** Source of this relationship information ('ai_inferred', 'user_stated', 'ontology_default') */
   source_of_relation?: string | null;
   /** Timestamp when the relationship was created or identified */
-  creation_ts: Date;
+  created_at: Date;
   /** Optional: MUID of the MemoryUnit where this relationship was primarily observed or defined */
   context_muid?: string | null;
   /** Optional metadata (JSON object) */

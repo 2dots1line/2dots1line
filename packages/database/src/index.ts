@@ -30,6 +30,8 @@ export { InsightQueryLibrary } from './services/InsightQueryLibrary';
 export { DashboardService } from './services/DashboardService';
 export { DashboardConfigService } from './services/DashboardConfigService';
 export { GraphProjectionRepository } from './repositories/GraphProjectionRepository';
+export { UnifiedPersistenceService } from './services/UnifiedPersistenceService';
+export type { StandardizedEntity, EntityType, PersistenceOptions, PersistenceResult, BatchPersistenceResult } from './services/UnifiedPersistenceService';
 
 // Monitoring utilities
 export { RedisConnectionMonitor } from './RedisConnectionMonitor';

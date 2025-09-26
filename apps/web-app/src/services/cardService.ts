@@ -9,8 +9,8 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3
 
 export interface GetCardsRequest {
   user_id?: string;
-  card_type?: CardType;
-  status?: CardStatus;
+  type?: string;
+  status?: string;
   limit?: number;
   offset?: number;
   favorited?: boolean;
@@ -38,14 +38,14 @@ export interface UpdateCardResponse {
 }
 
 export interface CreateCardRequest {
-  card_type: CardType;
+  type: string;
   source_entity_id: string;
   source_entity_type: string;
   display_data?: Record<string, any>;
   background_image_url?: string;
   title?: string;
   subtitle?: string;
-  description?: string;
+  content?: string;
 }
 
 export interface CreateCardResponse {
@@ -107,7 +107,7 @@ class CardService {
     try {
       const params = new URLSearchParams();
       
-      if (request.card_type) params.append('card_type', request.card_type);
+      if (request.type) params.append('type', request.type);
       if (request.status) params.append('status', request.status);
       if (request.limit) params.append('limit', request.limit.toString());
       if (request.offset) params.append('offset', request.offset.toString());
@@ -141,77 +141,20 @@ class CardService {
         let title = apiCard.title;
         let subtitle = apiCard.preview;
         
-        // Fallback logic for different card types when title/subtitle are empty
+        // Use normalized display_data fields (backend handles old/new field mapping)
         if (!title) {
-          switch (apiCard.type) {
-            case 'concept':
-              title = apiCard.display_data?.name || 
-                     apiCard.display_data?.description || 
-                     apiCard.display_data?.concept_id || 
-                     `Concept: ${apiCard.id}`;
-              break;
-            case 'proactiveprompt':
-              title = apiCard.display_data?.prompt_text || 
-                     apiCard.display_data?.prompt_id || 
-                     `Proactive Prompt: ${apiCard.id}`;
-              break;
-            case 'derivedartifact':
-              title = apiCard.display_data?.title || 
-                     apiCard.display_data?.artifact_type || 
-                     apiCard.display_data?.artifact_id || 
-                     `Derived Artifact: ${apiCard.id}`;
-              break;
-            case 'community':
-              title = apiCard.display_data?.name || 
-                     apiCard.display_data?.community_id || 
-                     `Community: ${apiCard.id}`;
-              break;
-            case 'memoryunit':
-              title = apiCard.display_data?.title || 
-                     apiCard.display_data?.memory_id || 
-                     `Memory Unit: ${apiCard.id}`;
-              break;
-            default:
-              title = `${apiCard.type.charAt(0).toUpperCase() + apiCard.type.slice(1)}: ${apiCard.id}`;
-          }
+          title = apiCard.display_data?.title || 'Untitled';
         }
         
         if (!subtitle) {
-          switch (apiCard.type) {
-            case 'concept':
-              subtitle = apiCard.display_data?.description || 
-                        apiCard.display_data?.concept_id || 
-                        'Concept entity';
-              break;
-            case 'proactiveprompt':
-              subtitle = apiCard.display_data?.prompt_text || 
-                        apiCard.display_data?.prompt_id || 
-                        'Proactive prompt';
-              break;
-            case 'derivedartifact':
-              subtitle = apiCard.display_data?.artifact_type || 
-                        apiCard.display_data?.artifact_id || 
-                        'Derived artifact';
-              break;
-            case 'community':
-              subtitle = apiCard.display_data?.description || 
-                        apiCard.display_data?.community_id || 
-                        'Community entity';
-              break;
-            case 'memoryunit':
-              subtitle = apiCard.display_data?.preview || 
-                        apiCard.display_data?.memory_id || 
-                        'Memory unit';
-              break;
-            default:
-              subtitle = `${apiCard.type} entity`;
-          }
+          subtitle = apiCard.display_data?.content || `${apiCard.type} entity`;
         }
 
         return {
           // Map API fields to TCard interface
           card_id: apiCard.id,
           user_id: 'dev-user-123', // Default for development
+          type: apiCard.type,
           card_type: apiCard.type,
           source_entity_id: apiCard.source_entity_id || apiCard.id, // Use actual source entity id from API
           source_entity_type: apiCard.source_entity_type || apiCard.type, // Use actual source entity type from API
@@ -233,7 +176,7 @@ class CardService {
           // DisplayCard extensions with fallback titles/subtitles
           title,
           subtitle,
-          description: `${apiCard.type} - ${apiCard.evolutionState || 'Active'}`,
+          content: `${apiCard.type} - ${apiCard.evolutionState || 'Active'}`,
           background_image_url: apiCard.background_image_url || null // Pass through from API
         };
       });
@@ -448,30 +391,30 @@ class CardService {
         if (!title) {
           switch (data.data.type) {
             case 'concept':
-              title = data.data.display_data?.name || 
-                     data.data.display_data?.description || 
-                     data.data.display_data?.concept_id || 
+              title = data.data.display_data?.title || 
+                     data.data.display_data?.content || 
+                     data.data.display_data?.entity_id || 
                      `Concept: ${data.data.id}`;
               break;
             case 'proactiveprompt':
-              title = data.data.display_data?.prompt_text || 
-                     data.data.display_data?.prompt_id || 
+              title = data.data.display_data?.title || 
+                     data.data.display_data?.entity_id || 
                      `Proactive Prompt: ${data.data.id}`;
               break;
             case 'derivedartifact':
               title = data.data.display_data?.title || 
-                     data.data.display_data?.artifact_type || 
-                     data.data.display_data?.artifact_id || 
+                     data.data.display_data?.type || 
+                     data.data.display_data?.entity_id || 
                      `Derived Artifact: ${data.data.id}`;
               break;
             case 'community':
-              title = data.data.display_data?.name || 
-                     data.data.display_data?.community_id || 
+              title = data.data.display_data?.title || 
+                     data.data.display_data?.entity_id || 
                      `Community: ${data.data.id}`;
               break;
             case 'memoryunit':
               title = data.data.display_data?.title || 
-                     data.data.display_data?.memory_id || 
+                     data.data.display_data?.entity_id || 
                      `Memory Unit: ${data.data.id}`;
               break;
             default:
@@ -482,28 +425,28 @@ class CardService {
         if (!subtitle) {
           switch (data.data.type) {
             case 'concept':
-              subtitle = data.data.display_data?.description || 
-                        data.data.display_data?.concept_id || 
+              subtitle = data.data.display_data?.content || 
+                        data.data.display_data?.entity_id || 
                         'Concept entity';
               break;
             case 'proactiveprompt':
-              subtitle = data.data.display_data?.prompt_text || 
-                        data.data.display_data?.prompt_id || 
+              subtitle = data.data.display_data?.content || 
+                        data.data.display_data?.entity_id || 
                         'Proactive prompt';
               break;
             case 'derivedartifact':
-              subtitle = data.data.display_data?.artifact_type || 
-                        data.data.display_data?.artifact_id || 
+              subtitle = data.data.display_data?.type || 
+                        data.data.display_data?.entity_id || 
                         'Derived artifact';
               break;
             case 'community':
-              subtitle = data.data.display_data?.description || 
-                        data.data.display_data?.community_id || 
+              subtitle = data.data.display_data?.content || 
+                        data.data.display_data?.entity_id || 
                         'Community entity';
               break;
             case 'memoryunit':
-              subtitle = data.data.display_data?.preview || 
-                        data.data.display_data?.memory_id || 
+              subtitle = data.data.display_data?.content || 
+                        data.data.display_data?.entity_id || 
                         'Memory unit';
               break;
             default:
@@ -514,6 +457,7 @@ class CardService {
         return {
           card_id: data.data.id,
           user_id: 'dev-user-123',
+          type: data.data.type,
           card_type: data.data.type,
           source_entity_id: data.data.source_entity_id || data.data.id,
           source_entity_type: data.data.source_entity_type || data.data.type,
@@ -534,7 +478,7 @@ class CardService {
           updated_at: new Date(data.data.updatedAt),
           title,
           subtitle,
-          description: `${data.data.type} - ${data.data.evolutionState || 'Active'}`,
+          content: `${data.data.type} - ${data.data.evolutionState || 'Active'}`,
           background_image_url: data.data.background_image_url || null
         };
       })() : null;
@@ -556,9 +500,9 @@ class CardService {
   /**
    * Get cards by type
    */
-  async getCardsByType(cardType: CardType, limit: number = 50): Promise<GetCardsResponse> {
+  async getCardsByType(type: string, limit: number = 50): Promise<GetCardsResponse> {
     try {
-      return await this.getCards({ card_type: cardType, limit });
+      return await this.getCards({ type: type, limit });
     } catch (error) {
       console.error('Error fetching cards by type:', error);
       throw error;

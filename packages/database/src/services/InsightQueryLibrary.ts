@@ -117,7 +117,7 @@ export class InsightQueryLibrary {
       OPTIONAL MATCH (v)-[:RELATED_TO]-(connected)
       WHERE connected.userId = $userId
       OPTIONAL MATCH (v)<-[:HIGHLIGHTS]-(mu:MemoryUnit)
-      WHERE mu.userId = $userId AND mu.creation_ts > datetime() - duration('P30D')
+      WHERE mu.userId = $userId AND mu.created_at > datetime() - duration('P30D')
       WITH v, 
            count(DISTINCT connected) as connection_count,
            collect(DISTINCT mu.muid)[0..3] as recent_memories,
@@ -152,7 +152,7 @@ export class InsightQueryLibrary {
       OPTIONAL MATCH (g)<-[:HIGHLIGHTS]-(mu:MemoryUnit)
       WHERE mu.userId = $userId
       WITH g, 
-           max(mu.creation_ts) as last_activity,
+           max(mu.created_at) as last_activity,
            collect(DISTINCT mu.muid) as related_memories
       WHERE last_activity < datetime($cycleStartDate) - duration('P14D') OR last_activity IS NULL
       OPTIONAL MATCH (g)-[:RELATED_TO {relationship_label: 'blocked_by'}]->(blocker:Concept)
@@ -194,7 +194,7 @@ export class InsightQueryLibrary {
       WHERE conflict.userId = $userId AND conflict.type IN ['project', 'goal', 'habit']
       OPTIONAL MATCH (v)<-[:HIGHLIGHTS]-(mu:MemoryUnit)
       WHERE mu.userId = $userId 
-        AND mu.creation_ts > datetime($cycleStartDate) - duration('P30D')
+        AND mu.created_at > datetime($cycleStartDate) - duration('P30D')
         AND mu.content =~ '(?i).*(conflict|tension|struggle|difficult).*'
       WITH v,
            count(DISTINCT action) as aligned_count,
@@ -336,7 +336,7 @@ export class InsightQueryLibrary {
       MATCH (neg:Concept {userId: $userId, type: 'emotion_negative', status: 'active'})
       MATCH (neg)<-[:HIGHLIGHTS]-(mu:MemoryUnit)
       WHERE mu.userId = $userId 
-        AND mu.creation_ts > datetime($cycleStartDate) - duration('P30D')
+        AND mu.created_at > datetime($cycleStartDate) - duration('P30D')
       MATCH (mu)-[:HIGHLIGHTS]->(context:Concept)
       WHERE context.userId = $userId 
         AND context.type IN ['person', 'project', 'role', 'theme']
@@ -376,7 +376,7 @@ export class InsightQueryLibrary {
       MATCH (arc:Concept {userId: $userId, type: 'event_theme', status: 'active'})
       MATCH (arc)<-[:HIGHLIGHTS]-(mu:MemoryUnit)
       WHERE mu.userId = $userId 
-        AND mu.creation_ts > datetime($cycleStartDate) - duration('P30D')
+        AND mu.created_at > datetime($cycleStartDate) - duration('P30D')
       WITH arc, 
            count(mu) as activity_count,
            collect(DISTINCT mu.title)[0..3] as recent_developments
@@ -416,7 +416,7 @@ export class InsightQueryLibrary {
       WHERE connection_count <= 1
       OPTIONAL MATCH (c)<-[:HIGHLIGHTS]-(mu:MemoryUnit)
       WHERE mu.userId = $userId
-      WITH c, connection_count, max(mu.creation_ts) as last_activity
+      WITH c, connection_count, max(mu.created_at) as last_activity
       RETURN c.concept_id as concept_id,
              c.name as name,
              c.type as type,

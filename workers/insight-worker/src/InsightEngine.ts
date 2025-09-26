@@ -9,13 +9,16 @@ import {
   UserCycleRepository,
   WeaviateService,
   CommunityRepository,
-  GrowthEventRepository
+  GrowthEventRepository,
+  UnifiedPersistenceService
 } from '@2dots1line/database';
 import type { 
   CreateDerivedArtifactData,
   CreateProactivePromptData,
   CreateUserCycleData,
-  CreateGrowthEventData
+  CreateGrowthEventData,
+  StandardizedEntity,
+  EntityType
 } from '@2dots1line/database';
 import { StrategicSynthesisTool, StrategicSynthesisOutput, StrategicSynthesisInput, HybridRetrievalTool, LLMChatTool } from '@2dots1line/tools';
 import { ConceptMerger, ConceptArchiver, CommunityCreator } from '@2dots1line/ontology-core';
@@ -47,6 +50,9 @@ export class InsightEngine {
   private communityRepository: CommunityRepository;
   private growthEventRepository: GrowthEventRepository;
   
+  // Unified persistence service for V11.0 field standardization
+  private unifiedPersistenceService: UnifiedPersistenceService;
+  
   // Shared ontology components
   private conceptMerger: ConceptMerger;
   private conceptArchiver: ConceptArchiver;
@@ -72,6 +78,9 @@ export class InsightEngine {
     this.communityRepository = new CommunityRepository(dbService);
     this.growthEventRepository = new GrowthEventRepository(dbService);
     
+    // Initialize unified persistence service for V11.0 field standardization
+    this.unifiedPersistenceService = new UnifiedPersistenceService(dbService);
+    
     // Initialize shared ontology components
     this.conceptMerger = new ConceptMerger(this.conceptRepository, dbService, this.weaviateService);
     this.conceptArchiver = new ConceptArchiver(this.conceptRepository, this.weaviateService);
@@ -83,10 +92,8 @@ export class InsightEngine {
     
     // Calculate cycle dates based on current time
     const cycleDates = this.calculateCycleDates();
-    const cycleId = `cycle_${userId}_${cycleDates.cycleStartDate.getTime()}`;
 
     console.log(`[InsightEngine] Starting strategic cycle for user ${userId}`);
-    console.log(`[InsightEngine] Cycle ID: ${cycleId}`);
     console.log(`[InsightEngine] Cycle period: ${cycleDates.cycleStartDate.toISOString()} to ${cycleDates.cycleEndDate.toISOString()}`);
 
     // Create cycle record
@@ -98,7 +105,8 @@ export class InsightEngine {
     };
 
     const cycle = await this.userCycleRepository.create(cycleData);
-    console.log(`[InsightEngine] Created cycle record: ${cycle.entity_id}`);
+    const cycleId = cycle.cycle_id; // Use the cycle_id from the created record
+    console.log(`[InsightEngine] Created cycle record: ${cycleId}`);
 
     const startTime = Date.now();
 
@@ -107,7 +115,7 @@ export class InsightEngine {
 
     try {
       // Phase I: Data Compilation and Context Gathering
-      const { strategicInput } = await this.gatherComprehensiveContext(userId, job.id || 'unknown', cycleDates);
+      const { strategicInput } = await this.gatherComprehensiveContext(userId, job.id || 'unknown', cycleDates, cycleId);
 
       // Phase II: Strategic Synthesis (StrategicSynthesisTool handles retries internally)
       try {
@@ -270,7 +278,7 @@ export class InsightEngine {
   }
 
 
-  private async gatherComprehensiveContext(userId: string, jobId: string, cycleDates: CycleDates) {
+  private async gatherComprehensiveContext(userId: string, jobId: string, cycleDates: CycleDates, cycleId: string) {
     // Get user information
     const user = await this.userRepository.findById(userId);
     if (!user) {
@@ -318,7 +326,7 @@ export class InsightEngine {
         });
         return growthEvents.map((event: any) => ({
           id: event.entity_id,
-          rationale: event.content
+          content: event.content
         }));
       })()
     };
@@ -334,7 +342,7 @@ export class InsightEngine {
       // Core identification
       userId,
       userName: user.name || 'User',
-      cycleId: `cycle-${userId}-${Date.now()}`,
+      cycleId: cycleId,
       cycleStartDate: cycleDates.cycleStartDate,
       cycleEndDate: cycleDates.cycleEndDate,
       
@@ -512,12 +520,12 @@ export class InsightEngine {
 
   /**
    * Fetch user concepts for strategic synthesis
-   * Returns: id, name, description (pre-filtered by importance and active status)
+   * Returns: id, title, content (pre-filtered by importance and active status)
    */
   private async getUserConcepts(userId: string, cycleDates: CycleDates): Promise<Array<{
     id: string;
-    name: string;
-    description: string;
+    title: string;
+    content: string;
   }>> {
     try {
       console.log(`[InsightEngine] Fetching concepts for user ${userId}`);
@@ -532,8 +540,8 @@ export class InsightEngine {
       // Map to simplified interface
       const mappedConcepts = concepts.map((concept: any) => ({
         id: concept.entity_id,
-        name: concept.title,
-        description: concept.content || ''
+        title: concept.title,
+        content: concept.content || ''
       }));
 
       console.log(`[InsightEngine] Retrieved ${mappedConcepts.length} new concepts from current cycle`);
@@ -589,8 +597,11 @@ export class InsightEngine {
     const { ontology_optimizations, derived_artifacts, proactive_prompts } = analysisOutput;
     const newEntities: Array<{ id: string; type: string }> = [];
     
-    // Generate cycle_id if not provided
-    const currentCycleId = cycleId || `cycle_${userId}_${Date.now()}`;
+    // Use the provided cycle_id from user_cycles table
+    if (!cycleId) {
+      throw new Error(`[InsightEngine] cycleId is required for persistStrategicUpdates`);
+    }
+    const currentCycleId = cycleId;
 
     try {
       // Execute Ontology Updates - Concept merging (PostgreSQL + Neo4j)
@@ -632,75 +643,125 @@ export class InsightEngine {
         // NOTE: Relationships are not entities and don't need embeddings or projection updates
       }
 
-      // Create Derived Artifacts
-      for (const artifact of derived_artifacts) {
-        const artifactData: CreateDerivedArtifactData = {
-          user_id: userId,
-          type: artifact.type,
-          title: artifact.title,
-          content: artifact.content,
-          source_concept_ids: artifact.source_concept_ids || [], // ✅ Include source entities
-          source_memory_unit_ids: artifact.source_memory_unit_ids || [] // ✅ Include source memory units
-        };
-
-        const createdArtifact = await this.derivedArtifactRepository.create(artifactData);
-        newEntities.push({ id: createdArtifact.entity_id, type: 'DerivedArtifact' });
-        
-        // CRITICAL FIX: Create Neo4j artifact node immediately
-        if (this.dbService.neo4j) {
-          await this.createNeo4jArtifact(createdArtifact);
-        }
-        
-        console.log(`[InsightEngine] Created derived artifact: ${createdArtifact.entity_id}`);
-      }
-
-      // Create Proactive Prompts
-      for (const prompt of proactive_prompts) {
-        const promptData: CreateProactivePromptData = {
-          user_id: userId,
-          content: prompt.content,
-          type: prompt.type,
-          metadata: {
-            title: prompt.title,
-            context_explanation: prompt.context_explanation,
-            timing_suggestion: prompt.timing_suggestion,
-            priority_level: prompt.priority_level
-          }
-        };
-
-        const createdPrompt = await this.proactivePromptRepository.create(promptData);
-        newEntities.push({ id: createdPrompt.entity_id, type: 'ProactivePrompt' });
-        
-        // CRITICAL FIX: Create Neo4j prompt node immediately
-        if (this.dbService.neo4j) {
-          await this.createNeo4jPrompt(createdPrompt);
-        }
-        
-        console.log(`[InsightEngine] Created proactive prompt: ${createdPrompt.entity_id} - ${prompt.title}`);
-      }
-
-      // Create strategic growth events from LLM output
-      if (analysisOutput.growth_events && analysisOutput.growth_events.length > 0) {
-        for (const growthEvent of analysisOutput.growth_events) {
-          const growthData: CreateGrowthEventData = {
+      // Create Derived Artifacts using V11.0 Unified Persistence
+      if (derived_artifacts.length > 0) {
+        const artifactEntities = derived_artifacts.map(artifact => ({
+          type: 'DerivedArtifact' as EntityType,
+          data: {
+            entity_id: randomUUID(),
             user_id: userId,
-            source_memory_unit_ids: growthEvent.source_memory_unit_ids || [],
+            title: artifact.title,
+            content: artifact.content,
+            type: artifact.type,
+            status: 'active',
+            cycle_id: currentCycleId,
+            source_concept_ids: artifact.source_concept_ids || [],
+            source_memory_unit_ids: artifact.source_memory_unit_ids || [],
+            created_at: new Date(),
+            updated_at: undefined
+          } as StandardizedEntity
+        }));
+
+        const batchResult = await this.unifiedPersistenceService.persistBatch(artifactEntities);
+        
+        for (let i = 0; i < batchResult.results.length; i++) {
+          const result = batchResult.results[i];
+          const entity = artifactEntities[i];
+          
+          if (result.success && result.postgresResult) {
+            newEntities.push({ 
+              id: result.postgresResult.entity_id, 
+              type: 'DerivedArtifact' 
+            });
+            console.log(`[InsightEngine] ✅ Created derived artifact: ${result.postgresResult.entity_id}`);
+          } else {
+            console.error(`[InsightEngine] ❌ Failed to create derived artifact:`, result.errors);
+          }
+        }
+      }
+
+      // Create Proactive Prompts using V11.0 Unified Persistence
+      if (proactive_prompts.length > 0) {
+        const promptEntities = proactive_prompts.map(prompt => ({
+          type: 'ProactivePrompt' as EntityType,
+          data: {
+            entity_id: randomUUID(),
+            user_id: userId,
+            title: prompt.title,
+            content: prompt.content,
+            type: prompt.type,
+            status: 'pending',
+            cycle_id: currentCycleId,
+            metadata: {
+              title: prompt.title,
+              context_explanation: prompt.context_explanation,
+              timing_suggestion: prompt.timing_suggestion,
+              priority_level: prompt.priority_level
+            },
+            created_at: new Date(),
+            updated_at: undefined
+          } as StandardizedEntity
+        }));
+
+        const batchResult = await this.unifiedPersistenceService.persistBatch(promptEntities);
+        
+        for (let i = 0; i < batchResult.results.length; i++) {
+          const result = batchResult.results[i];
+          const entity = promptEntities[i];
+          
+          if (result.success && result.postgresResult) {
+            newEntities.push({ 
+              id: result.postgresResult.entity_id, 
+              type: 'ProactivePrompt' 
+            });
+            console.log(`[InsightEngine] ✅ Created proactive prompt: ${result.postgresResult.entity_id} - ${entity.data.title}`);
+          } else {
+            console.error(`[InsightEngine] ❌ Failed to create proactive prompt:`, result.errors);
+          }
+        }
+      }
+
+      // Create strategic growth events using V11.0 Unified Persistence
+      if (analysisOutput.growth_events && analysisOutput.growth_events.length > 0) {
+        const growthEventEntities = analysisOutput.growth_events.map(growthEvent => ({
+          type: 'GrowthEvent' as EntityType,
+          data: {
+            entity_id: randomUUID(),
+            user_id: userId,
+            title: `${growthEvent.type} Growth Event`,
+            content: growthEvent.content,
+            type: growthEvent.type,
+            status: 'active',
+            source: 'InsightWorker',
+            delta_value: growthEvent.delta_value,
             source_concept_ids: growthEvent.source_concept_ids || [],
-            source: 'InsightWorker', // Critical: This makes it appear in "What's Next"
+            source_memory_unit_ids: growthEvent.source_memory_unit_ids || [],
             metadata: {
               confidence_score: growthEvent.confidence_score,
               actionability: growthEvent.actionability,
               cycle_id: currentCycleId
             },
-            type: growthEvent.dimension_key,
-            delta_value: growthEvent.delta_value,
-            content: growthEvent.rationale
-          };
+            created_at: new Date(),
+            updated_at: undefined
+          } as StandardizedEntity
+        }));
 
-          const createdGrowthEvent = await this.growthEventRepository.create(growthData);
-          newEntities.push({ id: createdGrowthEvent.entity_id, type: 'GrowthEvent' });
+        const batchResult = await this.unifiedPersistenceService.persistBatch(growthEventEntities);
+        
+        for (let i = 0; i < batchResult.results.length; i++) {
+          const result = batchResult.results[i];
+          const entity = growthEventEntities[i];
+          
+          if (result.success && result.postgresResult) {
+            newEntities.push({ 
+              id: result.postgresResult.entity_id, 
+              type: 'GrowthEvent' 
+            });
+            console.log(`[InsightEngine] ✅ Created growth event: ${result.postgresResult.entity_id}`);
+          } else {
+            console.error(`[InsightEngine] ❌ Failed to create growth event:`, result.errors);
+          }
         }
-        console.log(`[InsightEngine] Created ${analysisOutput.growth_events.length} strategic growth events`);
       }
 
       // Save key phrases from LLM output
@@ -1082,10 +1143,10 @@ export class InsightEngine {
           await this.conceptMerger.updateNeo4jMergedConcepts(merge);
         }
         
-        mergedConceptIds.push(merge.primary_concept_id);
-        console.log(`[InsightEngine] Successfully merged concept ${merge.primary_concept_id}`);
+        mergedConceptIds.push(merge.primary_entity_id);
+        console.log(`[InsightEngine] Successfully merged concept ${merge.primary_entity_id}`);
       } catch (error: unknown) {
-        console.error(`[InsightEngine] Error merging concept ${merge.primary_concept_id}:`, error);
+        console.error(`[InsightEngine] Error merging concept ${merge.primary_entity_id}:`, error);
         // Continue with other merges
       }
     }
@@ -1110,8 +1171,8 @@ export class InsightEngine {
         const cypher = `
           MATCH (primary:Concept {id: $primaryId}), (secondary:Concept {id: $secondaryId})
           WITH primary, secondary
-          SET primary.name = $newName,
-              primary.description = $newDescription,
+          SET primary.title = $newName,
+              primary.content = $newDescription,
               primary.merged_from = coalesce(primary.merged_from, []) + $secondaryId,
               primary.updatedAt = datetime()
           WITH primary, secondary
@@ -1130,8 +1191,8 @@ export class InsightEngine {
         const result = await session.run(cypher, {
           primaryId: merge.primary_entity_id,
           secondaryId: merge.secondary_entity_ids[0], // Handle first secondary for now
-          newName: merge.new_concept_name,
-          newDescription: merge.new_concept_description
+          title: merge.new_concept_title,
+          content: merge.new_concept_content
         });
         
         if (result.records.length > 0) {
@@ -1215,8 +1276,8 @@ export class InsightEngine {
         },
         growth_patterns: {
           concept_consolidation: ontology_optimizations.concepts_to_merge.map(merge => ({
-            primary_concept: merge.primary_concept_id,
-            merged_concepts: merge.secondary_concept_ids,
+            primary_concept: merge.primary_entity_id,
+            merged_concepts: merge.secondary_entity_ids,
             rationale: merge.merge_rationale
           }))
         },
@@ -1256,8 +1317,8 @@ export class InsightEngine {
    */
   private async getConceptsNeedingSynthesis(userId: string, cycleStartDate?: Date): Promise<Array<{
     id: string;
-    name: string;
-    description: string;
+    title: string;
+    content: string;
   }>> {
     try {
       console.log(`[InsightEngine] Fetching concepts needing synthesis for user ${userId}`);
@@ -1269,10 +1330,10 @@ export class InsightEngine {
         merged_into_entity_id: null // Exclude already merged concepts
       };
       
-      // If cycleStartDate is provided, filter by last_updated_ts within cycle period
-      // and ensure last_updated_ts > created_at (concept was updated after creation)
+      // If cycleStartDate is provided, filter by updated_at within cycle period
+      // and ensure updated_at > created_at (concept was updated after creation)
       if (cycleStartDate) {
-        whereClause.last_updated_ts = {
+        whereClause.updated_at = {
           gte: cycleStartDate,
           lte: new Date() // Use current time as end of cycle period
         };
@@ -1281,7 +1342,7 @@ export class InsightEngine {
         };
       } else {
         // Fallback to text search if no date provided (for backward compatibility)
-        whereClause.description = { contains: '[20' };
+        whereClause.content = { contains: '[20' };
       }
       
       const concepts = await this.dbService.prisma.concepts.findMany({
@@ -1296,8 +1357,8 @@ export class InsightEngine {
       // Map to simplified interface
       const mappedConcepts = concepts.map((concept: any) => ({
         id: concept.entity_id,
-        name: concept.name,
-        description: concept.description || ''
+        title: concept.title,
+        content: concept.content || ''
       }));
 
       console.log(`[InsightEngine] Found ${mappedConcepts.length} concepts needing description synthesis`);
@@ -1313,31 +1374,31 @@ export class InsightEngine {
    * Synthesize concept descriptions
    * Includes validation and error handling
    */
-  private async synthesizeConceptDescriptions(conceptsToSynthesize: Array<{ concept_id: string; synthesized_description: string }>): Promise<void> {
+  private async synthesizeConceptDescriptions(conceptsToSynthesize: Array<{ entity_id: string; synthesized_content: string }>): Promise<void> {
     const errors: string[] = [];
     
     for (const concept of conceptsToSynthesize) {
       try {
         // Validate LLM output before updating
-        if (!concept.concept_id || !concept.synthesized_description) {
-          console.warn(`[InsightEngine] Skipping concept synthesis - missing concept_id or synthesized_description:`, concept);
+        if (!concept.entity_id || !concept.synthesized_content) {
+          console.warn(`[InsightEngine] Skipping concept synthesis - missing entity_id or synthesized_content:`, concept);
           continue;
         }
 
         // Additional validation: ensure synthesized description is meaningful
-        if (concept.synthesized_description.trim().length < 3) {
-          console.warn(`[InsightEngine] Skipping concept ${concept.concept_id} - synthesized description too short: "${concept.synthesized_description}"`);
+        if (concept.synthesized_content.trim().length < 3) {
+          console.warn(`[InsightEngine] Skipping concept ${concept.entity_id} - synthesized description too short: "${concept.synthesized_content}"`);
           continue;
         }
 
         // Only update if we have valid data
-        await this.conceptRepository.update(concept.concept_id, {
-          content: concept.synthesized_description
+        await this.conceptRepository.update(concept.entity_id, {
+          content: concept.synthesized_content
         });
-        console.log(`[InsightEngine] Successfully synthesized description for concept ${concept.concept_id}`);
+        console.log(`[InsightEngine] Successfully synthesized description for concept ${concept.entity_id}`);
         
       } catch (error: unknown) {
-        const errorMsg = `Failed to synthesize concept ${concept.concept_id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        const errorMsg = `Failed to synthesize concept ${concept.entity_id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
         console.error(`[InsightEngine] ${errorMsg}`);
         errors.push(errorMsg);
         // Continue with other concepts instead of failing the entire job
@@ -1512,7 +1573,7 @@ export class InsightEngine {
       `;
 
       const artifactResult = await session.run(createArtifactCypher, {
-        artifactId: artifact.artifact_id,
+        artifactId: artifact.entity_id,
         title: artifact.title,
         type: artifact.type,
         content: artifact.content,
@@ -1522,10 +1583,10 @@ export class InsightEngine {
       });
 
       if (artifactResult.records.length === 0) {
-        throw new Error(`Failed to create DerivedArtifact node for ${artifact.artifact_id}`);
+        throw new Error(`Failed to create DerivedArtifact node for ${artifact.entity_id}`);
       }
 
-      console.log(`[InsightEngine] Created DerivedArtifact node in Neo4j: ${artifact.artifact_id}`);
+      console.log(`[InsightEngine] Created DerivedArtifact node in Neo4j: ${artifact.entity_id}`);
 
       // Create DERIVED_FROM relationships with source concepts
       if (artifact.source_entity_ids && artifact.source_entity_ids.length > 0) {
@@ -1542,10 +1603,10 @@ export class InsightEngine {
         for (const conceptId of artifact.source_entity_ids) {
           try {
             await session.run(sourceRelationshipCypher, {
-              artifactId: artifact.artifact_id,
+              artifactId: artifact.entity_id,
               conceptId
             });
-            console.log(`[InsightEngine] Created DERIVED_FROM relationship: Artifact ${artifact.artifact_id} -> Concept ${conceptId}`);
+            console.log(`[InsightEngine] Created DERIVED_FROM relationship: Artifact ${artifact.entity_id} -> Concept ${conceptId}`);
           } catch (error) {
             console.error(`[InsightEngine] Error creating DERIVED_FROM relationship for concept ${conceptId}:`, error);
           }
@@ -1567,20 +1628,20 @@ export class InsightEngine {
         for (const memoryUnitId of artifact.source_memory_unit_ids) {
           try {
             await session.run(memoryRelationshipCypher, {
-              artifactId: artifact.artifact_id,
+              artifactId: artifact.entity_id,
               memoryUnitId
             });
-            console.log(`[InsightEngine] Created DERIVED_FROM relationship: Artifact ${artifact.artifact_id} -> MemoryUnit ${memoryUnitId}`);
+            console.log(`[InsightEngine] Created DERIVED_FROM relationship: Artifact ${artifact.entity_id} -> MemoryUnit ${memoryUnitId}`);
           } catch (error) {
             console.error(`[InsightEngine] Error creating DERIVED_FROM relationship for memory unit ${memoryUnitId}:`, error);
           }
         }
       }
 
-      console.log(`[InsightEngine] Successfully created Neo4j DerivedArtifact ${artifact.artifact_id}`);
+      console.log(`[InsightEngine] Successfully created Neo4j DerivedArtifact ${artifact.entity_id}`);
 
     } catch (error: unknown) {
-      console.error(`[InsightEngine] Error creating Neo4j DerivedArtifact ${artifact.artifact_id}:`, error);
+      console.error(`[InsightEngine] Error creating Neo4j DerivedArtifact ${artifact.entity_id}:`, error);
       throw error;
     } finally {
       await session.close();
@@ -1614,7 +1675,7 @@ export class InsightEngine {
       `;
 
       const promptResult = await session.run(createPromptCypher, {
-        promptId: prompt.prompt_id,
+        promptId: prompt.entity_id,
         content: prompt.content,
         type: prompt.type,
         promptType: prompt.metadata?.prompt_type || 'general',
@@ -1625,16 +1686,16 @@ export class InsightEngine {
       });
 
       if (promptResult.records.length === 0) {
-        console.warn(`[InsightEngine] Failed to create/update ProactivePrompt node for ${prompt.prompt_id} - continuing without Neo4j sync`);
+        console.warn(`[InsightEngine] Failed to create/update ProactivePrompt node for ${prompt.entity_id} - continuing without Neo4j sync`);
         return;
       }
 
-      console.log(`[InsightEngine] Created/updated ProactivePrompt node in Neo4j: ${prompt.prompt_id}`);
+      console.log(`[InsightEngine] Created/updated ProactivePrompt node in Neo4j: ${prompt.entity_id}`);
 
     } catch (error: unknown) {
-      console.error(`[InsightEngine] Error creating Neo4j ProactivePrompt ${prompt.prompt_id}:`, error);
+      console.error(`[InsightEngine] Error creating Neo4j ProactivePrompt ${prompt.entity_id}:`, error);
       // Don't throw error - just log and continue to prevent job failure
-      console.warn(`[InsightEngine] Continuing without Neo4j ProactivePrompt sync for ${prompt.prompt_id}`);
+      console.warn(`[InsightEngine] Continuing without Neo4j ProactivePrompt sync for ${prompt.entity_id}`);
     } finally {
       await session.close();
     }
@@ -1732,8 +1793,8 @@ export class InsightEngine {
       // Update the primary concept with new properties
       const updatePrimaryCypher = `
         MATCH (c:Concept {id: $primaryId})
-        SET c.name = $newName,
-            c.description = $newDescription,
+        SET c.title = $title,
+            c.content = $content,
             c.updatedAt = datetime(),
             c.merge_count = COALESCE(c.merge_count, 0) + $mergeCount
         RETURN c.id as conceptId
@@ -1741,8 +1802,8 @@ export class InsightEngine {
 
       await session.run(updatePrimaryCypher, {
         primaryId: merge.primary_entity_id,
-        newName: merge.new_concept_name,
-        newDescription: merge.new_concept_description,
+        title: merge.new_concept_title,
+        content: merge.new_concept_content,
         mergeCount: merge.secondary_entity_ids.length
       });
 
@@ -1800,7 +1861,7 @@ export class InsightEngine {
    * Update primary concept metadata to reflect merging operations
    */
   private async updatePrimaryConceptMetadata(merge: any): Promise<void> {
-    // Update primary concept status and merged_into_concept_id in PostgreSQL
+    // Update primary concept status and merged_into_entity_id in PostgreSQL
     // Note: We'll store merge information in the description field since metadata is not supported
     const mergeInfo = `Merged with: ${merge.secondary_entity_ids.join(', ')}. Rationale: ${merge.merge_rationale || 'Strategic consolidation'}`;
     
@@ -1883,6 +1944,11 @@ export class InsightEngine {
             case 'StrategicRelationship':
               // Strategic relationships are already created in Neo4j during the createStrategicRelationships method
               console.log(`[InsightEngine] Strategic relationship ${entity.id} already synchronized to Neo4j`);
+              break;
+
+            case 'GrowthEvent':
+              // GrowthEvent nodes are not yet synchronized to Neo4j - this is a known limitation
+              console.log(`[InsightEngine] GrowthEvent ${entity.id} - Neo4j sync not implemented yet`);
               break;
 
             default:

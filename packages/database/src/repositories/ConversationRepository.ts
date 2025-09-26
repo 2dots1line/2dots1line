@@ -117,6 +117,18 @@ export class ConversationRepository {
   }
 
   async update(conversationId: string, data: UpdateConversationData): Promise<conversations> {
+    // First check if the conversation exists
+    const existingConversation = await this.db.prisma.conversations.findUnique({
+      where: { conversation_id: conversationId }
+    });
+    
+    if (!existingConversation) {
+      console.error(`[ConversationRepository] Conversation ${conversationId} not found for update`);
+      throw new Error(`Conversation ${conversationId} not found`);
+    }
+    
+    console.log(`[ConversationRepository] Updating conversation ${conversationId} with data:`, data);
+    
     return this.db.prisma.conversations.update({
       where: { conversation_id: conversationId },
       data,

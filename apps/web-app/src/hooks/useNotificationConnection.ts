@@ -102,7 +102,7 @@ export const useNotificationConnection = () => {
 
             // Build title/description with good fallbacks
             let title = data.title ?? data.display_data?.title;
-            let description = data.description ?? data.display_data?.description;
+            let description = data.description ?? data.display_data?.content;
 
             if (!title && mappedType === 'graph_projection_updated') {
               title = 'Graph projection updated';

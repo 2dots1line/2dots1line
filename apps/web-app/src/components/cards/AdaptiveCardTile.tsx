@@ -6,7 +6,7 @@ export interface BasicCardInput {
   id: string;
   title?: string | null;
   subtitle?: string | null;
-  description?: string | null;
+  content?: string | null;
 }
 
 interface AdaptiveCardTileProps {
@@ -16,10 +16,10 @@ interface AdaptiveCardTileProps {
 
 export const AdaptiveCardTile: React.FC<AdaptiveCardTileProps> = ({ card: cardProp, generateCover = false }) => {
     // Safely default the incoming card so downstream code never crashes
-    const card = (cardProp ?? { id: undefined, title: 'Untitled', description: '', subtitle: '' }) as any;
+    const card = (cardProp ?? { id: undefined, title: 'Untitled', content: '', subtitle: '' }) as any;
 
     const title = card.title ?? 'Untitled';
-    const desc = card.description ?? '';
+    const desc = card.content ?? '';
     const decision = decideAdaptiveCover(title, desc);
 
     // Generate style-pack cover only when requested
@@ -161,7 +161,7 @@ type GeneratedCoverProps = {
   id?: string;
   title: string;
   subtitle?: string;
-  description?: string;
+  content?: string;
   generateCover?: boolean;
 };
 

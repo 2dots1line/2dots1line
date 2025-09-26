@@ -73,6 +73,14 @@ export class IngestionAnalyst {
     console.log(`[IngestionAnalyst] Processing conversation ${conversationId} for user ${userId}`);
 
     try {
+      // First verify the conversation exists
+      const conversation = await this.conversationRepository.findById(conversationId);
+      if (!conversation) {
+        console.error(`[IngestionAnalyst] Conversation ${conversationId} not found - skipping processing`);
+        return;
+      }
+      
+      console.log(`[IngestionAnalyst] Conversation found, status: ${conversation.status}`);
       // Phase I: Data Gathering & Preparation
       const { fullConversationTranscript, userMemoryProfile, userName } = 
         await this.gatherContextData(conversationId, userId);
@@ -146,7 +154,7 @@ export class IngestionAnalyst {
     // Build comprehensive transcript including media content
     const fullConversationTranscript = messages
       .map(msg => {
-        let messageContent = `${msg.role.toUpperCase()}: ${msg.content}`;
+        let messageContent = `${msg.type.toUpperCase()}: ${msg.content}`;
         
         // Add media information if present
         if (msg.media_ids && msg.media_ids.length > 0) {
@@ -285,9 +293,9 @@ export class IngestionAnalyst {
             'Concept',
             {
               user_id: userId,
-              title: concept.name,
+              title: concept.title,
               type: concept.type || 'theme',
-              content: concept.description || `Concept extracted from conversation: ${concept.name}`,
+              content: concept.content || `Concept extracted from conversation: ${concept.title}`,
               importance_score: concept.importance_score || 0.5
             },
             neo4jTransaction,
@@ -297,7 +305,7 @@ export class IngestionAnalyst {
           newEntities.push({ id: createdConcept.entity_id, type: 'Concept' });
           
           // Update entity mapping
-          deduplicationDecisions.entityMappings.set(concept.name, createdConcept.entity_id);
+          deduplicationDecisions.entityMappings.set(concept.title, createdConcept.entity_id);
         }
 
         // ENHANCED: Process concepts to reuse (update existing)
@@ -305,10 +313,10 @@ export class IngestionAnalyst {
           // Get the correct concept ID from the existing entity
           const conceptId = decision.existingEntity.entityId;
           
-          console.log(`🔍 [IngestionAnalyst] DEBUG: Reusing concept ${decision.candidate.name} with ID: ${conceptId}`);
+          console.log(`🔍 [IngestionAnalyst] DEBUG: Reusing concept ${decision.candidate.title} with ID: ${conceptId}`);
           
           if (!conceptId) {
-            console.warn(`🔍 [IngestionAnalyst] WARNING: No concept ID found for ${decision.candidate.name}, skipping update`);
+            console.warn(`🔍 [IngestionAnalyst] WARNING: No concept ID found for ${decision.candidate.title}, skipping update`);
             continue;
           }
           
@@ -322,8 +330,8 @@ export class IngestionAnalyst {
           
           const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
           const newDescription = currentConcept.content 
-            ? `${currentConcept.content}\n[${timestamp}] ${decision.candidate.description}`
-            : `[${timestamp}] ${decision.candidate.description}`;
+            ? `${currentConcept.content}\n[${timestamp}] ${decision.candidate.content}`
+            : `[${timestamp}] ${decision.candidate.content}`;
 
           await this.conceptRepository.update(conceptId, {
             content: newDescription,
@@ -331,7 +339,7 @@ export class IngestionAnalyst {
           });
           
           // Update entity mapping
-          deduplicationDecisions.entityMappings.set(decision.candidate.name, conceptId);
+          deduplicationDecisions.entityMappings.set(decision.candidate.title, conceptId);
         }
 
         // ENHANCED: Process relationships with entity mapping
@@ -356,9 +364,9 @@ export class IngestionAnalyst {
                 entity_id: conversationId,
                 entity_type: 'conversation'
               },
-              type: growthEvent.dim_key,
+              type: growthEvent.type,
               delta_value: growthEvent.delta,
-              content: growthEvent.rationale
+              content: growthEvent.content
             };
 
             const createdGrowthEvent = await this.growthEventRepository.create(growthData);
@@ -386,6 +394,14 @@ export class IngestionAnalyst {
       
     } catch (error) {
       console.error(`[IngestionAnalyst] Error in enhanced persistence:`, error);
+      
+      // Handle specific conversation not found error
+      if (error instanceof Error && error.message.includes('not found')) {
+        console.error(`[IngestionAnalyst] Conversation ${conversationId} not found - this may indicate a race condition or data inconsistency`);
+        // Don't throw the error, just log it and continue
+        return [];
+      }
+      
       throw error;
     }
   }
@@ -475,7 +491,7 @@ export class IngestionAnalyst {
     try {
       // Process concepts
       if (analysisOutput.persistence_payload.extracted_concepts) {
-        const conceptNames = analysisOutput.persistence_payload.extracted_concepts.map(c => c.name);
+        const conceptNames = analysisOutput.persistence_payload.extracted_concepts.map(c => c.title);
         const conceptResults = await this.semanticSimilarityTool.execute({
           candidateNames: conceptNames,
           entityTypes: ['concept'],
@@ -524,8 +540,8 @@ export class IngestionAnalyst {
       if (similarityResult.bestMatch && similarityResult.bestMatch.similarityScore > 0.8) {
         // Reuse existing entity
         if (entityType === 'concept') {
-          // Find the original concept data by name
-          const originalConcept = analysisOutput.persistence_payload.extracted_concepts?.find(c => c.name === similarityResult.candidateName);
+          // Find the original concept data by title
+          const originalConcept = analysisOutput.persistence_payload.extracted_concepts?.find(c => c.title === similarityResult.candidateName);
           if (originalConcept) {
             decisions.conceptsToReuse.push({
               candidate: originalConcept,
@@ -551,12 +567,12 @@ export class IngestionAnalyst {
       } else {
         // Create new entity - we'll need to find the original entity data
         if (entityType === 'concept') {
-          // Find the original concept data by name
-          const originalConcept = analysisOutput.persistence_payload.extracted_concepts?.find(c => c.name === similarityResult.candidateName);
+          // Find the original concept data by title
+          const originalConcept = analysisOutput.persistence_payload.extracted_concepts?.find(c => c.title === similarityResult.candidateName);
           if (originalConcept) {
             decisions.conceptsToCreate.push(originalConcept);
-            // Map name to placeholder ID
-            decisions.entityMappings.set(originalConcept.name, `new_concept_${originalConcept.name}`);
+            // Map title to placeholder ID
+            decisions.entityMappings.set(originalConcept.title, `new_concept_${originalConcept.title}`);
           }
         } else {
           // Find the original memory unit data by textContent
@@ -634,7 +650,7 @@ export class IngestionAnalyst {
         return entity.title || '';
       case 'GrowthEvent':
         const details = entity.metadata as any;
-        return `${entity.type} Growth Event: ${details?.rationale || entity.content || 'Growth event recorded'}`;
+        return `${entity.type} Growth Event: ${details?.content || entity.content || 'Growth event recorded'}`;
       case 'DerivedArtifact':
         return `${entity.title}\n\n${entity.content || 'Derived artifact content'}`;
       case 'Community':

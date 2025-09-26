@@ -46,14 +46,14 @@ model concepts {
   type                   String
   community_id           String?
   created_at             DateTime     @default(now())
-  merged_into_concept_id String?
+  merged_into_entity_id String?
   status                 String       @default("active")
   title                  String
   content                String?
   updated_at             DateTime?    @db.Timestamp(6)
   importance_score       Float?
   communities            communities? @relation(fields: [community_id], references: [entity_id])
-  concepts               concepts?    @relation("conceptsToconcepts", fields: [merged_into_concept_id], references: [entity_id], onDelete: NoAction, onUpdate: NoAction)
+  concepts               concepts?    @relation("conceptsToconcepts", fields: [merged_into_entity_id], references: [entity_id], onDelete: NoAction, onUpdate: NoAction)
   other_concepts         concepts[]   @relation("conceptsToconcepts")
   users                  users        @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 }

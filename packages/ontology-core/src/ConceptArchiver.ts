@@ -1,9 +1,9 @@
 import { ConceptRepository, DatabaseService } from '@2dots1line/database/dist';
 
 export interface ConceptArchive {
-  concept_id: string;
+  entity_id: string;
   archive_rationale: string;
-  replacement_concept_id?: string | null;
+  replacement_entity_id?: string | null;
 }
 
 export class ConceptArchiver {
@@ -19,21 +19,21 @@ export class ConceptArchiver {
   async executeConceptArchive(archive: ConceptArchive): Promise<void> {
     try {
       // Update concept status to archived
-      await this.conceptRepository.update(archive.concept_id, {
+      await this.conceptRepository.update(archive.entity_id, {
         status: 'archived',
         // Store archive rationale in description or metadata if available
-        content: `ARCHIVED: ${archive.archive_rationale}${archive.replacement_concept_id ? ` (Replaced by: ${archive.replacement_concept_id})` : ''}`
+        content: `ARCHIVED: ${archive.archive_rationale}${archive.replacement_entity_id ? ` (Replaced by: ${archive.replacement_entity_id})` : ''}`
       });
-      console.log(`[ConceptArchiver] Archived concept ${archive.concept_id} with rationale: ${archive.archive_rationale}`);
+      console.log(`[ConceptArchiver] Archived concept ${archive.entity_id} with rationale: ${archive.archive_rationale}`);
       
       // Sync status to Weaviate
       try {
-        await this.weaviateService.updateConceptStatus(archive.concept_id, 'archived');
+        await this.weaviateService.updateConceptStatus(archive.entity_id, 'archived');
       } catch (weaviateError) {
-        console.warn(`[ConceptArchiver] Failed to sync concept ${archive.concept_id} status to Weaviate:`, weaviateError);
+        console.warn(`[ConceptArchiver] Failed to sync concept ${archive.entity_id} status to Weaviate:`, weaviateError);
       }
     } catch (error: unknown) {
-      const errorMsg = `Failed to archive concept ${archive.concept_id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      const errorMsg = `Failed to archive concept ${archive.entity_id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
       console.error(`[ConceptArchiver] ${errorMsg}`);
       throw error;
     }
@@ -49,7 +49,7 @@ export class ConceptArchiver {
       try {
         await this.executeConceptArchive(archive);
       } catch (error: unknown) {
-        const errorMsg = `Failed to archive concept ${archive.concept_id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        const errorMsg = `Failed to archive concept ${archive.entity_id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
         console.error(`[ConceptArchiver] ${errorMsg}`);
         errors.push(errorMsg);
         // Continue with other concepts instead of failing the entire job
@@ -85,7 +85,7 @@ export class ConceptArchiver {
           SET c.status = $status,
               c.archived_at = datetime(),
               c.archive_rationale = $archiveRationale,
-              c.replacement_concept_id = $replacementConceptId
+              c.replacement_entity_id = $replacementConceptId
           RETURN c.id as conceptId
         `;
         
@@ -93,7 +93,7 @@ export class ConceptArchiver {
           conceptId,
           status,
           archiveRationale: metadata?.archive_rationale || 'Archived by ConceptArchiver',
-          replacementConceptId: metadata?.replacement_concept_id || null
+          replacementConceptId: metadata?.replacement_entity_id || null
         };
       } else {
         cypher = `

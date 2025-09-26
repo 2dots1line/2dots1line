@@ -17,16 +17,16 @@ import { LLMRetryHandler } from '@2dots1line/core-utils';
 export const StrategicSynthesisOutputSchema = z.object({
   ontology_optimizations: z.object({
     concepts_to_merge: z.array(z.object({
-      primary_concept_id: z.string(),
-      secondary_concept_ids: z.array(z.string()),
+      primary_entity_id: z.string(),
+      secondary_entity_ids: z.array(z.string()),
       merge_rationale: z.string(),
-      new_concept_name: z.string(),
-      new_concept_description: z.string()
+      new_concept_title: z.string(),
+      new_concept_content: z.string()
     })),
     concepts_to_archive: z.array(z.object({
-      concept_id: z.string(),
+      entity_id: z.string(),
       archive_rationale: z.string(),
-      replacement_concept_id: z.string().nullable()
+      replacement_entity_id: z.string().nullable()
     })),
     new_strategic_relationships: z.array(z.object({
       source_id: z.string(),
@@ -37,13 +37,13 @@ export const StrategicSynthesisOutputSchema = z.object({
     })),
     community_structures: z.array(z.object({
       community_id: z.string(),
-      member_concept_ids: z.array(z.string()),
+      member_entity_ids: z.array(z.string()),
       theme: z.string(),
       strategic_importance: z.number().min(1).max(10)
     })),
     concept_description_synthesis: z.array(z.object({
-      concept_id: z.string(),
-      synthesized_description: z.string()
+      entity_id: z.string(),
+      synthesized_content: z.string()
     }))
   }),
   derived_artifacts: z.array(z.object({
@@ -65,9 +65,9 @@ export const StrategicSynthesisOutputSchema = z.object({
     priority_level: z.number().min(1).max(10)
   })),
   growth_events: z.array(z.object({
-    dimension_key: z.enum(['know_self', 'act_self', 'show_self', 'know_world', 'act_world', 'show_world']),
+    type: z.enum(['know_self', 'act_self', 'show_self', 'know_world', 'act_world', 'show_world']),
     delta_value: z.number().min(-5.0).max(5.0),
-    rationale: z.string(),
+    content: z.string(),
     source_concept_ids: z.array(z.string()).optional(),
     source_memory_unit_ids: z.array(z.string()).optional(),
     confidence_score: z.number().min(0).max(1),
@@ -105,20 +105,20 @@ export interface StrategicSynthesisInput {
     }>;
     concepts: Array<{
       id: string;
-      name: string;
-      description: string;
+      title: string;
+      content: string;
     }>;
     conceptsNeedingSynthesis: Array<{
       id: string;
-      name: string;
-      description: string;
+      title: string;
+      content: string;
     }>;
   };
   
   // Growth events (recent cycle activity)
   recentGrowthEvents: Array<{
     id: string;
-    rationale: string;
+    content: string;
   }>;
   
   // HRT-retrieved strategic context (historical data)
@@ -131,8 +131,8 @@ export interface StrategicSynthesisInput {
     }>;
     retrievedConcepts?: Array<{
       id: string;
-      name: string;
-      description: string;
+      title: string;
+      content: string;
       finalScore: number;
     }>;
     retrievedArtifacts?: Array<{
@@ -379,7 +379,7 @@ ${currentAnalysisWithUserName}`;
    * Consolidate and deduplicate entities from all sources
    */
   private consolidateEntities(input: StrategicSynthesisInput): {
-    concepts: Array<{ id: string; name: string; description: string }>;
+    concepts: Array<{ id: string; title: string; content: string }>;
     memoryUnits: Array<{ id: string; content: string }>;
   } {
     // Consolidate concepts
@@ -388,8 +388,8 @@ ${currentAnalysisWithUserName}`;
       // Normalize HRT concepts
       ...(input.strategicContext?.retrievedConcepts?.map((concept: any) => ({
         id: concept.id,
-        name: concept.name,
-        description: concept.description
+        title: concept.title,
+        content: concept.content
         // Drop finalScore field
       })) || [])
     ];
@@ -416,18 +416,18 @@ ${currentAnalysisWithUserName}`;
   }
 
   /**
-   * Deduplicate concepts by name, merging descriptions
+   * Deduplicate concepts by title, merging content
    */
-  private deduplicateConcepts(concepts: Array<{ id: string; name: string; description: string }>): Array<{ id: string; name: string; description: string }> {
-    const seen = new Map<string, { id: string; name: string; description: string }>();
+  private deduplicateConcepts(concepts: Array<{ id: string; title: string; content: string }>): Array<{ id: string; title: string; content: string }> {
+    const seen = new Map<string, { id: string; title: string; content: string }>();
     
     for (const concept of concepts) {
-      const key = concept.name.toLowerCase().trim();
+      const key = concept.title.toLowerCase().trim();
       if (seen.has(key)) {
-        // Merge descriptions
+        // Merge content
         const existing = seen.get(key)!;
-        if (existing.description !== concept.description && concept.description.trim()) {
-          existing.description = `${existing.description} ${concept.description}`.trim();
+        if (existing.content !== concept.content && concept.content.trim()) {
+          existing.content = `${existing.content} ${concept.content}`.trim();
         }
       } else {
         seen.set(key, { ...concept });
@@ -470,7 +470,7 @@ Cycle Period: ${analysis_context.cycle_period}
 ## 3.2 CONSOLIDATED KNOWLEDGE GRAPH (Medium Cacheability: 50-70%)
 ### Concepts (${consolidated_knowledge_graph.concepts.length} total)
 ${consolidated_knowledge_graph.concepts.map((concept: any) => 
-  `- **${concept.name}** (${concept.id}): ${concept.description}`
+  `- **${concept.title}** (${concept.id}): ${concept.content}`
 ).join('\n')}
 
 ### Memory Units (${consolidated_knowledge_graph.memory_units.length} total)
@@ -480,12 +480,12 @@ ${consolidated_knowledge_graph.memory_units.map((mu: any) =>
 
 ### Concepts Needing Synthesis (${consolidated_knowledge_graph.concepts_needing_synthesis.length} total)
 ${consolidated_knowledge_graph.concepts_needing_synthesis.map((concept: any) => 
-  `- **${concept.name}** (${concept.id}): ${concept.description}`
+  `- **${concept.title}** (${concept.id}): ${concept.content}`
 ).join('\n')}
 
 ### Recent Growth Events (${consolidated_knowledge_graph.recent_growth_events.length} total)
 ${consolidated_knowledge_graph.recent_growth_events.map((event: any) => 
-  `- **${event.id}**: ${event.rationale}`
+  `- **${event.id}**: ${event.content}`
 ).join('\n')}
 
 ### Previous Cycle Key Phrases (${consolidated_knowledge_graph.previous_key_phrases.length} total)

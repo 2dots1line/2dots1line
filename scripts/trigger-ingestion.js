@@ -6,12 +6,19 @@ const { Queue } = require('bullmq');
  * This script allows you to manually trigger the ingestion worker to reprocess
  * a specific conversation that may have failed previously.
  * 
+ * Compatible with V11.0 Field Naming Standardization Migration Plan:
+ * - Uses standardized field names (entity_id, title, content, created_at, etc.)
+ * - Compatible with updated database schema
+ * - Works with new repository interfaces
+ * 
  * Usage:
  *   node scripts/trigger-ingestion.js <conversationId> [userId]
  * 
  * Examples:
  *   node scripts/trigger-ingestion.js "conversation-123"
  *   node scripts/trigger-ingestion.js "conversation-123" "user-456"
+ * 
+ * @version 2.1.0 - V11.0 Schema Compatible
  */
 
 async function triggerIngestion() {

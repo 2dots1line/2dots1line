@@ -10,29 +10,29 @@
   "Concept_goal": {
     "card_type": "goal_card",
     "display_data": {
-      "title_source_field": "name",
-      "preview_source_field": "description"
+      "title_source_field": "title",
+      "preview_source_field": "content"
     }
   },
   "Concept_value": {
     "card_type": "value_card",
     "display_data": {
-      "title_source_field": "name",
-      "preview_source_field": "description"
+      "title_source_field": "title",
+      "preview_source_field": "content"
     }
   },
   "Concept_project": {
     "card_type": "project_card",
     "display_data": {
-      "title_source_field": "name",
-      "preview_source_field": "description"
+      "title_source_field": "title",
+      "preview_source_field": "content"
     }
   },
   "Concept_person": {
     "card_type": "person_card",
     "display_data": {
-      "title_source_field": "name",
-      "preview_source_field": "description"
+      "title_source_field": "title",
+      "preview_source_field": "content"
     }
   },
   "DerivedArtifact_cycle_report": {
@@ -62,30 +62,30 @@
   "ProactivePrompt": {
     "card_type": "quest_card",
     "display_data": {
-      "title_source_field": "prompt_text",
-      "preview_source_field": "rationale"
+      "title_source_field": "content",
+      "preview_source_field": "content"
     }
   },
   "GrowthEvent": {
     "card_type": "growth_event_card",
     "display_data": {
-      "title_source_field": "dimension_key",
-      "preview_source_field": "rationale",
+      "title_source_field": "type",
+      "preview_source_field": "content",
       "preview_truncate_length": 200
     }
   },
   "Community": {
     "card_type": "community_card",
     "display_data": {
-      "title_source_field": "name",
-      "preview_source_field": "description",
+      "title_source_field": "title",
+      "preview_source_field": "content",
       "preview_truncate_length": 150
     }
   },
   "User": {
     "card_type": "user_profile_card",
     "display_data": {
-      "title_source_field": "name",
+      "title_source_field": "title",
       "preview_source_field": "email",
       "preview_truncate_length": 100
     }

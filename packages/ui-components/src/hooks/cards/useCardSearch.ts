@@ -111,8 +111,8 @@ function calculateRelevanceScore(card: DisplayCard, query: string): number {
   }
   
   // Description matches
-  if (card.description) {
-    const descLower = card.description.toLowerCase();
+  if (card.content) {
+    const descLower = card.content.toLowerCase();
     searchTerms.forEach(term => {
       if (descLower.includes(term)) {
         score += 2;
@@ -190,16 +190,16 @@ function generateHighlights(card: DisplayCard, query: string): SearchResult['hig
   }
   
   // Check description
-  if (card.description) {
+  if (card.content) {
     const descPositions: { start: number; end: number }[] = [];
     searchTerms.forEach(term => {
-      descPositions.push(...findTermPositions(card.description!, term));
+      descPositions.push(...findTermPositions(card.content!, term));
     });
     
     if (descPositions.length > 0) {
       highlights.push({
         field: 'description',
-        text: card.description,
+        text: card.content,
         positions: descPositions.sort((a, b) => a.start - b.start)
       });
     }

@@ -130,30 +130,30 @@ dynamic_context_section: |
   === SECTION 3: DYNAMIC CONTEXT ===
   
   {{#user_memory_profile}}
-  ## 3.2 USER MEMORY PROFILE (High Cacheability: 80-90%)
+  ## 3.2 USER MEMORY PROFILE 
   {{user_memory_profile}}
   {{/user_memory_profile}}
   
   {{#conversation_summaries}}
-  ## 3.3 CONVERSATION SUMMARIES (Medium Cacheability: 50-70%)
+  ## 3.3 CONVERSATION SUMMARIES 
   Recent important conversations from current cycle:
   {{conversation_summaries}}
   {{/conversation_summaries}}
   
   {{#session_context}}
-  ## 3.4 SESSION CONTEXT (Medium Cacheability: 60-80%)
+  ## 3.4 SESSION CONTEXT 
   Previous conversation context from same session:
   {{session_context}}
   {{/session_context}}
   
   {{#current_conversation_history}}
-  ## 3.5 CURRENT CONVERSATION HISTORY (Low Cacheability: 10-30%)
+  ## 3.5 CURRENT CONVERSATION HISTORY 
   Recent messages from current conversation:
   {{current_conversation_history}}
   {{/current_conversation_history}}
   
   {{#augmented_memory_context}}
-  ## 3.6 AUGMENTED MEMORY CONTEXT (Variable Cacheability: 0-50%)
+  ## 3.6 AUGMENTED MEMORY CONTEXT - if this is filled out, you have to respond directly instead of querying memory again.
   Retrieved context from memory system:
   {{augmented_memory_context}}
   {{/augmented_memory_context}}
@@ -180,7 +180,8 @@ current_turn_section: |
   
   ## 4.4 RESPONSE INSTRUCTIONS
   Analyze the message with empathy and curiosity, then reply with one valid JSON object 
-  that follows the schema in Section 2. Do not add any text outside that JSON.
+  that follows the schema in Section 2. Do not add any text outside that JSON. 
+  If augmented_memory_context contains retrieved context, you have to respond directly to the user's message using the augmented context.
 
 # NEW: A template for the entire system_identity block.
 # It uses {{mustache}} style placeholders for dynamic data.
@@ -307,6 +308,7 @@ dialogue_agent_instructions: |
   - Choose `"query_memory"` when the user shares emotional context about people or events that aren't fully explained
   - Choose `"respond_directly"` when the current conversation flow is engaging and doesn't need past context, or when relevant memories have already been discussed
   - Choose `"respond_directly"` only for general questions, new topics, or when no historical context is needed
+  - You have to choose "respond_directly" when you have augmented context from the previous turn and you have to respond directly to the user's message using the augmented context
   - NEVER apologize for lack of context - instead, use `"query_memory"` to find relevant information
   - **Default to curiosity**: When in doubt about whether an entity or reference has contextual meaning, query memory to find out
   - **ANY generic reference should trigger curiosity**: "the book", "that project", "my daughter", "school", "work" - these all likely refer to specific entities from past conversations
@@ -810,6 +812,7 @@ insight_worker_operational_config: |
     - **Historical/Literary Example**: "Seeing your approach to [specific situation], it reminds me of how Marie Curie persisted through countless failures before discovering radium, or how Maya Angelou found her voice through adversity..."
     - **MUST include source_concept_ids and source_memory_unit_ids** for proper linking
     - **AVOID** being overly praiseful, excessive flattery, or overly positive. Be genuine and authentic. 
+    - **AVOID** using AI platitudes like "weaving a tapestry of your journey" or "illuminating the path to your dreams" or "helping you discover your true self". Be original in your analogies and metaphors.
   
   **2.4.1 Creative Narrative Principles**:
   - **Artful Blending**: Weave together recent vs. distant past, retrospective vs. forward-looking, reflective vs. action-oriented
@@ -1203,4 +1206,55 @@ insight_worker_current_analysis: |
   ✅ CORRECT (growth_events): "type": "know_self"
   ❌ WRONG: "type": "know_self" | "act_self" | "show_self"
 
-  Remember: Output ONLY the JSON object, no markers, no additional text. 
+  Remember: Output ONLY the JSON object, no markers, no additional text.
+
+# =============================================================================
+# RESPONSE GENERATION TEMPLATE (For Second LLM Call)
+# =============================================================================
+
+# Template specifically for generating responses when memory context is already retrieved
+response_generation_section: |
+  === SECTION 2: RESPONSE GENERATION INSTRUCTIONS ===
+  
+  **CRITICAL: You have already retrieved memory context. Your task is to generate a direct response.**
+  
+  You have been provided with relevant memory context from the user's past experiences. Your job is to:
+  1. **ALWAYS set decision to "respond_directly"**
+  2. **ALWAYS set key_phrases_for_retrieval to null**
+  3. **Generate a meaningful response using the provided memory context**
+  
+  **RESPONSE REQUIREMENTS:**
+  - Use the retrieved memory context to provide a personalized, relevant response
+  - Reference specific details from the memories when appropriate
+  - Be conversational and engaging
+  - Address the user's question directly
+  - If multiple entities match, ask a brief clarifying question using the top 2–3 candidates
+  
+  **USING MEMORY IN YOUR RESPONSE:**
+  - Be creative, genuine, logical and original in how you weave memory into your response
+  - Don't repeatedly reference the same memory within the CURRENT CONVERSATION HISTORY
+  - Pick a different memory or make a different connection
+  - Always offer fresh perspectives
+  - Vary your language and avoid repetitive phrases
+  
+  **RESPONSE FORMAT: Return exactly one JSON object with this schema:**
+  {
+    "thought_process": "Your reasoning here...",
+    "response_plan": {
+      "decision": "respond_directly",
+      "key_phrases_for_retrieval": null,
+      "direct_response_text": "Your response text here using the memory context"
+    },
+    "turn_context_package": {
+      "suggested_next_focus": "Next focus area",
+      "emotional_tone_to_adopt": "Supportive and curious",
+      "flags_for_ingestion": ["important_insight", "growth_moment"]
+    }
+  }
+  
+  **CRITICAL RULES:**
+  - You MUST set "decision": "respond_directly" (never "query_memory")
+  - You MUST set "key_phrases_for_retrieval": null
+  - You MUST provide actual response text in "direct_response_text"
+  - Base your response on the provided memory context
+  - Do not ask to query memory again - you already have the context 

@@ -5,6 +5,11 @@
  * This script manually triggers insight worker jobs with enhanced monitoring,
  * status checking, and comprehensive error handling.
  * 
+ * Compatible with V11.0 Field Naming Standardization Migration Plan:
+ * - Uses standardized field names (entity_id, title, content, created_at, etc.)
+ * - Compatible with updated database schema
+ * - Works with new repository interfaces
+ * 
  * Usage:
  *   node scripts/GUIDES/trigger-insight-enhanced.js [userId] [options]
  * 
@@ -16,7 +21,7 @@
  *   node scripts/GUIDES/trigger-insight-enhanced.js --help             # Shows help
  * 
  * @author 2D1L Development Team
- * @version 2.0.0
+ * @version 2.1.0 - V11.0 Schema Compatible
  */
 
 const { Queue } = require('bullmq');

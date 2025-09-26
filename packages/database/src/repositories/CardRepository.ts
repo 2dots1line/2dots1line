@@ -230,17 +230,41 @@ export class CardRepository {
           displayData = {};
         }
       }
+      // Handle both old and new field names during transition period
+      const normalizedDisplayData = {
+        ...displayData,
+        // Normalize field names - prefer new names, fallback to old names
+        title: displayData.title || displayData.name || '',
+        content: displayData.content || displayData.description || '',
+        entity_id: displayData.entity_id || displayData.concept_id || displayData.prompt_id || displayData.artifact_id || displayData.community_id || displayData.memory_id,
+        updated_at: displayData.updated_at || displayData.last_updated_ts,
+        // Keep other fields as-is
+        type: displayData.type,
+        status: displayData.status,
+        user_id: displayData.user_id,
+        created_at: displayData.created_at,
+        // Remove old field names to avoid confusion
+        name: undefined,
+        description: undefined,
+        concept_id: undefined,
+        prompt_id: undefined,
+        artifact_id: undefined,
+        community_id: undefined,
+        memory_id: undefined,
+        last_updated_ts: undefined,
+      };
+
       return {
         id: card.card_id,
         type: card.type as 'memory_unit' | 'concept' | 'derived_artifact' | 'memoryunit' | 'growthevent' | 'proactiveprompt' | 'community',
-        title: displayData.title || displayData.name || '',
-        preview: displayData.preview || displayData.previewText || displayData.description || '',
+        title: normalizedDisplayData.title || '',
+        preview: displayData.preview || displayData.previewText || normalizedDisplayData.content || '',
         evolutionState: 'seed', // Simplified - should calculate based on business logic
         importanceScore: 0.5, // Simplified - should calculate from data
         createdAt: card.created_at,
         updatedAt: card.updated_at,
-        // Pass through display_data and background_image_url for downstream use
-        display_data: displayData,
+        // Pass through normalized display_data and background_image_url for downstream use
+        display_data: normalizedDisplayData,
         background_image_url: card.background_image_url || null,
         // Include source entity information
         source_entity_id: card.source_entity_id,

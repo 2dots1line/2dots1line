@@ -99,7 +99,7 @@ export const CardTile: React.FC<CardTileProps> = ({
   // Determine display values
   const displayTitle = card.title || card.type?.replace(/_/g, ' ') || 'Card';
   const displaySubtitle = card.subtitle || card.source_entity_type?.replace(/_/g, ' ') || 'Item';
-  const displayDescription = card.description || `${displayTitle} from ${displaySubtitle}`;
+  const displayDescription = card.content || `${displayTitle} from ${displaySubtitle}`;
   
   // Card status styling
   const getStatusColor = (status: string) => {

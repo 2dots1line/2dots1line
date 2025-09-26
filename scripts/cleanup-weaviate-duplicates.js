@@ -1,110 +1,232 @@
-const { Client } = require('weaviate-ts-client');
+#!/usr/bin/env node
 
-// Initialize Weaviate client
-const client = Client({
-  scheme: 'http',
-  host: 'localhost:8080',
-});
+/**
+ * Weaviate Duplicate Cleanup Script
+ * 
+ * This script cleans up duplicate entries in Weaviate that were created during
+ * the database schema migration. It removes entries with empty vectors while
+ * preserving entries with proper 768-dimensional vectors.
+ * 
+ * Strategy:
+ * 1. Find all entities with multiple entries
+ * 2. For each entity, keep entries with vectors (768-dim)
+ * 3. Delete entries with empty vectors (0-dim)
+ * 4. If multiple entries have vectors, keep the most recent one
+ */
 
-async function cleanupWeaviateDuplicates() {
-  console.log('🧹 STARTING WEAVIATE DUPLICATE CLEANUP');
-  console.log('=====================================');
+const fetch = require('node-fetch');
+
+const WEAVIATE_URL = 'http://127.0.0.1:8080';
+
+async function makeGraphQLRequest(query) {
+  const response = await fetch(`${WEAVIATE_URL}/v1/graphql`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ query }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`GraphQL request failed: ${response.status} ${response.statusText}`);
+  }
+
+  const result = await response.json();
+  if (result.errors) {
+    throw new Error(`GraphQL errors: ${JSON.stringify(result.errors)}`);
+  }
+
+  return result.data;
+}
+
+async function deleteWeaviateObject(objectId) {
+  const response = await fetch(`${WEAVIATE_URL}/v1/objects/${objectId}`, {
+    method: 'DELETE',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Delete request failed: ${response.status} ${response.statusText}`);
+  }
+
+  return true;
+}
+
+async function getDuplicateEntities() {
+  console.log('🔍 Fetching all entities to identify duplicates...');
   
-  try {
-    // Step 1: Get all objects and identify duplicates
-    console.log('\n📊 Step 1: Analyzing current state...');
-    const allObjects = await client.graphql
-      .get()
-      .withClassName('UserKnowledgeItem')
-      .withFields('_additional { id } entity_id entity_type')
-      .withLimit(2000)
-      .do();
-    
-    const objects = allObjects.data.Get.UserKnowledgeItem;
-    console.log(`Total objects in Weaviate: ${objects.length}`);
-    
-    // Group by entity_id to find duplicates
-    const entityIdGroups = {};
-    objects.forEach(obj => {
-      const entityId = obj.entity_id;
-      if (!entityId) return;
-      
-      if (!entityIdGroups[entityId]) {
-        entityIdGroups[entityId] = [];
-      }
-      entityIdGroups[entityId].push(obj);
-    });
-    
-    // Find duplicates
-    const duplicates = Object.entries(entityIdGroups)
-      .filter(([entityId, group]) => group.length > 1)
-      .map(([entityId, group]) => ({ entityId, objects: group }));
-    
-    console.log(`Unique entity_ids: ${Object.keys(entityIdGroups).length}`);
-    console.log(`Duplicate entity_ids: ${duplicates.length}`);
-    
-    if (duplicates.length === 0) {
-      console.log('✅ No duplicates found!');
-      return;
-    }
-    
-    // Step 2: Remove duplicates (keep the first occurrence)
-    console.log('\n🗑️ Step 2: Removing duplicates...');
-    let deletedCount = 0;
-    let errorCount = 0;
-    
-    for (const duplicate of duplicates) {
-      const { entityId, objects } = duplicate;
-      console.log(`Processing ${entityId}: ${objects.length} duplicates`);
-      
-      // Keep the first object, delete the rest
-      const toDelete = objects.slice(1);
-      
-      for (const obj of toDelete) {
-        try {
-          await client.data.deleter()
-            .withClassName('UserKnowledgeItem')
-            .withId(obj._additional.id)
-            .do();
-          deletedCount++;
-        } catch (error) {
-          console.error(`Error deleting object ${obj._additional.id}:`, error.message);
-          errorCount++;
+  const query = `
+    {
+      Get {
+        UserKnowledgeItem(limit: 2000) {
+          entity_id
+          entity_type
+          created_at
+          _additional {
+            id
+            vector
+          }
         }
       }
     }
-    
-    console.log(`\n📈 CLEANUP RESULTS:`);
-    console.log(`Objects deleted: ${deletedCount}`);
-    console.log(`Errors: ${errorCount}`);
-    
-    // Step 3: Verify cleanup
-    console.log('\n🔍 Step 3: Verifying cleanup...');
-    const finalObjects = await client.graphql
-      .get()
-      .withClassName('UserKnowledgeItem')
-      .withFields('_additional { id } entity_id')
-      .withLimit(2000)
-      .do();
-    
-    const finalObjectList = finalObjects.data.Get.UserKnowledgeItem;
-    const finalEntityIds = finalObjectList.map(obj => obj.entity_id);
-    const uniqueFinalEntityIds = new Set(finalEntityIds);
-    
-    console.log(`Final object count: ${finalObjectList.length}`);
-    console.log(`Final unique entity_ids: ${uniqueFinalEntityIds.size}`);
-    console.log(`Duplicates remaining: ${finalObjectList.length - uniqueFinalEntityIds.size}`);
-    
-    if (finalObjectList.length === uniqueFinalEntityIds.size) {
-      console.log('✅ SUCCESS: All duplicates removed!');
-    } else {
-      console.log('❌ WARNING: Some duplicates may still exist');
+  `;
+
+  const data = await makeGraphQLRequest(query);
+  const entities = data.Get.UserKnowledgeItem;
+
+  // Group by entity_id
+  const grouped = entities.reduce((acc, entity) => {
+    const entityId = entity.entity_id;
+    if (!acc[entityId]) {
+      acc[entityId] = [];
     }
+    acc[entityId].push(entity);
+    return acc;
+  }, {});
+
+  // Find duplicates
+  const duplicates = Object.entries(grouped)
+    .filter(([entityId, entries]) => entries.length > 1)
+    .map(([entityId, entries]) => ({
+      entityId,
+      entries: entries.map(entry => ({
+        weaviateId: entry._additional.id,
+        entityType: entry.entity_type,
+        createdAt: entry.created_at,
+        vectorLength: entry._additional.vector ? entry._additional.vector.length : 0,
+        hasVector: entry._additional.vector && entry._additional.vector.length === 768
+      }))
+    }));
+
+  return duplicates;
+}
+
+async function cleanupDuplicates(duplicates) {
+  console.log(`🧹 Found ${duplicates.length} entities with duplicates`);
+  
+  let totalDeleted = 0;
+  let totalKept = 0;
+
+  for (const { entityId, entries } of duplicates) {
+    console.log(`\n📋 Processing entity: ${entityId}`);
     
+    // Separate entries with and without vectors
+    const entriesWithVectors = entries.filter(entry => entry.hasVector);
+    const entriesWithoutVectors = entries.filter(entry => !entry.hasVector);
+
+    console.log(`   - Entries with vectors: ${entriesWithVectors.length}`);
+    console.log(`   - Entries without vectors: ${entriesWithoutVectors.length}`);
+
+    // Delete all entries without vectors
+    for (const entry of entriesWithoutVectors) {
+      try {
+        await deleteWeaviateObject(entry.weaviateId);
+        console.log(`   ✅ Deleted empty vector entry: ${entry.weaviateId}`);
+        totalDeleted++;
+      } catch (error) {
+        console.error(`   ❌ Failed to delete ${entry.weaviateId}:`, error.message);
+      }
+    }
+
+    // If multiple entries have vectors, keep the most recent one
+    if (entriesWithVectors.length > 1) {
+      // Sort by created_at (most recent first)
+      const sortedEntries = entriesWithVectors.sort((a, b) => 
+        new Date(b.createdAt) - new Date(a.createdAt)
+      );
+
+      // Keep the first (most recent), delete the rest
+      const toKeep = sortedEntries[0];
+      const toDelete = sortedEntries.slice(1);
+
+      console.log(`   📅 Keeping most recent entry: ${toKeep.weaviateId} (${toKeep.createdAt})`);
+      totalKept++;
+
+      for (const entry of toDelete) {
+        try {
+          await deleteWeaviateObject(entry.weaviateId);
+          console.log(`   ✅ Deleted older vector entry: ${entry.weaviateId}`);
+          totalDeleted++;
+        } catch (error) {
+          console.error(`   ❌ Failed to delete ${entry.weaviateId}:`, error.message);
+        }
+      }
+    } else if (entriesWithVectors.length === 1) {
+      console.log(`   ✅ Keeping single vector entry: ${entriesWithVectors[0].weaviateId}`);
+      totalKept++;
+    }
+  }
+
+  return { totalDeleted, totalKept };
+}
+
+async function verifyCleanup() {
+  console.log('\n🔍 Verifying cleanup...');
+  
+  const duplicates = await getDuplicateEntities();
+  
+  if (duplicates.length === 0) {
+    console.log('✅ No duplicates found - cleanup successful!');
+  } else {
+    console.log(`⚠️  Still found ${duplicates.length} entities with duplicates`);
+    duplicates.forEach(({ entityId, entries }) => {
+      console.log(`   - ${entityId}: ${entries.length} entries`);
+    });
+  }
+
+  return duplicates.length === 0;
+}
+
+async function main() {
+  try {
+    console.log('🚀 Starting Weaviate duplicate cleanup...\n');
+
+    // Get all duplicates
+    const duplicates = await getDuplicateEntities();
+    
+    if (duplicates.length === 0) {
+      console.log('✅ No duplicates found - nothing to clean up!');
+      return;
+    }
+
+    // Show summary before cleanup
+    console.log('\n📊 Pre-cleanup summary:');
+    duplicates.forEach(({ entityId, entries }) => {
+      const withVectors = entries.filter(e => e.hasVector).length;
+      const withoutVectors = entries.filter(e => !e.hasVector).length;
+      console.log(`   - ${entityId}: ${entries.length} total (${withVectors} with vectors, ${withoutVectors} without)`);
+    });
+
+    // Ask for confirmation
+    console.log(`\n⚠️  This will delete ${duplicates.reduce((sum, d) => sum + d.entries.filter(e => !e.hasVector).length, 0)} entries with empty vectors.`);
+    console.log('Press Ctrl+C to cancel, or wait 5 seconds to continue...');
+    
+    await new Promise(resolve => setTimeout(resolve, 5000));
+
+    // Perform cleanup
+    const { totalDeleted, totalKept } = await cleanupDuplicates(duplicates);
+
+    console.log(`\n📊 Cleanup Summary:`);
+    console.log(`   - Entries deleted: ${totalDeleted}`);
+    console.log(`   - Entries kept: ${totalKept}`);
+
+    // Verify cleanup
+    const success = await verifyCleanup();
+    
+    if (success) {
+      console.log('\n🎉 Cleanup completed successfully!');
+    } else {
+      console.log('\n⚠️  Cleanup completed with some issues. Please review the output above.');
+    }
+
   } catch (error) {
-    console.error('❌ Error during cleanup:', error);
+    console.error('❌ Cleanup failed:', error.message);
+    process.exit(1);
   }
 }
 
-// Run the cleanup
-cleanupWeaviateDuplicates().catch(console.error);
+// Run the script
+if (require.main === module) {
+  main();
+}
+
+module.exports = { main, getDuplicateEntities, cleanupDuplicates, verifyCleanup };

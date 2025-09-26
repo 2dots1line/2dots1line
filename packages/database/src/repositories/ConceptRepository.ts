@@ -160,7 +160,7 @@ export class ConceptRepository {
       where: { entity_id: sourceConceptId },
       data: {
         status: 'merged',
-        merged_into_concept_id: targetConceptId,
+        merged_into_entity_id: targetConceptId,
       },
     });
   }

@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 
 export interface CommunityStructure {
   community_id: string;
-  member_concept_ids: string[];
+  member_entity_ids: string[];
   theme: string;
   strategic_importance: number;
 }
@@ -26,7 +26,7 @@ export class CommunityCreator {
       community_id: generatedCommunityId,
       user_id: userId,
       title: community.theme,
-      content: `Strategic importance: ${community.strategic_importance}/10. Members: ${community.member_concept_ids.length} concepts.`,
+      content: `Strategic importance: ${community.strategic_importance}/10. Members: ${community.member_entity_ids.length} concepts.`,
       created_at: new Date(),
       updated_at: new Date()
     };
@@ -35,14 +35,14 @@ export class CommunityCreator {
     const createdCommunity = await this.dbService.communityRepository.create(communityData);
     
     // Assign concepts to this community
-    if (community.member_concept_ids.length > 0) {
+    if (community.member_entity_ids.length > 0) {
       await this.dbService.communityRepository.assignConceptsToCommunity(
         createdCommunity.entity_id, 
-        community.member_concept_ids
+        community.member_entity_ids
       );
     }
 
-    console.log(`[CommunityCreator] Created community: ${community.theme} with ID ${generatedCommunityId} and ${community.member_concept_ids.length} members`);
+    console.log(`[CommunityCreator] Created community: ${community.theme} with ID ${generatedCommunityId} and ${community.member_entity_ids.length} members`);
     return createdCommunity.entity_id;
   }
 

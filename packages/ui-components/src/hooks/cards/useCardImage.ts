@@ -90,7 +90,7 @@ function calculateSemanticSimilarity(card: DisplayCard, image: ImageMetadata): n
   const cardText = [
     card.title,
     card.subtitle,
-    card.description,
+    card.content,
     card.type,
     card.source_entity_type
   ].filter(Boolean).join(' ').toLowerCase();
@@ -262,8 +262,8 @@ export function getCardSubtitle(card: DisplayCard): string {
 
 // Utility function to get card description
 export function getCardDescription(card: DisplayCard): string {
-  return (typeof card.description === 'string' ? card.description : '') || 
-         (typeof card.display_data?.description === 'string' ? card.display_data.description : '') || 
+  return (typeof card.content === 'string' ? card.content : '') || 
+         (typeof card.display_data?.content === 'string' ? card.display_data.content : '') || 
          (typeof card.display_data?.preview === 'string' ? card.display_data.preview : '') || 
          'No description available';
 }

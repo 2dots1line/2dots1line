@@ -140,7 +140,7 @@ export class DashboardService {
       
       for (const event of events) {
         if (event.metadata && Array.isArray((event.metadata as any).growth_dimensions)) {
-          const dimEvent = (event.metadata as any).growth_dimensions.find((d: any) => d.dim_key === dimension.key);
+          const dimEvent = (event.metadata as any).growth_dimensions.find((d: any) => d.type === dimension.key);
           if (dimEvent && typeof dimEvent === 'object' && 'delta' in dimEvent && typeof dimEvent.delta === 'number') {
             score += dimEvent.delta;
             eventCount++;
@@ -281,7 +281,7 @@ export class DashboardService {
     const recentScores = events
       .map(event => {
         if (event.growth_dimensions && Array.isArray(event.growth_dimensions)) {
-          const dimEvent = event.growth_dimensions.find((d: any) => d.dim_key === dimensionKey);
+          const dimEvent = event.growth_dimensions.find((d: any) => d.type === dimensionKey);
           if (dimEvent && typeof dimEvent === 'object' && 'delta' in dimEvent && typeof dimEvent.delta === 'number') {
             return dimEvent.delta;
           }
@@ -313,9 +313,9 @@ export class DashboardService {
     
     const primaryDim = growthDimensions.reduce((max: any, current: any) => {
       return (current.delta || 0) > (max.delta || 0) ? current : max;
-    }, { delta: 0, dim_key: undefined });
+    }, { delta: 0, type: undefined });
 
-    return primaryDim.dim_key;
+    return primaryDim.type;
   }
 
   /**

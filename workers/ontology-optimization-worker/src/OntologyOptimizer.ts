@@ -26,10 +26,10 @@ export interface SimilarConcept {
 }
 
 export interface ConceptMergeGroup {
-  primary_concept_id: string;
-  secondary_concept_ids: string[];
-  new_concept_name: string;
-  new_concept_description: string;
+  primary_entity_id: string;
+  secondary_entity_ids: string[];
+  new_concept_title: string;
+  new_concept_content: string;
   merge_rationale?: string;
 }
 
@@ -136,9 +136,9 @@ export class OntologyOptimizer {
           await this.conceptMerger.updateNeo4jMergedConcepts(group);
         }
         
-        console.log(`[OntologyOptimizer] Successfully merged concept group: ${group.primary_concept_id}`);
+        console.log(`[OntologyOptimizer] Successfully merged concept group: ${group.primary_entity_id}`);
       } catch (error) {
-        console.error(`[OntologyOptimizer] Error merging concept group ${group.primary_concept_id}:`, error);
+        console.error(`[OntologyOptimizer] Error merging concept group ${group.primary_entity_id}:`, error);
         // Continue with other groups
       }
     }
@@ -162,19 +162,19 @@ export class OntologyOptimizer {
         // Update Neo4j using shared logic
         if (this.dbService.neo4j) {
           await this.conceptArchiver.updateNeo4jConceptStatus(
-            candidate.concept_id, 
+            candidate.entity_id, 
             'archived', 
             { 
               archive_rationale: candidate.archive_rationale,
-              replacement_concept_id: candidate.replacement_concept_id 
+              replacement_entity_id: candidate.replacement_entity_id 
             },
             this.dbService
           );
         }
         
-        console.log(`[OntologyOptimizer] Successfully archived concept: ${candidate.concept_id}`);
+        console.log(`[OntologyOptimizer] Successfully archived concept: ${candidate.entity_id}`);
       } catch (error) {
-        console.error(`[OntologyOptimizer] Error archiving concept ${candidate.concept_id}:`, error);
+        console.error(`[OntologyOptimizer] Error archiving concept ${candidate.entity_id}:`, error);
         // Continue with other concepts
       }
     }
@@ -201,7 +201,7 @@ export class OntologyOptimizer {
         
         // Create Neo4j community using shared logic
         if (this.dbService.neo4j) {
-          await this.communityCreator.createNeo4jCommunity(community, community.member_concept_ids, communityId);
+          await this.communityCreator.createNeo4jCommunity(community, community.member_entity_ids, communityId);
         }
         
         console.log(`[OntologyOptimizer] Successfully created community: ${communityId}`);

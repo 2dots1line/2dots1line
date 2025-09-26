@@ -59,7 +59,7 @@ export interface DisplayCard extends TCard {
   background_image_url?: string;
   title?: string;
   subtitle?: string;
-  description?: string;
+  content?: string;
 }
 
 /**

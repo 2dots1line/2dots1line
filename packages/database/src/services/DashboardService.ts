@@ -410,8 +410,8 @@ export class DashboardService {
       if (!title) {
         switch (card.type) {
           case 'concept':
-            title = card.display_data?.name || 
-                   card.display_data?.description || 
+            title = card.display_data?.title || 
+                   card.display_data?.content || 
                    card.display_data?.entity_id || 
                    `Concept: ${card.card_id}`;
             break;
@@ -427,7 +427,7 @@ export class DashboardService {
                    `Derived Artifact: ${card.card_id}`;
             break;
           case 'community':
-            title = card.display_data?.name || 
+            title = card.display_data?.title || 
                    card.display_data?.entity_id || 
                    `Community: ${card.card_id}`;
             break;
@@ -444,7 +444,7 @@ export class DashboardService {
       return {
         id: card.card_id,
         title: title,
-        content: card.description || card.display_data?.description || card.subtitle || '',
+        content: card.description || card.display_data?.content || card.subtitle || '',
         created_at: card.created_at,
         metadata: {
           card_type: card.card_type,
@@ -533,15 +533,30 @@ export class DashboardService {
         rows: dimensions.map(dimension => {
           // Get "What's New" events (IngestionAnalyst - observant tracker)
           const whatsNewEvents = growthEvents.filter(event => 
-            event.title === dimension.key && 
+            event.type === dimension.key && 
             event.source === 'IngestionAnalyst'
           ).slice(0, 3); // Show up to 3 recent events
 
           // Get "What's Next" events (InsightWorker - strategic adviser)
           const whatsNextEvents = growthEvents.filter(event => 
-            event.title === dimension.key && 
+            event.type === dimension.key && 
             event.source === 'InsightWorker'
           ).slice(0, 3); // Show up to 3 recent events
+
+          // Debug logging
+          console.log(`[DashboardService] DEBUG: Dimension ${dimension.key}:`);
+          console.log(`  - Total growth events: ${growthEvents.length}`);
+          console.log(`  - Events with type '${dimension.key}': ${growthEvents.filter(e => e.type === dimension.key).length}`);
+          console.log(`  - IngestionAnalyst events for ${dimension.key}: ${whatsNewEvents.length}`);
+          console.log(`  - InsightWorker events for ${dimension.key}: ${whatsNextEvents.length}`);
+          if (whatsNewEvents.length > 0) {
+            console.log(`  - Sample IngestionAnalyst event:`, {
+              entity_id: whatsNewEvents[0].entity_id,
+              type: whatsNewEvents[0].type,
+              source: whatsNewEvents[0].source,
+              content: whatsNewEvents[0].content?.substring(0, 100) + '...'
+            });
+          }
 
           return {
             key: dimension.key,
@@ -550,30 +565,30 @@ export class DashboardService {
             cells: {
               whats_new: {
                 events: whatsNewEvents.map(event => ({
-                  event_id: event.event_id,
-                  rationale: event.rationale,
+                  entity_id: event.entity_id,
+                  content: event.content,
                   delta_value: event.delta_value,
                   created_at: event.created_at,
-                  related_concepts: event.related_concepts,
-                  related_memory_units: event.related_memory_units
+                  source_concept_ids: event.source_concept_ids,
+                  source_memory_unit_ids: event.source_memory_unit_ids
                 })),
                 count: whatsNewEvents.length,
                 display_text: whatsNewEvents.length > 0 
-                  ? whatsNewEvents.map(event => `• ${event.rationale}`).join('\n')
+                  ? whatsNewEvents.map(event => `• ${event.content}`).join('\n')
                   : 'No recent growth events'
               },
               whats_next: {
                 events: whatsNextEvents.map(event => ({
-                  event_id: event.event_id,
-                  rationale: event.rationale,
+                  entity_id: event.entity_id,
+                  content: event.content,
                   delta_value: event.delta_value,
                   created_at: event.created_at,
-                  related_concepts: event.related_concepts,
-                  related_memory_units: event.related_memory_units
+                  source_concept_ids: event.source_concept_ids,
+                  source_memory_unit_ids: event.source_memory_unit_ids
                 })),
                 count: whatsNextEvents.length,
                 display_text: whatsNextEvents.length > 0 
-                  ? whatsNextEvents.map(event => `• ${event.rationale}`).join('\n')
+                  ? whatsNextEvents.map(event => `• ${event.content}`).join('\n')
                   : 'No strategic recommendations'
               }
             }

@@ -693,9 +693,9 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                                               {row.cells[column.key].count > 0 ? (
                                                 <div className="space-y-2">
                                                   {row.cells[column.key].events.slice(0, 2).map((event: any) => (
-                                                    <div key={event.event_id} className="bg-white/10 rounded-lg p-3">
+                                                    <div key={event.entity_id} className="bg-white/10 rounded-lg p-3">
                                                       <div className="text-sm text-white/90">
-                                                        {event.rationale}
+                                                        {event.content}
                                                       </div>
                                                     </div>
                                                   ))}

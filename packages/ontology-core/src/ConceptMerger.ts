@@ -1,10 +1,10 @@
 import { ConceptRepository, DatabaseService } from '@2dots1line/database/dist';
 
 export interface ConceptMerge {
-  primary_concept_id: string;
-  secondary_concept_ids: string[];
-  new_concept_name: string;
-  new_concept_description: string;
+  primary_entity_id: string;
+  secondary_entity_ids: string[];
+  new_concept_title: string;
+  new_concept_content: string;
   merge_rationale?: string;
 }
 
@@ -24,9 +24,9 @@ export class ConceptMerger {
     
     try {
       // Validate that primary concept exists before attempting merge
-      const primaryConcept = await this.conceptRepository.findByIdUnfiltered(merge.primary_concept_id);
+      const primaryConcept = await this.conceptRepository.findByIdUnfiltered(merge.primary_entity_id);
       if (!primaryConcept) {
-        const errorMsg = `Primary concept ${merge.primary_concept_id} does not exist. Cannot proceed with merge.`;
+        const errorMsg = `Primary concept ${merge.primary_entity_id} does not exist. Cannot proceed with merge.`;
         console.error(`[ConceptMerger] ${errorMsg}`);
         errors.push(errorMsg);
         console.warn(`[ConceptMerger] Completed concept merging with ${errors.length} errors:`, errors);
@@ -35,7 +35,7 @@ export class ConceptMerger {
 
       // Validate that all secondary concepts exist
       const missingSecondaryConcepts: string[] = [];
-      for (const secondaryId of merge.secondary_concept_ids) {
+      for (const secondaryId of merge.secondary_entity_ids) {
         const secondaryConcept = await this.conceptRepository.findByIdUnfiltered(secondaryId);
         if (!secondaryConcept) {
           missingSecondaryConcepts.push(secondaryId);
@@ -50,16 +50,16 @@ export class ConceptMerger {
         return; // Exit early if any secondary concepts don't exist
       }
 
-      console.log(`[ConceptMerger] Validated all concepts exist. Proceeding with merge of ${merge.secondary_concept_ids.length} concepts into ${merge.primary_concept_id}`);
+      console.log(`[ConceptMerger] Validated all concepts exist. Proceeding with merge of ${merge.secondary_entity_ids.length} concepts into ${merge.primary_entity_id}`);
 
       // Update secondary concepts to mark them as merged
-      for (const secondaryId of merge.secondary_concept_ids) {
+      for (const secondaryId of merge.secondary_entity_ids) {
         try {
           await this.conceptRepository.update(secondaryId, {
             status: 'merged',
-            merged_into_entity_id: merge.primary_concept_id
+            merged_into_entity_id: merge.primary_entity_id
           });
-          console.log(`[ConceptMerger] Marked concept ${secondaryId} as merged into ${merge.primary_concept_id}`);
+          console.log(`[ConceptMerger] Marked concept ${secondaryId} as merged into ${merge.primary_entity_id}`);
           
           // Sync status to Weaviate
           try {
@@ -77,18 +77,18 @@ export class ConceptMerger {
 
       // Update primary concept with new name and description
       try {
-        await this.conceptRepository.update(merge.primary_concept_id, {
-          title: merge.new_concept_name,
-          content: merge.new_concept_description
+        await this.conceptRepository.update(merge.primary_entity_id, {
+          title: merge.new_concept_title,
+          content: merge.new_concept_content
         });
-        console.log(`[ConceptMerger] Updated primary concept ${merge.primary_concept_id} with new name: ${merge.new_concept_name}`);
+        console.log(`[ConceptMerger] Updated primary concept ${merge.primary_entity_id} with new name: ${merge.new_concept_title}`);
       } catch (updateError) {
-        const errorMsg = `Failed to update primary concept ${merge.primary_concept_id}: ${updateError instanceof Error ? updateError.message : 'Unknown error'}`;
+        const errorMsg = `Failed to update primary concept ${merge.primary_entity_id}: ${updateError instanceof Error ? updateError.message : 'Unknown error'}`;
         console.error(`[ConceptMerger] ${errorMsg}`);
         errors.push(errorMsg);
       }
     } catch (error: unknown) {
-      const errorMsg = `Failed to process merge for primary concept ${merge.primary_concept_id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      const errorMsg = `Failed to process merge for primary concept ${merge.primary_entity_id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
       console.error(`[ConceptMerger] ${errorMsg}`);
       errors.push(errorMsg);
     }
@@ -116,38 +116,38 @@ export class ConceptMerger {
       // First verify that the primary concept exists in Neo4j
       const checkPrimaryCypher = `MATCH (c:Concept {id: $primaryId}) RETURN c.id as conceptId`;
       const primaryCheckResult = await session.run(checkPrimaryCypher, {
-        primaryId: merge.primary_concept_id
+        primaryId: merge.primary_entity_id
       });
 
       if (primaryCheckResult.records.length === 0) {
-        console.warn(`[ConceptMerger] Primary concept ${merge.primary_concept_id} not found in Neo4j. Skipping Neo4j merge update.`);
+        console.warn(`[ConceptMerger] Primary concept ${merge.primary_entity_id} not found in Neo4j. Skipping Neo4j merge update.`);
         return;
       }
 
       // Update the primary concept with new properties
       const updatePrimaryCypher = `
         MATCH (c:Concept {id: $primaryId})
-        SET c.name = $newName,
-            c.description = $newDescription,
+        SET c.title = $title,
+            c.content = $content,
             c.updatedAt = datetime(),
             c.merge_count = COALESCE(c.merge_count, 0) + $mergeCount
         RETURN c.id as conceptId
       `;
 
       const updateResult = await session.run(updatePrimaryCypher, {
-        primaryId: merge.primary_concept_id,
-        newName: merge.new_concept_name,
-        newDescription: merge.new_concept_description,
-        mergeCount: merge.secondary_concept_ids.length
+        primaryId: merge.primary_entity_id,
+        title: merge.new_concept_title,
+        content: merge.new_concept_content,
+        mergeCount: merge.secondary_entity_ids.length
       });
 
       if (updateResult.records.length === 0) {
-        console.warn(`[ConceptMerger] Failed to update primary concept ${merge.primary_concept_id} in Neo4j. Concept may not exist.`);
+        console.warn(`[ConceptMerger] Failed to update primary concept ${merge.primary_entity_id} in Neo4j. Concept may not exist.`);
         return;
       }
 
       // Update secondary concepts to mark them as merged
-      for (const secondaryId of merge.secondary_concept_ids) {
+      for (const secondaryId of merge.secondary_entity_ids) {
         // First check if the secondary concept exists in Neo4j
         const checkSecondaryCypher = `MATCH (c:Concept {id: $secondaryId}) RETURN c.id as conceptId`;
         const secondaryCheckResult = await session.run(checkSecondaryCypher, {
@@ -163,13 +163,13 @@ export class ConceptMerger {
           MATCH (c:Concept {id: $secondaryId})
           SET c.status = 'merged',
               c.merged_at = datetime(),
-              c.merged_into_concept_id = $primaryId
+              c.merged_into_entity_id = $primaryId
           RETURN c.id as conceptId
         `;
 
         const updateResult = await session.run(updateSecondaryCypher, {
           secondaryId,
-          primaryId: merge.primary_concept_id
+          primaryId: merge.primary_entity_id
         });
 
         if (updateResult.records.length === 0) {
@@ -191,17 +191,17 @@ export class ConceptMerger {
         RETURN count(newRel) as redirectedCount
       `;
 
-      for (const secondaryId of merge.secondary_concept_ids) {
+      for (const secondaryId of merge.secondary_entity_ids) {
         const result = await session.run(redirectRelationshipsCypher, {
           secondaryId,
-          primaryId: merge.primary_concept_id
+          primaryId: merge.primary_entity_id
         });
         
         const redirectedCount = result.records[0]?.get('redirectedCount') || 0;
-        console.log(`[ConceptMerger] Redirected ${redirectedCount} relationships from concept ${secondaryId} to ${merge.primary_concept_id}`);
+        console.log(`[ConceptMerger] Redirected ${redirectedCount} relationships from concept ${secondaryId} to ${merge.primary_entity_id}`);
       }
 
-      console.log(`[ConceptMerger] Successfully updated Neo4j for concept merge: ${merge.primary_concept_id} absorbed ${merge.secondary_concept_ids.length} concepts`);
+      console.log(`[ConceptMerger] Successfully updated Neo4j for concept merge: ${merge.primary_entity_id} absorbed ${merge.secondary_entity_ids.length} concepts`);
 
     } catch (error: unknown) {
       console.error(`[ConceptMerger] Error updating Neo4j for concept merge:`, error);
@@ -215,20 +215,21 @@ export class ConceptMerger {
    * Update primary concept metadata to reflect merging operations
    */
   async updatePrimaryConceptMetadata(merge: ConceptMerge): Promise<void> {
-    // Update primary concept status and merged_into_concept_id in PostgreSQL
+    // Update primary concept status and merged_into_entity_id in PostgreSQL
     // Note: We'll store merge information in the description field since metadata is not supported
-    const mergeInfo = `Merged with: ${merge.secondary_concept_ids.join(', ')}. Rationale: ${merge.merge_rationale || 'Strategic consolidation'}`;
+    const mergeInfo = `Merged with: ${merge.secondary_entity_ids.join(', ')}. Rationale: ${merge.merge_rationale || 'Strategic consolidation'}`;
     
-    await this.conceptRepository.update(merge.primary_concept_id, {
+    await this.conceptRepository.update(merge.primary_entity_id, {
       content: mergeInfo,
+      title: merge.new_concept_title,
       status: 'active' // Keep primary concept active
     });
     
     // Update primary concept metadata in Neo4j
-    await this.updateNeo4jPrimaryConceptMetadata(merge.primary_concept_id, {
-      merge_count: merge.secondary_concept_ids.length,
+    await this.updateNeo4jPrimaryConceptMetadata(merge.primary_entity_id, {
+      merge_count: merge.secondary_entity_ids.length,
       last_merged_at: new Date().toISOString(),
-      merged_concepts: merge.secondary_concept_ids
+      merged_concepts: merge.secondary_entity_ids
     });
   }
 

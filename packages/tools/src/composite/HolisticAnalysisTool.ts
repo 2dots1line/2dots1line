@@ -30,9 +30,9 @@ export const HolisticAnalysisOutputSchema = z.object({
     })), // Remove array size limit to allow flexible LLM responses
     
     extracted_concepts: z.array(z.object({
-      name: z.string().min(1),
+      title: z.string().min(1),
       type: z.string().min(1),
-      description: z.string().min(1) // Removed max limit to allow detailed descriptions
+      content: z.string().min(1) // Removed max limit to allow detailed descriptions
     })), // Remove array size limit to allow flexible LLM responses
     
     new_relationships: z.array(z.object({
@@ -42,9 +42,9 @@ export const HolisticAnalysisOutputSchema = z.object({
     })), // Remove array size limit to allow flexible LLM responses
     
     detected_growth_events: z.array(z.object({
-      dim_key: z.enum(['know_self', 'know_world', 'act_self', 'act_world', 'show_self', 'show_world']),
+      type: z.enum(['know_self', 'know_world', 'act_self', 'act_world', 'show_self', 'show_world']),
       delta: z.number().min(-5.0).max(5.0), // V11.1 FIX: Increased range to prevent validation failures
-      rationale: z.string().min(1), // Removed max limit to allow high-quality LLM responses
+      content: z.string().min(1), // Removed max limit to allow high-quality LLM responses
       source_concept_ids: z.array(z.string()).optional().default([]), // Specific concepts that support this growth event
       source_memory_unit_ids: z.array(z.string()).optional().default([]) // Specific memory units that support this growth event
     })), // Remove array size limit to allow flexible LLM responses
