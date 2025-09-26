@@ -326,12 +326,27 @@ export class ConversationController {
           return;
         }
 
+        // If conversation is ended, create a new conversation in the same session
         if (conversation.status === 'ended' || conversation.ended_at !== null) {
-          res.status(400).json({ 
-            success: false, 
-            error: { code: 'BAD_REQUEST', message: 'Cannot upload file to ended conversation' }
-          } as TApiResponse<any>);
-          return;
+          console.log(`🔄 Conversation ${conversation_id} is ended, creating new conversation in same session ${conversation.session_id}`);
+          
+          // Create new conversation in the same session
+          const newConversation = await this.conversationRepository.create({
+            user_id: userId,
+            title: `File Upload: ${file.originalname}`,
+            session_id: conversation.session_id,
+            metadata: {
+              source: 'file_upload',
+              filename: file.originalname,
+              mime_type: file.mimetype,
+              file_size: file.size
+            }
+          });
+          
+          // Update conversation to the new one
+          conversation = newConversation;
+          
+          console.log(`✅ Created new conversation ${newConversation.conversation_id} in session ${conversation.session_id}`);
         }
 
         // Use the conversation's existing session, or create one if missing
