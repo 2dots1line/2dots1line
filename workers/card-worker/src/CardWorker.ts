@@ -291,13 +291,15 @@ export class CardWorker {
       //     reason: `Card already exists for ${entityType} ${entity.id}` 
       //   };
       // }
-      // Create new card
+      // Create new card using Enhanced Cards Table structure
       const cardData = {
         user_id: userId,
         type: entityType.toLowerCase(),
         source_entity_id: entity.id,
         source_entity_type: entityType,
-        display_data: entityData // Optionally, filter/transform for display
+        // No display_data - entity data will be loaded on-demand
+        display_order: undefined, // Will be set by user if needed
+        is_selected: false, // Default to not selected
       };
       console.log(`[CardWorker] Creating card with data:`, cardData);
       const newCard = await this.cardRepository.create(cardData);
@@ -305,11 +307,7 @@ export class CardWorker {
 
       // Enqueue notification for "new_card_available"
       try {
-        const title =
-          (newCard as any)?.display_data?.title ??
-          (entityData as any)?.title ??
-          (entityData as any)?.title ??
-          `${entityType} ${entity.id}`;
+        const title = (entityData as any)?.title ?? `${entityType} ${entity.id}`;
 
         const payload = {
           type: 'new_card_available' as const,
@@ -317,7 +315,7 @@ export class CardWorker {
           card: {
             card_id: (newCard as any).card_id,
             type: (newCard as any).type ?? entityType.toLowerCase(),
-            display_data: { title },
+            title: title, // Direct title instead of display_data
           },
         };
 

@@ -16,15 +16,22 @@ model cards {
   source_entity_type   String
   status               String          @default("active_canvas")
   is_favorited         Boolean         @default(false)
-  display_data         Json?
   is_synced            Boolean         @default(true)
   created_at           DateTime        @default(now())
   updated_at           DateTime
   background_image_url String?
+  
+  // User preferences for card display and interaction
+  display_order        Int?            // User-controlled ordering for physical cards
+  is_selected          Boolean         @default(false) // User selection for physical cards
+  custom_title         String?         // User can override entity title
+  custom_content       String?         // User can override entity content
+  
   users                users           @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
   conversations        conversations[]
 
   @@index([user_id, status])
+  @@index([user_id, display_order])
 }
 
 model communities {

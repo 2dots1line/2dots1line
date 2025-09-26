@@ -247,15 +247,13 @@ export function useCardImage(card: DisplayCard) {
 // Utility function to get card title
 export function getCardTitle(card: DisplayCard): string {
   return (typeof card.title === 'string' ? card.title : '') || 
-         (typeof card.display_data?.title === 'string' ? card.display_data.title : '') || 
-          (typeof card.type === 'string' ? card.type.replace(/_/g, ' ') : '') ||
+         (typeof card.type === 'string' ? card.type.replace(/_/g, ' ') : '') ||
          'Card';
 }
 
 // Utility function to get card subtitle
 export function getCardSubtitle(card: DisplayCard): string {
   return (typeof card.subtitle === 'string' ? card.subtitle : '') || 
-         (typeof card.display_data?.subtitle === 'string' ? card.display_data.subtitle : '') || 
          (typeof card.source_entity_type === 'string' ? card.source_entity_type.replace(/_/g, ' ') : '') || 
          'Subtitle';
 }
@@ -263,8 +261,6 @@ export function getCardSubtitle(card: DisplayCard): string {
 // Utility function to get card description
 export function getCardDescription(card: DisplayCard): string {
   return (typeof card.content === 'string' ? card.content : '') || 
-         (typeof card.display_data?.content === 'string' ? card.display_data.content : '') || 
-         (typeof card.display_data?.preview === 'string' ? card.display_data.preview : '') || 
          'No description available';
 }
 

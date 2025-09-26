@@ -10,7 +10,7 @@ export interface Card {
   id: string;
   type: 'memory_unit' | 'concept' | 'derived_artifact' | 'memoryunit' | 'growthevent' | 'proactiveprompt' | 'community';
   title: string;
-  preview: string;
+  content: string;
   evolutionState: 'seed' | 'sprout' | 'bloom' | 'constellation' | 'supernova';
   growthDimensions: Array<{
     key: string;
@@ -27,10 +27,13 @@ export interface Card {
   connections: number;
   insights: number;
   tags: string[];
-  display_data?: any; // Pass through display_data for frontend use
   background_image_url?: string | null; // Pass through background_image_url for frontend use
   source_entity_id?: string | null; // Source entity ID for entity details
   source_entity_type?: string | null; // Source entity type for entity details
+  display_order?: number | null; // User-controlled ordering
+  is_selected?: boolean; // User selection for physical cards
+  custom_title?: string | null; // User can override entity title
+  custom_content?: string | null; // User can override entity content
 }
 
 export interface GetCardsRequest {
@@ -202,7 +205,7 @@ export class CardService {
       id: cardData.id,
       type: cardData.type,
       title: cardData.title,
-      preview: cardData.preview || cardData.title,
+      content: cardData.content,
       evolutionState: cardData.evolutionState as 'seed' | 'sprout' | 'bloom' | 'constellation' | 'supernova',
       growthDimensions,
       importanceScore: cardData.importanceScore || 0.5,
@@ -211,10 +214,13 @@ export class CardService {
       connections: await this.getConnectionCount(cardData.source_entity_id || null, cardData.source_entity_type || null), // Calculate actual connections
       insights: 0,
       tags: [],
-      display_data: (cardData as any).display_data || {},
-      background_image_url: (cardData as any).background_image_url || null,
+      background_image_url: cardData.background_image_url || null,
       source_entity_id: cardData.source_entity_id || null,
       source_entity_type: cardData.source_entity_type || null,
+      display_order: cardData.display_order || null,
+      is_selected: cardData.is_selected || false,
+      custom_title: cardData.custom_title || null,
+      custom_content: cardData.custom_content || null,
     };
   }
 
@@ -301,33 +307,34 @@ export class CardService {
   }
 
   /**
-   * Get a single card by ID
+   * Get a single card by ID with entity data loaded
    */
   async getCardById(cardId: string): Promise<Card | null> {
     try {
-      const cardData = await this.cardRepository.findById(cardId);
-      if (!cardData) {
+      const cardWithEntityData = await this.cardRepository.getCardWithEntityData(cardId);
+      if (!cardWithEntityData) {
         return null;
       }
 
-      // Convert Prisma card to CardData format
+      // Convert to CardData format
       const convertedCardData: CardData = {
-        id: cardData.entity_id,
-        type: cardData.type as 'memory_unit' | 'concept' | 'derived_artifact',
-        title: (cardData.display_data as any)?.title || 'Untitled',
-        preview: (cardData.display_data as any)?.preview || 'No preview available',
+        id: cardWithEntityData.card_id,
+        type: cardWithEntityData.type as 'memory_unit' | 'concept' | 'derived_artifact',
+        title: cardWithEntityData.title || 'Untitled',
+        content: cardWithEntityData.content || '',
         evolutionState: 'seed', // Default value
         importanceScore: 0.5, // Default value
-        createdAt: cardData.created_at,
-        updatedAt: cardData.updated_at,
-        source_entity_id: cardData.source_entity_id,
-        source_entity_type: cardData.source_entity_type,
+        createdAt: cardWithEntityData.created_at,
+        updatedAt: cardWithEntityData.updated_at,
+        source_entity_id: cardWithEntityData.source_entity_id,
+        source_entity_type: cardWithEntityData.source_entity_type,
+        background_image_url: cardWithEntityData.background_image_url,
+        display_order: cardWithEntityData.display_order,
+        is_selected: cardWithEntityData.is_selected,
+        custom_title: cardWithEntityData.custom_title,
+        custom_content: cardWithEntityData.custom_content,
         growthDimensions: [] // Will be populated by repository if available
       };
-
-      // Include pass-through fields so transformCardData can surface them to API
-      (convertedCardData as any).display_data = cardData.display_data || {};
-      (convertedCardData as any).background_image_url = (cardData as any).background_image_url || null;
 
       return this.transformCardData(convertedCardData);
     } catch (error) {
@@ -376,19 +383,30 @@ export class CardService {
         return null;
       }
 
-      // Convert Prisma card to CardData format
-      const cardData = cardDataArray[0];
+      // Get the first card and load its entity data
+      const card = cardDataArray[0];
+      const cardWithEntityData = await this.cardRepository.getCardWithEntityData(card.card_id);
+      if (!cardWithEntityData) {
+        return null;
+      }
+
+      // Convert to CardData format
       const convertedCardData: CardData = {
-        id: cardData.entity_id,
-        type: cardData.type as 'memory_unit' | 'concept' | 'derived_artifact',
-        title: (cardData.display_data as any)?.title || 'Untitled',
-        preview: (cardData.display_data as any)?.preview || 'No preview available',
+        id: cardWithEntityData.card_id,
+        type: cardWithEntityData.type as 'memory_unit' | 'concept' | 'derived_artifact',
+        title: cardWithEntityData.title || 'Untitled',
+        content: cardWithEntityData.content || '',
         evolutionState: 'seed', // Default value
         importanceScore: 0.5, // Default value
-        createdAt: cardData.created_at,
-        updatedAt: cardData.updated_at,
-        source_entity_id: cardData.source_entity_id,
-        source_entity_type: cardData.source_entity_type,
+        createdAt: cardWithEntityData.created_at,
+        updatedAt: cardWithEntityData.updated_at,
+        source_entity_id: cardWithEntityData.source_entity_id,
+        source_entity_type: cardWithEntityData.source_entity_type,
+        background_image_url: cardWithEntityData.background_image_url,
+        display_order: cardWithEntityData.display_order,
+        is_selected: cardWithEntityData.is_selected,
+        custom_title: cardWithEntityData.custom_title,
+        custom_content: cardWithEntityData.custom_content,
         growthDimensions: [] // Will be populated by repository if available
       };
 

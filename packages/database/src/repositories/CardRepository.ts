@@ -13,22 +13,29 @@ export interface CreateCardData {
   type: string;
   source_entity_id: string;
   source_entity_type: string;
-  display_data?: any;
+  display_order?: number;
+  is_selected?: boolean;
+  custom_title?: string;
+  custom_content?: string;
+  background_image_url?: string;
 }
 
 export interface UpdateCardData {
   status?: string;
   is_favorited?: boolean;
-  display_data?: any;
   is_synced?: boolean;
   background_image_url?: string | null;
+  display_order?: number;
+  is_selected?: boolean;
+  custom_title?: string;
+  custom_content?: string;
 }
 
 export interface CardData {
   id: string;
   type: 'memory_unit' | 'concept' | 'derived_artifact' | 'memoryunit' | 'growthevent' | 'proactiveprompt' | 'community';
   title: string;
-  preview: string;
+  content: string;
   evolutionState: string;
   importanceScore: number;
   createdAt: Date;
@@ -36,6 +43,11 @@ export interface CardData {
   growthDimensions?: GrowthDimensionData[]; // From materialized view
   source_entity_id?: string | null;
   source_entity_type?: string | null;
+  background_image_url?: string | null;
+  display_order?: number | null;
+  is_selected?: boolean;
+  custom_title?: string | null;
+  custom_content?: string | null;
 }
 
 export interface CardFilters {
@@ -55,6 +67,70 @@ export interface CardResultWithMeta {
 
 export class CardRepository {
   constructor(private db: DatabaseService) {}
+
+  /**
+   * Load entity data from source entity table
+   */
+  private async loadEntityData(sourceEntityId: string, sourceEntityType: string): Promise<any> {
+    try {
+      switch (sourceEntityType) {
+        case 'MemoryUnit':
+          return await this.db.prisma.memory_units.findUnique({
+            where: { entity_id: sourceEntityId }
+          });
+        case 'Concept':
+          return await this.db.prisma.concepts.findUnique({
+            where: { entity_id: sourceEntityId }
+          });
+        case 'DerivedArtifact':
+          return await this.db.prisma.derived_artifacts.findUnique({
+            where: { entity_id: sourceEntityId }
+          });
+        case 'ProactivePrompt':
+          return await this.db.prisma.proactive_prompts.findUnique({
+            where: { entity_id: sourceEntityId }
+          });
+        case 'Community':
+          return await this.db.prisma.communities.findUnique({
+            where: { entity_id: sourceEntityId }
+          });
+        case 'GrowthEvent':
+          return await this.db.prisma.growth_events.findUnique({
+            where: { entity_id: sourceEntityId }
+          });
+        case 'User':
+          return await this.db.prisma.users.findUnique({
+            where: { user_id: sourceEntityId }
+          });
+        default:
+          console.warn(`[CardRepository] Unknown entity type: ${sourceEntityType}`);
+          return null;
+      }
+    } catch (error) {
+      console.error(`[CardRepository] Error loading entity data for ${sourceEntityType} ${sourceEntityId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Get card with entity data loaded
+   */
+  async getCardWithEntityData(cardId: string): Promise<any> {
+    const card = await this.findById(cardId);
+    if (!card) return null;
+
+    const entityData = await this.loadEntityData(card.source_entity_id, card.source_entity_type);
+    if (!entityData) return card;
+
+    return {
+      ...card,
+      // Use custom fields if available, otherwise use entity data
+      title: card.custom_title || entityData.title || 'Untitled',
+      content: card.custom_content || entityData.content || '',
+      entity_type: card.source_entity_type,
+      entity_id: card.source_entity_id,
+    };
+  }
 
   async create(data: CreateCardData): Promise<any> {
     return this.db.prisma.cards.create({
@@ -160,6 +236,30 @@ export class CardRepository {
     });
   }
 
+  async updateDisplayOrder(cardId: string, displayOrder: number): Promise<any> {
+    return this.db.prisma.cards.update({
+      where: { card_id: cardId },
+      data: { display_order: displayOrder },
+    });
+  }
+
+  async updateSelection(cardId: string, isSelected: boolean): Promise<any> {
+    return this.db.prisma.cards.update({
+      where: { card_id: cardId },
+      data: { is_selected: isSelected },
+    });
+  }
+
+  async updateCustomFields(cardId: string, customTitle?: string, customContent?: string): Promise<any> {
+    return this.db.prisma.cards.update({
+      where: { card_id: cardId },
+      data: { 
+        custom_title: customTitle,
+        custom_content: customContent,
+      },
+    });
+  }
+
   async delete(cardId: string): Promise<void> {
     await this.db.prisma.cards.delete({
       where: { card_id: cardId },
@@ -197,10 +297,10 @@ export class CardRepository {
   }
 
   /**
-   * Get any with advanced filtering and growth data
+   * Get cards with advanced filtering and entity data loaded
    */
   async getCards(userId: string, filters: CardFilters): Promise<CardResultWithMeta> {
-    // For now, use simplified logic. The proper implementation should join with growth data.
+    // Get cards from database
     const cards = await this.db.prisma.cards.findMany({
       where: {
         user_id: userId,
@@ -219,58 +319,31 @@ export class CardRepository {
       },
     });
 
-    // Transform to CardData format
-    const cardData: CardData[] = cards.map((card: any) => {
-      // Parse display_data if present
-      let displayData: any = {};
-      if (card.display_data) {
-        try {
-          displayData = typeof card.display_data === 'string' ? JSON.parse(card.display_data) : card.display_data;
-        } catch (e) {
-          displayData = {};
-        }
-      }
-      // Handle both old and new field names during transition period
-      const normalizedDisplayData = {
-        ...displayData,
-        // Normalize field names - prefer new names, fallback to old names
-        title: displayData.title || displayData.name || '',
-        content: displayData.content || displayData.description || '',
-        entity_id: displayData.entity_id || displayData.concept_id || displayData.prompt_id || displayData.artifact_id || displayData.community_id || displayData.memory_id,
-        updated_at: displayData.updated_at || displayData.last_updated_ts,
-        // Keep other fields as-is
-        type: displayData.type,
-        status: displayData.status,
-        user_id: displayData.user_id,
-        created_at: displayData.created_at,
-        // Remove old field names to avoid confusion
-        name: undefined,
-        description: undefined,
-        concept_id: undefined,
-        prompt_id: undefined,
-        artifact_id: undefined,
-        community_id: undefined,
-        memory_id: undefined,
-        last_updated_ts: undefined,
-      };
-
-      return {
-        id: card.card_id,
-        type: card.type as 'memory_unit' | 'concept' | 'derived_artifact' | 'memoryunit' | 'growthevent' | 'proactiveprompt' | 'community',
-        title: normalizedDisplayData.title || '',
-        preview: displayData.preview || displayData.previewText || normalizedDisplayData.content || '',
-        evolutionState: 'seed', // Simplified - should calculate based on business logic
-        importanceScore: 0.5, // Simplified - should calculate from data
-        createdAt: card.created_at,
-        updatedAt: card.updated_at,
-        // Pass through normalized display_data and background_image_url for downstream use
-        display_data: normalizedDisplayData,
-        background_image_url: card.background_image_url || null,
-        // Include source entity information
-        source_entity_id: card.source_entity_id,
-        source_entity_type: card.source_entity_type,
-      };
-    });
+    // Load entity data for each card
+    const cardData: CardData[] = await Promise.all(
+      cards.map(async (card: any) => {
+        const entityData = await this.loadEntityData(card.source_entity_id, card.source_entity_type);
+        
+        return {
+          id: card.card_id,
+          type: card.type as 'memory_unit' | 'concept' | 'derived_artifact' | 'memoryunit' | 'growthevent' | 'proactiveprompt' | 'community',
+          title: card.custom_title || entityData?.title || 'Untitled',
+          content: card.custom_content || entityData?.content || '',
+          evolutionState: 'seed', // Simplified - should calculate based on business logic
+          importanceScore: 0.5, // Simplified - should calculate from data
+          createdAt: card.created_at,
+          updatedAt: card.updated_at,
+          background_image_url: card.background_image_url || null,
+          display_order: card.display_order,
+          is_selected: card.is_selected,
+          custom_title: card.custom_title,
+          custom_content: card.custom_content,
+          // Include source entity information
+          source_entity_id: card.source_entity_id,
+          source_entity_type: card.source_entity_type,
+        };
+      })
+    );
 
     return {
       cards: cardData,
@@ -292,15 +365,24 @@ export class CardRepository {
 
     if (!card) return null;
 
+    const entityData = await this.loadEntityData(card.source_entity_id, card.source_entity_type);
+
     return {
       id: card.card_id,
       type: card.type as 'memory_unit' | 'concept' | 'derived_artifact',
-      title: `Card ${card.card_id}`,
-      preview: `Preview for ${card.card_id}`,
+      title: card.custom_title || entityData?.title || 'Untitled',
+      content: card.custom_content || entityData?.content || '',
       evolutionState: 'seed',
       importanceScore: 0.5,
       createdAt: card.created_at,
       updatedAt: card.updated_at,
+      background_image_url: card.background_image_url,
+      display_order: card.display_order,
+      is_selected: card.is_selected,
+      custom_title: card.custom_title,
+      custom_content: card.custom_content,
+      source_entity_id: card.source_entity_id,
+      source_entity_type: card.source_entity_type,
     };
   }
 
@@ -315,16 +397,29 @@ export class CardRepository {
       orderBy: { created_at: 'desc' },
     });
 
-    return cards.map((card: any) => ({
-      id: card.card_id,
-      type: card.type as 'memory_unit' | 'concept' | 'derived_artifact',
-      title: `Card ${card.card_id}`,
-      preview: `Preview for ${card.card_id}`,
-      evolutionState: state,
-      importanceScore: 0.5,
-      createdAt: card.created_at,
-      updatedAt: card.updated_at,
-    }));
+    return await Promise.all(
+      cards.map(async (card: any) => {
+        const entityData = await this.loadEntityData(card.source_entity_id, card.source_entity_type);
+        
+        return {
+          id: card.card_id,
+          type: card.type as 'memory_unit' | 'concept' | 'derived_artifact',
+          title: card.custom_title || entityData?.title || 'Untitled',
+          content: card.custom_content || entityData?.content || '',
+          evolutionState: state,
+          importanceScore: 0.5,
+          createdAt: card.created_at,
+          updatedAt: card.updated_at,
+          background_image_url: card.background_image_url,
+          display_order: card.display_order,
+          is_selected: card.is_selected,
+          custom_title: card.custom_title,
+          custom_content: card.custom_content,
+          source_entity_id: card.source_entity_id,
+          source_entity_type: card.source_entity_type,
+        };
+      })
+    );
   }
 
   /**
@@ -338,16 +433,29 @@ export class CardRepository {
       orderBy: { updated_at: 'desc' },
     });
 
-    return cards.map((card: any) => ({
-      id: card.card_id,
-      type: card.type as 'memory_unit' | 'concept' | 'derived_artifact',
-      title: `Card ${card.card_id}`,
-      preview: `Preview for ${card.card_id}`,
-      evolutionState: 'sprout',
-      importanceScore: 0.7,
-      createdAt: card.created_at,
-      updatedAt: card.updated_at,
-    }));
+    return await Promise.all(
+      cards.map(async (card: any) => {
+        const entityData = await this.loadEntityData(card.source_entity_id, card.source_entity_type);
+        
+        return {
+          id: card.card_id,
+          type: card.type as 'memory_unit' | 'concept' | 'derived_artifact',
+          title: card.custom_title || entityData?.title || 'Untitled',
+          content: card.custom_content || entityData?.content || '',
+          evolutionState: 'sprout',
+          importanceScore: 0.7,
+          createdAt: card.created_at,
+          updatedAt: card.updated_at,
+          background_image_url: card.background_image_url,
+          display_order: card.display_order,
+          is_selected: card.is_selected,
+          custom_title: card.custom_title,
+          custom_content: card.custom_content,
+          source_entity_id: card.source_entity_id,
+          source_entity_type: card.source_entity_type,
+        };
+      })
+    );
   }
 
   private buildOrderBy(sortBy?: string, sortOrder: 'asc' | 'desc' = 'desc') {
