@@ -357,8 +357,7 @@ export class GraphProjectionWorker {
     console.log(`[GraphProjectionWorker] Generated 3D coordinates for ${dimensionResult.coordinates.length} nodes using hybrid UMAP`);
 
     // Step 4: Store coordinates directly in entity tables (V11.0 Cosmos)
-    // TODO: Re-enable after TypeScript server restart and Prisma client refresh
-    // await this.storeCoordinatesInEntities(userId, graphData.nodes, dimensionResult.coordinates);
+    await this.storeCoordinatesInEntities(userId, graphData.nodes, dimensionResult.coordinates);
 
     // Step 5: Assemble final projection
     const projection = this.assembleProjection(userId, graphData, dimensionResult.coordinates, dimensionResult);
@@ -671,13 +670,8 @@ export class GraphProjectionWorker {
 
   /**
    * Update entity coordinates in the appropriate table
-   * TODO: Re-enable after TypeScript server restart and Prisma client refresh
    */
   private async updateEntityCoordinates(entityId: string, entityType: string, x: number, y: number, z: number): Promise<void> {
-    // Temporarily disabled due to Prisma client type issues
-    console.log(`[GraphProjectionWorker] Coordinate update disabled for ${entityType} ${entityId}: (${x}, ${y}, ${z})`);
-    
-    /* TODO: Re-enable after Prisma client refresh
     try {
       // Use the prisma client to update coordinates
       const updateData = {
@@ -730,7 +724,6 @@ export class GraphProjectionWorker {
     } catch (error) {
       console.error(`[GraphProjectionWorker] Failed to update coordinates for ${entityType} ${entityId}:`, error);
     }
-    */
   }
 
   /**
