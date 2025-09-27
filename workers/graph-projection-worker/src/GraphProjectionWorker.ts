@@ -1,21 +1,22 @@
 /**
  * GraphProjectionWorker.ts
- * V9.5 Production-Grade Worker for 3D Knowledge Cosmos Projection
+ * V11.0 Production-Grade Worker for 3D Knowledge Cosmos Coordinates
  * 
- * This worker regenerates the 3D graph projection whenever the InsightEngine
+ * This worker generates 3D coordinates for entities whenever the InsightEngine
  * finishes its job. It coordinates between Neo4j graph structure, Weaviate 
- * vector embeddings, and Python dimension reduction to create immersive 3D 
- * knowledge visualizations.
+ * vector embeddings, and Python dimension reduction to create 3D coordinates
+ * stored directly in entity tables.
  * 
  * SIMPLE TRIGGER: Only processes 'cycle_artifacts_created' events from InsightEngine
  * 
- * ARCHITECTURE: Presentation layer worker that transforms knowledge structures
- * into spatial coordinates for 3D rendering in the web interface.
+ * ARCHITECTURE: V11.0 query-driven approach - stores coordinates in entity tables
+ * instead of generating large JSON projections. Frontend queries coordinates directly.
  */
 
-import { DatabaseService, GraphProjectionRepository, GraphProjectionData, Neo4jService } from '@2dots1line/database';
+import { DatabaseService, Neo4jService } from '@2dots1line/database';
 import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
 import { Worker, Job, Queue } from 'bullmq';
+import { Prisma } from '@prisma/client';
 
 // Event types that trigger projection updates
 export interface NewEntitiesCreatedEvent {
@@ -48,6 +49,10 @@ export interface GraphProjectionWorkerConfig {
   retryDelay?: number;
   dimensionReducerUrl?: string;
   projectionMethod?: 'umap' | 'tsne';
+  // V11.0 Hybrid UMAP Configuration
+  umapInterval?: number;        // Default: 500 nodes
+  minNodesForUMAP?: number;    // Default: 500 nodes
+  maxNodesForUMAP?: number;    // Default: 10000 nodes
 }
 
 export interface Node3D {
@@ -68,53 +73,17 @@ export interface Node3D {
   };
 }
 
-export interface GraphProjection {
-  userId: string;
-  version: string;
-  createdAt: string;
-  nodes: Node3D[];
-  edges: Array<{
-    id: string;
-    source: string;
-    target: string;
-    type: string;
-    properties: Record<string, any>;
-  }>;
-  statistics: {
-    totalNodes: number;
-    memoryUnits: number;
-    concepts: number;
-    derivedArtifacts: number;
-    communities: number;
-    proactivePrompts: number;
-    growthEvents: number;
-    users: number;
-    connections: number;
-  };
-  projectionMethod: string;
-  boundingBox: {
-    min: [number, number, number];
-    max: [number, number, number];
-  };
-  // V11.0 Cosmos: Metadata for hybrid UMAP system
-  metadata?: {
-    transformationMatrix?: number[][];
-    umapParameters?: any;
-    isIncremental?: boolean;
-  };
-}
 
 /**
  * GraphProjectionWorker V11.0 Production Implementation
  * 
- * Processes graph projection updates for the 3D Knowledge Cosmos.
+ * Generates 3D coordinates for entities and stores them directly in entity tables.
  * Integrates Neo4j graph structure, Weaviate embeddings, and Python ML services.
- * Uses EnvironmentLoader for consistent environment management.
+ * Uses the new V11.0 query-driven architecture - no longer generates legacy JSON projections.
  */
 export class GraphProjectionWorker {
   private worker: Worker;
   private config: GraphProjectionWorkerConfig;
-  private graphProjectionRepo: GraphProjectionRepository;
   private neo4jService: Neo4jService;
   private retryCounts: Map<string, number> = new Map(); // Track retry attempts per job
   // Add a queue for publishing notification jobs
@@ -137,13 +106,19 @@ export class GraphProjectionWorker {
       retryDelay: 5000,
       dimensionReducerUrl: environmentLoader.get('DIMENSION_REDUCER_URL') || 'http://localhost:8000',
       projectionMethod: 'umap',
+      // V11.0 Hybrid UMAP Configuration
+      umapInterval: parseInt(environmentLoader.get('UMAP_INTERVAL') || '500'),
+      minNodesForUMAP: parseInt(environmentLoader.get('MIN_NODES_FOR_UMAP') || '500'),
+      maxNodesForUMAP: parseInt(environmentLoader.get('MAX_NODES_FOR_UMAP') || '10000'),
       ...config
     };
 
+    // Validate configuration
+    this.validateConfiguration();
+
     console.log(`[GraphProjectionWorker] Using dimension reducer at: ${this.config.dimensionReducerUrl}`);
 
-    // Initialize repositories and services
-    this.graphProjectionRepo = new GraphProjectionRepository(databaseService);
+    // Initialize services
     this.neo4jService = new Neo4jService(databaseService);
 
     // Initialize BullMQ worker with EnvironmentLoader
@@ -203,6 +178,47 @@ export class GraphProjectionWorker {
   }
 
   /**
+   * V11.0: Validate configuration parameters
+   */
+  private validateConfiguration(): void {
+    const errors: string[] = [];
+
+    // Validate UMAP interval
+    if (!this.config.umapInterval || this.config.umapInterval < 1) {
+      errors.push('UMAP_INTERVAL must be a positive integer');
+    }
+
+    // Validate minimum nodes for UMAP
+    if (!this.config.minNodesForUMAP || this.config.minNodesForUMAP < 1) {
+      errors.push('MIN_NODES_FOR_UMAP must be a positive integer');
+    }
+
+    // Validate maximum nodes for UMAP
+    if (this.config.maxNodesForUMAP && this.config.maxNodesForUMAP < this.config.minNodesForUMAP!) {
+      errors.push('MAX_NODES_FOR_UMAP must be greater than or equal to MIN_NODES_FOR_UMAP');
+    }
+
+    // Validate dimension reducer URL
+    if (!this.config.dimensionReducerUrl) {
+      errors.push('DIMENSION_REDUCER_URL must be set');
+    }
+
+    // Validate concurrency
+    if (!this.config.concurrency || this.config.concurrency < 1) {
+      errors.push('concurrency must be a positive integer');
+    }
+
+    if (errors.length > 0) {
+      const errorMessage = `Configuration validation failed:\n${errors.join('\n')}`;
+      console.error(`[GraphProjectionWorker] ${errorMessage}`);
+      throw new Error(errorMessage);
+    }
+
+    console.log(`[GraphProjectionWorker] ✅ Configuration validated successfully`);
+    console.log(`[GraphProjectionWorker] UMAP Interval: ${this.config.umapInterval}, Min Nodes: ${this.config.minNodesForUMAP}, Max Nodes: ${this.config.maxNodesForUMAP || 'unlimited'}`);
+  }
+
+  /**
    * Main job processing function - processes both IngestionAnalyst and InsightEngine completion events
    */
   private async processJob(job: Job<GraphProjectionEvent>): Promise<void> {
@@ -248,45 +264,42 @@ export class GraphProjectionWorker {
         console.log(`[GraphProjectionWorker] All embeddings ready, proceeding with projection`);
       }
       
-      // Regenerate projection to reflect all changes from either worker
-      console.log(`[GraphProjectionWorker] 🔄 Regenerating graph projection for user ${data.userId} after ${sourceWorker} completion`);
-      const projection = await this.generateProjection(data.userId);
-      
-      // Store projection in database
-      await this.storeProjection(projection);
+      // Generate 3D coordinates using hybrid UMAP approach (V11.0 Cosmos)
+      console.log(`[GraphProjectionWorker] 🔄 Generating 3D coordinates for user ${data.userId} after ${sourceWorker} completion`);
+      const projection = await this.generateProjectionWithHybridUMAP(data.userId, data.entities);
 
       const duration = Date.now() - startTime;
-      console.log(`[GraphProjectionWorker] ✅ Successfully regenerated projection for user ${data.userId} in ${duration}ms`);
-      console.log(`[GraphProjectionWorker] Projection contains ${projection.nodes.length} nodes and ${projection.edges.length} edges`);
+      console.log(`[GraphProjectionWorker] ✅ Successfully generated coordinates for user ${data.userId} in ${duration}ms`);
+      console.log(`[GraphProjectionWorker] Updated coordinates for ${projection.nodes.length} nodes`);
 
-      // Enqueue notification for "graph_projection_updated"
+      // Enqueue notification for "coordinates_updated"
       try {
         const payload = {
-          type: 'graph_projection_updated' as const,
+          type: 'coordinates_updated' as const,
           userId: data.userId,
-          projection: {
-            version: projection.version,
+          coordinateUpdate: {
             nodeCount: projection.nodes.length,
-            edgeCount: projection.edges.length,
+            method: projection.projectionMethod,
+            isIncremental: projection.metadata?.isIncremental || false,
           },
         };
 
-        await this.notificationQueue.add('graph_projection_updated', payload, {
+        await this.notificationQueue.add('coordinates_updated', payload, {
           removeOnComplete: true,
           attempts: 3,
           backoff: { type: 'exponential', delay: 1000 },
         });
 
         console.log(
-          `[GraphProjectionWorker] 📣 Enqueued notification 'graph_projection_updated' for user ${data.userId} (version=${projection.version})`
+          `[GraphProjectionWorker] 📣 Enqueued notification 'coordinates_updated' for user ${data.userId} (nodes=${projection.nodes.length})`
         );
       } catch (notifyErr) {
-        console.error('[GraphProjectionWorker] Failed to enqueue graph_projection_updated notification:', notifyErr);
-        // Do not fail the projection job if notification enqueue fails
+        console.error('[GraphProjectionWorker] Failed to enqueue coordinates_updated notification:', notifyErr);
+        // Do not fail the coordinate generation job if notification enqueue fails
       }
     } catch (error) {
       const duration = Date.now() - startTime;
-      console.error(`[GraphProjectionWorker] Failed to generate projection for user ${data.userId} after ${duration}ms:`, error);
+      console.error(`[GraphProjectionWorker] Failed to generate coordinates for user ${data.userId} after ${duration}ms:`, error);
       throw error;
     }
   }
@@ -334,36 +347,406 @@ export class GraphProjectionWorker {
   }
 
   /**
-   * Generate complete 3D projection for a user
+   * V11.0 Hybrid UMAP: Generate coordinates using hybrid approach
+   * Decides between UMAP learning and linear transformation based on node count
    */
-  public async generateProjection(userId: string): Promise<GraphProjection> {
-    console.log(`[GraphProjectionWorker] Starting projection generation for user ${userId}`);
+  public async generateProjectionWithHybridUMAP(userId: string, newEntities: Array<{id: string, type: string}>): Promise<{
+    nodes: Node3D[];
+    projectionMethod: string;
+    metadata?: {
+      transformationMatrix?: number[][];
+      umapParameters?: any;
+      isIncremental?: boolean;
+    };
+  }> {
+    console.log(`[GraphProjectionWorker] Starting hybrid UMAP coordinate generation for user ${userId}`);
 
-    // Step 1: Fetch graph structure from Neo4j using real service
-    const graphData = await this.fetchGraphStructureFromNeo4j(userId);
-    console.log(`[GraphProjectionWorker] Fetched ${graphData.nodes.length} nodes and ${graphData.edges.length} edges from Neo4j`);
+    // Get current node count
+    const currentNodeCount = await this.getCurrentNodeCount(userId);
+    const totalNodes = currentNodeCount + newEntities.length;
+    
+    console.log(`[GraphProjectionWorker] Current nodes: ${currentNodeCount}, New entities: ${newEntities.length}, Total: ${totalNodes}`);
 
-    if (graphData.nodes.length === 0) {
-      console.log(`[GraphProjectionWorker] No nodes found for user ${userId}, creating empty projection`);
-      return this.createEmptyProjection(userId);
+    if (this.shouldRunUMAP(totalNodes)) {
+      console.log(`[GraphProjectionWorker] 🧠 Running UMAP Learning Phase (total nodes: ${totalNodes})`);
+      return await this.handleUMAPLearningPhase(userId, newEntities);
+    } else {
+      console.log(`[GraphProjectionWorker] ⚡ Running Linear Transformation Phase (total nodes: ${totalNodes})`);
+      return await this.handleLinearTransformationPhase(userId, newEntities);
+    }
+  }
+
+  /**
+   * V11.0: Check if UMAP learning should run based on node count
+   */
+  private shouldRunUMAP(totalNodes: number): boolean {
+    // Configuration is validated in constructor, so these values are guaranteed to exist
+    const minNodes = this.config.minNodesForUMAP!;
+    const maxNodes = this.config.maxNodesForUMAP || Infinity;
+    const interval = this.config.umapInterval!;
+    
+    return totalNodes >= minNodes && 
+           totalNodes <= maxNodes &&
+           totalNodes % interval === 0;
+  }
+
+  /**
+   * V11.0: Get current node count for user (optimized - uses COUNT query)
+   */
+  private async getCurrentNodeCount(userId: string): Promise<number> {
+    try {
+      // Use Neo4jService to get node count efficiently
+      const stats = await this.neo4jService.getGraphStatistics(userId);
+      console.log(`[GraphProjectionWorker] Current node count for user ${userId}: ${stats.nodeCount}`);
+      return stats.nodeCount;
+    } catch (error) {
+      console.error(`[GraphProjectionWorker] Failed to get node count for user ${userId}:`, error);
+      throw new Error(`Failed to get node count: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * V11.0: UMAP Learning Phase - Learn manifold structure and create transformation matrix
+   */
+  private async handleUMAPLearningPhase(userId: string, newEntities: Array<{id: string, type: string}>): Promise<{
+    nodes: Node3D[];
+    projectionMethod: string;
+    metadata?: {
+      transformationMatrix?: number[][];
+      umapParameters?: any;
+      isIncremental?: boolean;
+    };
+  }> {
+    console.log(`[GraphProjectionWorker] 🧠 UMAP Learning Phase: Learning manifold structure`);
+
+    // Step 1: Get ALL nodes (existing + new)
+    const allNodes = await this.fetchGraphStructureFromNeo4j(userId);
+    console.log(`[GraphProjectionWorker] UMAP Learning: Processing ${allNodes.nodes.length} total nodes`);
+
+    if (allNodes.nodes.length === 0) {
+      return { nodes: [], projectionMethod: 'none' };
     }
 
-    // Step 2: Fetch vector embeddings from Weaviate
-    const vectors = await this.fetchEmbeddingsFromWeaviate(graphData.nodes);
-    console.log(`[GraphProjectionWorker] Fetched ${vectors.length} embedding vectors from Weaviate`);
+    // Step 2: Get embeddings for all nodes
+    const allEmbeddings = await this.fetchEmbeddingsFromWeaviate(allNodes.nodes);
+    console.log(`[GraphProjectionWorker] UMAP Learning: Fetched ${allEmbeddings.length} embeddings`);
 
-    // Step 3: Reduce to 3D coordinates using hybrid UMAP
-    const dimensionResult = await this.callDimensionReducer(vectors);
-    console.log(`[GraphProjectionWorker] Generated 3D coordinates for ${dimensionResult.coordinates.length} nodes using hybrid UMAP`);
+    // Step 3: Run UMAP to learn manifold structure
+    const dimensionResult = await this.callDimensionReducer(allEmbeddings);
+    console.log(`[GraphProjectionWorker] UMAP Learning: Generated coordinates for ${dimensionResult.coordinates.length} nodes`);
 
-    // Step 4: Store coordinates directly in entity tables (V11.0 Cosmos)
-    await this.storeCoordinatesInEntities(userId, graphData.nodes, dimensionResult.coordinates);
+    // Step 4: Store transformation matrix for future linear transformations
+    if (dimensionResult.transformationMatrix) {
+      await this.storeTransformationMatrix(userId, dimensionResult.transformationMatrix, dimensionResult.umapParameters);
+      console.log(`[GraphProjectionWorker] UMAP Learning: Stored transformation matrix`);
+    }
 
-    // Step 5: Assemble final projection
-    const projection = this.assembleProjection(userId, graphData, dimensionResult.coordinates, dimensionResult);
+    // Step 5: Update all coordinates in entity tables
+    await this.storeCoordinatesInEntities(userId, allNodes.nodes, dimensionResult.coordinates);
+    console.log(`[GraphProjectionWorker] UMAP Learning: Updated coordinates for all ${allNodes.nodes.length} entities`);
+
+    // Step 6: Create node data for notifications
+    const nodes: Node3D[] = allNodes.nodes.map((node: any, index: number) => ({
+      entity_id: node.entity_id,
+      type: node.type as 'MemoryUnit' | 'Concept' | 'DerivedArtifact' | 'Community' | 'ProactivePrompt' | 'GrowthEvent' | 'User',
+      title: node.title,
+      content: node.content,
+      position: dimensionResult.coordinates[index] as [number, number, number],
+      connections: node.connections || [],
+      importance: node.importance || 0.5,
+      metadata: {
+        createdAt: node.createdAt || new Date().toISOString(),
+        lastUpdated: new Date().toISOString(),
+        userId,
+        isMerged: node.metadata?.isMerged || false,
+        mergedIntoConceptId: node.metadata?.mergedIntoConceptId || null,
+        status: node.metadata?.status || 'active'
+      }
+    }));
+
+    console.log(`[GraphProjectionWorker] ✅ UMAP Learning Phase complete for ${nodes.length} nodes`);
+    return {
+      nodes,
+      projectionMethod: 'umap_learning',
+      metadata: {
+        transformationMatrix: dimensionResult.transformationMatrix,
+        umapParameters: dimensionResult.umapParameters,
+        isIncremental: false
+      }
+    };
+  }
+
+  /**
+   * V11.0: Linear Transformation Phase - Fast positioning using stored transformation matrix
+   */
+  private async handleLinearTransformationPhase(userId: string, newEntities: Array<{id: string, type: string}>): Promise<{
+    nodes: Node3D[];
+    projectionMethod: string;
+    metadata?: {
+      transformationMatrix?: number[][];
+      umapParameters?: any;
+      isIncremental?: boolean;
+    };
+  }> {
+    console.log(`[GraphProjectionWorker] ⚡ Linear Transformation Phase: Fast positioning for ${newEntities.length} new entities`);
+
+    // Step 1: Get stored transformation matrix
+    const matrixData = await this.getTransformationMatrix(userId);
+    if (!matrixData) {
+      console.warn(`[GraphProjectionWorker] No transformation matrix found, falling back to UMAP learning`);
+      return await this.handleUMAPLearningPhase(userId, newEntities);
+    }
+
+    // Step 2: Get embeddings for new entities only
+    const newNodes = await this.getNodesForEntities(userId, newEntities);
+    const newEmbeddings = await this.fetchEmbeddingsFromWeaviate(newNodes);
+    console.log(`[GraphProjectionWorker] Linear Transformation: Fetched ${newEmbeddings.length} embeddings for new entities`);
+
+    // Step 3: Transform new embeddings using stored matrix
+    const newCoordinates = await this.transformWithLinearMatrix(newEmbeddings, matrixData.transformationMatrix);
+    console.log(`[GraphProjectionWorker] Linear Transformation: Generated coordinates for ${newCoordinates.length} new entities`);
+
+    // Step 4: Store new coordinates in entity tables
+    await this.storeCoordinatesInEntities(userId, newNodes, newCoordinates);
+    console.log(`[GraphProjectionWorker] Linear Transformation: Updated coordinates for ${newNodes.length} new entities`);
+
+    // Step 5: Create node data for notifications (only new entities)
+    const nodes: Node3D[] = newNodes.map((node: any, index: number) => ({
+      entity_id: node.entity_id,
+      type: node.type as 'MemoryUnit' | 'Concept' | 'DerivedArtifact' | 'Community' | 'ProactivePrompt' | 'GrowthEvent' | 'User',
+      title: node.title,
+      content: node.content,
+      position: newCoordinates[index] as [number, number, number],
+      connections: node.connections || [],
+      importance: node.importance || 0.5,
+      metadata: {
+        createdAt: node.createdAt || new Date().toISOString(),
+        lastUpdated: new Date().toISOString(),
+        userId,
+        isMerged: node.metadata?.isMerged || false,
+        mergedIntoConceptId: node.metadata?.mergedIntoConceptId || null,
+        status: node.metadata?.status || 'active'
+      }
+    }));
+
+    console.log(`[GraphProjectionWorker] ✅ Linear Transformation Phase complete for ${nodes.length} new entities`);
+    return {
+      nodes,
+      projectionMethod: 'linear_transformation',
+      metadata: {
+        transformationMatrix: matrixData.transformationMatrix,
+        umapParameters: matrixData.umapParameters,
+        isIncremental: true
+      }
+    };
+  }
+
+  /**
+   * V11.0: Store transformation matrix in user_graph_projections table
+   */
+  private async storeTransformationMatrix(userId: string, transformationMatrix: number[][], umapParameters?: any): Promise<void> {
+    try {
+      // Store in user_graph_projections table for future use
+      await this.databaseService.prisma.user_graph_projections.create({
+        data: {
+          projection_id: `matrix_${userId}_${Date.now()}`,
+          user_id: userId,
+          status: 'completed',
+          transformation_matrix: transformationMatrix as any,
+          umap_parameters: umapParameters as any,
+          metadata: {
+            version: `v${Date.now()}`,
+            createdAt: new Date().toISOString(),
+            processingMethod: 'hybrid_umap',
+            isIncremental: false,
+            hybridUMAP: true,
+            phase: 'umap_learning'
+          }
+        }
+      });
+      console.log(`[GraphProjectionWorker] ✅ Stored transformation matrix for user ${userId}`);
+    } catch (error) {
+      console.error(`[GraphProjectionWorker] Failed to store transformation matrix for user ${userId}:`, error);
+      throw new Error(`Failed to store transformation matrix: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * V11.0: Get stored transformation matrix from user_graph_projections table
+   */
+  private async getTransformationMatrix(userId: string): Promise<{
+    transformationMatrix: number[][];
+    umapParameters?: any;
+  } | null> {
+    try {
+      const projection = await this.databaseService.prisma.user_graph_projections.findFirst({
+        where: {
+          user_id: userId
+        },
+        orderBy: { created_at: 'desc' }
+      });
+
+      if (projection && projection.transformation_matrix) {
+        return {
+          transformationMatrix: projection.transformation_matrix as number[][],
+          umapParameters: projection.umap_parameters as any
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error(`[GraphProjectionWorker] Failed to get transformation matrix for user ${userId}:`, error);
+      throw new Error(`Failed to get transformation matrix: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * V11.0: Get nodes for specific entities (optimized - queries specific entities only)
+   */
+  private async getNodesForEntities(userId: string, entities: Array<{id: string, type: string}>): Promise<any[]> {
+    try {
+      if (entities.length === 0) {
+        return [];
+      }
+
+      // Use Neo4jService to query specific entities efficiently
+      const nodes = await this.neo4jService.findEntitiesByIds(userId, entities.map(e => e.id));
+      
+      // Transform to the expected format
+      const transformedNodes = nodes.map(node => ({
+        entity_id: node.entity_id,
+        type: this.getEntityTypeFromLabels(node.labels),
+        title: node.properties.title || node.properties.name || 'Untitled',
+        content: node.properties.content || node.properties.description || '',
+        importance: node.properties.importance || 0.5,
+        createdAt: node.properties.createdAt || new Date().toISOString(),
+        connections: node.properties.connections || [],
+        metadata: node.properties.metadata || {}
+      }));
+
+      console.log(`[GraphProjectionWorker] Retrieved ${transformedNodes.length} specific entities for linear transformation`);
+      return transformedNodes;
+    } catch (error) {
+      console.error(`[GraphProjectionWorker] Failed to get nodes for entities:`, error);
+      throw new Error(`Failed to get specific entities: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Helper method to determine entity type from Neo4j labels
+   */
+  private getEntityTypeFromLabels(labels: string[]): string {
+    // Map Neo4j labels to entity types
+    const labelMap: Record<string, string> = {
+      'MemoryUnit': 'MemoryUnit',
+      'Concept': 'Concept', 
+      'DerivedArtifact': 'DerivedArtifact',
+      'Community': 'Community',
+      'ProactivePrompt': 'ProactivePrompt',
+      'GrowthEvent': 'GrowthEvent',
+      'User': 'User'
+    };
+
+    for (const label of labels) {
+      if (labelMap[label]) {
+        return labelMap[label];
+      }
+    }
     
-    console.log(`[GraphProjectionWorker] Projection assembly complete`);
-    return projection;
+    return 'Unknown';
+  }
+
+  /**
+   * V11.0: Validate transformation matrix dimensions and format
+   */
+  private validateTransformationMatrix(matrix: number[][], embeddings: number[][]): void {
+    if (!matrix || !Array.isArray(matrix)) {
+      throw new Error('Transformation matrix must be a 2D array');
+    }
+
+    if (matrix.length === 0) {
+      throw new Error('Transformation matrix cannot be empty');
+    }
+
+    // Check if all rows have the same length
+    const expectedCols = matrix[0].length;
+    for (let i = 0; i < matrix.length; i++) {
+      if (!Array.isArray(matrix[i])) {
+        throw new Error(`Transformation matrix row ${i} must be an array`);
+      }
+      if (matrix[i].length !== expectedCols) {
+        throw new Error(`Transformation matrix row ${i} has ${matrix[i].length} columns, expected ${expectedCols}`);
+      }
+    }
+
+    // Validate dimensions
+    const embeddingDim = embeddings.length > 0 ? embeddings[0].length : 0;
+    const targetDim = 3; // Always 3D for Cosmos
+
+    if (matrix.length !== embeddingDim) {
+      throw new Error(`Transformation matrix input dimension mismatch: matrix has ${matrix.length} rows, embeddings have ${embeddingDim} dimensions`);
+    }
+
+    if (matrix[0].length !== targetDim) {
+      throw new Error(`Transformation matrix output dimension mismatch: matrix has ${matrix[0].length} columns, expected ${targetDim} for 3D output`);
+    }
+
+    // Check for NaN or Infinity values
+    for (let i = 0; i < matrix.length; i++) {
+      for (let j = 0; j < matrix[i].length; j++) {
+        const value = matrix[i][j];
+        if (typeof value !== 'number' || !isFinite(value)) {
+          throw new Error(`Transformation matrix[${i}][${j}] contains invalid value: ${value}`);
+        }
+      }
+    }
+
+    console.log(`[GraphProjectionWorker] ✅ Transformation matrix validated: ${matrix.length}x${matrix[0].length}`);
+  }
+
+  /**
+   * V11.0: Transform embeddings using linear transformation matrix
+   */
+  private async transformWithLinearMatrix(embeddings: number[][], transformationMatrix: number[][]): Promise<number[][]> {
+    try {
+      // Validate transformation matrix
+      this.validateTransformationMatrix(transformationMatrix, embeddings);
+
+      // Call Python service for linear transformation
+      const requestBody = {
+        vectors: embeddings,
+        method: 'linear_transformation',
+        transformation_matrix: transformationMatrix,
+        target_dimensions: 3
+      };
+
+      const response = await fetch(`${this.config.dimensionReducerUrl}/reduce`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(requestBody),
+        signal: AbortSignal.timeout(30000) // 30 second timeout for linear transformation
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Linear transformation service responded with ${response.status}: ${errorText}`);
+      }
+
+      const result = await response.json();
+      
+      if (!result.coordinates || !Array.isArray(result.coordinates)) {
+        throw new Error('Invalid response format from linear transformation service');
+      }
+
+      console.log(`[GraphProjectionWorker] ✅ Linear transformation completed for ${embeddings.length} vectors`);
+      return result.coordinates;
+      
+    } catch (error) {
+      console.error(`[GraphProjectionWorker] ❌ Linear transformation failed, using fallback coordinates:`, error);
+      return this.generateFallback3DCoordinates(embeddings.length);
+    }
   }
 
   /**
@@ -575,9 +958,9 @@ export class GraphProjectionWorker {
    * REAL IMPLEMENTATION: Call Python dimension reducer service
    */
   /**
-   * V11.0 Cosmos: Enhanced dimension reducer with hybrid UMAP support
+   * V11.0 Cosmos: Enhanced dimension reducer with UMAP learning support
    */
-  private async callDimensionReducer(vectors: number[][], existingCoordinates?: number[][]): Promise<{
+  private async callDimensionReducer(vectors: number[][]): Promise<{
     coordinates: number[][];
     transformationMatrix?: number[][];
     umapParameters?: any;
@@ -590,17 +973,16 @@ export class GraphProjectionWorker {
     try {
       const requestBody = {
         vectors: vectors,
-        method: 'hybrid_umap', // V11.0: Use hybrid UMAP by default
+        method: 'umap_learning', // V11.0: Use UMAP learning phase
         target_dimensions: 3,
         random_state: 42,
         n_neighbors: Math.min(15, Math.max(2, vectors.length - 1)),
         min_dist: 0.8, // V11.0: Increased for better spread
         spread: 3.0,   // V11.0: Added spread parameter
-        use_linear_transformation: true,
-        existing_coordinates: existingCoordinates || null
+        use_linear_transformation: true
       };
 
-      console.log(`[GraphProjectionWorker] Calling hybrid UMAP dimension reducer with ${vectors.length} vectors`);
+      console.log(`[GraphProjectionWorker] Calling UMAP learning dimension reducer with ${vectors.length} vectors`);
 
       const response = await fetch(`${this.config.dimensionReducerUrl}/reduce`, {
         method: 'POST',
@@ -726,98 +1108,6 @@ export class GraphProjectionWorker {
     }
   }
 
-  /**
-   * REAL IMPLEMENTATION: Store projection in database using GraphProjectionRepository
-   */
-  public async storeProjection(projection: GraphProjection): Promise<void> {
-          try {
-        // Use edges directly from the projection
-        const edges = projection.edges || [];
-
-        console.log(`[GraphProjectionWorker] Using ${edges.length} edges from projection data`);
-
-        // Convert GraphProjection to GraphProjectionData format
-        const projectionData: GraphProjectionData = {
-          nodes: projection.nodes.map((node: any) => ({
-          entity_id: node.entity_id,
-          position: { 
-            x: node.position[0], 
-            y: node.position[1], 
-            z: node.position[2] 
-          },
-          properties: {
-            type: node.type,
-            title: node.title,
-            content: node.content,
-            importance: node.importance,
-            metadata: node.metadata
-          }
-        })),
-        edges: edges.map(edge => ({
-          id: edge.id,
-          source: edge.source,
-          target: edge.target,
-          properties: {
-            type: edge.type,
-            weight: edge.properties?.weight || 1.0
-          }
-        })),
-        metadata: {
-          algorithm: projection.projectionMethod,
-          parameters: {
-            method: this.config.projectionMethod,
-            target_dimensions: 3
-          },
-          boundingBox: {
-            min: { 
-              x: projection.boundingBox.min[0], 
-              y: projection.boundingBox.min[1], 
-              z: projection.boundingBox.min[2] 
-            },
-            max: { 
-              x: projection.boundingBox.max[0], 
-              y: projection.boundingBox.max[1], 
-              z: projection.boundingBox.max[2] 
-            }
-          },
-          statistics: {
-            nodeCount: projection.statistics.totalNodes,
-            edgeCount: edges.length,
-            density: projection.statistics.totalNodes > 0 ? 
-              edges.length / (projection.statistics.totalNodes * (projection.statistics.totalNodes - 1)) : 0
-          }
-        }
-      };
-
-             // Store using repository with V11.0 Cosmos enhancements
-               const storedProjection = await this.graphProjectionRepo.create({
-          userId: projection.userId,
-          projectionData: projectionData as any, // Cast to satisfy Prisma InputJsonValue
-          status: 'completed',
-          // V11.0 Cosmos: Store transformation matrix and UMAP parameters
-          transformation_matrix: projection.metadata?.transformationMatrix || undefined,
-          umap_parameters: projection.metadata?.umapParameters || undefined,
-         metadata: {
-           version: projection.version,
-           createdAt: projection.createdAt,
-           processingMethod: projection.projectionMethod,
-           // V11.0 Cosmos: Additional metadata
-           isIncremental: projection.metadata?.isIncremental || false,
-           hybridUMAP: true
-         }
-       });
-
-      console.log(`[GraphProjectionWorker] ✅ Stored projection ${storedProjection.projection_id} for user ${projection.userId}`);
-      console.log(`[GraphProjectionWorker] Projection statistics:`, projection.statistics);
-      
-      // Cleanup old projections (keep only last 5)
-      await this.graphProjectionRepo.pruneOldVersions(projection.userId, 5);
-      
-    } catch (error) {
-      console.error('[GraphProjectionWorker] ❌ Error storing projection:', error);
-      throw error;
-    }
-  }
 
   /**
    * REAL IMPLEMENTATION: Test dimension reducer service connectivity
@@ -938,152 +1228,9 @@ export class GraphProjectionWorker {
     return coordinates;
   }
 
-  /**
-   * Assemble final projection from components
-   */
-  private assembleProjection(
-    userId: string, 
-    graphData: any, 
-    coordinates3D: number[][],
-    dimensionResult?: {
-      transformationMatrix?: number[][];
-      umapParameters?: any;
-      isIncremental: boolean;
-    }
-  ): GraphProjection {
-    const nodes: Node3D[] = graphData.nodes.map((node: any, index: number) => ({
-      entity_id: node.entity_id,
-      type: node.type as 'MemoryUnit' | 'Concept' | 'DerivedArtifact' | 'Community' | 'ProactivePrompt' | 'GrowthEvent' | 'User',
-      title: node.title,
-      content: node.content,
-      position: coordinates3D[index] as [number, number, number],
-      connections: node.connections || [],
-      importance: node.importance || 0.5,
-      metadata: {
-        createdAt: node.createdAt || new Date().toISOString(),
-        lastUpdated: new Date().toISOString(),
-        userId,
-        isMerged: node.metadata?.isMerged || false,
-        mergedIntoConceptId: node.metadata?.mergedIntoConceptId || null,
-        status: node.metadata?.status || 'active'
-      }
-    }));
 
-    // Use edges from graph data
-    const edges = graphData.edges || [];
 
-    const memoryUnits = nodes.filter(n => n.type === 'MemoryUnit').length;
-    const concepts = nodes.filter(n => n.type === 'Concept').length;
-    const derivedArtifacts = nodes.filter(n => n.type === 'DerivedArtifact').length;
-    const communities = nodes.filter(n => n.type === 'Community').length;
-    const proactivePrompts = nodes.filter(n => n.type === 'ProactivePrompt').length;
-    const growthEvents = nodes.filter(n => n.type === 'GrowthEvent').length;
-    const users = nodes.filter(n => n.type === 'User').length;
-    const totalConnections = nodes.reduce((sum, node) => sum + node.connections.length, 0);
 
-    // Calculate bounding box
-    const boundingBox = this.calculateBoundingBox(coordinates3D);
-
-    return {
-      userId,
-      version: `v${Date.now()}`,
-      createdAt: new Date().toISOString(),
-      nodes,
-      edges,
-      statistics: {
-        totalNodes: nodes.length,
-        memoryUnits,
-        concepts,
-        derivedArtifacts,
-        communities,
-        proactivePrompts,
-        growthEvents,
-        users,
-        connections: totalConnections
-      },
-      projectionMethod: 'hybrid_umap', // V11.0: Always use hybrid UMAP
-      boundingBox,
-      // V11.0 Cosmos: Include transformation matrix and UMAP parameters
-      metadata: {
-        transformationMatrix: dimensionResult?.transformationMatrix,
-        umapParameters: dimensionResult?.umapParameters,
-        isIncremental: dimensionResult?.isIncremental || false
-      }
-    };
-  }
-
-  /**
-   * Calculate bounding box for 3D coordinates
-   */
-  private calculateBoundingBox(positions: number[][]): {
-    min: [number, number, number];
-    max: [number, number, number];
-  } {
-    if (positions.length === 0) {
-      return {
-        min: [-10, -10, -10],
-        max: [10, 10, 10]
-      };
-    }
-
-    const min = [Infinity, Infinity, Infinity];
-    const max = [-Infinity, -Infinity, -Infinity];
-
-    positions.forEach(pos => {
-      for (let i = 0; i < 3; i++) {
-        min[i] = Math.min(min[i], pos[i]);
-        max[i] = Math.max(max[i], pos[i]);
-      }
-    });
-
-    return {
-      min: min as [number, number, number],
-      max: max as [number, number, number]
-    };
-  }
-
-  /**
-   * Create empty projection for users with no data
-   */
-  private createEmptyProjection(userId: string): GraphProjection {
-    return {
-      userId,
-      version: `v${Date.now()}`,
-      createdAt: new Date().toISOString(),
-      nodes: [],
-      edges: [],
-      statistics: {
-        totalNodes: 0,
-        memoryUnits: 0,
-        concepts: 0,
-        derivedArtifacts: 0,
-        communities: 0,
-        proactivePrompts: 0,
-        growthEvents: 0,
-        users: 0,
-        connections: 0
-      },
-      projectionMethod: this.config.projectionMethod!,
-      boundingBox: {
-        min: [-10, -10, -10],
-        max: [10, 10, 10]
-      }
-    };
-  }
-
-  /**
-   * Clean up old retry tracking data (prevent memory leaks)
-   */
-  private cleanupRetryTracking(): void {
-    const now = Date.now();
-    const maxAge = 5 * 60 * 1000; // 5 minutes
-    
-    // This is a simple cleanup - in production you might want more sophisticated tracking
-    if (this.retryCounts.size > 100) {
-      console.log(`[GraphProjectionWorker] Cleaning up retry tracking (${this.retryCounts.size} entries)`);
-      this.retryCounts.clear();
-    }
-  }
 
   /**
    * Graceful shutdown

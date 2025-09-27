@@ -272,6 +272,32 @@ export class Neo4jService {
   }
 
   /**
+   * V11.0: Find specific entities by their IDs (optimized for linear transformation)
+   */
+  public async findEntitiesByIds(userId: string, entityIds: string[]): Promise<GraphNode[]> {
+    if (entityIds.length === 0) {
+      return [];
+    }
+
+    const cypher = `
+      MATCH (n) 
+      WHERE n.userId = $userId AND n.entity_id IN $entityIds
+      RETURN n.entity_id as entity_id, labels(n) as labels, properties(n) as properties
+    `;
+
+    const records = await this.runReadQuery(cypher, { 
+      userId, 
+      entityIds 
+    });
+
+    return records.map(record => ({
+      entity_id: record.get('entity_id'),
+      labels: record.get('labels'),
+      properties: this.cleanProperties(record.get('properties'))
+    }));
+  }
+
+  /**
    * Gets node statistics for a user's graph.
    */
   public async getGraphStatistics(userId: string): Promise<{

@@ -23,11 +23,12 @@ except ImportError:
     logging.warning("UMAP not available - install with: pip install umap-learn")
 
 try:
-    from sklearn.manifold import TSNE
+    from sklearn.linear_model import Ridge
     SKLEARN_AVAILABLE = True
 except ImportError:
     SKLEARN_AVAILABLE = False
     logging.warning("scikit-learn not available - install with: pip install scikit-learn")
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -36,16 +37,14 @@ logger = logging.getLogger(__name__)
 # Pydantic models
 class DimensionReductionRequest(BaseModel):
     vectors: List[List[float]] = Field(..., description="High-dimensional vectors to reduce")
-    method: Literal["umap", "tsne", "hybrid_umap"] = Field(default="hybrid_umap", description="Reduction method")
+    method: Literal["umap_learning", "linear_transformation"] = Field(default="umap_learning", description="Reduction method")
     target_dimensions: int = Field(default=3, ge=2, le=3, description="Target dimensions (2 or 3)")
     n_neighbors: Optional[int] = Field(default=15, ge=2, description="Number of neighbors for UMAP")
     min_dist: Optional[float] = Field(default=0.8, ge=0.0, le=1.0, description="Minimum distance for UMAP")
-    perplexity: Optional[float] = Field(default=30.0, ge=5.0, le=50.0, description="Perplexity for t-SNE")
     random_state: Optional[int] = Field(default=42, description="Random state for reproducibility")
     spread: Optional[float] = Field(default=3.0, ge=0.1, le=10.0, description="Spread for UMAP")
     # V11.0 Cosmos: Hybrid UMAP parameters
     use_linear_transformation: bool = Field(default=True, description="Use linear transformation for incremental positioning")
-    existing_coordinates: Optional[List[List[float]]] = Field(default=None, description="Existing coordinates for incremental updates")
     transformation_matrix: Optional[List[List[float]]] = Field(default=None, description="4x4 transformation matrix for linear positioning")
 
 class DimensionReductionResponse(BaseModel):
@@ -123,7 +122,7 @@ async def reduce_dimensions(request: DimensionReductionRequest):
         logger.info(f"Processing {n_samples} vectors with {input_dims} dimensions using {request.method}")
         
         # Validate parameters based on sample size
-        if request.method == "umap" and request.n_neighbors:
+        if request.method == "umap_learning" and request.n_neighbors:
             if request.n_neighbors >= n_samples:
                 request.n_neighbors = max(2, n_samples - 1)
                 logger.warning(f"Adjusted n_neighbors to {request.n_neighbors} for {n_samples} samples")
@@ -133,12 +132,10 @@ async def reduce_dimensions(request: DimensionReductionRequest):
             raise HTTPException(status_code=400, detail="At least 2 vectors required for dimension reduction")
         
         # Perform dimension reduction
-        if request.method == "umap":
-            coordinates = _reduce_with_umap(X, request)
-        elif request.method == "tsne":
-            coordinates = _reduce_with_tsne(X, request)
-        elif request.method == "hybrid_umap":
-            coordinates, transformation_matrix, umap_params = _reduce_with_hybrid_umap(X, request)
+        if request.method == "umap_learning":
+            coordinates, transformation_matrix, umap_params = _reduce_with_umap_learning(X, request)
+        elif request.method == "linear_transformation":
+            coordinates = _reduce_with_linear_transformation(X, request)
         else:
             raise HTTPException(status_code=400, detail=f"Unknown method: {request.method}")
         
@@ -156,12 +153,12 @@ async def reduce_dimensions(request: DimensionReductionRequest):
             "n_samples": n_samples
         }
         
-        # Add hybrid UMAP specific data
-        if request.method == "hybrid_umap":
+        # Add UMAP learning specific data
+        if request.method == "umap_learning":
             response_data.update({
                 "transformation_matrix": transformation_matrix,
                 "umap_parameters": umap_params,
-                "is_incremental": request.existing_coordinates is not None
+                "is_incremental": False
             })
         
         return DimensionReductionResponse(**response_data)
@@ -172,17 +169,19 @@ async def reduce_dimensions(request: DimensionReductionRequest):
         logger.error(f"Unexpected error during dimension reduction: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
-def _reduce_with_hybrid_umap(X: np.ndarray, request: DimensionReductionRequest) -> tuple[np.ndarray, List[List[float]], dict]:
+def _reduce_with_umap_learning(X: np.ndarray, request: DimensionReductionRequest) -> tuple[np.ndarray, List[List[float]], dict]:
     """
-    V11.0 Cosmos: Hybrid UMAP + Linear Transformation system
+    V11.0 Cosmos: UMAP Learning Phase
     
-    This implements the hybrid approach where:
-    1. UMAP provides the initial manifold learning
-    2. Linear transformation matrix enables incremental positioning
-    3. Existing coordinates can be preserved and extended
+    This implements the UMAP learning phase where:
+    1. UMAP learns the manifold structure
+    2. Ridge regression creates a linear transformation matrix
+    3. Matrix enables fast, deterministic positioning of new nodes
     """
     if not UMAP_AVAILABLE:
         raise HTTPException(status_code=503, detail="UMAP not available")
+    if not SKLEARN_AVAILABLE:
+        raise HTTPException(status_code=503, detail="scikit-learn not available for Ridge regression")
     
     try:
         n_samples = X.shape[0]
@@ -211,92 +210,68 @@ def _reduce_with_hybrid_umap(X: np.ndarray, request: DimensionReductionRequest) 
         
         umap_coordinates = reducer.fit_transform(X)
         
-        # Step 2: Apply linear transformation if requested
-        if request.use_linear_transformation and request.transformation_matrix:
-            # Apply 4x4 transformation matrix
-            transformation_matrix = np.array(request.transformation_matrix)
-            coordinates = _apply_transformation_matrix(umap_coordinates, transformation_matrix)
-        elif request.existing_coordinates and len(request.existing_coordinates) > 0:
-            # Incremental positioning: preserve existing coordinates and add new ones
-            coordinates = _incremental_positioning(umap_coordinates, request.existing_coordinates)
-            # Generate identity transformation matrix for incremental updates
-            transformation_matrix = _generate_identity_matrix(request.target_dimensions)
-        else:
-            # Standard UMAP with normalization
-            coordinates = _normalize_coordinates(umap_coordinates, target_range=50.0)
-            # Generate identity transformation matrix
-            transformation_matrix = _generate_identity_matrix(request.target_dimensions)
+        # Step 2: Create linear transformation matrix using Ridge regression
+        # This is the key part of the hybrid system!
+        transformation_matrix = _create_ridge_transformation_matrix(X, umap_coordinates)
         
+        # Step 3: Normalize coordinates
+        coordinates = _normalize_coordinates(umap_coordinates, target_range=50.0)
+        
+        logger.info(f"UMAP Learning: Created {transformation_matrix.shape} transformation matrix using Ridge regression")
         return coordinates, transformation_matrix.tolist(), umap_params
         
     except Exception as e:
-        logger.error(f"Hybrid UMAP reduction failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Hybrid UMAP reduction failed: {str(e)}")
+        logger.error(f"UMAP learning failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"UMAP learning failed: {str(e)}")
 
-def _reduce_with_umap(X: np.ndarray, request: DimensionReductionRequest) -> np.ndarray:
-    """Reduce dimensions using UMAP"""
-    if not UMAP_AVAILABLE:
-        raise HTTPException(status_code=503, detail="UMAP not available")
+def _reduce_with_linear_transformation(X: np.ndarray, request: DimensionReductionRequest) -> np.ndarray:
+    """
+    V11.0 Cosmos: Linear transformation for fast, deterministic positioning
     
+    Uses a pre-computed transformation matrix to transform embeddings to 3D coordinates.
+    This is the fast path for incremental updates between UMAP learning runs.
+    """
     try:
-        # Adjust parameters for small datasets
-        n_samples = X.shape[0]
-        n_neighbors = min(request.n_neighbors or 15, n_samples - 1)
-        n_neighbors = max(2, n_neighbors)
+        if not request.transformation_matrix:
+            raise HTTPException(status_code=400, detail="transformation_matrix is required for linear_transformation method")
         
-        reducer = umap.UMAP(
-            n_components=request.target_dimensions,
-            n_neighbors=n_neighbors,
-            min_dist=request.min_dist if request.min_dist is not None else 1.0,
-            spread=request.spread if request.spread is not None else 5.0,
-            random_state=request.random_state or 42,
-            metric='cosine',
-            verbose=False
-        )
+        # Convert transformation matrix to numpy array
+        transformation_matrix = np.array(request.transformation_matrix, dtype=np.float32)
         
-        coordinates = reducer.fit_transform(X)
+        # Validate matrix dimensions
+        if transformation_matrix.ndim != 2:
+            raise HTTPException(status_code=400, detail="transformation_matrix must be 2-dimensional")
         
-        # Normalize coordinates to reasonable range [-10, 10]
+        # Expected: [embedding_dim, target_dimensions] matrix
+        expected_cols = request.target_dimensions
+        if transformation_matrix.shape[1] != expected_cols:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"transformation_matrix must have {expected_cols} columns for {request.target_dimensions}D output, got {transformation_matrix.shape[1]}"
+            )
+        
+        # Validate input dimensions match matrix
+        input_dims = X.shape[1]
+        if transformation_matrix.shape[0] != input_dims:
+            raise HTTPException(
+                status_code=400,
+                detail=f"transformation_matrix input dimension mismatch: matrix expects {transformation_matrix.shape[0]}D input, got {input_dims}D vectors"
+            )
+        
+        # Apply linear transformation: coordinates = X @ transformation_matrix
+        coordinates = np.dot(X, transformation_matrix)
+        
+        # Normalize coordinates to reasonable range
         coordinates = _normalize_coordinates(coordinates, target_range=50.0)
         
+        logger.info(f"Linear transformation completed for {X.shape[0]} vectors using {transformation_matrix.shape} matrix")
         return coordinates
         
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"UMAP reduction failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"UMAP reduction failed: {str(e)}")
-
-def _reduce_with_tsne(X: np.ndarray, request: DimensionReductionRequest) -> np.ndarray:
-    """Reduce dimensions using t-SNE"""
-    if not SKLEARN_AVAILABLE:
-        raise HTTPException(status_code=503, detail="scikit-learn not available")
-    
-    try:
-        # Adjust perplexity for small datasets
-        n_samples = X.shape[0]
-        perplexity = min(request.perplexity or 30.0, (n_samples - 1) / 3.0)
-        perplexity = max(5.0, perplexity)
-        
-        reducer = TSNE(
-            n_components=request.target_dimensions,
-            perplexity=perplexity,
-            random_state=request.random_state or 42,
-            metric='cosine',  # Good for embeddings
-            init='random',
-            learning_rate='auto',
-            max_iter=1000,
-            verbose=0
-        )
-        
-        coordinates = reducer.fit_transform(X)
-        
-        # Normalize coordinates to reasonable range [-10, 10]
-        coordinates = _normalize_coordinates(coordinates, target_range=50.0)
-        
-        return coordinates
-        
-    except Exception as e:
-        logger.error(f"t-SNE reduction failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"t-SNE reduction failed: {str(e)}")
+        logger.error(f"Linear transformation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Linear transformation failed: {str(e)}")
 
 
 def _normalize_coordinates(coordinates: np.ndarray, target_range: float = 10.0) -> np.ndarray:
@@ -315,48 +290,43 @@ def _normalize_coordinates(coordinates: np.ndarray, target_range: float = 10.0) 
     
     return scaled
 
-def _apply_transformation_matrix(coordinates: np.ndarray, transformation_matrix: np.ndarray) -> np.ndarray:
-    """Apply 4x4 transformation matrix to 3D coordinates"""
-    n_samples, n_dims = coordinates.shape
-    
-    # Convert to homogeneous coordinates
-    if n_dims == 3:
-        homogeneous = np.column_stack([coordinates, np.ones(n_samples)])
-    else:
-        # For 2D, add z=0 and w=1
-        homogeneous = np.column_stack([coordinates, np.zeros(n_samples), np.ones(n_samples)])
-    
-    # Apply transformation
-    transformed = homogeneous @ transformation_matrix.T
-    
-    # Convert back to original dimensions
-    return transformed[:, :n_dims]
 
-def _incremental_positioning(new_coordinates: np.ndarray, existing_coordinates: List[List[float]]) -> np.ndarray:
+def _create_ridge_transformation_matrix(embeddings: np.ndarray, coordinates: np.ndarray) -> np.ndarray:
     """
-    V11.0 Cosmos: Incremental positioning that preserves existing coordinates
-    and positions new entities relative to them
+    V11.0 Cosmos: Create linear transformation matrix using Ridge regression
+    
+    This is the core of the hybrid UMAP system. It learns a linear transformation
+    that maps embeddings to UMAP coordinates, enabling fast positioning of new nodes.
+    
+    Args:
+        embeddings: High-dimensional embeddings [n_samples, embedding_dim]
+        coordinates: UMAP coordinates [n_samples, target_dimensions]
+    
+    Returns:
+        transformation_matrix: [embedding_dim, target_dimensions] matrix
     """
-    existing = np.array(existing_coordinates)
-    n_existing = len(existing)
-    n_new = len(new_coordinates)
-    
-    if n_existing == 0:
-        # No existing coordinates, use normalized new coordinates
-        return _normalize_coordinates(new_coordinates, target_range=50.0)
-    
-    # Normalize new coordinates to a reasonable range
-    normalized_new = _normalize_coordinates(new_coordinates, target_range=50.0)
-    
-    # Find the centroid of existing coordinates
-    existing_centroid = np.mean(existing, axis=0)
-    
-    # Position new coordinates around the existing centroid
-    # Add some offset to avoid overlap
-    offset = np.array([10.0, 10.0, 5.0][:normalized_new.shape[1]])
-    positioned_new = normalized_new + existing_centroid + offset
-    
-    return positioned_new
+    try:
+        # Use Ridge regression to learn the transformation
+        # Solves: coordinates = embeddings @ transformation_matrix
+        # with L2 regularization to prevent overfitting
+        
+        ridge = Ridge(alpha=0.1, fit_intercept=False)  # No intercept for linear transformation
+        ridge.fit(embeddings, coordinates)
+        
+        # Get the transformation matrix
+        transformation_matrix = ridge.coef_.T  # [embedding_dim, target_dimensions]
+        
+        logger.info(f"Ridge regression: Created {transformation_matrix.shape} transformation matrix")
+        logger.info(f"Ridge regression: R² score = {ridge.score(embeddings, coordinates):.4f}")
+        
+        return transformation_matrix
+        
+    except Exception as e:
+        logger.error(f"Ridge regression failed: {str(e)}")
+        # Fallback to identity matrix if Ridge regression fails
+        embedding_dim = embeddings.shape[1]
+        target_dim = coordinates.shape[1]
+        return np.eye(embedding_dim, target_dim)
 
 def _generate_identity_matrix(dimensions: int) -> np.ndarray:
     """Generate identity transformation matrix for the given dimensions"""

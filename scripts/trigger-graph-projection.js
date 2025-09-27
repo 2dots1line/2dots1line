@@ -1,7 +1,7 @@
 // scripts/trigger-graph-projection.js
 const { Queue } = require('bullmq');
 
-const queue = new Queue('card-and-graph-queue', {
+const queue = new Queue('graph-queue', {
   connection: {
     host: 'localhost',
     port: 6379,
@@ -10,17 +10,12 @@ const queue = new Queue('card-and-graph-queue', {
 
 async function main() {
   const jobData = {
-    type: "graph_ontology_updated",
+    type: "new_entities_created",
     userId: "dev-user-123",
-    source: "manual",
-    timestamp: new Date().toISOString(),
-    summary: {
-      concepts_merged: 0,
-      concepts_archived: 0,
-      new_communities: 0,
-      strategic_relationships_added: 0
-    },
-    affectedNodeIds: []
+    source: "IngestionAnalyst",
+    entities: [
+      { id: "ad4565b6-bbfa-460a-b302-23e6d7228281", type: "Concept" }
+    ]
   };
 
   const job = await queue.add('graph-projection', jobData);

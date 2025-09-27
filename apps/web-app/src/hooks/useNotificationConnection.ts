@@ -90,12 +90,13 @@ export const useNotificationConnection = () => {
             }
             
             // Handle individual notifications
-            const typeMap: Record<string, 'new_star_generated' | 'new_card_available' | 'graph_projection_updated'> = {
+            const typeMap: Record<string, 'new_star_generated' | 'new_card_available' | 'graph_projection_updated' | 'coordinates_updated'> = {
               new_star: 'new_star_generated',
               new_card: 'new_card_available',
               new_card_available: 'new_card_available',
               graph_updated: 'graph_projection_updated',
-              graph_projection_updated: 'graph_projection_updated'
+              graph_projection_updated: 'graph_projection_updated',
+              coordinates_updated: 'coordinates_updated'
             };
 
             const mappedType = typeMap[data.type] || data.type;
@@ -107,6 +108,9 @@ export const useNotificationConnection = () => {
             if (!title && mappedType === 'graph_projection_updated') {
               title = 'Graph projection updated';
               description = `Nodes: ${data.nodeCount ?? '—'}, Edges: ${data.edgeCount ?? '—'}`;
+            } else if (!title && mappedType === 'coordinates_updated') {
+              title = '3D coordinates updated';
+              description = `Updated coordinates for ${data.coordinateUpdate?.nodeCount ?? '—'} nodes using ${data.coordinateUpdate?.method ?? 'hybrid UMAP'}`;
             }
 
             const notification = {
@@ -122,6 +126,19 @@ export const useNotificationConnection = () => {
 
             console.log('[Socket.IO] 🎉 Adding notification to store:', notification);
             addNotification(notification);
+
+            // Special handling for coordinates_updated - trigger Cosmos refresh
+            if (mappedType === 'coordinates_updated') {
+              console.log('[Socket.IO] 🌌 Coordinates updated, triggering Cosmos refresh');
+              // Dispatch custom event for Cosmos to listen to
+              window.dispatchEvent(new CustomEvent('cosmos-coordinates-updated', {
+                detail: {
+                  nodeCount: data.coordinateUpdate?.nodeCount,
+                  method: data.coordinateUpdate?.method,
+                  isIncremental: data.coordinateUpdate?.isIncremental
+                }
+              }));
+            }
           } catch (error) {
             console.error('[Socket.IO] Error processing notification:', error);
           }

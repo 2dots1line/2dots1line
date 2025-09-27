@@ -64,7 +64,6 @@ export class GraphProjectionRepository {
     const createData: Prisma.user_graph_projectionsUncheckedCreateInput = {
       projection_id: projectionId,
       user_id: data.userId, // Use unchecked input to directly set user_id
-      projection_data: data.projectionData,
       status: data.status || 'completed',
       // Use a conditional spread to only include metadata if it's provided.
       // This is a robust pattern that avoids issues with null/undefined.
@@ -132,7 +131,6 @@ export class GraphProjectionRepository {
     return this.prisma.user_graph_projections.update({
       where: { projection_id: projectionId },
       data: {
-        projection_data: projectionData as any,
         status: 'completed',
         // updated_at is handled by Prisma @updatedAt automatically
       },
@@ -254,30 +252,15 @@ export class GraphProjectionRepository {
       this.prisma.user_graph_projections.findFirst({
         where: { user_id: userId },
         orderBy: { created_at: 'desc' },
-        select: { created_at: true, projection_data: true }
+        select: { created_at: true }
       })
     ]);
 
-    // Calculate average node and edge counts from completed projections
-    const completedProjections = await this.prisma.user_graph_projections.findMany({
-      where: { user_id: userId, status: 'completed' },
-      select: { projection_data: true },
-      take: 10, // Sample from recent projections for performance
-      orderBy: { created_at: 'desc' }
-    });
-
-    let totalNodes = 0;
-    let totalEdges = 0;
-    let validProjections = 0;
-
-    completedProjections.forEach(projection => {
-      const data = projection.projection_data as any;
-      if (data?.metadata?.statistics) {
-        totalNodes += data.metadata.statistics.nodeCount || 0;
-        totalEdges += data.metadata.statistics.edgeCount || 0;
-        validProjections++;
-      }
-    });
+    // V11.0: No longer calculating from projection_data since we removed it
+    // Statistics are now calculated directly from entity tables
+    const totalNodes = 0;
+    const totalEdges = 0;
+    const validProjections = 0;
 
     const averageNodeCount = validProjections > 0 ? Math.round(totalNodes / validProjections) : 0;
     const averageEdgeCount = validProjections > 0 ? Math.round(totalEdges / validProjections) : 0;
@@ -353,7 +336,6 @@ export class GraphProjectionRepository {
       data: {
         projection_id: projectionId,
         user_id: data.userId,
-        projection_data: data.projectionData,
         status: data.status || 'completed',
         ...(data.metadata && { metadata: data.metadata }),
       },

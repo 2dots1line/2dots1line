@@ -270,7 +270,6 @@ model user_graph_projections {
   projection_id   String   @id
   user_id         String
   status          String   @default("completed")
-  projection_data Json
   created_at      DateTime @default(now())
   metadata        Json?
   updated_at      DateTime @updatedAt

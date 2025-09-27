@@ -49,6 +49,35 @@ const CosmosScene: React.FC = () => {
     fetchGraphData();
   }, [setGraphData, setLoading, setError]);
 
+  // Listen for coordinates_updated notifications and refresh Cosmos data
+  useEffect(() => {
+    const handleCoordinatesUpdated = async (event: CustomEvent) => {
+      console.log('🌌 CosmosScene: Coordinates updated, refreshing graph data', event.detail);
+      try {
+        setLoading(true);
+        const response = await cosmosService.getGraphProjection();
+        if (response.success) {
+          setGraphData(response.data);
+          console.log('🌌 CosmosScene: Graph data refreshed successfully');
+        } else {
+          console.error('🌌 CosmosScene: Failed to refresh graph data:', response.error);
+        }
+      } catch (err) {
+        console.error('🌌 CosmosScene: Error refreshing graph data:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // Listen for the custom event
+    window.addEventListener('cosmos-coordinates-updated', handleCoordinatesUpdated as EventListener);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('cosmos-coordinates-updated', handleCoordinatesUpdated as EventListener);
+    };
+  }, [setGraphData, setLoading]);
+
   if (isLoading) {
     return <CosmosLoading />;
   }
