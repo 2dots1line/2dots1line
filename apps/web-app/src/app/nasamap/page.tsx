@@ -17,7 +17,7 @@ export default function NASAMapPage() {
     <div className="w-full h-screen bg-black">
       <div className="absolute top-4 left-4 z-10 text-white">
         <h1 className="text-2xl font-bold mb-2">NASA Deep Star Maps 2020 Test</h1>
-        <p className="text-sm opacity-75">Testing 8k OpenEXR integration</p>
+        <p className="text-sm opacity-75">Testing Graph3D compatibility with 8k OpenEXR</p>
         <div className="mt-4 space-y-2">
           <div className="text-xs">
             <strong>Controls:</strong>

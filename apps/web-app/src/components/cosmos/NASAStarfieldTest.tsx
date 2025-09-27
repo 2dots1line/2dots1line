@@ -73,7 +73,7 @@ const NASAStarfieldBackground: React.FC<{ resolution: string }> = ({ resolution 
 
   return (
     <mesh ref={meshRef}>
-      <sphereGeometry args={[10000, 64, 64]} />
+      <sphereGeometry args={[15000, 64, 64]} />
       <meshBasicMaterial 
         map={texture}
         side={THREE.BackSide}
@@ -136,19 +136,24 @@ export const NASAStarfieldTest: React.FC<NASAStarfieldProps> = ({
       </div>
 
       <Canvas
+        style={{
+          width: '100vw',
+          height: '100vh',
+          background: '#000',
+        }}
         gl={{
           antialias: true,
-          alpha: true,
+          alpha: false,
           powerPreference: "high-performance",
         }}
         dpr={[1, 2]} // Limit device pixel ratio for performance
       >
         <PerspectiveCamera 
           makeDefault 
-          position={[0, 0, 0]} 
+          position={[0, 0, 50]} 
           fov={75}
           near={0.1}
-          far={100000}
+          far={20000}
         />
         
         {/* Simple test - just the NASA starfield background */}
@@ -168,8 +173,22 @@ export const NASAStarfieldTest: React.FC<NASAStarfieldProps> = ({
           onFpsUpdate={setFps}
         />
         
-        {/* Lighting */}
-        <ambientLight intensity={0.5} />
+        {/* Lighting - Match Graph3D setup */}
+        <ambientLight intensity={0.2} />
+        
+        {/* Main directional light from upper right corner */}
+        <directionalLight 
+          position={[20, 20, 10]} 
+          intensity={0.8} 
+          castShadow={false}
+        />
+        
+        {/* Secondary fill light from opposite direction */}
+        <directionalLight 
+          position={[-10, 10, 5]} 
+          intensity={0.3} 
+          castShadow={false}
+        />
       </Canvas>
     </div>
   );
