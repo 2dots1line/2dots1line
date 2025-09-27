@@ -7,6 +7,17 @@ import { Neo4jService, DatabaseService } from '@2dots1line/database';
 import { getEntityTypeMapping } from '@2dots1line/core-utils';
 import Redis from 'ioredis';
 
+// Types for the selected fields from Prisma queries
+// Different entities have different nullable field types, so we need a flexible type
+type EntityWith3DCoords = {
+  entity_id: string;
+  title: string | null;
+  content: string | null;
+  position_x: number | null;
+  position_y: number | null;
+  position_z: number | null;
+};
+
 export class GraphController {
   private neo4jService: Neo4jService;
   private databaseService: DatabaseService;
@@ -144,11 +155,11 @@ export class GraphController {
 
       // Combine all entities into a single array
       const allEntities = [
-        ...concepts.map(entity => ({ ...entity, type: 'Concept' })),
-        ...memoryUnits.map(entity => ({ ...entity, type: 'MemoryUnit' })),
-        ...derivedArtifacts.map(entity => ({ ...entity, type: 'DerivedArtifact' })),
-        ...communities.map(entity => ({ ...entity, type: 'Community' })),
-        ...growthEvents.map(entity => ({ ...entity, type: 'GrowthEvent' }))
+        ...concepts.map((entity: EntityWith3DCoords) => ({ ...entity, type: 'Concept' })),
+        ...memoryUnits.map((entity: EntityWith3DCoords) => ({ ...entity, type: 'MemoryUnit' })),
+        ...derivedArtifacts.map((entity: EntityWith3DCoords) => ({ ...entity, type: 'DerivedArtifact' })),
+        ...communities.map((entity: EntityWith3DCoords) => ({ ...entity, type: 'Community' })),
+        ...growthEvents.map((entity: EntityWith3DCoords) => ({ ...entity, type: 'GrowthEvent' }))
       ];
 
       if (allEntities.length === 0) {
