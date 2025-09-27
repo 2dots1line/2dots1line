@@ -106,8 +106,9 @@ async def reduce_dimensions(request: DimensionReductionRequest):
         if not request.vectors:
             raise HTTPException(status_code=400, detail="No vectors provided")
         
-        if len(request.vectors) < 2:
-            raise HTTPException(status_code=400, detail="At least 2 vectors required")
+        # Only require 2+ vectors for methods that need it (like UMAP learning)
+        if request.method == "umap_learning" and len(request.vectors) < 2:
+            raise HTTPException(status_code=400, detail="At least 2 vectors required for UMAP learning")
         
         # Convert to numpy array
         try:
@@ -127,9 +128,9 @@ async def reduce_dimensions(request: DimensionReductionRequest):
                 request.n_neighbors = max(2, n_samples - 1)
                 logger.warning(f"Adjusted n_neighbors to {request.n_neighbors} for {n_samples} samples")
         
-        # For very small datasets, require at least 2 samples for UMAP
-        if n_samples < 2:
-            raise HTTPException(status_code=400, detail="At least 2 vectors required for dimension reduction")
+        # For very small datasets, require at least 2 samples for UMAP learning
+        if request.method == "umap_learning" and n_samples < 2:
+            raise HTTPException(status_code=400, detail="At least 2 vectors required for UMAP learning")
         
         # Perform dimension reduction
         if request.method == "umap_learning":

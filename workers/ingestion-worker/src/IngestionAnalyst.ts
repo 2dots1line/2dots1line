@@ -743,10 +743,11 @@ export class IngestionAnalyst {
         throw new Error(`Unknown entity type: ${entityType}`);
     }
     
-    // Create Neo4j node with standardized properties
+    // Create Neo4j node with standardized properties (V11.0 schema compliance)
     const neo4jProperties = {
-      id: createdEntity.entity_id,
-      userId: userId,
+      entity_id: createdEntity.entity_id,  // ✅ FIXED: Use entity_id instead of id
+      user_id: userId,                     // ✅ FIXED: Use user_id instead of userId
+      entity_type: entityType,             // ✅ FIXED: Add missing entity_type field
       title: createdEntity.title,
       content: createdEntity.content,
       importance_score: createdEntity.importance_score,

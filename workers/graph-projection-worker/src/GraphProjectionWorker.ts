@@ -391,14 +391,57 @@ export class GraphProjectionWorker {
   }
 
   /**
-   * V11.0: Get current node count for user (optimized - uses COUNT query)
+   * V11.0: Get current node count for user (optimized - uses PostgreSQL COUNT queries)
    */
   private async getCurrentNodeCount(userId: string): Promise<number> {
     try {
-      // Use Neo4jService to get node count efficiently
-      const stats = await this.neo4jService.getGraphStatistics(userId);
-      console.log(`[GraphProjectionWorker] Current node count for user ${userId}: ${stats.nodeCount}`);
-      return stats.nodeCount;
+      // Count entities with 3D coordinates from PostgreSQL (this is what the frontend uses)
+      const [conceptsCount, memoryUnitsCount, derivedArtifactsCount, communitiesCount, growthEventsCount] = await Promise.all([
+        this.databaseService.prisma.concepts.count({
+          where: { 
+            user_id: userId,
+            position_x: { not: null },
+            position_y: { not: null },
+            position_z: { not: null }
+          }
+        }),
+        this.databaseService.prisma.memory_units.count({
+          where: { 
+            user_id: userId,
+            position_x: { not: null },
+            position_y: { not: null },
+            position_z: { not: null }
+          }
+        }),
+        this.databaseService.prisma.derived_artifacts.count({
+          where: { 
+            user_id: userId,
+            position_x: { not: null },
+            position_y: { not: null },
+            position_z: { not: null }
+          }
+        }),
+        this.databaseService.prisma.communities.count({
+          where: { 
+            user_id: userId,
+            position_x: { not: null },
+            position_y: { not: null },
+            position_z: { not: null }
+          }
+        }),
+        this.databaseService.prisma.growth_events.count({
+          where: { 
+            user_id: userId,
+            position_x: { not: null },
+            position_y: { not: null },
+            position_z: { not: null }
+          }
+        })
+      ]);
+
+      const totalCount = conceptsCount + memoryUnitsCount + derivedArtifactsCount + communitiesCount + growthEventsCount;
+      console.log(`[GraphProjectionWorker] Current node count for user ${userId}: ${totalCount} (concepts: ${conceptsCount}, memory_units: ${memoryUnitsCount}, derived_artifacts: ${derivedArtifactsCount}, communities: ${communitiesCount}, growth_events: ${growthEventsCount})`);
+      return totalCount;
     } catch (error) {
       console.error(`[GraphProjectionWorker] Failed to get node count for user ${userId}:`, error);
       throw new Error(`Failed to get node count: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -608,19 +651,100 @@ export class GraphProjectionWorker {
         return [];
       }
 
-      // Use Neo4jService to query specific entities efficiently
-      const nodes = await this.neo4jService.findEntitiesByIds(userId, entities.map(e => e.id));
-      
+      // Query PostgreSQL directly for new entities (they may not be in Neo4j yet)
+      const entityIds = entities.map(e => e.id);
+      const allNodes: any[] = [];
+
+      // Query each entity type from PostgreSQL
+      const [concepts, memoryUnits, derivedArtifacts, communities, growthEvents] = await Promise.all([
+        this.databaseService.prisma.concepts.findMany({
+          where: { 
+            user_id: userId,
+            entity_id: { in: entityIds }
+          },
+          select: {
+            entity_id: true,
+            title: true,
+            content: true,
+            importance_score: true,
+            created_at: true,
+            type: true
+          }
+        }),
+        this.databaseService.prisma.memory_units.findMany({
+          where: { 
+            user_id: userId,
+            entity_id: { in: entityIds }
+          },
+          select: {
+            entity_id: true,
+            title: true,
+            content: true,
+            importance_score: true,
+            created_at: true,
+            type: true
+          }
+        }),
+        this.databaseService.prisma.derived_artifacts.findMany({
+          where: { 
+            user_id: userId,
+            entity_id: { in: entityIds }
+          },
+          select: {
+            entity_id: true,
+            title: true,
+            content: true,
+            created_at: true,
+            type: true
+          }
+        }),
+        this.databaseService.prisma.communities.findMany({
+          where: { 
+            user_id: userId,
+            entity_id: { in: entityIds }
+          },
+          select: {
+            entity_id: true,
+            title: true,
+            content: true,
+            created_at: true,
+            type: true
+          }
+        }),
+        this.databaseService.prisma.growth_events.findMany({
+          where: { 
+            user_id: userId,
+            entity_id: { in: entityIds }
+          },
+          select: {
+            entity_id: true,
+            title: true,
+            content: true,
+            created_at: true,
+            type: true
+          }
+        })
+      ]);
+
+      // Combine and transform all entities
+      const allEntities = [
+        ...concepts.map(entity => ({ ...entity, type: 'Concept' })),
+        ...memoryUnits.map(entity => ({ ...entity, type: 'MemoryUnit' })),
+        ...derivedArtifacts.map(entity => ({ ...entity, type: 'DerivedArtifact' })),
+        ...communities.map(entity => ({ ...entity, type: 'Community' })),
+        ...growthEvents.map(entity => ({ ...entity, type: 'GrowthEvent' }))
+      ];
+
       // Transform to the expected format
-      const transformedNodes = nodes.map(node => ({
-        entity_id: node.entity_id,
-        type: this.getEntityTypeFromLabels(node.labels),
-        title: node.properties.title || node.properties.name || 'Untitled',
-        content: node.properties.content || node.properties.description || '',
-        importance: node.properties.importance || 0.5,
-        createdAt: node.properties.createdAt || new Date().toISOString(),
-        connections: node.properties.connections || [],
-        metadata: node.properties.metadata || {}
+      const transformedNodes = allEntities.map(entity => ({
+        entity_id: entity.entity_id,
+        type: entity.type,
+        title: entity.title || 'Untitled',
+        content: entity.content || '',
+        importance: (entity as any).importance_score || 0.5,
+        createdAt: entity.created_at?.toISOString() || new Date().toISOString(),
+        connections: [],
+        metadata: {}
       }));
 
       console.log(`[GraphProjectionWorker] Retrieved ${transformedNodes.length} specific entities for linear transformation`);
