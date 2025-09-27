@@ -43,6 +43,10 @@ model communities {
   type       String?
   updated_at DateTime?  @db.Timestamp(6)
   status     String     @default("active")
+  // V11.0 Cosmos: 3D coordinates for spatial positioning
+  position_x Float?
+  position_y Float?
+  position_z Float?
   users      users      @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
   concepts   concepts[]
 
@@ -61,6 +65,10 @@ model concepts {
   content                String?
   updated_at             DateTime?    @db.Timestamp(6)
   importance_score       Float?
+  // V11.0 Cosmos: 3D coordinates for spatial positioning
+  position_x Float?
+  position_y Float?
+  position_z Float?
   communities            communities? @relation(fields: [community_id], references: [entity_id])
   concepts               concepts?    @relation("conceptsToconcepts", fields: [merged_into_entity_id], references: [entity_id], onDelete: NoAction, onUpdate: NoAction)
   other_concepts         concepts[]   @relation("conceptsToconcepts")
@@ -121,6 +129,10 @@ model derived_artifacts {
   type                   String
   updated_at             DateTime? @db.Timestamp(6)
   status                 String    @default("active")
+  // V11.0 Cosmos: 3D coordinates for spatial positioning
+  position_x Float?
+  position_y Float?
+  position_z Float?
   users                  users     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@index([user_id, cycle_id])
@@ -141,6 +153,10 @@ model growth_events {
   source_concept_ids     String[]  @default([])
   source_memory_unit_ids String[]  @default([])
   metadata               Json?
+  // V11.0 Cosmos: 3D coordinates for spatial positioning
+  position_x Float?
+  position_y Float?
+  position_z Float?
   users                  users     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@index([delta_value])
@@ -194,6 +210,10 @@ model memory_units {
   updated_at             DateTime?      @db.Timestamp(6)
   status                 String         @default("active")
   type                   String?
+  // V11.0 Cosmos: 3D coordinates for spatial positioning
+  position_x Float?
+  position_y Float?
+  position_z Float?
   media_items            media_items[]
   conversations          conversations? @relation(fields: [source_conversation_id], references: [conversation_id])
   users                  users          @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
@@ -211,6 +231,10 @@ model proactive_prompts {
   content    String
   type       String
   updated_at DateTime? @db.Timestamp(6)
+  // V11.0 Cosmos: 3D coordinates for spatial positioning
+  position_x Float?
+  position_y Float?
+  position_z Float?
   users      users     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@index([user_id, cycle_id])
@@ -250,6 +274,9 @@ model user_graph_projections {
   created_at      DateTime @default(now())
   metadata        Json?
   updated_at      DateTime @updatedAt
+  // V11.0 Cosmos: Hybrid UMAP + Linear Transformation matrix storage
+  transformation_matrix Json? // 4x4 transformation matrix for linear positioning
+  umap_parameters Json?       // UMAP parameters used for this projection
   users           users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@index([user_id, created_at(sort: Desc)])

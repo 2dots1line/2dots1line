@@ -64,23 +64,33 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
     // Get entity type from node properties
     const entityType = node.type || node.entityType || node.category || 'unknown';
     
-    // Color coding by entity type
+    // Color coding by entity type - handle both table names and display types
     switch (entityType) {
+      // Table names (from database)
+      case 'memory_units':
       case 'MemoryUnit':
         baseColor = '#4488ff'; // Blue for memory units
         break;
+      case 'concepts':
       case 'Concept':
         baseColor = '#44ff44'; // Green for concepts
         break;
+      case 'communities':
       case 'Community':
         baseColor = '#ff8844'; // Orange for communities
         break;
+      case 'derived_artifacts':
       case 'DerivedArtifact':
       case 'Artifact':
         baseColor = '#ff4488'; // Pink for derived artifacts
         break;
+      case 'proactive_prompts':
       case 'ProactivePrompt':
         baseColor = '#ffaa00'; // Orange-Yellow for proactive prompts
+        break;
+      case 'growth_events':
+      case 'GrowthEvent':
+        baseColor = '#aa44ff'; // Purple for growth events
         break;
       default:
         baseColor = '#888888'; // Gray for unknown types

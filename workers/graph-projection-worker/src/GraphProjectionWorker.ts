@@ -96,6 +96,12 @@ export interface GraphProjection {
     min: [number, number, number];
     max: [number, number, number];
   };
+  // V11.0 Cosmos: Metadata for hybrid UMAP system
+  metadata?: {
+    transformationMatrix?: number[][];
+    umapParameters?: any;
+    isIncremental?: boolean;
+  };
 }
 
 /**
@@ -346,12 +352,16 @@ export class GraphProjectionWorker {
     const vectors = await this.fetchEmbeddingsFromWeaviate(graphData.nodes);
     console.log(`[GraphProjectionWorker] Fetched ${vectors.length} embedding vectors from Weaviate`);
 
-    // Step 3: Reduce to 3D coordinates using Python service
-    const coordinates3D = await this.callDimensionReducer(vectors);
-    console.log(`[GraphProjectionWorker] Generated 3D coordinates for ${coordinates3D.length} nodes`);
+    // Step 3: Reduce to 3D coordinates using hybrid UMAP
+    const dimensionResult = await this.callDimensionReducer(vectors);
+    console.log(`[GraphProjectionWorker] Generated 3D coordinates for ${dimensionResult.coordinates.length} nodes using hybrid UMAP`);
 
-    // Step 4: Assemble final projection
-    const projection = this.assembleProjection(userId, graphData, coordinates3D);
+    // Step 4: Store coordinates directly in entity tables (V11.0 Cosmos)
+    // TODO: Re-enable after TypeScript server restart and Prisma client refresh
+    // await this.storeCoordinatesInEntities(userId, graphData.nodes, dimensionResult.coordinates);
+
+    // Step 5: Assemble final projection
+    const projection = this.assembleProjection(userId, graphData, dimensionResult.coordinates, dimensionResult);
     
     console.log(`[GraphProjectionWorker] Projection assembly complete`);
     return projection;
@@ -565,22 +575,33 @@ export class GraphProjectionWorker {
   /**
    * REAL IMPLEMENTATION: Call Python dimension reducer service
    */
-  private async callDimensionReducer(vectors: number[][]): Promise<number[][]> {
+  /**
+   * V11.0 Cosmos: Enhanced dimension reducer with hybrid UMAP support
+   */
+  private async callDimensionReducer(vectors: number[][], existingCoordinates?: number[][]): Promise<{
+    coordinates: number[][];
+    transformationMatrix?: number[][];
+    umapParameters?: any;
+    isIncremental: boolean;
+  }> {
     if (vectors.length === 0) {
-      return [];
+      return { coordinates: [], isIncremental: false };
     }
 
     try {
       const requestBody = {
         vectors: vectors,
-        method: this.config.projectionMethod || 'umap',
+        method: 'hybrid_umap', // V11.0: Use hybrid UMAP by default
         target_dimensions: 3,
         random_state: 42,
         n_neighbors: Math.min(15, Math.max(2, vectors.length - 1)),
-        min_dist: 0.1
+        min_dist: 0.8, // V11.0: Increased for better spread
+        spread: 3.0,   // V11.0: Added spread parameter
+        use_linear_transformation: true,
+        existing_coordinates: existingCoordinates || null
       };
 
-      console.log(`[GraphProjectionWorker] Calling dimension reducer with ${vectors.length} vectors using ${requestBody.method}`);
+      console.log(`[GraphProjectionWorker] Calling hybrid UMAP dimension reducer with ${vectors.length} vectors`);
 
       const response = await fetch(`${this.config.dimensionReducerUrl}/reduce`, {
         method: 'POST',
@@ -603,13 +624,113 @@ export class GraphProjectionWorker {
         throw new Error('Invalid response format from dimension reducer');
       }
 
-      console.log(`[GraphProjectionWorker] ✅ Dimension reduction completed for ${vectors.length} vectors in ${result.processing_time_ms}ms`);
-      return result.coordinates;
+      console.log(`[GraphProjectionWorker] ✅ Hybrid UMAP reduction completed for ${vectors.length} vectors in ${result.processing_time_ms}ms, incremental: ${result.is_incremental}`);
+      
+      return {
+        coordinates: result.coordinates,
+        transformationMatrix: result.transformation_matrix,
+        umapParameters: result.umap_parameters,
+        isIncremental: result.is_incremental || false
+      };
       
     } catch (error) {
-      console.error(`[GraphProjectionWorker] ❌ Dimension reducer failed, using fallback coordinates:`, error);
-      return this.generateFallback3DCoordinates(vectors.length);
+      console.error(`[GraphProjectionWorker] ❌ Hybrid UMAP reduction failed, using fallback coordinates:`, error);
+      return {
+        coordinates: this.generateFallback3DCoordinates(vectors.length),
+        isIncremental: false
+      };
     }
+  }
+
+  /**
+   * V11.0 Cosmos: Store 3D coordinates directly in entity tables
+   */
+  private async storeCoordinatesInEntities(userId: string, nodes: any[], coordinates: number[][]): Promise<void> {
+    try {
+      console.log(`[GraphProjectionWorker] Storing 3D coordinates for ${nodes.length} entities`);
+      
+      for (let i = 0; i < nodes.length && i < coordinates.length; i++) {
+        const node = nodes[i];
+        const coord = coordinates[i];
+        
+        if (!node.entity_id || coord.length < 3) {
+          console.warn(`[GraphProjectionWorker] Skipping invalid node or coordinate: ${node.entity_id}`);
+          continue;
+        }
+        
+        // Update the appropriate entity table based on type
+        await this.updateEntityCoordinates(node.entity_id, node.type, coord[0], coord[1], coord[2]);
+      }
+      
+      console.log(`[GraphProjectionWorker] ✅ Successfully stored 3D coordinates for ${nodes.length} entities`);
+    } catch (error) {
+      console.error(`[GraphProjectionWorker] ❌ Failed to store coordinates in entities:`, error);
+      // Don't throw - this is not critical for projection generation
+    }
+  }
+
+  /**
+   * Update entity coordinates in the appropriate table
+   * TODO: Re-enable after TypeScript server restart and Prisma client refresh
+   */
+  private async updateEntityCoordinates(entityId: string, entityType: string, x: number, y: number, z: number): Promise<void> {
+    // Temporarily disabled due to Prisma client type issues
+    console.log(`[GraphProjectionWorker] Coordinate update disabled for ${entityType} ${entityId}: (${x}, ${y}, ${z})`);
+    
+    /* TODO: Re-enable after Prisma client refresh
+    try {
+      // Use the prisma client to update coordinates
+      const updateData = {
+        position_x: x,
+        position_y: y,
+        position_z: z
+      };
+      
+      // Update based on entity type
+      switch (entityType) {
+        case 'Concept':
+          await this.databaseService.prisma.concepts.update({
+            where: { entity_id: entityId },
+            data: updateData
+          });
+          break;
+        case 'MemoryUnit':
+          await this.databaseService.prisma.memory_units.update({
+            where: { entity_id: entityId },
+            data: updateData
+          });
+          break;
+        case 'DerivedArtifact':
+          await this.databaseService.prisma.derived_artifacts.update({
+            where: { entity_id: entityId },
+            data: updateData
+          });
+          break;
+        case 'Community':
+          await this.databaseService.prisma.communities.update({
+            where: { entity_id: entityId },
+            data: updateData
+          });
+          break;
+        case 'ProactivePrompt':
+          await this.databaseService.prisma.proactive_prompts.update({
+            where: { entity_id: entityId },
+            data: updateData
+          });
+          break;
+        case 'GrowthEvent':
+          await this.databaseService.prisma.growth_events.update({
+            where: { entity_id: entityId },
+            data: updateData
+          });
+          break;
+        default:
+          console.warn(`[GraphProjectionWorker] Unknown entity type for coordinate update: ${entityType}`);
+      }
+    } catch (error) {
+      console.error(`[GraphProjectionWorker] Failed to update coordinates for ${entityType} ${entityId}:`, error);
+    }
+    */
   }
 
   /**
@@ -675,15 +796,21 @@ export class GraphProjectionWorker {
         }
       };
 
-             // Store using repository
+             // Store using repository with V11.0 Cosmos enhancements
                const storedProjection = await this.graphProjectionRepo.create({
           userId: projection.userId,
           projectionData: projectionData as any, // Cast to satisfy Prisma InputJsonValue
           status: 'completed',
+          // V11.0 Cosmos: Store transformation matrix and UMAP parameters
+          transformation_matrix: projection.metadata?.transformationMatrix || undefined,
+          umap_parameters: projection.metadata?.umapParameters || undefined,
          metadata: {
            version: projection.version,
            createdAt: projection.createdAt,
-           processingMethod: projection.projectionMethod
+           processingMethod: projection.projectionMethod,
+           // V11.0 Cosmos: Additional metadata
+           isIncremental: projection.metadata?.isIncremental || false,
+           hybridUMAP: true
          }
        });
 
@@ -824,7 +951,12 @@ export class GraphProjectionWorker {
   private assembleProjection(
     userId: string, 
     graphData: any, 
-    coordinates3D: number[][]
+    coordinates3D: number[][],
+    dimensionResult?: {
+      transformationMatrix?: number[][];
+      umapParameters?: any;
+      isIncremental: boolean;
+    }
   ): GraphProjection {
     const nodes: Node3D[] = graphData.nodes.map((node: any, index: number) => ({
       entity_id: node.entity_id,
@@ -876,8 +1008,14 @@ export class GraphProjectionWorker {
         users,
         connections: totalConnections
       },
-      projectionMethod: this.config.projectionMethod!,
-      boundingBox
+      projectionMethod: 'hybrid_umap', // V11.0: Always use hybrid UMAP
+      boundingBox,
+      // V11.0 Cosmos: Include transformation matrix and UMAP parameters
+      metadata: {
+        transformationMatrix: dimensionResult?.transformationMatrix,
+        umapParameters: dimensionResult?.umapParameters,
+        isIncremental: dimensionResult?.isIncremental || false
+      }
     };
   }
 

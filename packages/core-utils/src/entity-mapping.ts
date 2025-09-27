@@ -22,9 +22,10 @@ export interface EntityTypeMapping {
 /**
  * Centralized mapping of all entity types to their standardized representations
  * This replaces repetitive mapping logic throughout the codebase
+ * V11.0: Updated to match actual database table names and support plural forms
  */
 export const ENTITY_TYPE_MAPPINGS: Record<string, EntityTypeMapping> = {
-  // Concepts
+  // Concepts - Support both singular and plural forms
   'concept': {
     tableName: 'concepts',
     entityType: 'concept',
@@ -32,8 +33,15 @@ export const ENTITY_TYPE_MAPPINGS: Record<string, EntityTypeMapping> = {
     defaultImportance: 0.5,
     supportsCards: true
   },
+  'concepts': {
+    tableName: 'concepts',
+    entityType: 'concept',
+    displayType: 'Concept',
+    defaultImportance: 0.5,
+    supportsCards: true
+  },
   
-  // Memory Units
+  // Memory Units - Support both singular and plural forms
   'memoryunit': {
     tableName: 'memory_units',
     entityType: 'memoryunit',
@@ -48,8 +56,15 @@ export const ENTITY_TYPE_MAPPINGS: Record<string, EntityTypeMapping> = {
     defaultImportance: 0.5,
     supportsCards: true
   },
+  'memory_units': {
+    tableName: 'memory_units',
+    entityType: 'memoryunit',
+    displayType: 'MemoryUnit',
+    defaultImportance: 0.5,
+    supportsCards: true
+  },
   
-  // Derived Artifacts
+  // Derived Artifacts - Support both singular and plural forms
   'derivedartifact': {
     tableName: 'derived_artifacts',
     entityType: 'derivedartifact',
@@ -64,8 +79,15 @@ export const ENTITY_TYPE_MAPPINGS: Record<string, EntityTypeMapping> = {
     defaultImportance: 0.7,
     supportsCards: true
   },
+  'derived_artifacts': {
+    tableName: 'derived_artifacts',
+    entityType: 'derivedartifact',
+    displayType: 'DerivedArtifact',
+    defaultImportance: 0.7,
+    supportsCards: true
+  },
   
-  // Communities
+  // Communities - Support both singular and plural forms
   'community': {
     tableName: 'communities',
     entityType: 'community',
@@ -73,8 +95,15 @@ export const ENTITY_TYPE_MAPPINGS: Record<string, EntityTypeMapping> = {
     defaultImportance: 0.8,
     supportsCards: true
   },
+  'communities': {
+    tableName: 'communities',
+    entityType: 'community',
+    displayType: 'Community',
+    defaultImportance: 0.8,
+    supportsCards: true
+  },
   
-  // Proactive Prompts
+  // Proactive Prompts - Support both singular and plural forms
   'proactiveprompt': {
     tableName: 'proactive_prompts',
     entityType: 'proactiveprompt',
@@ -89,8 +118,15 @@ export const ENTITY_TYPE_MAPPINGS: Record<string, EntityTypeMapping> = {
     defaultImportance: 0.6,
     supportsCards: true
   },
+  'proactive_prompts': {
+    tableName: 'proactive_prompts',
+    entityType: 'proactiveprompt',
+    displayType: 'ProactivePrompt',
+    defaultImportance: 0.6,
+    supportsCards: true
+  },
   
-  // Growth Events
+  // Growth Events - Support both singular and plural forms
   'growthevent': {
     tableName: 'growth_events',
     entityType: 'growthevent',
@@ -105,9 +141,23 @@ export const ENTITY_TYPE_MAPPINGS: Record<string, EntityTypeMapping> = {
     defaultImportance: 0.4,
     supportsCards: true
   },
+  'growth_events': {
+    tableName: 'growth_events',
+    entityType: 'growthevent',
+    displayType: 'GrowthEvent',
+    defaultImportance: 0.4,
+    supportsCards: true
+  },
   
-  // Users
+  // Users - Support both singular and plural forms
   'user': {
+    tableName: 'users',
+    entityType: 'user',
+    displayType: 'User',
+    defaultImportance: 0.3,
+    supportsCards: true
+  },
+  'users': {
     tableName: 'users',
     entityType: 'user',
     displayType: 'User',

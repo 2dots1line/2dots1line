@@ -19,73 +19,182 @@ export class GraphController {
   }
 
   /**
+   * Get edge color based on relationship type
+   */
+  private getEdgeColor(relationshipType: string): string {
+    switch (relationshipType) {
+      case 'RELATED_TO':
+        return '#ffffff'; // White for general relationships
+      case 'MEMBER_OF':
+        return '#4ade80'; // Green for membership
+      case 'DERIVED_FROM':
+        return '#f59e0b'; // Orange for derivation
+      case 'STRATEGIC_RELATIONSHIP':
+        return '#8b5cf6'; // Purple for strategic
+      case 'includes':
+        return '#06b6d4'; // Cyan for inclusion
+      case 'demonstrates':
+        return '#ef4444'; // Red for demonstration
+      case 'contributes_to':
+        return '#10b981'; // Emerald for contribution
+      case 'are_influenced_by':
+        return '#f97316'; // Orange for influence
+      case 'is_engaged_in':
+        return '#84cc16'; // Lime for engagement
+      case 'involves':
+        return '#6366f1'; // Indigo for involvement
+      default:
+        return '#6b7280'; // Gray for unknown
+    }
+  }
+
+  /**
    * GET /api/v1/graph-projection/latest
    * V11.0: Get latest graph projection for 3D visualization
-   * Returns the most recent graph projection data from PostgreSQL
+   * Returns entities with their actual 3D coordinates from the database
    */
   public getLatestGraphProjection = async (req: Request, res: Response): Promise<void> => {
     try {
       // Temporarily use a default userId for testing
       const userId = req.user?.id || 'dev-user-123';
 
-      // Query PostgreSQL for the latest graph projection
-      const latestProjection = await this.databaseService.prisma.user_graph_projections.findFirst({
-        where: { user_id: userId },
-        orderBy: { created_at: 'desc' }
-      });
+      // Fetch all entities with their 3D coordinates directly from the database
+      const [concepts, memoryUnits, derivedArtifacts, communities, growthEvents] = await Promise.all([
+        this.databaseService.prisma.concepts.findMany({
+          where: { 
+            user_id: userId,
+            position_x: { not: null },
+            position_y: { not: null },
+            position_z: { not: null }
+          },
+          select: {
+            entity_id: true,
+            title: true,
+            content: true,
+            position_x: true,
+            position_y: true,
+            position_z: true
+          }
+        }),
+        this.databaseService.prisma.memory_units.findMany({
+          where: { 
+            user_id: userId,
+            position_x: { not: null },
+            position_y: { not: null },
+            position_z: { not: null }
+          },
+          select: {
+            entity_id: true,
+            title: true,
+            content: true,
+            position_x: true,
+            position_y: true,
+            position_z: true
+          }
+        }),
+        this.databaseService.prisma.derived_artifacts.findMany({
+          where: { 
+            user_id: userId,
+            position_x: { not: null },
+            position_y: { not: null },
+            position_z: { not: null }
+          },
+          select: {
+            entity_id: true,
+            title: true,
+            content: true,
+            position_x: true,
+            position_y: true,
+            position_z: true
+          }
+        }),
+        this.databaseService.prisma.communities.findMany({
+          where: { 
+            user_id: userId,
+            position_x: { not: null },
+            position_y: { not: null },
+            position_z: { not: null }
+          },
+          select: {
+            entity_id: true,
+            title: true,
+            content: true,
+            position_x: true,
+            position_y: true,
+            position_z: true
+          }
+        }),
+        this.databaseService.prisma.growth_events.findMany({
+          where: { 
+            user_id: userId,
+            position_x: { not: null },
+            position_y: { not: null },
+            position_z: { not: null }
+          },
+          select: {
+            entity_id: true,
+            title: true,
+            content: true,
+            position_x: true,
+            position_y: true,
+            position_z: true
+          }
+        })
+      ]);
 
-      if (!latestProjection) {
+      // Combine all entities into a single array
+      const allEntities = [
+        ...concepts.map(entity => ({ ...entity, type: 'Concept' })),
+        ...memoryUnits.map(entity => ({ ...entity, type: 'MemoryUnit' })),
+        ...derivedArtifacts.map(entity => ({ ...entity, type: 'DerivedArtifact' })),
+        ...communities.map(entity => ({ ...entity, type: 'Community' })),
+        ...growthEvents.map(entity => ({ ...entity, type: 'GrowthEvent' }))
+      ];
+
+      if (allEntities.length === 0) {
         res.status(404).json({
           success: false,
           error: {
-            code: 'NO_PROJECTION_FOUND',
-            message: 'No graph projection found for this user'
+            code: 'NO_ENTITIES_FOUND',
+            message: 'No entities with 3D coordinates found for this user'
           }
         } as TApiResponse<any>);
         return;
       }
-
-      const projectionData = latestProjection.projection_data as any;
       
-      // Transform nodes to flat structure for frontend compatibility
-      const transformedNodes = projectionData?.nodes?.map((node: any) => {
-        // Handle position as array [x, y, z] or object {x, y, z}
-        let x = 0, y = 0, z = 0;
-        if (Array.isArray(node.position)) {
-          [x, y, z] = node.position;
-        } else if (node.position && typeof node.position === 'object') {
-          x = node.position.x || 0;
-          y = node.position.y || 0;
-          z = node.position.z || 0;
-        } else {
-          x = node.x || 0;
-          y = node.y || 0;
-          z = node.z || 0;
-        }
+      // Transform entities to flat structure for frontend compatibility
+      const transformedNodes = allEntities.map((entity: any) => {
+        // Use the actual 3D coordinates from the database
+        const x = entity.position_x || 0;
+        const y = entity.position_y || 0;
+        const z = entity.position_z || 0;
         
         return {
-          id: node.entity_id || node.id,
-          title: node.properties?.title || node.title || 'Untitled',
-          content: node.properties?.content || node.content || '',
-          type: node.properties?.type || node.type || 'Unknown',
+          id: entity.entity_id,
+          title: entity.title || 'Untitled',
+          content: entity.content || '',
+          type: entity.type,
           x: x,
           y: y,
           z: z,
-          importance: node.properties?.importance || node.importance || 0.5,
-          connections: node.properties?.connections || node.connections || [],
-          metadata: node.properties?.metadata || node.metadata || {}
+          importance: 0.5,
+          connections: [],
+          metadata: {}
         };
       }) || [];
       
-      // Transform edges to flat structure
-      const transformedEdges = projectionData?.edges?.map((edge: any) => ({
-        id: edge.id,
-        source: edge.source,
-        target: edge.target,
-        type: edge.properties?.type || edge.type || 'related',
-        weight: edge.properties?.weight || edge.weight || 1.0,
-        color: edge.properties?.color || edge.color || '#ffffff'
-      })) || [];
+      // Fetch relationships from Neo4j
+      const relationships = await this.neo4jService.getRelationships(userId);
+      
+      // Transform relationships to edges
+      const transformedEdges = relationships.map((rel: any) => ({
+        id: `${rel.source}-${rel.target}-${rel.type}`,
+        source: rel.source,
+        target: rel.target,
+        type: rel.type,
+        weight: rel.weight || 1.0,
+        color: this.getEdgeColor(rel.type)
+      }));
       
       const transformedProjectionData = {
         nodes: transformedNodes,
@@ -95,8 +204,8 @@ export class GraphController {
       res.status(200).json({
         success: true,
         data: {
-          projectionId: latestProjection.projection_id,
-          createdAt: latestProjection.created_at,
+          projectionId: `direct-${Date.now()}`,
+          createdAt: new Date().toISOString(),
           projectionData: transformedProjectionData,
           metadata: {
             nodeCount: transformedNodes.length,

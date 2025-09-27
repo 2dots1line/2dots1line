@@ -31,14 +31,24 @@ interface NodeDetailsDisplayProps {
 export const NodeDetailsDisplay: React.FC<NodeDetailsDisplayProps> = ({ nodeDetails }) => {
   const getTypeIcon = (type: string) => {
     switch (type) {
+      case 'concepts':
       case 'Concept':
         return <Tag className="w-5 h-5" />;
+      case 'memory_units':
       case 'MemoryUnit':
         return <MessageCircle className="w-5 h-5" />;
+      case 'derived_artifacts':
       case 'DerivedArtifact':
         return <FileText className="w-5 h-5" />;
+      case 'communities':
       case 'Community':
         return <Users className="w-5 h-5" />;
+      case 'proactive_prompts':
+      case 'ProactivePrompt':
+        return <TrendingUp className="w-5 h-5" />;
+      case 'growth_events':
+      case 'GrowthEvent':
+        return <Star className="w-5 h-5" />;
       default:
         return <Tag className="w-5 h-5" />;
     }
@@ -46,14 +56,24 @@ export const NodeDetailsDisplay: React.FC<NodeDetailsDisplayProps> = ({ nodeDeta
 
   const getTypeColor = (type: string) => {
     switch (type) {
+      case 'concepts':
       case 'Concept':
-        return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
-      case 'MemoryUnit':
         return 'bg-green-500/20 text-green-300 border-green-500/30';
+      case 'memory_units':
+      case 'MemoryUnit':
+        return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
+      case 'derived_artifacts':
       case 'DerivedArtifact':
-        return 'bg-purple-500/20 text-purple-300 border-purple-500/30';
+        return 'bg-pink-500/20 text-pink-300 border-pink-500/30';
+      case 'communities':
       case 'Community':
         return 'bg-orange-500/20 text-orange-300 border-orange-500/30';
+      case 'proactive_prompts':
+      case 'ProactivePrompt':
+        return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30';
+      case 'growth_events':
+      case 'GrowthEvent':
+        return 'bg-purple-500/20 text-purple-300 border-purple-500/30';
       default:
         return 'bg-gray-500/20 text-gray-300 border-gray-500/30';
     }

@@ -13,7 +13,10 @@
         { "name": "type", "dataType": ["text"], "indexFilterable": true, "indexSearchable": true, "tokenization": "whitespace" },
         { "name": "embedding_model_version", "dataType": ["text"], "indexFilterable": true, "indexSearchable": true, "tokenization": "whitespace" },
         { "name": "created_at", "dataType": ["date"], "indexFilterable": true, "indexSearchable": false },
-        { "name": "status", "dataType": ["text"], "indexFilterable": true, "indexSearchable": false, "tokenization": "whitespace" }
+        { "name": "status", "dataType": ["text"], "indexFilterable": true, "indexSearchable": false, "tokenization": "whitespace" },
+        { "name": "position_x", "dataType": ["number"], "indexFilterable": true, "indexSearchable": false },
+        { "name": "position_y", "dataType": ["number"], "indexFilterable": true, "indexSearchable": false },
+        { "name": "position_z", "dataType": ["number"], "indexFilterable": true, "indexSearchable": false }
       ]
     }
   ]

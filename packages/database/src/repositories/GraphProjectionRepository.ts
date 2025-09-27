@@ -50,6 +50,9 @@ export class GraphProjectionRepository {
     projectionData: Prisma.InputJsonValue;
     status?: string;
     metadata?: Prisma.InputJsonValue;
+    // V11.0 Cosmos: Hybrid UMAP fields
+    transformation_matrix?: Prisma.InputJsonValue;
+    umap_parameters?: Prisma.InputJsonValue;
   }): Promise<UserGraphProjection> {
     
     const projectionId = `proj_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
@@ -66,6 +69,9 @@ export class GraphProjectionRepository {
       // Use a conditional spread to only include metadata if it's provided.
       // This is a robust pattern that avoids issues with null/undefined.
       ...(data.metadata && { metadata: data.metadata }),
+      // V11.0 Cosmos: Include transformation matrix and UMAP parameters
+      ...(data.transformation_matrix && { transformation_matrix: data.transformation_matrix }),
+      ...(data.umap_parameters && { umap_parameters: data.umap_parameters }),
     };
 
     return this.prisma.user_graph_projections.create({

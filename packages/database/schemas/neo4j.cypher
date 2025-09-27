@@ -23,4 +23,8 @@ CREATE INDEX created_at_idx IF NOT EXISTS FOR (n) ON (n.created_at);
 // type: String          // Sub-type within entity
 // status: String        // Lifecycle state
 // created_at: DateTime  // Creation timestamp
-// updated_at: DateTime  // Update timestamp (where applicable) 
+// updated_at: DateTime  // Update timestamp (where applicable)
+// V11.0 Cosmos: 3D coordinates for spatial positioning
+// position_x: Float     // X coordinate in 3D space
+// position_y: Float     // Y coordinate in 3D space
+// position_z: Float     // Z coordinate in 3D space 

@@ -45,6 +45,33 @@ export class Neo4jService {
   }
   
   /**
+   * Get all relationships for a user
+   */
+  public async getRelationships(userId: string): Promise<any[]> {
+    const cypher = `
+      MATCH (a)-[r]->(b) 
+      WHERE a.user_id = $userId AND b.user_id = $userId
+      RETURN a.entity_id as source, b.entity_id as target, type(r) as type, 
+             r.weight as weight, r.created_at as created_at
+      ORDER BY r.created_at DESC
+    `;
+    
+    try {
+      const records = await this.runReadQuery(cypher, { userId });
+      return records.map(record => ({
+        source: record.get('source'),
+        target: record.get('target'),
+        type: record.get('type'),
+        weight: record.get('weight') || 1.0,
+        created_at: record.get('created_at')
+      }));
+    } catch (error) {
+      console.error('Failed to fetch relationships from Neo4j:', error);
+      return [];
+    }
+  }
+
+  /**
    * Executes a parameterized write query within a managed transaction.
    */
   public async runWriteTransaction(cypher: string, params: Record<string, any> = {}): Promise<any[]> {
