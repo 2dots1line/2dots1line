@@ -780,6 +780,39 @@ export class IngestionAnalyst {
   }
 
   /**
+   * Validate relationship type and description coherence
+   */
+  private validateRelationshipCoherence(type: string, description: string): boolean {
+    const coherenceMap: Record<string, string[]> = {
+      'INFLUENCES': ['influenced by', 'influences', 'shapes', 'affects', 'impacts'],
+      'CAUSES': ['causes', 'leads to', 'results in', 'brings about', 'triggers'],
+      'IS_SIMILAR_TO': ['similar to', 'like', 'resembles', 'comparable to', 'analogous to'],
+      'INSPIRES': ['inspires', 'is inspired by', 'motivates', 'encourages'],
+      'CONTRIBUTES_TO': ['contributes to', 'evidences', 'supports', 'demonstrates', 'shows'],
+      'IS_A_TYPE_OF': ['is a type of', 'is a kind of', 'is a form of', 'is a variety of'],
+      'IS_PART_OF': ['is part of', 'belongs to', 'is included in', 'is a component of'],
+      'PRECEDES': ['precedes', 'comes before', 'happens before', 'leads up to'],
+      'FOLLOWS': ['follows', 'comes after', 'happens after', 'succeeds'],
+      'ENABLES': ['enables', 'allows', 'makes possible', 'facilitates'],
+      'PREVENTS': ['prevents', 'stops', 'blocks', 'hinders', 'avoids'],
+      'EXEMPLIFIES_TRAIT': ['exemplifies', 'demonstrates', 'shows', 'represents'],
+      'SUPPORTS_VALUE': ['supports', 'aligns with', 'reinforces', 'upholds'],
+      'IS_MILESTONE_FOR': ['is a milestone for', 'marks', 'represents a milestone in'],
+      'IS_METAPHOR_FOR': ['is a metaphor for', 'represents', 'symbolizes'],
+      'REPRESENTS_SYMBOLICALLY': ['represents symbolically', 'symbolizes', 'stands for'],
+      'RELATED_TO': [] // RELATED_TO can have any description
+    };
+    
+    const allowedPatterns = coherenceMap[type];
+    if (!allowedPatterns || allowedPatterns.length === 0) {
+      return true; // Allow RELATED_TO and unknown types
+    }
+    
+    const descriptionLower = description.toLowerCase();
+    return allowedPatterns.some(pattern => descriptionLower.includes(pattern));
+  }
+
+  /**
    * Create Neo4j relationships in transaction
    */
   private async createNeo4jRelationshipsInTransaction(
@@ -797,6 +830,17 @@ export class IngestionAnalyst {
       const targetId = this.resolveEntityIdWithMapping(relationship.target_entity_id_or_name, entityMappings);
 
       if (sourceId && targetId) {
+        // Validate relationship type and description coherence
+        const isCoherent = this.validateRelationshipCoherence(
+          relationship.relationship_type, 
+          relationship.relationship_description
+        );
+        
+        if (!isCoherent) {
+          console.warn(`[IngestionAnalyst] ⚠️ Relationship type-description mismatch: "${relationship.relationship_type}" vs "${relationship.relationship_description}"`);
+          // Continue with creation but log the warning
+        }
+        
         const cypher = `
           MATCH (source), (target)
           WHERE (source.entity_id = $sourceId)
@@ -809,6 +853,8 @@ export class IngestionAnalyst {
           targetId,
           description: relationship.relationship_description
         });
+        
+        console.log(`[IngestionAnalyst] ✅ Created relationship: ${sourceId} -[${relationship.relationship_type}]-> ${targetId} (${relationship.relationship_description})`);
       }
     }
   }

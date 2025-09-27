@@ -470,12 +470,59 @@ ingestion_analyst_instructions: |
     * Concept → Concept: "Leadership" → "Team Management"
     * MemoryUnit → MemoryUnit: "mem_project_success" → "mem_team_celebration"
     
+    **RELATIONSHIP TYPE SELECTION:**
+    Choose the most appropriate relationship_type from these options:
+    
+    **Hierarchical Relationships:**
+    - IS_A_TYPE_OF: "Leadership" → "Management" (Leadership is a type of management)
+    - IS_PART_OF: "Team Building" → "Leadership" (Team building is part of leadership)
+    - IS_INSTANCE_OF: "{{user_name}}'s startup" → "Entrepreneurship" (Specific instance of general concept)
+    
+    **Causal Relationships:**
+    - CAUSES: "Stress" → "Burnout" (Stress causes burnout)
+    - INFLUENCES: "Mentor" → "Career Path" (Mentor influences career path)
+    - ENABLES: "Education" → "Career Opportunities" (Education enables opportunities)
+    - PREVENTS: "Exercise" → "Health Issues" (Exercise prevents health issues)
+    - CONTRIBUTES_TO: "Practice" → "Skill Development" (Practice contributes to skill development)
+    
+    **Temporal Relationships:**
+    - PRECEDES: "Education" → "Career" (Education precedes career)
+    - FOLLOWS: "Graduation" → "Job Search" (Job search follows graduation)
+    - CO_OCCURS_WITH: "Stress" → "Deadlines" (Stress co-occurs with deadlines)
+    
+    **Association Relationships:**
+    - IS_SIMILAR_TO: "Writing" → "Storytelling" (Writing is similar to storytelling)
+    - IS_OPPOSITE_OF: "Confidence" → "Self-Doubt" (Confidence is opposite of self-doubt)
+    - IS_ANALOGOUS_TO: "Startup" → "Raising a Child" (Startup is analogous to raising a child)
+    
+    **Domain-Specific Relationships:**
+    - INSPIRES: "Role Model" → "Values" (Role model inspires values)
+    - SUPPORTS_VALUE: "Family Time" → "Work-Life Balance" (Family time supports work-life balance)
+    - EXEMPLIFIES_TRAIT: "Persistence" → "Resilience" (Persistence exemplifies resilience)
+    - IS_MILESTONE_FOR: "First Sale" → "Entrepreneurship Journey" (First sale is milestone for entrepreneurship)
+    
+    **Metaphorical Relationships:**
+    - IS_METAPHOR_FOR: "Climbing Mountains" → "Overcoming Challenges" (Climbing is metaphor for overcoming challenges)
+    - REPRESENTS_SYMBOLICALLY: "Phoenix" → "Rebirth" (Phoenix represents rebirth symbolically)
+    
+    **Fallback:**
+    - RELATED_TO: Use when no specific type fits the relationship
+    
+    **COHERENCE RULE:**
+    The relationship_type should match the relationship_description:
+    - Type: "INFLUENCES" → Description: "is influenced by" or "influences"
+    - Type: "CAUSES" → Description: "leads to" or "causes"
+    - Type: "IS_SIMILAR_TO" → Description: "is similar to" or "resembles"
+    - Type: "INSPIRES" → Description: "inspires" or "is inspired by"
+    - Type: "RELATED_TO" → Description: Any description that doesn't fit other types
+    
     **RULES:**
     1. Create relationships when entities are clearly connected, regardless of the entity type. Link MemoryUnits to Concepts, Concepts to GrowthEvents, and MemoryUnits to GrowthEvents, etc. would hugely facilitate effective retrieval of connected entities.
     2. Use exact temp_ids (e.g., "mem_career_change_2024") and exact concept names
     3. People are represented as Concepts with type="person"
     4. Growth events should be referenced by their actual event_id (e.g., "event_123e4567-e89b-12d3-a456-426614174000"), NOT by dimension keys like "act_self" or "know_world"
     5. Relationship descriptions should be simple and clear (e.g., "evidences this growth event" rather than complex rationales)
+    6. **CRITICAL**: Ensure relationship_type and relationship_description are coherent and meaningful
 
   **SECTION 2: forward_looking_context**
   Prepare context for the next conversation:
@@ -514,7 +561,8 @@ ingestion_analyst_instructions: |
       "new_relationships": [
         {
           "source_entity_id_or_name": "string",
-          "target_entity_id_or_name": "string", 
+          "target_entity_id_or_name": "string",
+          "relationship_type": "RELATED_TO",
           "relationship_description": "string"
         }
       ],
@@ -583,26 +631,31 @@ ingestion_analyst_instructions: |
         {
           "source_entity_id_or_name": "mem_quantum_book_insight",
           "target_entity_id_or_name": "Quantum Physics",
+          "relationship_type": "EXEMPLIFIES_TRAIT",
           "relationship_description": "Memory unit exemplifies the concept of quantum physics exploration"
         },
         {
           "source_entity_id_or_name": "mem_quantum_book_insight", 
           "target_entity_id_or_name": "Consciousness",
+          "relationship_type": "IS_SIMILAR_TO",
           "relationship_description": "Memory unit demonstrates connection between quantum physics and consciousness studies"
         },
         {
           "source_entity_id_or_name": "Quantum Physics",
           "target_entity_id_or_name": "Consciousness", 
+          "relationship_type": "IS_SIMILAR_TO",
           "relationship_description": "Concepts are thematically related through the study of mind-body connection"
         },
         {
           "source_entity_id_or_name": "mem_quantum_book_insight",
           "target_entity_id_or_name": "event_123e4567-e89b-12d3-a456-426614174000",
+          "relationship_type": "CONTRIBUTES_TO",
           "relationship_description": "Memory unit evidences this growth event"
         },
         {
           "source_entity_id_or_name": "Quantum Physics",
           "target_entity_id_or_name": "event_123e4567-e89b-12d3-a456-426614174000",
+          "relationship_type": "CONTRIBUTES_TO",
           "relationship_description": "Concept evidences this growth event"
         }
       ]

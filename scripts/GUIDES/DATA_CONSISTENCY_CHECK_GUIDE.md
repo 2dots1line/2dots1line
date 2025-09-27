@@ -290,7 +290,50 @@ curl -s "http://localhost:8080/v1/meta" | jq '.version'
 docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "(postgres|neo4j|weaviate)"
 ```
 
-## 7. Performance Tips
+## 7. Vector and Connection Verification
+
+### Check Weaviate Vector Embedding
+```bash
+# Check if entity has a vector and its dimensions
+curl -s -X POST "http://localhost:8080/v1/graphql" -H "Content-Type: application/json" -d '{"query": "{ Get { UserKnowledgeItem(where: { path: [\"entity_id\"], operator: Equal, valueString: \"YOUR_ENTITY_ID\" }) { _additional { id, vector } } } }"}' | jq '.data.Get.UserKnowledgeItem[] | {id: ._additional.id, has_vector: (._additional.vector != null), vector_length: (._additional.vector | length)}'
+
+# Example for entity 78117611-f312-45b9-a5c9-a889b0e45680:
+curl -s -X POST "http://localhost:8080/v1/graphql" -H "Content-Type: application/json" -d '{"query": "{ Get { UserKnowledgeItem(where: { path: [\"entity_id\"], operator: Equal, valueString: \"78117611-f312-45b9-a5c9-a889b0e45680\" }) { _additional { id, vector } } }"}' | jq '.data.Get.UserKnowledgeItem[] | {id: ._additional.id, has_vector: (._additional.vector != null), vector_length: (._additional.vector | length)}'
+```
+
+### Check Neo4j Connections and Relationships
+```bash
+# Check all connections for an entity
+docker exec neo4j-2d1l cypher-shell -u neo4j -p password123 "
+MATCH (n {entity_id: 'YOUR_ENTITY_ID'})-[r]-(connected)
+RETURN n.entity_id as source_entity, n.title as source_title, 
+       type(r) as relationship_type, 
+       connected.entity_id as target_entity, 
+       connected.title as target_title, 
+       labels(connected) as target_labels;"
+
+# Count total connections
+docker exec neo4j-2d1l cypher-shell -u neo4j -p password123 "
+MATCH (n {entity_id: 'YOUR_ENTITY_ID'})-[r]-(connected)
+RETURN count(r) as total_connections, 
+       count(DISTINCT connected) as unique_connected_entities;"
+
+# Check relationship types (identify undefined types)
+docker exec neo4j-2d1l cypher-shell -u neo4j -p password123 "
+MATCH (n {entity_id: 'YOUR_ENTITY_ID'})-[r]-(connected)
+RETURN DISTINCT type(r) as relationship_type, count(*) as count;"
+
+# Example for entity 78117611-f312-45b9-a5c9-a889b0e45680:
+docker exec neo4j-2d1l cypher-shell -u neo4j -p password123 "
+MATCH (n {entity_id: '78117611-f312-45b9-a5c9-a889b0e45680'})-[r]-(connected)
+RETURN n.entity_id as source_entity, n.title as source_title, 
+       type(r) as relationship_type, 
+       connected.entity_id as target_entity, 
+       connected.title as target_title, 
+       labels(connected) as target_labels;"
+```
+
+## 8. Performance Tips
 
 ### Use Specific Queries
 - Always use `entity_id` for exact matches
