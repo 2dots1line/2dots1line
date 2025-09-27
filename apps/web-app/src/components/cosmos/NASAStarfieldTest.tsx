@@ -7,8 +7,9 @@
 
 import React, { useRef, useState, useEffect, useCallback, Suspense } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
+import { PerspectiveCamera } from '@react-three/drei';
 import * as THREE from 'three';
+import { CameraController } from './CameraController';
 
 // EXRLoader import
 import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader.js';
@@ -44,7 +45,13 @@ const NASAStarfieldBackground: React.FC<{ resolution: string }> = ({ resolution 
       texturePath,
       (loadedTexture) => {
         console.log(`✅ NASA star map loaded`);
+        console.log(`📐 Texture dimensions: ${loadedTexture.image?.width}x${loadedTexture.image?.height}`);
+        console.log(`🎨 Texture format: ${loadedTexture.format}, type: ${loadedTexture.type}`);
         loadedTexture.flipY = false;
+        loadedTexture.mapping = THREE.EquirectangularReflectionMapping;
+        loadedTexture.minFilter = THREE.LinearFilter;
+        loadedTexture.magFilter = THREE.LinearFilter;
+        loadedTexture.generateMipmaps = false;
         setTexture(loadedTexture);
       },
       undefined,
@@ -66,7 +73,7 @@ const NASAStarfieldBackground: React.FC<{ resolution: string }> = ({ resolution 
 
   return (
     <mesh ref={meshRef}>
-      <sphereGeometry args={[5000, 64, 64]} />
+      <sphereGeometry args={[10000, 64, 64]} />
       <meshBasicMaterial 
         map={texture}
         side={THREE.BackSide}
@@ -141,7 +148,7 @@ export const NASAStarfieldTest: React.FC<NASAStarfieldProps> = ({
           position={[0, 0, 0]} 
           fov={75}
           near={0.1}
-          far={10000}
+          far={100000}
         />
         
         {/* Simple test - just the NASA starfield background */}
@@ -151,19 +158,8 @@ export const NASAStarfieldTest: React.FC<NASAStarfieldProps> = ({
           <NASAStarfieldBackground resolution={resolution} />
         </Suspense>
         
-        {/* Camera Controls */}
-        <OrbitControls
-          enableDamping
-          dampingFactor={0.05}
-          enableRotate={true}
-          enablePan={true}
-          enableZoom={true}
-          zoomSpeed={1.0}
-          rotateSpeed={0.5}
-          panSpeed={0.8}
-          maxDistance={10000}
-          minDistance={10}
-        />
+        {/* Camera Controls with WASD support */}
+        <CameraController />
         
         {/* Performance Monitor */}
         <PerformanceMonitor 

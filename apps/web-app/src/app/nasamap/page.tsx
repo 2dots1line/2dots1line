@@ -29,7 +29,13 @@ export default function NASAMapPage() {
             • Scroll: Zoom in/out
           </div>
           <div className="text-xs">
-            • WASD: Move camera
+            • WASD: Move camera (W/S: forward/back, A/D: left/right)
+          </div>
+          <div className="text-xs">
+            • Space: Move up
+          </div>
+          <div className="text-xs">
+            • Shift: Faster movement
           </div>
         </div>
       </div>
