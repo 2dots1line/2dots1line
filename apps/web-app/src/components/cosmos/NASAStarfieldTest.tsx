@@ -10,6 +10,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { PerspectiveCamera } from '@react-three/drei';
 import * as THREE from 'three';
 import { CameraController } from './CameraController';
+import { StarfieldBackground } from './StarfieldBackground';
 
 // EXRLoader import
 import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader.js';
@@ -158,10 +159,13 @@ export const NASAStarfieldTest: React.FC<NASAStarfieldProps> = ({
         
         {/* Simple test - just the NASA starfield background */}
         
-        {/* NASA Starfield Background */}
+        {/* NASA Starfield Background - Layer 1 (Distant) */}
         <Suspense fallback={null}>
           <NASAStarfieldBackground resolution={resolution} />
         </Suspense>
+        
+        {/* Procedural Starfield - Layer 2 (Nearby stars for depth) */}
+        <StarfieldBackground />
         
         {/* Camera Controls with WASD support */}
         <CameraController />

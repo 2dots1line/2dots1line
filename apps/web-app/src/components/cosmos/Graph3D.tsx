@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { PerspectiveCamera } from '@react-three/drei';
 import { StarfieldBackground } from './StarfieldBackground';
+import { NASAStarfieldBackground } from './NASAStarfieldBackground';
 import { CameraController } from './CameraController';
 import { NodeMesh } from './NodeMesh';
 import { EdgeMesh, AnimatedEdgeMesh } from './EdgeMesh';
@@ -190,9 +191,14 @@ export const Graph3D: React.FC<Graph3DProps> = ({
         position={[0, 0, 50]} 
         fov={75} 
         near={0.1} 
-        far={10000} 
+        far={20000} 
       />
+      {/* NASA Deep Star Maps 2020 Background - Layer 1 (Distant) */}
+      <NASAStarfieldBackground resolution="8k" />
+      
+      {/* Procedural Starfield - Layer 2 (Nearby stars for depth) */}
       <StarfieldBackground />
+      
       <CameraController />
       {/* Ambient light for overall illumination */}
       <ambientLight intensity={0.2} />
