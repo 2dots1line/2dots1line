@@ -371,8 +371,8 @@ export class GraphProjectionWorker {
       console.log(`[GraphProjectionWorker] 🧠 Running UMAP Learning Phase (total nodes: ${totalNodes})`);
       return await this.handleUMAPLearningPhase(userId, newEntities);
     } else {
-      console.log(`[GraphProjectionWorker] ⚡ Running Linear Transformation Phase (total nodes: ${totalNodes})`);
-      return await this.handleLinearTransformationPhase(userId, newEntities);
+      console.log(`[GraphProjectionWorker] 🔄 Running UMAP Transform Phase (total nodes: ${totalNodes})`);
+      return await this.handleUMAPTransformPhase(userId, newEntities);
     }
   }
 
@@ -478,10 +478,17 @@ export class GraphProjectionWorker {
     const dimensionResult = await this.callDimensionReducer(allEmbeddings);
     console.log(`[GraphProjectionWorker] UMAP Learning: Generated coordinates for ${dimensionResult.coordinates.length} nodes`);
 
-    // Step 4: Store transformation matrix for future linear transformations
+    // Step 4: Store transformation matrix and UMAP model for future use
     if (dimensionResult.transformationMatrix) {
       await this.storeTransformationMatrix(userId, dimensionResult.transformationMatrix, dimensionResult.umapParameters);
       console.log(`[GraphProjectionWorker] UMAP Learning: Stored transformation matrix`);
+    }
+    
+    // Store fitted UMAP model for UMAP transform
+    if (dimensionResult.fittedUmapModel && dimensionResult.modelMetadata) {
+      const fittedModelBytes = new Uint8Array(dimensionResult.fittedUmapModel);
+      await this.storeUMAPModel(userId, fittedModelBytes, dimensionResult.umapParameters, dimensionResult.modelMetadata);
+      console.log(`[GraphProjectionWorker] UMAP Learning: Stored fitted UMAP model`);
     }
 
     // Step 5: Update all coordinates in entity tables
@@ -585,6 +592,70 @@ export class GraphProjectionWorker {
   }
 
   /**
+   * V11.0: UMAP Transform Phase - High-quality positioning using stored UMAP model
+   */
+  private async handleUMAPTransformPhase(userId: string, newEntities: Array<{id: string, type: string}>): Promise<{
+    nodes: Node3D[];
+    projectionMethod: string;
+    metadata?: {
+      transformationMatrix?: number[][];
+      umapParameters?: any;
+      isIncremental?: boolean;
+    };
+  }> {
+    console.log(`[GraphProjectionWorker] 🔄 UMAP Transform Phase: High-quality positioning for ${newEntities.length} new entities`);
+
+    // Step 1: Get stored UMAP model
+    const umapModelData = await this.getUMAPModel(userId);
+    if (!umapModelData) {
+      console.warn(`[GraphProjectionWorker] No UMAP model found, falling back to UMAP learning`);
+      return await this.handleUMAPLearningPhase(userId, newEntities);
+    }
+
+    // Step 2: Get embeddings for new entities only
+    const newNodes = await this.getNodesForEntities(userId, newEntities);
+    const newEmbeddings = await this.fetchEmbeddingsFromWeaviate(newNodes);
+    console.log(`[GraphProjectionWorker] UMAP Transform: Fetched ${newEmbeddings.length} embeddings for new entities`);
+
+    // Step 3: Transform new embeddings using stored UMAP model
+    const newCoordinates = await this.transformWithUMAP(newEmbeddings, umapModelData);
+    console.log(`[GraphProjectionWorker] UMAP Transform: Generated coordinates for ${newCoordinates.length} new entities`);
+
+    // Step 4: Store new coordinates in entity tables
+    await this.storeCoordinatesInEntities(userId, newNodes, newCoordinates);
+    console.log(`[GraphProjectionWorker] UMAP Transform: Updated coordinates for ${newNodes.length} new entities`);
+
+    // Step 5: Create node data for notifications (only new entities)
+    const nodes: Node3D[] = newNodes.map((node: any, index: number) => ({
+      entity_id: node.entity_id,
+      type: node.type as 'MemoryUnit' | 'Concept' | 'DerivedArtifact' | 'Community' | 'ProactivePrompt' | 'GrowthEvent' | 'User',
+      title: node.title,
+      content: node.content,
+      position: newCoordinates[index] as [number, number, number],
+      connections: node.connections || [],
+      importance: node.importance || 0.5,
+      metadata: {
+        createdAt: node.createdAt || new Date().toISOString(),
+        lastUpdated: new Date().toISOString(),
+        userId,
+        isMerged: node.metadata?.isMerged || false,
+        mergedIntoConceptId: node.metadata?.mergedIntoConceptId || null,
+        status: node.metadata?.status || 'active'
+      }
+    }));
+
+    console.log(`[GraphProjectionWorker] ✅ UMAP Transform Phase complete for ${nodes.length} new entities`);
+    return {
+      nodes,
+      projectionMethod: 'umap_transform',
+      metadata: {
+        umapParameters: umapModelData.umapParameters,
+        isIncremental: true
+      }
+    };
+  }
+
+  /**
    * V11.0: Store transformation matrix in user_graph_projections table
    */
   private async storeTransformationMatrix(userId: string, transformationMatrix: number[][], umapParameters?: any): Promise<void> {
@@ -639,6 +710,71 @@ export class GraphProjectionWorker {
     } catch (error) {
       console.error(`[GraphProjectionWorker] Failed to get transformation matrix for user ${userId}:`, error);
       throw new Error(`Failed to get transformation matrix: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * V11.0: Store UMAP model in user_graph_projections table
+   */
+  private async storeUMAPModel(userId: string, fittedModel: Uint8Array, umapParameters: any, modelMetadata: any): Promise<void> {
+    try {
+      await this.databaseService.prisma.user_graph_projections.create({
+        data: {
+          projection_id: `umap_model_${userId}_${Date.now()}`,
+          user_id: userId,
+          status: 'completed',
+          fitted_umap_model: Buffer.from(fittedModel),
+          umap_parameters: umapParameters as any,
+          model_metadata: modelMetadata as any,
+          projection_method: 'umap_learning',
+          metadata: {
+            version: `v${Date.now()}`,
+            createdAt: new Date().toISOString(),
+            processingMethod: 'hybrid_umap',
+            isIncremental: false,
+            hybridUMAP: true,
+            phase: 'umap_learning'
+          }
+        }
+      });
+      console.log(`[GraphProjectionWorker] ✅ Stored UMAP model for user ${userId}`);
+    } catch (error) {
+      console.error(`[GraphProjectionWorker] Failed to store UMAP model for user ${userId}:`, error);
+      throw new Error(`Failed to store UMAP model: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * V11.0: Get stored UMAP model from user_graph_projections table
+   */
+  private async getUMAPModel(userId: string): Promise<{
+    fittedModel: Uint8Array;
+    umapParameters?: any;
+    modelMetadata?: any;
+    createdAt: string;
+  } | null> {
+    try {
+      const projection = await this.databaseService.prisma.user_graph_projections.findFirst({
+        where: {
+          user_id: userId,
+          fitted_umap_model: { not: null },
+          projection_method: 'umap_learning'
+        },
+        orderBy: { created_at: 'desc' }
+      });
+
+      if (projection && projection.fitted_umap_model) {
+        return {
+          fittedModel: new Uint8Array(projection.fitted_umap_model as Buffer),
+          umapParameters: projection.umap_parameters as any,
+          modelMetadata: projection.model_metadata as any,
+          createdAt: projection.created_at.toISOString()
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error(`[GraphProjectionWorker] Failed to get UMAP model for user ${userId}:`, error);
+      return null;
     }
   }
 
@@ -874,6 +1010,54 @@ export class GraphProjectionWorker {
   }
 
   /**
+   * V11.0: Transform embeddings using UMAP transform
+   */
+  private async transformWithUMAP(embeddings: number[][], umapModelData: {
+    fittedModel: Uint8Array;
+    umapParameters?: any;
+    modelMetadata?: any;
+    createdAt: string;
+  }): Promise<number[][]> {
+    try {
+      // Call Python service for UMAP transform
+      const requestBody = {
+        vectors: embeddings,
+        method: 'umap_transform',
+        fitted_umap_model: Array.from(umapModelData.fittedModel), // Convert to array for JSON
+        target_dimensions: 3
+      };
+
+      const response = await fetch(`${this.config.dimensionReducerUrl}/reduce`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(requestBody),
+        signal: AbortSignal.timeout(30000) // 30 second timeout for UMAP transform
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`UMAP transform service responded with ${response.status}: ${errorText}`);
+      }
+
+      const result = await response.json();
+      
+      if (!result.coordinates || !Array.isArray(result.coordinates)) {
+        throw new Error('Invalid response format from UMAP transform service');
+      }
+
+      console.log(`[GraphProjectionWorker] ✅ UMAP transform completed for ${embeddings.length} vectors`);
+      return result.coordinates;
+      
+    } catch (error) {
+      console.error(`[GraphProjectionWorker] ❌ UMAP transform failed, using fallback coordinates:`, error);
+      return this.generateFallback3DCoordinates(embeddings.length);
+    }
+  }
+
+  /**
    * REAL IMPLEMENTATION: Fetch graph structure from Neo4j using Neo4jService
    */
   private async fetchGraphStructureFromNeo4j(userId: string): Promise<{
@@ -1088,6 +1272,8 @@ export class GraphProjectionWorker {
     coordinates: number[][];
     transformationMatrix?: number[][];
     umapParameters?: any;
+    fittedUmapModel?: number[];
+    modelMetadata?: any;
     isIncremental: boolean;
   }> {
     if (vectors.length === 0) {
@@ -1135,6 +1321,8 @@ export class GraphProjectionWorker {
         coordinates: result.coordinates,
         transformationMatrix: result.transformation_matrix,
         umapParameters: result.umap_parameters,
+        fittedUmapModel: result.fitted_umap_model,
+        modelMetadata: result.model_metadata,
         isIncremental: result.is_incremental || false
       };
       

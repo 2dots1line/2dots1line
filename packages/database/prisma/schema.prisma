@@ -276,6 +276,10 @@ model user_graph_projections {
   // V11.0 Cosmos: Hybrid UMAP + Linear Transformation matrix storage
   transformation_matrix Json? // 4x4 transformation matrix for linear positioning
   umap_parameters Json?       // UMAP parameters used for this projection
+  // V11.0 Cosmos: UMAP Transform support
+  fitted_umap_model Bytes?    // Serialized UMAP model for transform operations
+  model_metadata    Json?     // Model size, training info, etc.
+  projection_method String?   // 'linear_transform' | 'umap_transform' | 'umap_learning'
   users           users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@index([user_id, created_at(sort: Desc)])

@@ -11,6 +11,7 @@ import { PerspectiveCamera } from '@react-three/drei';
 import * as THREE from 'three';
 import { CameraController } from './CameraController';
 import { StarfieldBackground } from './StarfieldBackground';
+import { MultiverseStarfield } from './MultiverseStarfield';
 
 // EXRLoader import
 import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader.js';
@@ -74,7 +75,7 @@ const NASAStarfieldBackground: React.FC<{ resolution: string }> = ({ resolution 
 
   return (
     <mesh ref={meshRef}>
-      <sphereGeometry args={[15000, 64, 64]} />
+      <sphereGeometry args={[5000, 64, 64]} />
       <meshBasicMaterial 
         map={texture}
         side={THREE.BackSide}
@@ -132,6 +133,7 @@ export const NASAStarfieldTest: React.FC<NASAStarfieldProps> = ({
           <div className="text-xs space-y-1">
             <div>FPS: {fps}</div>
             <div>Resolution: {resolution}</div>
+            <div>Multiverse Stars: 1000</div>
           </div>
         </div>
       </div>
@@ -166,6 +168,11 @@ export const NASAStarfieldTest: React.FC<NASAStarfieldProps> = ({
         
         {/* Procedural Starfield - Layer 2 (Nearby stars for depth) */}
         <StarfieldBackground />
+        
+        {/* Multiverse Starfield - Layer 3 (Individual stars with textures) */}
+        <Suspense fallback={null}>
+          <MultiverseStarfield />
+        </Suspense>
         
         {/* Camera Controls with WASD support */}
         <CameraController />

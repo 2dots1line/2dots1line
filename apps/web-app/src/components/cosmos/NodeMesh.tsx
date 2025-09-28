@@ -57,67 +57,83 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
   const baseSize = Math.max(1.2 + normalizedImportance * 1.6, 1.0); // Minimum size of 1.0
   const hoverSize = baseSize * (hovered ? 1.2 : 1.0);
   
-  // Color scheme based on entity type
-  const getNodeColor = () => {
+  // Celestial body color scheme based on entity type
+  const getCelestialColor = () => {
     let baseColor;
     
     // Get entity type from node properties
     const entityType = node.type || node.entityType || node.category || 'unknown';
     
-    // Color coding by entity type - handle both table names and display types
+    // Celestial color coding - more realistic star/planet colors
     switch (entityType) {
       // Table names (from database)
       case 'memory_units':
       case 'MemoryUnit':
-        baseColor = '#4488ff'; // Blue for memory units
+        baseColor = '#4a90e2'; // Blue-white star (like Sirius)
         break;
       case 'concepts':
       case 'Concept':
-        baseColor = '#44ff44'; // Green for concepts
+        baseColor = '#f5f5dc'; // Yellow-white star (like our Sun)
         break;
       case 'communities':
       case 'Community':
-        baseColor = '#ff8844'; // Orange for communities
+        baseColor = '#ff6b35'; // Orange-red star (like Betelgeuse)
         break;
       case 'derived_artifacts':
       case 'DerivedArtifact':
       case 'Artifact':
-        baseColor = '#ff4488'; // Pink for derived artifacts
+        baseColor = '#c77dff'; // Purple-blue star (like Vega)
         break;
       case 'proactive_prompts':
       case 'ProactivePrompt':
-        baseColor = '#ffaa00'; // Orange-Yellow for proactive prompts
+        baseColor = '#ffd700'; // Golden star (like Capella)
         break;
       case 'growth_events':
       case 'GrowthEvent':
-        baseColor = '#aa44ff'; // Purple for growth events
+        baseColor = '#e6e6fa'; // White-blue star (like Rigel)
         break;
       default:
-        baseColor = '#888888'; // Gray for unknown types
+        baseColor = '#b0b0b0'; // Neutral white star
         break;
     }
     
-    // Only dim nodes if there's an active hover state
-    if (isHighlighted) {
-      return baseColor; // Keep original color for highlighted nodes
-    } else if (hovered) {
-      return baseColor; // Keep original color for hovered node
-    } else {
-      // Show all nodes normally when no hover is active
-      return baseColor; // Keep original color for all nodes
-    }
+    return baseColor;
+  };
+
+  // Generate realistic star properties
+  const getStarProperties = () => {
+    const baseColor = getCelestialColor();
+    const importance = node.importance || node.metadata?.importance_score || 0.5;
+    
+    // Star luminosity based on importance (brighter = more important)
+    const luminosity = Math.min(0.3 + (importance / 10) * 0.7, 1.0);
+    
+    // Add subtle color variation for realism
+    const colorVariation = 0.1;
+    const r = Math.max(0, Math.min(1, parseInt(baseColor.slice(1, 3), 16) / 255 + (Math.random() - 0.5) * colorVariation));
+    const g = Math.max(0, Math.min(1, parseInt(baseColor.slice(3, 5), 16) / 255 + (Math.random() - 0.5) * colorVariation));
+    const b = Math.max(0, Math.min(1, parseInt(baseColor.slice(5, 7), 16) / 255 + (Math.random() - 0.5) * colorVariation));
+    
+    return {
+      color: new THREE.Color(r, g, b),
+      luminosity,
+      emissive: new THREE.Color(r * luminosity * 0.3, g * luminosity * 0.3, b * luminosity * 0.3)
+    };
   };
 
   useFrame(() => {
     if (meshRef.current) {
-      // Simple, slow rotation
-      meshRef.current.rotation.y += 0.005;
+      // Gentle celestial rotation
+      meshRef.current.rotation.y += 0.002;
+      meshRef.current.rotation.x += 0.001;
     }
   });
 
+  const starProps = getStarProperties();
+
   return (
     <group position={position}>
-      {/* Simple 3D globe with proper lighting */}
+      {/* Celestial body with realistic star rendering */}
       <mesh
         ref={meshRef}
         onPointerOver={() => {
@@ -131,13 +147,30 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
         onClick={() => onClick(node)}
         scale={hoverSize}
       >
-        <sphereGeometry args={[baseSize, 32, 32]} />
-        <meshPhongMaterial 
-          color={getNodeColor()} 
-          shininess={100}
-          specular={0x444444}
+        <sphereGeometry args={[baseSize, 16, 16]} />
+        <meshStandardMaterial 
+          color={starProps.color}
+          emissive={starProps.emissive}
+          emissiveIntensity={starProps.luminosity * 0.4}
+          roughness={0.8}
+          metalness={0.1}
+          transparent={true}
+          opacity={0.9}
         />
       </mesh>
+      
+      {/* Add subtle glow effect for important nodes */}
+      {importance > 7 && (
+        <mesh scale={[baseSize * 1.5, baseSize * 1.5, baseSize * 1.5]}>
+          <sphereGeometry args={[1, 8, 8]} />
+          <meshBasicMaterial 
+            color={starProps.color}
+            transparent={true}
+            opacity={0.1}
+            side={THREE.BackSide}
+          />
+        </mesh>
+      )}
       
       <NodeLabel 
         text={node.title} 

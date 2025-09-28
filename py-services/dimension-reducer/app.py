@@ -29,6 +29,14 @@ except ImportError:
     SKLEARN_AVAILABLE = False
     logging.warning("scikit-learn not available - install with: pip install scikit-learn")
 
+try:
+    import cloudpickle
+    CLOUDPICKLE_AVAILABLE = True
+except ImportError:
+    CLOUDPICKLE_AVAILABLE = False
+    cloudpickle = None
+    logging.warning("cloudpickle not available - install with: pip install cloudpickle")
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -37,7 +45,7 @@ logger = logging.getLogger(__name__)
 # Pydantic models
 class DimensionReductionRequest(BaseModel):
     vectors: List[List[float]] = Field(..., description="High-dimensional vectors to reduce")
-    method: Literal["umap_learning", "linear_transformation"] = Field(default="umap_learning", description="Reduction method")
+    method: Literal["umap_learning", "linear_transformation", "umap_transform"] = Field(default="umap_learning", description="Reduction method")
     target_dimensions: int = Field(default=3, ge=2, le=3, description="Target dimensions (2 or 3)")
     n_neighbors: Optional[int] = Field(default=15, ge=2, description="Number of neighbors for UMAP")
     min_dist: Optional[float] = Field(default=0.8, ge=0.0, le=1.0, description="Minimum distance for UMAP")
@@ -46,6 +54,8 @@ class DimensionReductionRequest(BaseModel):
     # V11.0 Cosmos: Hybrid UMAP parameters
     use_linear_transformation: bool = Field(default=True, description="Use linear transformation for incremental positioning")
     transformation_matrix: Optional[List[List[float]]] = Field(default=None, description="4x4 transformation matrix for linear positioning")
+    # V11.0 Cosmos: UMAP Transform parameters
+    fitted_umap_model: Optional[List[int]] = Field(default=None, description="Serialized UMAP model as byte array for transform operations")
 
 class DimensionReductionResponse(BaseModel):
     coordinates: List[List[float]] = Field(..., description="Reduced coordinates")
@@ -57,6 +67,9 @@ class DimensionReductionResponse(BaseModel):
     # V11.0 Cosmos: Hybrid UMAP response data
     transformation_matrix: Optional[List[List[float]]] = Field(default=None, description="4x4 transformation matrix for linear positioning")
     umap_parameters: Optional[dict] = Field(default=None, description="UMAP parameters used for this projection")
+    # V11.0 Cosmos: UMAP Transform response data
+    fitted_umap_model: Optional[List[int]] = Field(default=None, description="Serialized UMAP model as byte array")
+    model_metadata: Optional[dict] = Field(default=None, description="Model size, training info, etc.")
     is_incremental: bool = Field(default=False, description="Whether this was an incremental update")
 
 class HealthResponse(BaseModel):
@@ -134,9 +147,11 @@ async def reduce_dimensions(request: DimensionReductionRequest):
         
         # Perform dimension reduction
         if request.method == "umap_learning":
-            coordinates, transformation_matrix, umap_params = _reduce_with_umap_learning(X, request)
+            coordinates, transformation_matrix, fitted_model_bytes, umap_params, model_metadata = _reduce_with_umap_learning(X, request)
         elif request.method == "linear_transformation":
             coordinates = _reduce_with_linear_transformation(X, request)
+        elif request.method == "umap_transform":
+            coordinates = _reduce_with_umap_transform(X, request)
         else:
             raise HTTPException(status_code=400, detail=f"Unknown method: {request.method}")
         
@@ -159,7 +174,13 @@ async def reduce_dimensions(request: DimensionReductionRequest):
             response_data.update({
                 "transformation_matrix": transformation_matrix,
                 "umap_parameters": umap_params,
+                "fitted_umap_model": list(fitted_model_bytes) if fitted_model_bytes else None,
+                "model_metadata": model_metadata,
                 "is_incremental": False
+            })
+        elif request.method == "umap_transform":
+            response_data.update({
+                "is_incremental": True
             })
         
         return DimensionReductionResponse(**response_data)
@@ -215,11 +236,27 @@ def _reduce_with_umap_learning(X: np.ndarray, request: DimensionReductionRequest
         # This is the key part of the hybrid system!
         transformation_matrix = _create_ridge_transformation_matrix(X, umap_coordinates)
         
-        # Step 3: Normalize coordinates
+        # Step 3: Serialize the fitted UMAP model
+        if not CLOUDPICKLE_AVAILABLE:
+            raise HTTPException(status_code=503, detail="cloudpickle not available for model serialization")
+        
+        fitted_model_bytes = cloudpickle.dumps(reducer)
+        
+        # Step 4: Create model metadata
+        model_metadata = {
+            "training_node_count": X.shape[0],
+            "embedding_dimension": X.shape[1],
+            "target_dimensions": request.target_dimensions,
+            "model_size_bytes": len(fitted_model_bytes),
+            "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "umap_version": getattr(umap, '__version__', 'unknown')
+        }
+        
+        # Step 5: Normalize coordinates
         coordinates = _normalize_coordinates(umap_coordinates, target_range=50.0)
         
-        logger.info(f"UMAP Learning: Created {transformation_matrix.shape} transformation matrix using Ridge regression")
-        return coordinates, transformation_matrix.tolist(), umap_params
+        logger.info(f"UMAP Learning: Created {transformation_matrix.shape} transformation matrix and {len(fitted_model_bytes)} byte fitted model")
+        return coordinates, transformation_matrix.tolist(), fitted_model_bytes, umap_params, model_metadata
         
     except Exception as e:
         logger.error(f"UMAP learning failed: {str(e)}")
@@ -273,6 +310,43 @@ def _reduce_with_linear_transformation(X: np.ndarray, request: DimensionReductio
     except Exception as e:
         logger.error(f"Linear transformation failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Linear transformation failed: {str(e)}")
+
+def _reduce_with_umap_transform(X: np.ndarray, request: DimensionReductionRequest) -> np.ndarray:
+    """
+    V11.0 Cosmos: UMAP Transform Phase
+    
+    Uses a pre-computed fitted UMAP model to transform new embeddings to 3D coordinates.
+    This provides high-quality positioning while maintaining the learned manifold structure.
+    """
+    if not UMAP_AVAILABLE:
+        raise HTTPException(status_code=503, detail="UMAP not available")
+    if not CLOUDPICKLE_AVAILABLE:
+        raise HTTPException(status_code=503, detail="cloudpickle not available for model deserialization")
+    
+    try:
+        if not request.fitted_umap_model:
+            raise HTTPException(status_code=400, detail="fitted_umap_model is required for umap_transform method")
+        
+        # Convert byte array back to bytes
+        fitted_model_bytes = bytes(request.fitted_umap_model)
+        
+        # Deserialize the fitted UMAP model
+        fitted_model = cloudpickle.loads(fitted_model_bytes)
+        
+        # Transform new points using the fitted model
+        coordinates = fitted_model.transform(X)
+        
+        # Normalize coordinates to reasonable range
+        coordinates = _normalize_coordinates(coordinates, target_range=50.0)
+        
+        logger.info(f"UMAP transform completed for {X.shape[0]} new vectors using fitted model")
+        return coordinates
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"UMAP transform failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"UMAP transform failed: {str(e)}")
 
 
 def _normalize_coordinates(coordinates: np.ndarray, target_range: float = 10.0) -> np.ndarray:

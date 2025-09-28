@@ -16,7 +16,7 @@ interface NASAStarfieldBackgroundProps {
 }
 
 export const NASAStarfieldBackground: React.FC<NASAStarfieldBackgroundProps> = ({ 
-  resolution = '8k',
+  resolution = '16k',
   debug = false 
 }) => {
   const meshRef = useRef<THREE.Mesh>(null);
@@ -67,7 +67,7 @@ export const NASAStarfieldBackground: React.FC<NASAStarfieldBackgroundProps> = (
 
   return (
     <mesh ref={meshRef}>
-      <sphereGeometry args={[15000, 64, 64]} />
+      <sphereGeometry args={[5000, 64, 64]} />
       <meshBasicMaterial 
         map={texture}
         side={THREE.BackSide}
