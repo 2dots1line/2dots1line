@@ -427,7 +427,7 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
 
                     {/* DYNAMIC SECTIONS - Show all available sections directly */}
                     {dashboardConfig && dynamicDashboardData?.sections ? (
-                      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                      <div className="columns-1 lg:columns-2 xl:columns-3 gap-6 space-y-6">
                         {Object.entries(dynamicDashboardData.sections)
                           .filter(([sectionKey, sectionData]) => 
                             sectionData && 
@@ -444,7 +444,7 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                             return priorityA - priorityB;
                           })
                           .map(([sectionKey, sectionData]: [string, any]) => (
-                            <div key={sectionKey} className="h-fit">
+                            <div key={sectionKey} className="break-inside-avoid mb-6">
                               {renderSection(sectionKey, sectionData)}
                             </div>
                           ))}

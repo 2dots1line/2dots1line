@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Graph3D } from '../../components/cosmos/Graph3D';
 import { useCosmosStore } from '../../stores/CosmosStore';
 import { cosmosService } from '../../services/cosmosService';
@@ -24,10 +24,33 @@ const CosmosScene: React.FC = () => {
   } = useCosmosStore();
 
   // Edge control state
-  const [showEdges, setShowEdges] = useState(true);
+  const [showEdges, setShowEdges] = useState(false);
   const [edgeOpacity, setEdgeOpacity] = useState(0.8);
   const [edgeWidth, setEdgeWidth] = useState(3);
   const [animatedEdges, setAnimatedEdges] = useState(false);
+  
+  // Background loading state
+  const [isBackgroundLoading, setIsBackgroundLoading] = useState(false);
+  const [backgroundLoadError, setBackgroundLoadError] = useState<string | null>(null);
+
+  // Background loading handlers
+  const handleBackgroundLoadStart = useCallback(() => {
+    setIsBackgroundLoading(true);
+    setBackgroundLoadError(null);
+    console.log('🌌 Background loading started');
+  }, []);
+
+  const handleBackgroundLoadComplete = useCallback(() => {
+    setIsBackgroundLoading(false);
+    setBackgroundLoadError(null);
+    console.log('🌌 Background loading completed');
+  }, []);
+
+  const handleBackgroundLoadError = useCallback((error: Error) => {
+    setIsBackgroundLoading(false);
+    setBackgroundLoadError(error.message);
+    console.error('🌌 Background loading error:', error);
+  }, []);
 
   useEffect(() => {
     const fetchGraphData = async () => {
@@ -51,8 +74,9 @@ const CosmosScene: React.FC = () => {
 
   // Listen for coordinates_updated notifications and refresh Cosmos data
   useEffect(() => {
-    const handleCoordinatesUpdated = async (event: CustomEvent) => {
-      console.log('🌌 CosmosScene: Coordinates updated, refreshing graph data', event.detail);
+    const handleCoordinatesUpdated = async (event: Event) => {
+      const customEvent = event as CustomEvent;
+      console.log('🌌 CosmosScene: Coordinates updated, refreshing graph data', customEvent.detail);
       try {
         setLoading(true);
         const response = await cosmosService.getGraphProjection();
@@ -70,11 +94,11 @@ const CosmosScene: React.FC = () => {
     };
 
     // Listen for the custom event
-    window.addEventListener('cosmos-coordinates-updated', handleCoordinatesUpdated as EventListener);
+    window.addEventListener('cosmos-coordinates-updated', handleCoordinatesUpdated);
 
     // Cleanup
     return () => {
-      window.removeEventListener('cosmos-coordinates-updated', handleCoordinatesUpdated as EventListener);
+      window.removeEventListener('cosmos-coordinates-updated', handleCoordinatesUpdated);
     };
   }, [setGraphData, setLoading]);
 
@@ -244,6 +268,9 @@ const CosmosScene: React.FC = () => {
         edgeWidth={edgeWidth}
         animatedEdges={animatedEdges}
         modalOpen={!!selectedNode}
+        onBackgroundLoadStart={handleBackgroundLoadStart}
+        onBackgroundLoadComplete={handleBackgroundLoadComplete}
+        onBackgroundLoadError={handleBackgroundLoadError}
       />
       
       {/* Edge Controls */}
@@ -265,6 +292,38 @@ const CosmosScene: React.FC = () => {
       
       <CosmosInfoPanel />
       {selectedNode && <CosmosNodeModal node={selectedNode} onClose={() => setSelectedNode(null)} />}
+      
+      {/* Background Loading Overlay */}
+      {isBackgroundLoading && (
+        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-20">
+          <div className="bg-white/10 backdrop-blur-md rounded-lg p-6 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-4"></div>
+            <p className="text-white/90 text-sm">Loading cosmic background...</p>
+            <p className="text-white/60 text-xs mt-2">This may take a moment on first visit</p>
+          </div>
+        </div>
+      )}
+      
+      {/* Background Error Overlay */}
+      {backgroundLoadError && (
+        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-20">
+          <div className="bg-red-500/20 backdrop-blur-md rounded-lg p-6 text-center max-w-md">
+            <div className="text-red-400 text-2xl mb-4">⚠️</div>
+            <p className="text-white/90 text-sm mb-2">Failed to load cosmic background</p>
+            <p className="text-white/60 text-xs mb-4">{backgroundLoadError}</p>
+            <button 
+              onClick={() => {
+                setBackgroundLoadError(null);
+                // Trigger reload by changing a dependency
+                window.location.reload();
+              }}
+              className="bg-white/20 hover:bg-white/30 text-white text-xs px-4 py-2 rounded transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

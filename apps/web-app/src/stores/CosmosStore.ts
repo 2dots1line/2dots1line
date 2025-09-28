@@ -49,7 +49,7 @@ export const useCosmosStore = create<CosmosStoreState>()((set) => ({
   isLoading: true,
   error: null,
   selectedNode: null,
-  showNodeLabels: true, // Default to showing all labels
+  showNodeLabels: false, // Default to hiding labels for cleaner view
   setGraphData: (data) =>
     set({ graphData: data }),
   setLoading: (loading) =>

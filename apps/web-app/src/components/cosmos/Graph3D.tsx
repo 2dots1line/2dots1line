@@ -24,16 +24,22 @@ interface Graph3DProps {
   edgeWidth?: number;
   animatedEdges?: boolean;
   modalOpen?: boolean;
+  onBackgroundLoadStart?: () => void;
+  onBackgroundLoadComplete?: () => void;
+  onBackgroundLoadError?: (error: Error) => void;
 }
 
 export const Graph3D: React.FC<Graph3DProps> = ({ 
   graphData, 
   onNodeClick,
-  showEdges = true,
+  showEdges = false,
   edgeOpacity = 1.0,
   edgeWidth = 8,
   animatedEdges = false,
-  modalOpen = false
+  modalOpen = false,
+  onBackgroundLoadStart,
+  onBackgroundLoadComplete,
+  onBackgroundLoadError
 }) => {
   // State for hover management
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
@@ -194,7 +200,12 @@ export const Graph3D: React.FC<Graph3DProps> = ({
         far={20000} 
       />
       {/* NASA Deep Star Maps 2020 Background - Layer 1 (Distant) */}
-      <NASAStarfieldBackground resolution="8k" />
+      <NASAStarfieldBackground 
+        resolution="8k" 
+        onLoadStart={onBackgroundLoadStart}
+        onLoadComplete={onBackgroundLoadComplete}
+        onLoadError={onBackgroundLoadError}
+      />
       
       {/* Procedural Starfield - Layer 2 (Nearby stars for depth) */}
       <StarfieldBackground />
