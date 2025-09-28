@@ -85,3 +85,8 @@ covers/
 
 # Multiverse development assets
 DevLog/multiverse/
+
+# NASA star map
+apps/web-app/public/NASA/starmap_2020_16k.exr
+apps/web-app/public/NASA/starmap_2020_8k.exr
+apps/web-app/public/NASA/starmap_2020_32k.exr
