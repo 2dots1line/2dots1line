@@ -1,7 +1,8 @@
-import React, { useRef, useState, useMemo } from 'react';
+import React, { useRef, useState, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { NodeLabel } from './NodeLabel';
+import { getStarTexture } from './StarTextureMapping';
 
 // Define the actual node structure being passed from CosmosScene
 interface GraphNode {
@@ -36,6 +37,7 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
 }) => {
   const meshRef = useRef<THREE.Mesh>(null!);
   const [hovered, setHovered] = useState(false);
+  const [starTexture, setStarTexture] = useState<THREE.Texture | null>(null);
 
   // Use positions directly from the node object
   const position = useMemo(() => new THREE.Vector3(
@@ -44,17 +46,43 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
     node.z
   ), [node.x, node.y, node.z]);
 
+  // Load star texture for this node
+  useEffect(() => {
+    const loadTexture = async () => {
+      const texturePath = getStarTexture(node.entityType || 'default');
+      const loader = new THREE.TextureLoader();
+      
+      try {
+        const texture = await loader.loadAsync(texturePath);
+        texture.magFilter = THREE.NearestFilter;
+        setStarTexture(texture);
+      } catch (error) {
+        console.warn(`Failed to load texture: ${texturePath}`, error);
+        // Fallback to default texture
+        try {
+          const fallback = await loader.loadAsync('/textures/star1.png');
+          fallback.magFilter = THREE.NearestFilter;
+          setStarTexture(fallback);
+        } catch (fallbackError) {
+          console.error('Failed to load fallback texture:', fallbackError);
+        }
+      }
+    };
+
+    loadTexture();
+  }, [node.entityType]);
+
   // Calculate importance-based size and color
   const importance = node.importance || node.metadata?.importance_score || 0.5;
   // Normalize importance from 1-10 scale to 0-1 scale for better visual balance
   // This prevents MemoryUnits from being massively oversized compared to other node types
   const normalizedImportance = Math.min(importance / 10, 1.0);
   
-  // Increased sizing formula: base size 1.2 + normalized importance * 1.6
-  // This creates sizes from 1.2 to 2.8, making all nodes much more visible and clickable
-  // MemoryUnits (importance 7-10) will now be 2.32-2.8 instead of 0.96-1.2
-  // Concepts (importance 1-5) will now be 1.36-2.0 instead of 0.48-0.8
-  const baseSize = Math.max(1.2 + normalizedImportance * 1.6, 1.0); // Minimum size of 1.0
+  // Increased sizing formula: base size 2.0 + normalized importance * 2.5
+  // This creates sizes from 2.0 to 4.5, making all nodes much more visible and clickable
+  // MemoryUnits (importance 7-10) will now be 3.75-4.5 instead of 2.32-2.8
+  // Concepts (importance 1-5) will now be 2.25-3.25 instead of 1.36-2.0
+  const baseSize = Math.max(2.0 + normalizedImportance * 2.5, 1.5); // Minimum size of 1.5
   const hoverSize = baseSize * (hovered ? 1.2 : 1.0);
   
   // Celestial body color scheme based on entity type
@@ -131,9 +159,39 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
 
   const starProps = getStarProperties();
 
+  // Create star material with texture
+  const starMaterial = useMemo(() => {
+    if (!starTexture) return null;
+
+    return new THREE.PointsMaterial({
+      size: baseSize * 3, // Scale up more for better visibility
+      map: starTexture,
+      sizeAttenuation: true,
+      depthWrite: false,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      color: starProps.color,
+      opacity: 0.8
+    });
+  }, [starTexture, baseSize, starProps.color]);
+
   return (
     <group position={position}>
-      {/* Celestial body with realistic star rendering */}
+      {/* Visual: Star point with texture */}
+      {starMaterial && (
+        <points material={starMaterial}>
+          <bufferGeometry>
+            <bufferAttribute
+              attach="attributes-position"
+              count={1}
+              array={new Float32Array([0, 0, 0])}
+              itemSize={3}
+            />
+          </bufferGeometry>
+        </points>
+      )}
+      
+      {/* Interaction: Invisible click sphere */}
       <mesh
         ref={meshRef}
         onPointerOver={() => {
@@ -147,15 +205,12 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
         onClick={() => onClick(node)}
         scale={hoverSize}
       >
-        <sphereGeometry args={[baseSize, 16, 16]} />
-        <meshStandardMaterial 
-          color={starProps.color}
-          emissive={starProps.emissive}
-          emissiveIntensity={starProps.luminosity * 0.4}
-          roughness={0.8}
-          metalness={0.1}
-          transparent={true}
-          opacity={0.9}
+        <sphereGeometry args={[baseSize * 2, 8, 8]} />
+        <meshBasicMaterial 
+          transparent 
+          opacity={0}
+          depthWrite={false}
+          depthTest={false}
         />
       </mesh>
       

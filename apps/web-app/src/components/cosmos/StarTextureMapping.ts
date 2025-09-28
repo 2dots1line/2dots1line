@@ -4,15 +4,15 @@
  * Random assignment from the array
  */
 
-export const STAR_TEXTURE_MAPPING = {
-  memory_units: ['brightstar1.png', 'brightstar2.png', 'brightstar3.png', 'brightstar4.png'],
-  concepts: ['brightstar1.png', 'star5.png', 'star11.png'],
-  communities: ['star1.png', 'star3.png', 'star7.png', 'star9.png'],
-  derived_artifacts: ['star2.png', 'star4.png', 'star6.png'],
-  proactive_prompts: ['star8.png', 'star10.png'],
-  growth_events: ['brightstar1.png', 'brightstar2.png', 'star1.png'],
+export const STAR_TEXTURE_MAPPING: Record<string, string[]> = {
+  memory_units: ['brightstar1.png', 'brightstar2.png', 'brightstar3.png', 'brightstar4.png', 'star1.png', 'star3.png', 'star5.png'],
+  concepts: ['brightstar1.png', 'brightstar2.png', 'star5.png', 'star11.png', 'star2.png', 'star7.png'],
+  communities: ['brightstar3.png', 'brightstar4.png', 'star1.png', 'star3.png', 'star7.png', 'star9.png', 'star4.png'],
+  derived_artifacts: ['brightstar1.png', 'brightstar2.png', 'star2.png', 'star4.png', 'star6.png', 'star8.png'],
+  proactive_prompts: ['brightstar3.png', 'brightstar4.png', 'star8.png', 'star10.png', 'star1.png', 'star6.png'],
+  growth_events: ['brightstar1.png', 'brightstar2.png', 'brightstar3.png', 'star1.png', 'star3.png', 'star5.png'],
   // Default for unknown types
-  default: ['star1.png', 'star2.png']
+  default: ['brightstar1.png', 'star1.png', 'star2.png', 'star3.png']
 };
 
 /**
