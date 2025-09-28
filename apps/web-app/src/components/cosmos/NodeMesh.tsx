@@ -125,13 +125,8 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
     return new THREE.Color(r, g, b);
   }, [getCelestialColor]);
 
-  useFrame(() => {
-    if (meshRef.current) {
-      // Gentle celestial rotation
-      meshRef.current.rotation.y += 0.002;
-      meshRef.current.rotation.x += 0.001;
-    }
-  });
+  // No individual node rotation - nodes are points and should remain static
+  // The NodeClusterContainer handles all rotation for the entire cluster
 
   // Create star material with texture
   const starMaterial = useMemo(() => {

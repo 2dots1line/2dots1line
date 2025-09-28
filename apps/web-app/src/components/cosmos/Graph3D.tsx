@@ -7,6 +7,7 @@ import { CameraController } from './CameraController';
 import { NodeMesh } from './NodeMesh';
 import { EdgeMesh, AnimatedEdgeMesh } from './EdgeMesh';
 import { EdgeLabel } from './EdgeLabel';
+import { NodeClusterContainer } from './NodeClusterContainer';
 import * as THREE from 'three';
 
 // TODO: Define proper types for graph data
@@ -228,23 +229,25 @@ export const Graph3D: React.FC<Graph3DProps> = ({
         castShadow={false}
       />
       
-      {/* Render nodes */}
-      {graphData.nodes.map((node) => (
-        <NodeMesh 
-          key={node.id} 
-          node={node} 
-          onClick={onNodeClick} 
-          modalOpen={modalOpen}
-          onHover={(nodeId) => {
-            setHoveredNodeId(nodeId);
-            if (nodeId) {
-              positionCameraForNode(nodeId);
-            }
-          }}
-          isHighlighted={hoveredNodeId === node.id || 
-            (!!hoveredNodeId && getConnectedNodes(hoveredNodeId).includes(node.id))}
-        />
-      ))}
+      {/* Render nodes with 3D parallax rotation */}
+      <NodeClusterContainer rotationSpeed={0.0005} enableRotation={true}>
+        {graphData.nodes.map((node) => (
+          <NodeMesh 
+            key={node.id} 
+            node={node} 
+            onClick={onNodeClick} 
+            modalOpen={modalOpen}
+            onHover={(nodeId) => {
+              setHoveredNodeId(nodeId);
+              if (nodeId) {
+                positionCameraForNode(nodeId);
+              }
+            }}
+            isHighlighted={hoveredNodeId === node.id || 
+              (!!hoveredNodeId && getConnectedNodes(hoveredNodeId).includes(node.id))}
+          />
+        ))}
+      </NodeClusterContainer>
 
       {/* Render edges - controlled by showEdges prop and hover state */}
       {edges.map((edge, index) => {
