@@ -72,69 +72,49 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
     loadTexture();
   }, [node.entityType]);
 
-  // Calculate importance-based size and color
+  // Calculate importance-based size
   const importance = node.importance || node.metadata?.importance_score || 0.5;
   // Normalize importance from 1-10 scale to 0-1 scale for better visual balance
-  // This prevents MemoryUnits from being massively oversized compared to other node types
   const normalizedImportance = Math.min(importance / 10, 1.0);
   
   // Increased sizing formula: base size 2.0 + normalized importance * 2.5
-  // This creates sizes from 2.0 to 4.5, making all nodes much more visible and clickable
-  // MemoryUnits (importance 7-10) will now be 3.75-4.5 instead of 2.32-2.8
-  // Concepts (importance 1-5) will now be 2.25-3.25 instead of 1.36-2.0
   const baseSize = Math.max(2.0 + normalizedImportance * 2.5, 1.5); // Minimum size of 1.5
-  const hoverSize = baseSize * (hovered ? 1.2 : 1.0);
   
   // Celestial body color scheme based on entity type
-  const getCelestialColor = () => {
-    let baseColor;
-    
-    // Get entity type from node properties
-    const entityType = node.type || node.entityType || node.category || 'unknown';
+  const getCelestialColor = useMemo(() => {
+    // Get entity type from node properties (prioritize entityType, then type, then category)
+    const entityType = node.entityType || node.type || node.category || 'unknown';
     
     // Celestial color coding - more realistic star/planet colors
     switch (entityType) {
       // Table names (from database)
       case 'memory_units':
       case 'MemoryUnit':
-        baseColor = '#4a90e2'; // Blue-white star (like Sirius)
-        break;
+        return '#4a90e2'; // Blue-white star (like Sirius)
       case 'concepts':
       case 'Concept':
-        baseColor = '#f5f5dc'; // Yellow-white star (like our Sun)
-        break;
+        return '#f5f5dc'; // Yellow-white star (like our Sun)
       case 'communities':
       case 'Community':
-        baseColor = '#ff6b35'; // Orange-red star (like Betelgeuse)
-        break;
+        return '#ff6b35'; // Orange-red star (like Betelgeuse)
       case 'derived_artifacts':
       case 'DerivedArtifact':
       case 'Artifact':
-        baseColor = '#c77dff'; // Purple-blue star (like Vega)
-        break;
+        return '#c77dff'; // Purple-blue star (like Vega)
       case 'proactive_prompts':
       case 'ProactivePrompt':
-        baseColor = '#ffd700'; // Golden star (like Capella)
-        break;
+        return '#ffd700'; // Golden star (like Capella)
       case 'growth_events':
       case 'GrowthEvent':
-        baseColor = '#e6e6fa'; // White-blue star (like Rigel)
-        break;
+        return '#e6e6fa'; // White-blue star (like Rigel)
       default:
-        baseColor = '#b0b0b0'; // Neutral white star
-        break;
+        return '#b0b0b0'; // Neutral white star
     }
-    
-    return baseColor;
-  };
+  }, [node.entityType, node.type, node.category]);
 
-  // Generate realistic star properties
-  const getStarProperties = () => {
-    const baseColor = getCelestialColor();
-    const importance = node.importance || node.metadata?.importance_score || 0.5;
-    
-    // Star luminosity based on importance (brighter = more important)
-    const luminosity = Math.min(0.3 + (importance / 10) * 0.7, 1.0);
+  // Generate star color with subtle variation
+  const getStarColor = useMemo(() => {
+    const baseColor = getCelestialColor;
     
     // Add subtle color variation for realism
     const colorVariation = 0.1;
@@ -142,12 +122,8 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
     const g = Math.max(0, Math.min(1, parseInt(baseColor.slice(3, 5), 16) / 255 + (Math.random() - 0.5) * colorVariation));
     const b = Math.max(0, Math.min(1, parseInt(baseColor.slice(5, 7), 16) / 255 + (Math.random() - 0.5) * colorVariation));
     
-    return {
-      color: new THREE.Color(r, g, b),
-      luminosity,
-      emissive: new THREE.Color(r * luminosity * 0.3, g * luminosity * 0.3, b * luminosity * 0.3)
-    };
-  };
+    return new THREE.Color(r, g, b);
+  }, [getCelestialColor]);
 
   useFrame(() => {
     if (meshRef.current) {
@@ -156,8 +132,6 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
       meshRef.current.rotation.x += 0.001;
     }
   });
-
-  const starProps = getStarProperties();
 
   // Create star material with texture
   const starMaterial = useMemo(() => {
@@ -170,10 +144,10 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
       depthWrite: false,
       transparent: true,
       blending: THREE.AdditiveBlending,
-      color: starProps.color,
+      color: getStarColor,
       opacity: 0.8
     });
-  }, [starTexture, baseSize, starProps.color]);
+  }, [starTexture, baseSize, getStarColor]);
 
   return (
     <group position={position}>
@@ -203,7 +177,7 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
           onHover?.(null);
         }}
         onClick={() => onClick(node)}
-        scale={hoverSize}
+        scale={hovered ? 1.2 : 1.0}
       >
         <sphereGeometry args={[baseSize * 2, 8, 8]} />
         <meshBasicMaterial 
@@ -219,7 +193,7 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
         <mesh scale={[baseSize * 1.5, baseSize * 1.5, baseSize * 1.5]}>
           <sphereGeometry args={[1, 8, 8]} />
           <meshBasicMaterial 
-            color={starProps.color}
+            color={getStarColor}
             transparent={true}
             opacity={0.1}
             side={THREE.BackSide}

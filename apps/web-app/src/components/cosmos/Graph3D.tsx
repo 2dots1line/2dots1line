@@ -201,7 +201,7 @@ export const Graph3D: React.FC<Graph3DProps> = ({
       />
       {/* NASA Deep Star Maps 2020 Background - Layer 1 (Distant) */}
       <NASAStarfieldBackground 
-        resolution="8k" 
+        resolution="4k" 
         onLoadStart={onBackgroundLoadStart}
         onLoadComplete={onBackgroundLoadComplete}
         onLoadError={onBackgroundLoadError}

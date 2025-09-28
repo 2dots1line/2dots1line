@@ -39,7 +39,7 @@ export const NASAStarfieldBackground: React.FC<NASAStarfieldBackgroundProps> = (
 
   const loadTexture = useCallback(async () => {
     const texturePath = `/NASA/starmap_2020_${resolution}.exr`;
-    const cacheKey = `${texturePath}_${resolution}`;
+    const cacheKey = `${texturePath}_${resolution}_v2`; // Add version to bust cache
     
     // Check cache first
     if (textureCache.has(cacheKey)) {
