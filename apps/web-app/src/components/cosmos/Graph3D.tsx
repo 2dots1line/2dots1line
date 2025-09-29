@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { PerspectiveCamera } from '@react-three/drei';
 import { StarfieldBackground } from './StarfieldBackground';
@@ -174,6 +174,31 @@ export const Graph3D: React.FC<Graph3DProps> = ({
     return true;
   };
 
+  // Calculate node cluster center for better camera positioning
+  const nodeClusterCenter = useMemo(() => {
+    if (graphData.nodes.length === 0) return { x: 0, y: 0, z: 0 };
+    
+    const sum = graphData.nodes.reduce(
+      (acc, node) => ({
+        x: acc.x + node.x,
+        y: acc.y + node.y,
+        z: acc.z + node.z
+      }),
+      { x: 0, y: 0, z: 0 }
+    );
+    
+    const center = {
+      x: sum.x / graphData.nodes.length,
+      y: sum.y / graphData.nodes.length,
+      z: sum.z / graphData.nodes.length
+    };
+    
+    console.log('🌌 Node cluster center:', center);
+    console.log('🌌 Node positions sample:', graphData.nodes.slice(0, 5).map(n => ({ id: n.id, x: n.x, y: n.y, z: n.z })));
+    
+    return center;
+  }, [graphData.nodes]);
+
   // Camera auto-positioning disabled - keeping manual camera control
   const positionCameraForNode = useCallback((nodeId: string) => {
     // Camera positioning disabled - keeping manual camera control
@@ -182,6 +207,7 @@ export const Graph3D: React.FC<Graph3DProps> = ({
 
   return (
     <Canvas
+      id="cosmos-canvas"
       style={{
         width: '100vw',
         height: '100vh',
@@ -195,10 +221,10 @@ export const Graph3D: React.FC<Graph3DProps> = ({
     >
       <PerspectiveCamera 
         makeDefault 
-        position={[0, 0, 50]} 
+        position={[0, 0, 100]} 
         fov={75} 
         near={0.1} 
-        far={20000} 
+        far={50000} 
       />
       {/* NASA Deep Star Maps 2020 Background - Layer 1 (Distant) */}
       <NASAStarfieldBackground 
@@ -230,7 +256,11 @@ export const Graph3D: React.FC<Graph3DProps> = ({
       />
       
       {/* Render nodes with 3D parallax rotation */}
-      <NodeClusterContainer rotationSpeed={0.0005} enableRotation={true}>
+      <NodeClusterContainer 
+        rotationSpeed={0.0005} 
+        enableRotation={true}
+        isHovered={!!hoveredNodeId}
+      >
         {graphData.nodes.map((node) => (
           <NodeMesh 
             key={node.id} 
@@ -247,9 +277,8 @@ export const Graph3D: React.FC<Graph3DProps> = ({
               (!!hoveredNodeId && getConnectedNodes(hoveredNodeId).includes(node.id))}
           />
         ))}
-      </NodeClusterContainer>
 
-      {/* Render edges - controlled by showEdges prop and hover state */}
+        {/* Render edges - controlled by showEdges prop and hover state */}
       {edges.map((edge, index) => {
         // Only show edge if it meets visibility criteria
         if (!shouldShowEdge(edge)) return null;
@@ -305,6 +334,7 @@ export const Graph3D: React.FC<Graph3DProps> = ({
           </group>
         );
       })}
+      </NodeClusterContainer>
     </Canvas>
   );
 };

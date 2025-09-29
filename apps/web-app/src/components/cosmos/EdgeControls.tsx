@@ -3,7 +3,7 @@
  * Provides controls for edge visibility and styling in the Cosmos view
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Eye, EyeOff, Settings, Palette, Zap } from 'lucide-react';
 
 interface EdgeControlsProps {
@@ -30,9 +30,27 @@ export const EdgeControls: React.FC<EdgeControlsProps> = ({
   className = ''
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsExpanded(false);
+      }
+    };
+
+    if (isExpanded) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isExpanded]);
 
   return (
-    <div className={`edge-controls ${className}`}>
+    <div ref={containerRef} className={`edge-controls relative flex gap-2 ${className}`}>
       {/* Main toggle button */}
       <button
         onClick={() => onToggleEdges(!showEdges)}
@@ -57,7 +75,7 @@ export const EdgeControls: React.FC<EdgeControlsProps> = ({
 
       {/* Expanded controls */}
       {isExpanded && (
-        <div className="absolute top-full left-0 mt-2 p-4 bg-black/80 backdrop-blur-sm rounded-lg border border-white/20 min-w-64">
+        <div className="absolute top-full right-0 mt-2 p-4 bg-black/80 backdrop-blur-sm rounded-lg border border-white/20 min-w-64 z-50 shadow-2xl">
           <h3 className="text-white font-medium mb-3 flex items-center gap-2">
             <Palette size={16} />
             Edge Settings

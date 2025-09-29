@@ -10,6 +10,7 @@ interface NodeLabelProps {
   nodeId: string;
   modalOpen?: boolean;
   isHighlighted?: boolean; // New prop to indicate if this node should show label when labels are off
+  nodeRef?: React.RefObject<THREE.Group>; // Reference to the actual node for world position
 }
 
 export const NodeLabel: React.FC<NodeLabelProps> = ({ 
@@ -18,7 +19,8 @@ export const NodeLabel: React.FC<NodeLabelProps> = ({
   hovered, 
   nodeId, 
   modalOpen = false,
-  isHighlighted = false 
+  isHighlighted = false,
+  nodeRef
 }) => {
   const { camera, gl } = useThree();
   const { showNodeLabels } = useCosmosStore();
@@ -36,14 +38,26 @@ export const NodeLabel: React.FC<NodeLabelProps> = ({
 
   // Convert 3D position to 2D screen coordinates
   useFrame(() => {
-    // Use the world position directly (position is already the node's world position)
-    const vector = position.clone();
+    let worldPosition: THREE.Vector3;
+    
+    // Get the actual world position of the node if nodeRef is provided
+    if (nodeRef?.current) {
+      // Get the world position of the node after all transformations
+      worldPosition = new THREE.Vector3();
+      nodeRef.current.getWorldPosition(worldPosition);
+    } else {
+      // Fallback to the static position (for backward compatibility)
+      worldPosition = position.clone();
+    }
+    
+    const vector = worldPosition.clone();
     vector.project(camera);
     
     // Debug logging for first few nodes
     if (nodeId === 'mu-001' || nodeId === 'concept-def') {
       console.log(`🔍 NodeLabel ${nodeId}:`, {
-        worldPosition: { x: position.x, y: position.y, z: position.z },
+        staticPosition: { x: position.x, y: position.y, z: position.z },
+        worldPosition: { x: worldPosition.x, y: worldPosition.y, z: worldPosition.z },
         projectedVector: { x: vector.x, y: vector.y, z: vector.z },
         screenCoords: { 
           x: (vector.x * 0.5 + 0.5) * gl.domElement.clientWidth,

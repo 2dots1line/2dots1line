@@ -156,7 +156,7 @@ export const NASAStarfieldTest: React.FC<NASAStarfieldProps> = ({
           position={[0, 0, 50]} 
           fov={75}
           near={0.1}
-          far={20000}
+          far={50000}
         />
         
         {/* Simple test - just the NASA starfield background */}

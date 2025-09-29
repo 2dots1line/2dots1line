@@ -26,7 +26,7 @@ let isLoading = false;
 const loadingCallbacks = new Set<() => void>();
 
 export const NASAStarfieldBackground: React.FC<NASAStarfieldBackgroundProps> = ({ 
-  resolution = '4k',
+  resolution = '16k',
   debug = false,
   onLoadStart,
   onLoadComplete,
@@ -147,7 +147,7 @@ export const NASAStarfieldBackground: React.FC<NASAStarfieldBackgroundProps> = (
 
   return (
     <mesh ref={meshRef}>
-      <sphereGeometry args={[5000, 64, 64]} />
+      <sphereGeometry args={[15000, 64, 64]} />
       <meshBasicMaterial 
         map={texture}
         side={THREE.BackSide}

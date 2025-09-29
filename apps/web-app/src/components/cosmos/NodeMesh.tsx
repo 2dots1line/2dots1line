@@ -36,6 +36,7 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
   isHighlighted = false 
 }) => {
   const meshRef = useRef<THREE.Mesh>(null!);
+  const groupRef = useRef<THREE.Group>(null!);
   const [hovered, setHovered] = useState(false);
   const [starTexture, setStarTexture] = useState<THREE.Texture | null>(null);
 
@@ -145,7 +146,7 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
   }, [starTexture, baseSize, getStarColor]);
 
   return (
-    <group position={position}>
+    <group ref={groupRef} position={position}>
       {/* Visual: Star point with texture */}
       {starMaterial && (
         <points material={starMaterial}>
@@ -203,6 +204,7 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
         nodeId={node.id} 
         modalOpen={modalOpen}
         isHighlighted={isHighlighted}
+        nodeRef={groupRef}
       />
     </group>
   );

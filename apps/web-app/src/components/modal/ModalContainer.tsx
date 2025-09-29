@@ -15,7 +15,6 @@ import { HRTControlPanel } from '../settings/HRTControlPanel';
 
 import { EnhancedCardModal } from './EnhancedCardModal';
 import ChatModal from './ChatModal';
-import { CosmosModal } from './CosmosModal';
 import DashboardModal from './DashboardModal';
 import { ConversationHistoryModal } from './ConversationHistoryModal';
 
@@ -323,10 +322,6 @@ export const ModalContainer: React.FC<ModalContainerProps> = ({
           />
           <ChatModal 
             isOpen={activeView === 'chat'} 
-            onClose={handleClose} 
-          />
-          <CosmosModal 
-            isOpen={activeView === 'cosmos'} 
             onClose={handleClose} 
           />
           <SettingsModal 

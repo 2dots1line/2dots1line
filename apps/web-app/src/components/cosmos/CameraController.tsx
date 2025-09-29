@@ -33,30 +33,29 @@ export const CameraController: React.FC = () => {
   }, []);
 
   useFrame(() => {
-    const moveSpeed = keys.shift ? 10 : 5;
+    const moveSpeed = keys.shift ? 20 : 10;
     const hasManualInput = keys.w || keys.a || keys.s || keys.d || keys.space;
 
-    if (hasManualInput && controlsRef.current) {
-      const target = controlsRef.current.target;
-
-      if (keys.w || keys.s) {
-        const toTarget = new THREE.Vector3().subVectors(target, camera.position).normalize();
-        if (keys.w) camera.position.addScaledVector(toTarget, moveSpeed);
-        if (keys.s) camera.position.addScaledVector(toTarget, -moveSpeed);
-      }
-
+    if (hasManualInput) {
+      // Free camera movement - move in camera's local space
+      const direction = new THREE.Vector3();
+      camera.getWorldDirection(direction);
+      
+      if (keys.w) camera.position.addScaledVector(direction, moveSpeed);
+      if (keys.s) camera.position.addScaledVector(direction, -moveSpeed);
+      
       if (keys.a || keys.d) {
-        const direction = new THREE.Vector3();
-        camera.getWorldDirection(direction);
         const right = new THREE.Vector3().crossVectors(direction, camera.up).normalize();
         if (keys.a) camera.position.addScaledVector(right, -moveSpeed);
         if (keys.d) camera.position.addScaledVector(right, moveSpeed);
       }
-
+      
       if (keys.space) camera.position.y += moveSpeed;
     }
   });
 
+  // Use OrbitControls with no distance constraints for free movement
+  // This allows both free 3D movement AND preserves hover detection
   return (
     <OrbitControls
       ref={controlsRef}
@@ -68,6 +67,8 @@ export const CameraController: React.FC = () => {
       zoomSpeed={3.0}
       rotateSpeed={0.5}
       panSpeed={0.8}
+      // Remove distance constraints for free flight through all layers
+      // minDistance and maxDistance removed to allow unlimited movement
     />
   );
 };
