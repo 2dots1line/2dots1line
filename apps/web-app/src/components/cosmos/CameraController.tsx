@@ -7,6 +7,9 @@ export const CameraController: React.FC = () => {
   const { camera } = useThree();
   const controlsRef = useRef<any>();
   const [keys, setKeys] = useState({ w: false, a: false, s: false, d: false, shift: false, space: false });
+  
+  // Calculate if manual input is active (for OrbitControls enabled state)
+  const hasManualInput = keys.w || keys.a || keys.s || keys.d || keys.space;
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -34,7 +37,6 @@ export const CameraController: React.FC = () => {
 
   useFrame(() => {
     const moveSpeed = keys.shift ? 20 : 10;
-    const hasManualInput = keys.w || keys.a || keys.s || keys.d || keys.space;
 
     if (hasManualInput) {
       // Free camera movement - move in camera's local space
@@ -59,6 +61,7 @@ export const CameraController: React.FC = () => {
   return (
     <OrbitControls
       ref={controlsRef}
+      enabled={!hasManualInput} // Disable OrbitControls when WASD is active for free flight
       enableDamping
       dampingFactor={0.05}
       enableRotate={true}
