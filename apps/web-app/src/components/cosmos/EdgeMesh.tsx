@@ -1,4 +1,5 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
 interface EdgeMeshProps {
@@ -80,6 +81,8 @@ export const AnimatedEdgeMesh: React.FC<EdgeMeshProps & { animated?: boolean }> 
   weight = 1.0,
   animated = false
 }) => {
+  const materialRef = useRef<THREE.ShaderMaterial | null>(null);
+
   const geometry = useMemo(() => {
     const geom = new THREE.BufferGeometry();
     geom.setFromPoints(points);
@@ -101,7 +104,7 @@ export const AnimatedEdgeMesh: React.FC<EdgeMeshProps & { animated?: boolean }> 
   const animatedMaterial = useMemo(() => {
     if (!animated) return material;
     
-    return new THREE.ShaderMaterial({
+    const shaderMaterial = new THREE.ShaderMaterial({
       uniforms: {
         time: { value: 0 },
         color: { value: new THREE.Color(color) },
@@ -130,7 +133,18 @@ export const AnimatedEdgeMesh: React.FC<EdgeMeshProps & { animated?: boolean }> 
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
+
+    // Store reference for animation updates
+    materialRef.current = shaderMaterial;
+    return shaderMaterial;
   }, [animated, color, opacity, weight, material]);
+
+  // Update time uniform for animation
+  useFrame((state) => {
+    if (animated && materialRef.current) {
+      materialRef.current.uniforms.time.value = state.clock.elapsedTime;
+    }
+  });
 
   return (
     <line>
