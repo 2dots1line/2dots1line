@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { MarkdownRenderer } from '@2dots1line/ui-components';
 import { DashboardSection as DashboardSectionType, DashboardSectionItem } from '../../services/dashboardService';
 
 interface DashboardSectionProps {
@@ -137,9 +138,13 @@ const DashboardItem: React.FC<DashboardItemProps> = ({ item, index }) => {
         </div>
       </div>
       
-      <p className="text-gray-700 text-sm leading-relaxed mb-3">
-        {item.content}
-      </p>
+      <div className="text-gray-700 text-sm leading-relaxed mb-3">
+        <MarkdownRenderer 
+          content={item.content}
+          variant="card"
+          className="text-gray-700 text-sm leading-relaxed"
+        />
+      </div>
       
       <div className="flex items-center justify-between text-xs text-gray-500">
         <span>{new Date(item.created_at).toLocaleDateString()}</span>

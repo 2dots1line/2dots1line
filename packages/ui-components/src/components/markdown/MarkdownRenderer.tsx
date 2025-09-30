@@ -80,8 +80,8 @@ function formatMarkdownContent(text: string): string {
   // Bold text (**...**)
   formattedText = formattedText.replace(/\*\*([^*<>]+)\*\*/g, '<strong>$1</strong>');
   
-  // Italic text (*...*)
-  formattedText = formattedText.replace(/(?<![*-] )\*([^*<>]+)\*(?![^<>]*>)/g, '<em>$1</em>');
+  // Italic text (*...*) - simplified regex to avoid over-restrictive lookbehind/lookahead
+  formattedText = formattedText.replace(/\*([^*<>]+)\*/g, '<em>$1</em>');
 
   // Phase 4: Cleanup
   formattedText = formattedText.replace(/<ul class="message-list"[^>]*><\/ul>/g, '');
