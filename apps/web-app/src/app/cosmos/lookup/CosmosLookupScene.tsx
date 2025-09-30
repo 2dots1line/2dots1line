@@ -102,7 +102,7 @@ const CosmosLookupScene: React.FC = () => {
 
         return ({
           id: node.id,
-          type: (node.entityType || node.type || 'Concept') as 'Concept' | 'MemoryUnit' | 'DerivedArtifact',
+          type: (node.entity_type || node.entityType || 'concept') as 'Concept' | 'MemoryUnit' | 'DerivedArtifact',
           label: node.title || node.label || node.id,
           // Keep both raw position_x/y/z and normalized x/y/z so downstream can use either
           position_x: px,

@@ -50,10 +50,10 @@ export const useEntityDetails = (item: any): UseEntityDetailsReturn => {
       // This is a card - use its source entity
       entityId = item.source_entity_id;
       entityType = item.source_entity_type;
-    } else if (item?.id && item?.type) {
-      // This is a node - use its id and type
+    } else if (item?.id && (item?.entity_type || item?.type)) {
+      // This is a node - use its id and entity_type (prefer entity_type over type)
       entityId = item.id;
-      entityType = item.type;
+      entityType = item.entity_type || item.type;
     } else {
       setError('Invalid item data - missing entity ID or type');
       return;
