@@ -327,13 +327,15 @@ export const Graph3D: React.FC<Graph3DProps> = ({
                 />
               )}
               
-              {/* Edge label */}
-              <EdgeLabel 
-                points={points}
-                label={edgeLabel}
-                color={edgeColor}
-                edgeId={`${edge.source}-${edge.target}`}
-              />
+              {/* Edge label - only show when edges are in hover mode */}
+              {!showEdges && (
+                <EdgeLabel 
+                  points={points}
+                  label={edgeLabel}
+                  color={edgeColor}
+                  edgeId={`${edge.source}-${edge.target}`}
+                />
+              )}
             </group>
           );
         })}
