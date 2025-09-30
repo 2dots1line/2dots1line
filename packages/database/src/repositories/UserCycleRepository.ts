@@ -79,7 +79,7 @@ export class UserCycleRepository {
         status: 'completed'
       },
       take: limit,
-      orderBy: { completed_at: 'desc' },
+      orderBy: { ended_at: 'desc' },
     });
   }
 
