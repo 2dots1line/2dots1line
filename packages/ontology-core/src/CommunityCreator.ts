@@ -1,4 +1,5 @@
 import { CommunityRepository, DatabaseService } from '@2dots1line/database/dist';
+import { RelationshipUtils } from '@2dots1line/core-utils';
 import { randomUUID } from 'crypto';
 
 export interface CommunityStructure {
@@ -68,7 +69,7 @@ export class CommunityCreator {
   /**
    * Create Community node in Neo4j with member concept relationships
    */
-  async createNeo4jCommunity(community: any, memberConceptIds: string[], generatedCommunityId: string): Promise<void> {
+  async createNeo4jCommunity(community: any, memberConceptIds: string[], generatedCommunityId: string, userId: string): Promise<void> {
     if (!this.dbService.neo4j) {
       console.warn('[CommunityCreator] Neo4j client not available, skipping community creation');
       return;
@@ -107,23 +108,52 @@ export class CommunityCreator {
 
       // Create MEMBER_OF relationships with concepts
       if (memberConceptIds.length > 0) {
-        const memberRelationshipsCypher = `
-          MATCH (c:Community {community_id: $communityId})
-          MATCH (concept:Concept {id: $conceptId})
-          CREATE (concept)-[r:MEMBER_OF {
-            joined_at: datetime(),
-            community_id: $communityId
-          }]->(c)
-          RETURN r
-        `;
-
         for (const conceptId of memberConceptIds) {
           try {
+            // Generate complete relationship properties
+            // Use community's strategic importance to derive relationship strength
+            // Strategic importance is 1-10, convert to 0.0-1.0 scale
+            const derivedStrength = Math.min(1.0, Math.max(0.1, community.strategic_importance / 10));
+            
+            const relationshipProps = RelationshipUtils.createRelationshipProps(
+              'MEMBER_OF',
+              'community-creator',
+              userId,
+              { 
+                strength: derivedStrength, // Derived from community's strategic importance
+                description: `Member of community: ${community.theme}` 
+              }
+            );
+            
+            const memberRelationshipsCypher = `
+              MATCH (c:Community {community_id: $communityId})
+              MATCH (concept:Concept {id: $conceptId})
+              CREATE (concept)-[r:MEMBER_OF {
+                relationship_id: $relationshipId,
+                relationship_type: $relationshipType,
+                created_at: $createdAt,
+                user_id: $userId,
+                source_agent: $sourceAgent,
+                strength: $strength,
+                description: $description,
+                joined_at: datetime(),
+                community_id: $communityId
+              }]->(c)
+              RETURN r
+            `;
+
             await session.run(memberRelationshipsCypher, {
               communityId: generatedCommunityId,
-              conceptId
+              conceptId,
+              relationshipId: relationshipProps.relationship_id,
+              relationshipType: relationshipProps.relationship_type,
+              createdAt: relationshipProps.created_at,
+              userId: relationshipProps.user_id,
+              sourceAgent: relationshipProps.source_agent,
+              strength: relationshipProps.strength,
+              description: relationshipProps.description
             });
-            console.log(`[CommunityCreator] Created MEMBER_OF relationship: Concept ${conceptId} -> Community ${generatedCommunityId}`);
+            console.log(`[CommunityCreator] Created MEMBER_OF relationship: Concept ${conceptId} -> Community ${generatedCommunityId} (ID: ${relationshipProps.relationship_id})`);
           } catch (error) {
             console.error(`[CommunityCreator] Error creating MEMBER_OF relationship for concept ${conceptId}:`, error);
             // Continue with other concepts even if one fails

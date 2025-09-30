@@ -205,7 +205,14 @@ const CosmosLookupScene: React.FC = () => {
         UNWIND $entityIds AS entityId
         MATCH (a { entity_id: entityId, user_id: $userId })-[r]->(b)
         WHERE b.entity_id IN $entityIds AND b.user_id = $userId
-        RETURN a.entity_id as source, b.entity_id as target, type(r) as type, r.weight as weight, r.created_at as created_at
+        RETURN a.entity_id as source, b.entity_id as target, type(r) as type,
+               r.relationship_id as relationship_id,
+               r.relationship_type as relationship_type,
+               r.strength as strength,
+               r.weight as weight,
+               r.description as description,
+               r.source_agent as source_agent,
+               r.created_at as created_at
         LIMIT 100
       `;
 
@@ -483,8 +490,11 @@ const CosmosLookupScene: React.FC = () => {
           id: rel.relationship_id || `${rel.source}-${rel.target}-${rel.type || 'related'}-${index}`,
           source: rel.source,
           target: rel.target,
-          type: rel.type || 'related',
-          weight: rel.weight || 1.0,
+          type: rel.relationship_type || rel.type || 'related',
+          weight: rel.strength || rel.weight || 1.0, // Use strength as primary, fallback to weight
+          strength: rel.strength || rel.weight || 1.0, // Also provide strength for frontend
+          description: rel.description,
+          source_agent: rel.source_agent,
           created_at: rel.created_at
         }))
       ];

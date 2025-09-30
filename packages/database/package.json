@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@2dots1line/core-utils": "workspace:*",
+    "@2dots1line/shared-types": "workspace:*",
     "@prisma/client": "^6.15.0",
     "denque": "^2.1.0",
     "form-data": "^4.0.2",

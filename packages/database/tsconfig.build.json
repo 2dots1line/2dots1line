@@ -1,14 +1,11 @@
 {
-    "extends": "./tsconfig.json",
-    "compilerOptions": {
-      "noEmit": false,
-      "tsBuildInfoFile": "./dist/tsconfig.build.tsbuildinfo"
-    },
-    "exclude": [
-      "node_modules",
-      "dist",
-      "src/__tests__",
-      "src/repositories/__tests__",
-      "../shared-types/**/*"
-    ]
-  }
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "tsBuildInfoFile": "./dist/tsconfig.build.tsbuildinfo"
+  },
+  "references": [
+    { "path": "../shared-types" },
+    { "path": "../core-utils" }
+  ]
+}

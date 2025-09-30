@@ -12,6 +12,7 @@
     "clean:all": "rimraf dist node_modules tsconfig.build.tsbuildinfo"
   },
   "dependencies": {
+    "@2dots1line/shared-types": "workspace:*",
     "date-fns": "^2.30.0",
     "date-fns-tz": "^2.0.0",
     "uuid": "^9.0.1",

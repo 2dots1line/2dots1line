@@ -35,7 +35,7 @@ export class GraphController {
   private getEdgeColor(relationshipType: string): string {
     switch (relationshipType) {
       case 'RELATED_TO':
-        return '#ffffff'; // White for general relationships
+        return '#60a5fa'; // Light blue for general relationships
       case 'MEMBER_OF':
         return '#4ade80'; // Green for membership
       case 'DERIVED_FROM':
@@ -199,12 +199,16 @@ export class GraphController {
       
       // Transform relationships to edges
       const transformedEdges = relationships.map((rel: any) => ({
-        id: `${rel.source}-${rel.target}-${rel.type}`,
+        id: rel.relationship_id || `${rel.source}-${rel.target}-${rel.type}`,
         source: rel.source,
         target: rel.target,
-        type: rel.type,
-        weight: rel.weight || 1.0,
-        color: this.getEdgeColor(rel.type)
+        type: rel.relationship_type || rel.type,
+        weight: rel.strength || rel.weight || 1.0, // Use strength as primary, fallback to weight for legacy
+        strength: rel.strength || rel.weight || 1.0, // Also provide strength for frontend
+        description: rel.description,
+        source_agent: rel.source_agent,
+        created_at: rel.created_at,
+        color: this.getEdgeColor(rel.relationship_type || rel.type)
       }));
       
       const transformedProjectionData = {

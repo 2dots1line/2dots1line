@@ -410,6 +410,9 @@ importers:
 
   packages/core-utils:
     dependencies:
+      '@2dots1line/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
       date-fns:
         specifier: ^2.30.0
         version: 2.30.0
@@ -511,6 +514,9 @@ importers:
 
   packages/ontology-core:
     dependencies:
+      '@2dots1line/core-utils':
+        specifier: workspace:*
+        version: link:../core-utils
       '@2dots1line/database':
         specifier: workspace:*
         version: link:../database

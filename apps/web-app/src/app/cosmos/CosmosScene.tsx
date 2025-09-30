@@ -27,7 +27,7 @@ const CosmosScene: React.FC = () => {
   const [showEdges, setShowEdges] = useState(false);
   const [edgeOpacity, setEdgeOpacity] = useState(0.8);
   const [edgeWidth, setEdgeWidth] = useState(3);
-  const [animatedEdges, setAnimatedEdges] = useState(false);
+  const [animatedEdges, setAnimatedEdges] = useState(true);
   
   // Background loading state
   const [isBackgroundLoading, setIsBackgroundLoading] = useState(false);

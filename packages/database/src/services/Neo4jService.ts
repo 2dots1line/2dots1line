@@ -59,7 +59,13 @@ export class Neo4jService {
       MATCH (a)-[r]->(b) 
       WHERE a.user_id = $userId AND b.user_id = $userId
       RETURN a.entity_id as source, b.entity_id as target, type(r) as type, 
-             r.weight as weight, r.created_at as created_at
+             r.relationship_id as relationship_id,
+             r.relationship_type as relationship_type,
+             r.strength as strength,
+             r.weight as weight,
+             r.description as description,
+             r.source_agent as source_agent,
+             r.created_at as created_at
       ORDER BY r.created_at DESC
     `;
     
@@ -69,7 +75,12 @@ export class Neo4jService {
         source: record.get('source'),
         target: record.get('target'),
         type: record.get('type'),
-        weight: record.get('weight') || 1.0,
+        relationship_id: record.get('relationship_id'),
+        relationship_type: record.get('relationship_type'),
+        strength: record.get('strength') || record.get('weight') || 1.0, // Use strength, fallback to weight for legacy
+        weight: record.get('weight') || record.get('strength') || 1.0, // Keep weight for backward compatibility
+        description: record.get('description'),
+        source_agent: record.get('source_agent'),
         created_at: record.get('created_at')
       }));
     } catch (error) {

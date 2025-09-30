@@ -8,7 +8,8 @@ interface EdgeMeshProps {
   width?: number;
   opacity?: number;
   type?: string;
-  weight?: number;
+  strength?: number; // Primary property for relationship intensity
+  weight?: number; // Legacy fallback
 }
 
 /**
@@ -21,8 +22,11 @@ export const EdgeMesh: React.FC<EdgeMeshProps> = ({
   width = 2, 
   opacity = 0.6,
   type = 'default',
-  weight = 1.0
+  strength = 1.0, // Primary property
+  weight // Legacy fallback
 }) => {
+  // Use strength as primary, fallback to weight for legacy data
+  const effectiveStrength = strength !== undefined && strength !== null ? strength : (weight || 1.0);
   // Memoize the geometry so it's only created when points change
   const geometry = useMemo(() => {
     const geom = new THREE.BufferGeometry();
@@ -35,24 +39,24 @@ export const EdgeMesh: React.FC<EdgeMeshProps> = ({
     return new THREE.LineBasicMaterial({
       color: new THREE.Color(color),
       transparent: true,
-      opacity: opacity * weight, // Weight affects opacity
+      opacity: opacity * effectiveStrength, // Use strength for opacity
       linewidth: width,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
-  }, [color, opacity, width, weight]);
+  }, [color, opacity, width, effectiveStrength]);
 
   // Add glow effect for better visibility
   const glowMaterial = useMemo(() => {
     return new THREE.LineBasicMaterial({
       color: new THREE.Color(color),
       transparent: true,
-      opacity: (opacity * weight * 0.3), // Subtle glow
+      opacity: (opacity * effectiveStrength * 0.3), // Subtle glow using strength
       linewidth: width * 3, // Wider glow
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
-  }, [color, opacity, width, weight]);
+  }, [color, opacity, width, effectiveStrength]);
 
   return (
     <group>
@@ -78,9 +82,12 @@ export const AnimatedEdgeMesh: React.FC<EdgeMeshProps & { animated?: boolean }> 
   width = 2, 
   opacity = 0.6,
   type = 'default',
-  weight = 1.0,
+  strength = 1.0, // Primary property
+  weight, // Legacy fallback
   animated = false
 }) => {
+  // Use strength as primary, fallback to weight for legacy data
+  const effectiveStrength = strength !== undefined && strength !== null ? strength : (weight || 1.0);
   const materialRef = useRef<THREE.ShaderMaterial | null>(null);
 
   const geometry = useMemo(() => {
@@ -93,12 +100,12 @@ export const AnimatedEdgeMesh: React.FC<EdgeMeshProps & { animated?: boolean }> 
     return new THREE.LineBasicMaterial({
       color: new THREE.Color(color),
       transparent: true,
-      opacity: opacity * weight,
+      opacity: opacity * effectiveStrength,
       linewidth: width,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
-  }, [color, opacity, width, weight]);
+  }, [color, opacity, width, effectiveStrength]);
 
   // Animated material for flowing effect
   const animatedMaterial = useMemo(() => {
@@ -108,7 +115,7 @@ export const AnimatedEdgeMesh: React.FC<EdgeMeshProps & { animated?: boolean }> 
       uniforms: {
         time: { value: 0 },
         color: { value: new THREE.Color(color) },
-        opacity: { value: opacity * weight }
+        opacity: { value: opacity * effectiveStrength }
       },
       vertexShader: `
         varying vec2 vUv;
@@ -137,7 +144,7 @@ export const AnimatedEdgeMesh: React.FC<EdgeMeshProps & { animated?: boolean }> 
     // Store reference for animation updates
     materialRef.current = shaderMaterial;
     return shaderMaterial;
-  }, [animated, color, opacity, weight, material]);
+  }, [animated, color, opacity, effectiveStrength, material]);
 
   // Update time uniform for animation
   useFrame((state) => {

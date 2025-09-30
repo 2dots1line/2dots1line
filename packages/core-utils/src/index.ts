@@ -11,4 +11,5 @@ export * from './validation';
 export * from './environment/EnvironmentLoader';
 export * from './service/BaseService';
 export * from './llm';
-export * from './entity-mapping'; 
+export * from './entity-mapping';
+export * from './relationship-utils'; 

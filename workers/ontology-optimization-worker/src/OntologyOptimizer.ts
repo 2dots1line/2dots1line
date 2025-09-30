@@ -201,7 +201,7 @@ export class OntologyOptimizer {
         
         // Create Neo4j community using shared logic
         if (this.dbService.neo4j) {
-          await this.communityCreator.createNeo4jCommunity(community, community.member_entity_ids, communityId);
+          await this.communityCreator.createNeo4jCommunity(community, community.member_entity_ids, communityId, userId);
         }
         
         console.log(`[OntologyOptimizer] Successfully created community: ${communityId}`);

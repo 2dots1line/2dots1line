@@ -23,7 +23,7 @@ import type {
 import { StrategicSynthesisTool, StrategicSynthesisOutput, StrategicSynthesisInput, HybridRetrievalTool, LLMChatTool } from '@2dots1line/tools';
 import { ConceptMerger, ConceptArchiver, CommunityCreator } from '@2dots1line/ontology-core';
 import { ConfigService } from '@2dots1line/config-service';
-import { LLMRetryHandler, getEntityTypeMapping } from '@2dots1line/core-utils';
+import { LLMRetryHandler, getEntityTypeMapping, RelationshipUtils } from '@2dots1line/core-utils';
 import { Job , Queue } from 'bullmq';
 import { randomUUID } from 'crypto';
 import type { ExtendedAugmentedMemoryContext } from '@2dots1line/tools';
@@ -638,7 +638,7 @@ export class InsightEngine {
 
       // Create new strategic relationships if specified
       if (this.dbService.neo4j && ontology_optimizations.new_strategic_relationships.length > 0) {
-        await this.createStrategicRelationships(ontology_optimizations.new_strategic_relationships);
+        await this.createStrategicRelationships(ontology_optimizations.new_strategic_relationships, userId);
         console.log(`[InsightEngine] Created ${ontology_optimizations.new_strategic_relationships.length} strategic relationships`);
         // NOTE: Relationships are not entities and don't need embeddings or projection updates
       }
@@ -1215,7 +1215,7 @@ export class InsightEngine {
   /**
    * Create strategic relationships in Neo4j
    */
-  private async createStrategicRelationships(relationships: any[]): Promise<void> {
+  private async createStrategicRelationships(relationships: any[], userId: string): Promise<void> {
     if (!this.dbService.neo4j) {
       console.warn('[InsightEngine] Neo4j client not available, skipping strategic relationship creation');
       return;
@@ -1225,31 +1225,46 @@ export class InsightEngine {
     
     try {
       for (const rel of relationships) {
+        // Generate complete relationship properties
+        const relationshipProps = RelationshipUtils.createRelationshipProps(
+          'STRATEGIC_RELATIONSHIP',
+          'insight',
+          userId,
+          { 
+            strength: rel.strength ?? 0.7, // Use LLM-provided strength or default for strategic relationships
+            description: rel.strategic_value || `Strategic relationship between ${rel.source_id} and ${rel.target_id}` 
+          }
+        );
+        
         const cypher = `
           MATCH (source:Concept {id: $sourceId}), (target:Concept {id: $targetId})
           CREATE (source)-[r:STRATEGIC_RELATIONSHIP {
-            type: $relationshipType,
+            relationship_id: $relationshipId,
+            relationship_type: $relationshipType,
+            created_at: $createdAt,
+            user_id: $userId,
+            source_agent: $sourceAgent,
             strength: $strength,
-            strategic_value: $strength,
-            created_at: datetime(),
-            relationship_id: $relationshipId
+            description: $description,
+            strategic_value: $strength
           }]->(target)
           RETURN r.relationship_id as relationshipId
         `;
         
-        const relationshipId = `rel-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        
         const result = await session.run(cypher, {
           sourceId: rel.source_id,
           targetId: rel.target_id,
-          relationshipType: rel.relationship_type,
-          strength: rel.strength,
-          strategicValue: rel.strategic_value,
-          relationshipId
+          relationshipId: relationshipProps.relationship_id,
+          relationshipType: relationshipProps.relationship_type,
+          createdAt: relationshipProps.created_at,
+          userId: relationshipProps.user_id,
+          sourceAgent: relationshipProps.source_agent,
+          strength: relationshipProps.strength,
+          description: relationshipProps.description
         });
         
         if (result.records.length > 0) {
-          console.log(`[InsightEngine] Created strategic relationship: ${rel.source_id} -> ${rel.target_id} (${rel.relationship_type})`);
+          console.log(`[InsightEngine] Created strategic relationship: ${rel.source_id} -> ${rel.target_id} (ID: ${relationshipProps.relationship_id})`);
         }
       }
     } catch (error: unknown) {

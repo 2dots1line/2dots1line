@@ -60,6 +60,10 @@ export const Graph3D: React.FC<Graph3DProps> = ({
     edgeWidth
   });
 
+  // Debug: Log all unique edge types
+  const edgeTypes = [...new Set(edges.map(edge => edge.type))];
+  console.log('🔍 Graph3D: Edge types found:', edgeTypes);
+
   // Debug: Log all unique entity types
   const entityTypes = [...new Set(graphData.nodes.map(node => 
     node.type || node.entityType || node.category || 'unknown'
@@ -83,7 +87,37 @@ export const Graph3D: React.FC<Graph3DProps> = ({
   const getEdgeColor = (edge: any): string => {
     if (edge.color) return edge.color;
     
-    switch (edge.type) {
+    // Handle both uppercase Neo4j types and lowercase frontend types
+    const edgeType = edge.type?.toLowerCase();
+    
+    switch (edgeType) {
+      // Neo4j relationship types (uppercase with underscores)
+      case 'related_to':
+        return '#60a5fa'; // Light blue (matches backend)
+      case 'member_of':
+        return '#4ade80'; // Green (matches backend)
+      case 'strategic_relationship':
+        return '#8b5cf6'; // Purple (matches backend)
+      case 'derived_from':
+        return '#f59e0b'; // Orange (matches backend)
+      case 'is_part_of':
+        return '#ffff00'; // Yellow
+      case 'is_instance_of':
+        return '#ff00ff'; // Magenta
+      case 'influences':
+        return '#00ffff'; // Cyan
+      case 'contributes_to':
+        return '#ff6600'; // Dark Orange
+      case 'co_occurs_with':
+        return '#6600ff'; // Purple
+      case 'exemplifies_trait':
+        return '#00ff00'; // Bright Green
+      case 'is_metaphor_for':
+        return '#ff0066'; // Hot Pink
+      case 'is_a_type_of':
+        return '#0066ff'; // Royal Blue
+      
+      // Legacy lowercase types (for backward compatibility)
       case 'related':
         return '#00ff88';
       case 'temporal':
@@ -94,14 +128,16 @@ export const Graph3D: React.FC<Graph3DProps> = ({
         return '#ff0088';
       case 'causal':
         return '#ffff00';
+      
       default:
-        return '#ffffff';
+        console.warn('🔍 Graph3D: Unknown edge type:', edge.type, 'using default color');
+        return '#ffffff'; // White fallback
     }
   };
 
-  // Helper function to get edge weight
-  const getEdgeWeight = (edge: any): number => {
-    return edge.weight || edge.strength || 1.0;
+  // Helper function to get edge strength
+  const getEdgeStrength = (edge: any): number => {
+    return (edge.strength !== undefined && edge.strength !== null) ? edge.strength : (edge.weight || 1.0); // Use strength as primary, fallback to weight
   };
 
   // Helper function to format edge label text
@@ -301,7 +337,7 @@ export const Graph3D: React.FC<Graph3DProps> = ({
           ];
           
           const edgeColor = getEdgeColor(edge);
-          const edgeWeight = getEdgeWeight(edge);
+          const edgeStrength = getEdgeStrength(edge);
           const edgeLabel = getEdgeLabel(edge);
           
           return (
@@ -313,7 +349,8 @@ export const Graph3D: React.FC<Graph3DProps> = ({
                   width={edgeWidth}
                   opacity={edgeOpacity}
                   type={edge.type}
-                  weight={edgeWeight}
+                  strength={edgeStrength}
+                  weight={edge.weight} // Legacy fallback
                   animated={true}
                 />
               ) : (
@@ -323,7 +360,8 @@ export const Graph3D: React.FC<Graph3DProps> = ({
                   width={edgeWidth}
                   opacity={edgeOpacity}
                   type={edge.type}
-                  weight={edgeWeight}
+                  strength={edgeStrength}
+                  weight={edge.weight} // Legacy fallback
                 />
               )}
               

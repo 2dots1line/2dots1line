@@ -82,7 +82,7 @@ export const EdgeControls: React.FC<EdgeControlsProps> = ({
           </h3>
           
           {/* Opacity control */}
-          <div className="mb-4">
+          <div className="mb-4" onClick={(e) => e.stopPropagation()}>
             <label className="block text-white/70 text-sm mb-2">
               Opacity: {Math.round(edgeOpacity * 100)}%
             </label>
@@ -93,12 +93,13 @@ export const EdgeControls: React.FC<EdgeControlsProps> = ({
               step="0.1"
               value={edgeOpacity}
               onChange={(e) => onOpacityChange(parseFloat(e.target.value))}
+              onClick={(e) => e.stopPropagation()}
               className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
             />
           </div>
 
           {/* Width control */}
-          <div className="mb-4">
+          <div className="mb-4" onClick={(e) => e.stopPropagation()}>
             <label className="block text-white/70 text-sm mb-2">
               Width: {edgeWidth}px
             </label>
@@ -109,17 +110,25 @@ export const EdgeControls: React.FC<EdgeControlsProps> = ({
               step="1"
               value={edgeWidth}
               onChange={(e) => onWidthChange(parseInt(e.target.value))}
+              onClick={(e) => e.stopPropagation()}
               className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
             />
           </div>
 
           {/* Animation toggle */}
           <div className="mb-4">
-            <label className="flex items-center gap-2 text-white/70 text-sm cursor-pointer">
+            <label 
+              className="flex items-center gap-2 text-white/70 text-sm cursor-pointer"
+              onClick={(e) => e.stopPropagation()}
+            >
               <input
                 type="checkbox"
                 checked={animatedEdges}
-                onChange={(e) => onAnimatedChange(e.target.checked)}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  onAnimatedChange(e.target.checked);
+                }}
+                onClick={(e) => e.stopPropagation()}
                 className="w-4 h-4 text-green-500 bg-white/10 border-white/20 rounded focus:ring-green-500"
               />
               <Zap size={16} />

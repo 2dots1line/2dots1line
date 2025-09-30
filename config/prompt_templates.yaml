@@ -463,6 +463,13 @@ ingestion_analyst_instructions: |
   - detected_growth_events: Array of personal development moments with quantified impact
   - new_relationships: Array of connections between entities. Create relationships when entities are clearly connected in the conversation.
     
+    **RELATIONSHIP STRENGTH:**
+    - strength: Number between 0.0 and 1.0 indicating relationship strength
+    - 0.0-0.3: Weak connection (mentioned briefly, tangential)
+    - 0.4-0.6: Moderate connection (discussed with some detail)
+    - 0.7-0.9: Strong connection (central to conversation, detailed discussion)
+    - 1.0: Very strong connection (dominant theme, deeply explored)
+    
     **RELATIONSHIP EXAMPLES:**
     * MemoryUnit → Concept: "mem_career_change_2024" → "Career Transition"
     * MemoryUnit → GrowthEvent: "mem_leadership_breakthrough" → "event_123e4567-e89b-12d3-a456-426614174000"
@@ -563,7 +570,8 @@ ingestion_analyst_instructions: |
           "source_entity_id_or_name": "string",
           "target_entity_id_or_name": "string",
           "relationship_type": "RELATED_TO",
-          "relationship_description": "string"
+          "relationship_description": "string",
+          "strength": 0.8
         }
       ],
       "detected_growth_events": [

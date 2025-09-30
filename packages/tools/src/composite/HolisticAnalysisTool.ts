@@ -46,7 +46,8 @@ export const HolisticAnalysisOutputSchema = z.object({
         'INSPIRES', 'SUPPORTS_VALUE', 'EXEMPLIFIES_TRAIT', 'IS_MILESTONE_FOR',
         'IS_METAPHOR_FOR', 'REPRESENTS_SYMBOLICALLY', 'RELATED_TO'
       ]),
-      relationship_description: z.string().min(1) // Removed max limit to allow detailed descriptions
+      relationship_description: z.string().min(1), // Removed max limit to allow detailed descriptions
+      strength: z.number().min(0.0).max(1.0) // Relationship strength (0.0-1.0)
     })), // Remove array size limit to allow flexible LLM responses
     
     detected_growth_events: z.array(z.object({

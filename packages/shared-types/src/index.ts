@@ -179,6 +179,11 @@ export type {
   CameraState
 } from './cosmos-query.types';
 
+export type {
+  // Relationship types (V11.0 new - standardized relationship properties)
+  RelationshipProps
+} from './entities/relationship.types';
+
 export interface UserGraphProjection {
   version: string;
   createdAt: string;

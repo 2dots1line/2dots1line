@@ -16,7 +16,7 @@ import type {
 } from '@2dots1line/database';
 import { HolisticAnalysisTool, HolisticAnalysisOutput, SemanticSimilarityTool } from '@2dots1line/tools';
 import type { SemanticSimilarityInput, SemanticSimilarityResult } from '@2dots1line/tools';
-import { getEntityTypeMapping } from '@2dots1line/core-utils';
+import { getEntityTypeMapping, RelationshipUtils } from '@2dots1line/core-utils';
 import { Job , Queue } from 'bullmq';
 
 export interface IngestionJobData {
@@ -426,7 +426,7 @@ export class IngestionAnalyst {
         target_entity_id_or_name: targetId,
         relationship_type: relationship.relationship_type,
         relationship_description: relationship.relationship_description
-      }], entityMappings);
+      }], entityMappings, userId);
     }
   }
 
@@ -822,8 +822,10 @@ export class IngestionAnalyst {
       target_entity_id_or_name: string;
       relationship_type: string;
       relationship_description: string;
+      strength?: number;
     }>,
-    entityMappings: Map<string, string>
+    entityMappings: Map<string, string>,
+    userId: string
   ): Promise<void> {
     for (const relationship of relationships) {
       const sourceId = this.resolveEntityIdWithMapping(relationship.source_entity_id_or_name, entityMappings);
@@ -841,20 +843,45 @@ export class IngestionAnalyst {
           // Continue with creation but log the warning
         }
         
+        // Generate complete relationship properties
+        const relationshipProps = RelationshipUtils.createRelationshipProps(
+          relationship.relationship_type,
+          'ingestion',
+          userId,
+          { 
+            strength: relationship.strength ?? 0.5, // Use LLM-provided strength or default
+            description: relationship.relationship_description 
+          }
+        );
+        
         const cypher = `
           MATCH (source), (target)
           WHERE (source.entity_id = $sourceId)
             AND (target.entity_id = $targetId)
-          CREATE (source)-[r:${relationship.relationship_type} {description: $description}]->(target)
+          CREATE (source)-[r:${relationship.relationship_type} {
+            relationship_id: $relationshipId,
+            relationship_type: $relationshipType,
+            created_at: $createdAt,
+            user_id: $userId,
+            source_agent: $sourceAgent,
+            strength: $strength,
+            description: $description
+          }]->(target)
         `;
         
         await transaction.run(cypher, {
           sourceId,
           targetId,
-          description: relationship.relationship_description
+          relationshipId: relationshipProps.relationship_id,
+          relationshipType: relationshipProps.relationship_type,
+          createdAt: relationshipProps.created_at,
+          userId: relationshipProps.user_id,
+          sourceAgent: relationshipProps.source_agent,
+          strength: relationshipProps.strength,
+          description: relationshipProps.description
         });
         
-        console.log(`[IngestionAnalyst] ✅ Created relationship: ${sourceId} -[${relationship.relationship_type}]-> ${targetId} (${relationship.relationship_description})`);
+        console.log(`[IngestionAnalyst] ✅ Created relationship: ${sourceId} -[${relationship.relationship_type}]-> ${targetId} (ID: ${relationshipProps.relationship_id})`);
       }
     }
   }
