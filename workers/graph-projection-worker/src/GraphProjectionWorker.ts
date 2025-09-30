@@ -527,7 +527,9 @@ export class GraphProjectionWorker {
   }
 
   /**
-   * V11.0: Linear Transformation Phase - Fast positioning using stored transformation matrix
+   * V11.0: Linear Transformation Phase - DISABLED
+   * Fast positioning using stored transformation matrix
+   * DISABLED: Linear transformation is disabled for simplicity
    */
   private async handleLinearTransformationPhase(userId: string, newEntities: Array<{id: string, type: string}>): Promise<{
     nodes: Node3D[];
@@ -538,57 +540,10 @@ export class GraphProjectionWorker {
       isIncremental?: boolean;
     };
   }> {
-    console.log(`[GraphProjectionWorker] ⚡ Linear Transformation Phase: Fast positioning for ${newEntities.length} new entities`);
-
-    // Step 1: Get stored transformation matrix
-    const matrixData = await this.getTransformationMatrix(userId);
-    if (!matrixData) {
-      console.warn(`[GraphProjectionWorker] No transformation matrix found, falling back to UMAP learning`);
-      return await this.handleUMAPLearningPhase(userId, newEntities);
-    }
-
-    // Step 2: Get embeddings for new entities only
-    const newNodes = await this.getNodesForEntities(userId, newEntities);
-    const newEmbeddings = await this.fetchEmbeddingsFromWeaviate(newNodes);
-    console.log(`[GraphProjectionWorker] Linear Transformation: Fetched ${newEmbeddings.length} embeddings for new entities`);
-
-    // Step 3: Transform new embeddings using stored matrix
-    const newCoordinates = await this.transformWithLinearMatrix(newEmbeddings, matrixData.transformationMatrix);
-    console.log(`[GraphProjectionWorker] Linear Transformation: Generated coordinates for ${newCoordinates.length} new entities`);
-
-    // Step 4: Store new coordinates in entity tables
-    await this.storeCoordinatesInEntities(userId, newNodes, newCoordinates);
-    console.log(`[GraphProjectionWorker] Linear Transformation: Updated coordinates for ${newNodes.length} new entities`);
-
-    // Step 5: Create node data for notifications (only new entities)
-    const nodes: Node3D[] = newNodes.map((node: any, index: number) => ({
-      entity_id: node.entity_id,
-      type: node.type as 'MemoryUnit' | 'Concept' | 'DerivedArtifact' | 'Community' | 'ProactivePrompt' | 'GrowthEvent' | 'User',
-      title: node.title,
-      content: node.content,
-      position: newCoordinates[index] as [number, number, number],
-      connections: node.connections || [],
-      importance: node.importance || 0.5,
-      metadata: {
-        createdAt: node.createdAt || new Date().toISOString(),
-        lastUpdated: new Date().toISOString(),
-        userId,
-        isMerged: node.metadata?.isMerged || false,
-        mergedIntoConceptId: node.metadata?.mergedIntoConceptId || null,
-        status: node.metadata?.status || 'active'
-      }
-    }));
-
-    console.log(`[GraphProjectionWorker] ✅ Linear Transformation Phase complete for ${nodes.length} new entities`);
-    return {
-      nodes,
-      projectionMethod: 'linear_transformation',
-      metadata: {
-        transformationMatrix: matrixData.transformationMatrix,
-        umapParameters: matrixData.umapParameters,
-        isIncremental: true
-      }
-    };
+    // DISABLED: Linear transformation is disabled for simplicity
+    // Always fall back to UMAP Learning
+    console.log(`[GraphProjectionWorker] ⚡ Linear Transformation Phase: DISABLED - falling back to UMAP Learning`);
+    return await this.handleUMAPLearningPhase(userId, newEntities);
   }
 
   /**
@@ -964,7 +919,8 @@ export class GraphProjectionWorker {
   }
 
   /**
-   * V11.0: Transform embeddings using linear transformation matrix
+   * V11.0: Transform embeddings using linear transformation matrix - DISABLED
+   * DISABLED: Linear transformation is disabled for simplicity
    */
   private async transformWithLinearMatrix(embeddings: number[][], transformationMatrix: number[][]): Promise<number[][]> {
     try {

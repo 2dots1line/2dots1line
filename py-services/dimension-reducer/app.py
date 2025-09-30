@@ -149,7 +149,8 @@ async def reduce_dimensions(request: DimensionReductionRequest):
         if request.method == "umap_learning":
             coordinates, transformation_matrix, fitted_model_bytes, umap_params, model_metadata = _reduce_with_umap_learning(X, request)
         elif request.method == "linear_transformation":
-            coordinates = _reduce_with_linear_transformation(X, request)
+            # DISABLED: Linear transformation is disabled for simplicity
+            raise HTTPException(status_code=400, detail="Linear transformation is disabled. Use umap_learning or umap_transform instead.")
         elif request.method == "umap_transform":
             coordinates = _reduce_with_umap_transform(X, request)
         else:
@@ -264,11 +265,16 @@ def _reduce_with_umap_learning(X: np.ndarray, request: DimensionReductionRequest
 
 def _reduce_with_linear_transformation(X: np.ndarray, request: DimensionReductionRequest) -> np.ndarray:
     """
-    V11.0 Cosmos: Linear transformation for fast, deterministic positioning
+    V11.0 Cosmos: Linear transformation for fast, deterministic positioning - DISABLED
     
     Uses a pre-computed transformation matrix to transform embeddings to 3D coordinates.
     This is the fast path for incremental updates between UMAP learning runs.
+    
+    DISABLED: Linear transformation is disabled for simplicity.
     """
+    # DISABLED: Linear transformation is disabled for simplicity
+    raise HTTPException(status_code=400, detail="Linear transformation is disabled. Use umap_learning or umap_transform instead.")
+    
     try:
         if not request.transformation_matrix:
             raise HTTPException(status_code=400, detail="transformation_matrix is required for linear_transformation method")
