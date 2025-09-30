@@ -8,7 +8,6 @@ import CosmosInfoPanel from '../../../components/modal/CosmosInfoPanel';
 import CosmosError from '../../../components/modal/CosmosError';
 import CosmosLoading from '../../../components/modal/CosmosLoading';
 import CosmosNodeModal from '../../../components/modal/CosmosNodeModal';
-import { EdgeControls } from '../../../components/cosmos/EdgeControls';
 import { NodeLabelControls } from '../../../components/cosmos/NodeLabelControls';
 
 interface EntityLookupState {
@@ -59,11 +58,11 @@ const CosmosLookupScene: React.FC = () => {
     enableGraphHops: true,
   });
 
-  // Edge control state
-  const [showEdges, setShowEdges] = useState(false);
-  const [edgeOpacity, setEdgeOpacity] = useState(0.8);
-  const [edgeWidth, setEdgeWidth] = useState(3);
-  const [animatedEdges, setAnimatedEdges] = useState(false);
+  // Edge control state - using defaults
+  const { showEdges } = useCosmosStore();
+  const edgeOpacity = 0.8;
+  const edgeWidth = 3;
+  const animatedEdges = false;
   
   // Background loading state
   const [isBackgroundLoading, setIsBackgroundLoading] = useState(false);
@@ -810,19 +809,6 @@ const CosmosLookupScene: React.FC = () => {
         isSearchResult={true} // Enable bright star textures for search results
       />
       
-      {/* Edge Controls */}
-      <div className="absolute bottom-4 right-4 z-10">
-        <EdgeControls
-          showEdges={showEdges}
-          edgeOpacity={edgeOpacity}
-          edgeWidth={edgeWidth}
-          animatedEdges={animatedEdges}
-          onToggleEdges={setShowEdges}
-          onOpacityChange={setEdgeOpacity}
-          onWidthChange={setEdgeWidth}
-          onAnimatedChange={setAnimatedEdges}
-        />
-      </div>
       
       {/* Node Label Controls */}
       <NodeLabelControls />

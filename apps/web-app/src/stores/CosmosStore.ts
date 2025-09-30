@@ -23,11 +23,13 @@ interface CosmosStoreState {
   error: string | null;
   selectedNode: GraphNode | null;
   showNodeLabels: boolean; // New state for controlling node label visibility
+  showEdges: boolean; // New state for controlling edge visibility
   setGraphData: (data: UserGraphProjection) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   setSelectedNode: (node: GraphNode | null) => void;
   setShowNodeLabels: (show: boolean) => void; // New action for toggling node labels
+  setShowEdges: (show: boolean) => void; // New action for toggling edges
 }
 
 export const useCosmosStore = create<CosmosStoreState>()((set) => ({
@@ -50,6 +52,7 @@ export const useCosmosStore = create<CosmosStoreState>()((set) => ({
   error: null,
   selectedNode: null,
   showNodeLabels: false, // Default to hiding labels for cleaner view
+  showEdges: false, // Default to hiding edges for cleaner view
   setGraphData: (data) =>
     set({ graphData: data }),
   setLoading: (loading) =>
@@ -60,4 +63,6 @@ export const useCosmosStore = create<CosmosStoreState>()((set) => ({
     set({ selectedNode: node }),
   setShowNodeLabels: (show) =>
     set({ showNodeLabels: show }),
+  setShowEdges: (show) =>
+    set({ showEdges: show }),
 }));
