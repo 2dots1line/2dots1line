@@ -305,7 +305,7 @@ export const Graph3D: React.FC<Graph3DProps> = ({
           const edgeLabel = getEdgeLabel(edge);
           
           return (
-            <group key={`edge-${edge.id}`}>
+            <group key={`edge-${edge.id}-${index}`}>
               {animatedEdges ? (
                 <AnimatedEdgeMesh 
                   points={points}
