@@ -640,31 +640,36 @@ ingestion_analyst_instructions: |
           "source_entity_id_or_name": "mem_quantum_book_insight",
           "target_entity_id_or_name": "Quantum Physics",
           "relationship_type": "EXEMPLIFIES_TRAIT",
-          "relationship_description": "Memory unit exemplifies the concept of quantum physics exploration"
+          "relationship_description": "Memory unit exemplifies the concept of quantum physics exploration",
+          "strength": 0.8
         },
         {
           "source_entity_id_or_name": "mem_quantum_book_insight", 
           "target_entity_id_or_name": "Consciousness",
           "relationship_type": "IS_SIMILAR_TO",
-          "relationship_description": "Memory unit demonstrates connection between quantum physics and consciousness studies"
+          "relationship_description": "Memory unit demonstrates connection between quantum physics and consciousness studies",
+          "strength": 0.7
         },
         {
           "source_entity_id_or_name": "Quantum Physics",
           "target_entity_id_or_name": "Consciousness", 
           "relationship_type": "IS_SIMILAR_TO",
-          "relationship_description": "Concepts are thematically related through the study of mind-body connection"
+          "relationship_description": "Concepts are thematically related through the study of mind-body connection",
+          "strength": 0.6
         },
         {
           "source_entity_id_or_name": "mem_quantum_book_insight",
           "target_entity_id_or_name": "event_123e4567-e89b-12d3-a456-426614174000",
           "relationship_type": "CONTRIBUTES_TO",
-          "relationship_description": "Memory unit evidences this growth event"
+          "relationship_description": "Memory unit evidences this growth event",
+          "strength": 0.9
         },
         {
           "source_entity_id_or_name": "Quantum Physics",
           "target_entity_id_or_name": "event_123e4567-e89b-12d3-a456-426614174000",
           "relationship_type": "CONTRIBUTES_TO",
-          "relationship_description": "Concept evidences this growth event"
+          "relationship_description": "Concept evidences this growth event",
+          "strength": 0.7
         }
       ]
     },
