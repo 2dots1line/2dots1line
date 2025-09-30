@@ -23,7 +23,6 @@ interface EntityLookupState {
 
 interface LookupConfig {
   semanticSimilarLimit: number;
-  totalEntityLimit: number;
   graphHops: number;
   similarityThreshold: number;
   enableGraphHops: boolean;
@@ -55,7 +54,6 @@ const CosmosLookupScene: React.FC = () => {
   // Lookup configuration
   const [lookupConfig, setLookupConfig] = useState<LookupConfig>({
     semanticSimilarLimit: 20,
-    totalEntityLimit: 100,
     graphHops: 1,
     similarityThreshold: 0.7,
     enableGraphHops: true,
@@ -97,14 +95,29 @@ const CosmosLookupScene: React.FC = () => {
       createdAt: new Date().toISOString(),
       nodeCount: nodes.length,
       edgeCount: edges.length,
-      nodes: nodes.map(node => ({
-        id: node.id,
-        type: (node.entityType || node.type || 'Concept') as 'Concept' | 'MemoryUnit' | 'DerivedArtifact',
-        label: node.title || node.label || node.id,
-        position: [node.x || 0, node.y || 0, node.z || 0] as [number, number, number],
-        community_id: node.community_id || 'default',
-        metadata: node.metadata || {}
-      })),
+      nodes: nodes.map(node => {
+        const px = Number(node.position_x ?? node.x ?? 0);
+        const py = Number(node.position_y ?? node.y ?? 0);
+        const pz = Number(node.position_z ?? node.z ?? 0);
+
+        return ({
+          id: node.id,
+          type: (node.entityType || node.type || 'Concept') as 'Concept' | 'MemoryUnit' | 'DerivedArtifact',
+          label: node.title || node.label || node.id,
+          // Keep both raw position_x/y/z and normalized x/y/z so downstream can use either
+          position_x: px,
+          position_y: py,
+          position_z: pz,
+          x: px,
+          y: py,
+          z: pz,
+          position: [px, py, pz] as [number, number, number],
+          title: node.title,
+          content: node.content,
+          community_id: node.community_id || 'default',
+          metadata: node.metadata || {}
+        });
+      }),
       edges: edges.map(edge => ({
         id: edge.id || `${edge.source}-${edge.target}`,
         source: edge.source,
@@ -129,54 +142,6 @@ const CosmosLookupScene: React.FC = () => {
     setGraphData(createGraphProjection([], []));
   }, [setGraphData, createGraphProjection]);
 
-  // HRT-style scoring function
-  const scoreEntity = useCallback((entity: any, semanticScore: number, isConnected: boolean = false): number => {
-    try {
-      // HRT scoring weights (from HRTParametersLoader defaults)
-      const alphaSemanticSimilarity = 0.5;
-      const betaRecency = 0.3;
-      const gammaImportanceScore = 0.2;
-
-      // Calculate recency score (newer entities get higher scores)
-      const now = new Date();
-      const createdAt = new Date(entity.created_at || entity.createdAt || now);
-      
-      // Validate date and calculate recency score
-      let recencyScore: number;
-      if (isNaN(createdAt.getTime())) {
-        console.warn('🔍 CosmosLookupScene: Invalid date for entity:', entity.id, entity.created_at);
-        recencyScore = 0.5; // Default recency score for invalid dates
-      } else {
-        const daysSinceCreation = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
-        recencyScore = Math.exp(-0.1 * daysSinceCreation); // Decay rate of 0.1
-      }
-
-      // Calculate importance score (from entity importance or default)
-      const importanceScore = entity.importance || entity.importance_score || 1.0;
-
-      // Calculate final score
-      const finalScore = 
-        (alphaSemanticSimilarity * semanticScore) +
-        (betaRecency * recencyScore) +
-        (gammaImportanceScore * importanceScore);
-
-      // Boost connected entities slightly
-      const connectedBoost = isConnected ? 0.1 : 0;
-
-      const result = finalScore + connectedBoost;
-      
-      // Validate result
-      if (isNaN(result) || !isFinite(result)) {
-        console.warn('🔍 CosmosLookupScene: Invalid score calculated for entity:', entity.id, { semanticScore, recencyScore, importanceScore, finalScore, connectedBoost });
-        return 0.5; // Default score for invalid calculations
-      }
-
-      return result;
-    } catch (error) {
-      console.error('🔍 CosmosLookupScene: Error scoring entity:', entity.id, error);
-      return 0.5; // Default score on error
-    }
-  }, []);
 
   // Neo4j graph traversal function - returns both connected entities and relationships
   const findConnectedEntitiesAndRelationships = useCallback(async (entityIds: string[], userId: string = 'dev-user'): Promise<{connectedEntityIds: string[], relationships: any[]}> => {
@@ -185,20 +150,19 @@ const CosmosLookupScene: React.FC = () => {
     try {
       // First, get connected entities
       const connectedEntitiesQuery = `
-        UNWIND $seedEntities AS seed 
-        MATCH (startNode) 
-        WHERE startNode.id = seed.id 
-        CALL { 
-          WITH startNode 
-          MATCH p=(startNode)-[*1..${lookupConfig.graphHops}]-(relatedNode) 
-          WHERE relatedNode.userId = $userId 
-          RETURN DISTINCT relatedNode.id AS nodeId, labels(relatedNode)[0] AS nodeType 
-          LIMIT toInteger($limit) 
-        } 
-        RETURN COLLECT(DISTINCT {id: nodeId, type: nodeType}) + $seedEntities AS allRelevantEntities
+        UNWIND $seedIds AS seedId
+        MATCH (startNode { entity_id: seedId, user_id: $userId })
+        CALL {
+          WITH startNode
+          MATCH p=(startNode)-[*1..${lookupConfig.graphHops}]-(relatedNode)
+          WHERE relatedNode.user_id = $userId
+          RETURN DISTINCT relatedNode.entity_id AS nodeId, relatedNode.entity_type AS nodeType
+          LIMIT toInteger($limit)
+        }
+        RETURN COLLECT(DISTINCT {id: nodeId, type: nodeType}) + [id IN $seedIds | {id: id, type: 'Seed'}] AS allRelevantEntities
       `;
 
-      const seedEntities = entityIds.map(id => ({ id, type: 'Entity' }));
+      const seedIds = entityIds;
       
       const connectedResponse = await fetch('http://localhost:3001/api/v1/neo4j/query', {
         method: 'POST',
@@ -208,9 +172,9 @@ const CosmosLookupScene: React.FC = () => {
         body: JSON.stringify({
           cypher: connectedEntitiesQuery,
           params: {
-            seedEntities,
+            seedIds,
             userId,
-            limit: lookupConfig.totalEntityLimit
+            limit: 1000
           }
         }),
       });
@@ -239,9 +203,9 @@ const CosmosLookupScene: React.FC = () => {
       // Now get relationships between all entities
       const relationshipsQuery = `
         UNWIND $entityIds AS entityId
-        MATCH (a)-[r]->(b)
-        WHERE a.id = entityId AND b.id IN $entityIds AND a.userId = $userId AND b.userId = $userId
-        RETURN a.id as source, b.id as target, type(r) as type, r.weight as weight, r.created_at as created_at
+        MATCH (a { entity_id: entityId, user_id: $userId })-[r]->(b)
+        WHERE b.entity_id IN $entityIds AND b.user_id = $userId
+        RETURN a.entity_id as source, b.entity_id as target, type(r) as type, r.weight as weight, r.created_at as created_at
         LIMIT 100
       `;
 
@@ -279,7 +243,7 @@ const CosmosLookupScene: React.FC = () => {
       console.error('🔍 CosmosLookupScene: Neo4j graph traversal error:', error);
       return { connectedEntityIds: [], relationships: [] };
     }
-  }, [lookupConfig.graphHops, lookupConfig.totalEntityLimit]);
+  }, [lookupConfig.graphHops]);
 
   // Entity lookup function
   const handleEntityLookup = useCallback(async () => {
@@ -465,7 +429,6 @@ const CosmosLookupScene: React.FC = () => {
             nodeIds: allEntityIds
           },
           options: {
-            limit: lookupConfig.totalEntityLimit,
             includeEdges: true,
           },
         }),
@@ -487,85 +450,31 @@ const CosmosLookupScene: React.FC = () => {
         throw new Error('Failed to fetch similar entities from API');
       }
 
-      // Step 6: Score and rank entities using HRT-style scoring
-      console.log('🔍 CosmosLookupScene: Step 6 - Scoring and ranking entities');
-      const scoredEntities = batchResult.data.nodes.map((entity: any) => {
-        try {
-          // Find semantic similarity score for this entity
-          const semanticEntity = similarEntities.find((se: any) => se.entity_id === entity.id);
-          const semanticScore = semanticEntity ? (1.0 - semanticEntity._additional.distance) : 0;
-          
-          // Check if this entity is connected via graph hops
-          const isConnected = connectedEntityIds.includes(entity.id);
-          
-          // Calculate final score
-          const finalScore = scoreEntity(entity, semanticScore, isConnected);
-          
-          // Validate finalScore
-          if (finalScore === undefined || finalScore === null || isNaN(finalScore)) {
-            console.warn('🔍 CosmosLookupScene: Invalid finalScore for entity:', entity.id, { finalScore, semanticScore, isConnected });
-            return {
-              ...entity,
-              semanticScore,
-              isConnected,
-              finalScore: 0.5, // Default score
-              scoreBreakdown: {
-                semantic: semanticScore,
-                recency: 0.5,
-                importance: entity.importance || entity.importance_score || 1.0,
-                connected: isConnected ? 0.1 : 0
-              }
-            };
-          }
-          
-          return {
-            ...entity,
-            semanticScore,
-            isConnected,
-            finalScore,
-            scoreBreakdown: {
-              semantic: semanticScore,
-              recency: Math.exp(-0.1 * ((new Date().getTime() - new Date(entity.created_at || entity.createdAt || new Date()).getTime()) / (1000 * 60 * 60 * 24))),
-              importance: entity.importance || entity.importance_score || 1.0,
-              connected: isConnected ? 0.1 : 0
-            }
-          };
-        } catch (error) {
-          console.error('🔍 CosmosLookupScene: Error scoring entity:', entity.id, error);
-          return {
-            ...entity,
-            semanticScore: 0,
-            isConnected: false,
-            finalScore: 0.5, // Default score
-            scoreBreakdown: {
-              semantic: 0,
-              recency: 0.5,
-              importance: entity.importance || entity.importance_score || 1.0,
-              connected: 0
-            }
-          };
-        }
+      // Step 6: Prepare entities for display (no scoring/ranking)
+      console.log('🔍 CosmosLookupScene: Step 6 - Preparing entities for display');
+      const displayEntities = batchResult.data.nodes.map((entity: any) => {
+        // Find semantic similarity score for this entity
+        const semanticEntity = similarEntities.find((se: any) => se.entity_id === entity.id);
+        const semanticScore = semanticEntity ? (1.0 - semanticEntity._additional.distance) : 0;
+        
+        // Check if this entity is connected via graph hops
+        const isConnected = connectedEntityIds.includes(entity.id);
+        
+        return {
+          ...entity,
+          semanticScore,
+          isConnected
+        };
       });
 
-      // Sort by final score and limit to totalEntityLimit
-      const rankedEntities = scoredEntities
-        .sort((a: any, b: any) => b.finalScore - a.finalScore)
-        .slice(0, lookupConfig.totalEntityLimit);
-
-      console.log('🔍 CosmosLookupScene: Entity scoring completed:', {
-        totalScored: scoredEntities.length,
-        topRanked: rankedEntities.length,
-        topScores: rankedEntities.slice(0, 5).map((e: any) => ({
-          id: e.id,
-          title: e.title,
-          finalScore: e.finalScore.toFixed(3),
-          semanticScore: e.semanticScore.toFixed(3),
-          isConnected: e.isConnected
-        }))
+      console.log('🔍 CosmosLookupScene: Entity preparation completed:', {
+        totalEntities: displayEntities.length,
+        semanticCount: displayEntities.filter((e: any) => e.semanticScore > 0).length,
+        connectedCount: displayEntities.filter((e: any) => e.isConnected).length
       });
 
-      // Step 7: Update the graph data with the ranked entities and Neo4j relationships
-      console.log('🔍 CosmosLookupScene: Step 7 - Updating graph data with ranked entities and relationships');
+      // Step 7: Update the graph data with all entities and Neo4j relationships
+      console.log('🔍 CosmosLookupScene: Step 7 - Updating graph data with all entities and relationships');
       
       // Combine PostgreSQL edges with Neo4j relationships
       const allEdges = [
@@ -580,14 +489,14 @@ const CosmosLookupScene: React.FC = () => {
         }))
       ];
 
-      const newGraphData = createGraphProjection(rankedEntities, allEdges);
+      const newGraphData = createGraphProjection(displayEntities, allEdges);
       setGraphData(newGraphData);
       console.log('🔍 CosmosLookupScene: Graph data updated:', {
         nodeCount: newGraphData.nodes.length,
         edgeCount: newGraphData.edges.length,
         postgresEdges: batchResult.data.edges?.length || 0,
         neo4jRelationships: neo4jRelationships.length,
-        nodes: newGraphData.nodes.slice(0, 3).map((n: any) => ({ id: n.id, title: n.title, score: n.finalScore.toFixed(3) })),
+        nodes: newGraphData.nodes.slice(0, 3).map((n: any) => ({ id: n.id, title: n.title, semanticScore: n.semanticScore?.toFixed(3) })),
         edges: newGraphData.edges.slice(0, 3).map((e: any) => ({ id: e.id, source: e.source, target: e.target, type: e.type }))
       });
 
@@ -596,16 +505,27 @@ const CosmosLookupScene: React.FC = () => {
         ...prev,
         isLoading: false,
         foundEntity: foundEntity,
-        similarEntities: similarEntities,
-        connectedEntities: connectedEntityIds.map(id => ({ id, type: 'connected' })),
-        totalEntities: rankedEntities.length,
+        similarEntities: displayEntities.slice(0, 10).map((entity: any) => ({
+          id: entity.id,
+          title: entity.title,
+          type: entity.entity_type,
+          semanticScore: entity.semanticScore,
+          isConnected: entity.isConnected
+        })),
+        connectedEntities: displayEntities.filter((entity: any) => entity.isConnected).slice(0, 10).map((entity: any) => ({
+          id: entity.id,
+          title: entity.title,
+          type: entity.entity_type,
+          semanticScore: entity.semanticScore
+        })),
+        totalEntities: displayEntities.length,
       }));
 
       console.log('🔍 CosmosLookupScene: Entity lookup completed successfully:', {
         targetEntity: foundEntity.title,
         semanticSimilarCount: similarEntities.length,
         connectedCount: connectedEntityIds.length,
-        totalRankedEntities: rankedEntities.length,
+        totalDisplayedEntities: displayEntities.length,
         totalEdges: allEdges.length,
         neo4jRelationships: neo4jRelationships.length,
         config: lookupConfig
@@ -621,7 +541,7 @@ const CosmosLookupScene: React.FC = () => {
         error: errorMessage,
       }));
     }
-  }, [lookupState.entityId, setGraphData, lookupConfig, findConnectedEntitiesAndRelationships, scoreEntity, createGraphProjection]);
+  }, [lookupState.entityId, setGraphData, lookupConfig, findConnectedEntitiesAndRelationships, createGraphProjection]);
 
   // Clear entity lookup
   const clearEntityLookup = useCallback(() => {
@@ -747,17 +667,6 @@ const CosmosLookupScene: React.FC = () => {
                   />
                 </div>
                 
-                <div>
-                  <label className="block text-white/60 mb-1">Total Entity Limit</label>
-                  <input
-                    type="number"
-                    value={lookupConfig.totalEntityLimit}
-                    onChange={(e) => setLookupConfig(prev => ({ ...prev, totalEntityLimit: parseInt(e.target.value) || 100 }))}
-                    className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-xs"
-                    min="1"
-                    max="500"
-                  />
-                </div>
                 
                 <div>
                   <label className="block text-white/60 mb-1">Graph Hops</label>

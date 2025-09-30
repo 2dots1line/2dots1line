@@ -46,6 +46,7 @@ export const Graph3D: React.FC<Graph3DProps> = ({
 }) => {
   // State for hover management
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
   
   // Normalize edge data - handle both 'links' and 'edges' properties
   const edges = graphData.links || graphData.edges || [];
@@ -304,8 +305,14 @@ export const Graph3D: React.FC<Graph3DProps> = ({
           const edgeWeight = getEdgeWeight(edge);
           const edgeLabel = getEdgeLabel(edge);
           
+          const edgeId = `${edge.source}-${edge.target}`;
+
           return (
-            <group key={`edge-${index}`}>
+            <group 
+              key={edgeId}
+              onPointerOver={() => setHoveredEdgeId(edgeId)}
+              onPointerOut={() => setHoveredEdgeId(prev => prev === edgeId ? null : prev)}
+            >
               {animatedEdges ? (
                 <AnimatedEdgeMesh 
                   points={points}
@@ -327,13 +334,15 @@ export const Graph3D: React.FC<Graph3DProps> = ({
                 />
               )}
               
-              {/* Edge label */}
-              <EdgeLabel 
-                points={points}
-                label={edgeLabel}
-                color={edgeColor}
-                edgeId={`${edge.source}-${edge.target}`}
-              />
+              {/* Edge label - show only on hover */}
+              {hoveredEdgeId === edgeId && (
+                <EdgeLabel 
+                  points={points}
+                  label={edgeLabel}
+                  color={edgeColor}
+                  edgeId={edgeId}
+                />
+              )}
             </group>
           );
         })}
