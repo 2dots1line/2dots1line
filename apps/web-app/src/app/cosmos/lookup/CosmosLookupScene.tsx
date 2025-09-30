@@ -479,8 +479,8 @@ const CosmosLookupScene: React.FC = () => {
       // Combine PostgreSQL edges with Neo4j relationships
       const allEdges = [
         ...(batchResult.data.edges || []),
-        ...neo4jRelationships.map((rel: any) => ({
-          id: `${rel.source}-${rel.target}`,
+        ...neo4jRelationships.map((rel: any, index: number) => ({
+          id: rel.relationship_id || `${rel.source}-${rel.target}-${rel.type || 'related'}-${index}`,
           source: rel.source,
           target: rel.target,
           type: rel.type || 'related',
@@ -499,6 +499,17 @@ const CosmosLookupScene: React.FC = () => {
         nodes: newGraphData.nodes.slice(0, 3).map((n: any) => ({ id: n.id, title: n.title, semanticScore: n.semanticScore?.toFixed(3) })),
         edges: newGraphData.edges.slice(0, 3).map((e: any) => ({ id: e.id, source: e.source, target: e.target, type: e.type }))
       });
+
+      // Debug: Check for duplicate edge IDs
+      const edgeIds = newGraphData.edges.map((e: any) => e.id);
+      const uniqueEdgeIds = new Set(edgeIds);
+      if (edgeIds.length !== uniqueEdgeIds.size) {
+        console.warn('🔍 CosmosLookupScene: Duplicate edge IDs detected!', {
+          totalEdges: edgeIds.length,
+          uniqueEdges: uniqueEdgeIds.size,
+          duplicates: edgeIds.length - uniqueEdgeIds.size
+        });
+      }
 
       // Step 8: Update lookup state
       setLookupState(prev => ({
