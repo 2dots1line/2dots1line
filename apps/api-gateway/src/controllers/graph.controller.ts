@@ -2,7 +2,7 @@
 // V11.0 Architecture - Real-time graph metrics endpoint per tech lead directive
 
 import { Request, Response } from 'express';
-import type { TApiResponse } from '@2dots1line/shared-types';
+import type { TApiResponse, CosmosQuery, CosmosQueryResponse, CosmosQueryNode, CosmosEdge, SpatialQueryType } from '@2dots1line/shared-types';
 import { Neo4jService, DatabaseService } from '@2dots1line/database';
 import { getEntityTypeMapping } from '@2dots1line/core-utils';
 import Redis from 'ioredis';
@@ -500,4 +500,653 @@ export class GraphController {
       }
     });
   }
+
+  /**
+   * POST /api/v1/cosmos/query
+   * V11.0: Unified spatial query endpoint for interactive cosmos navigation
+   */
+  public processCosmosQuery = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.id || 'dev-user-123';
+      const query: CosmosQuery = req.body;
+
+      console.log('🌌 GraphController.processCosmosQuery - Processing query:', {
+        userId,
+        queryType: this.determineQueryType(query),
+        hasAttributeFilters: !!query.attributeFilters,
+        hasSpatialFilters: !!query.spatialFilters,
+        hasSetFilters: !!query.setFilters,
+        hasTimeTravel: !!query.timeTravel
+      });
+
+      const startTime = Date.now();
+      const result = await this.executeSpatialQuery(query, userId);
+      const queryTime = Date.now() - startTime;
+
+      const response: CosmosQueryResponse = {
+        success: true,
+        data: {
+          ...result,
+          metadata: {
+            ...result.metadata,
+            queryTime
+          }
+        }
+      };
+
+      console.log('🌌 GraphController.processCosmosQuery - Query completed:', {
+        nodeCount: result.nodes.length,
+        edgeCount: result.edges?.length || 0,
+        queryTime: `${queryTime}ms`
+      });
+
+      res.json(response);
+    } catch (error) {
+      console.error('🌌 GraphController.processCosmosQuery - Error:', error);
+      const response: CosmosQueryResponse = {
+        success: false,
+        error: {
+          code: 'QUERY_ERROR',
+          message: error instanceof Error ? error.message : 'Unknown error occurred'
+        }
+      };
+      res.status(500).json(response);
+    }
+  };
+
+  /**
+   * Determine the primary query type based on the query parameters
+   */
+  private determineQueryType(query: CosmosQuery): SpatialQueryType {
+    if (query.timeTravel) return 'time-travel';
+    if (query.spatialFilters?.viewport) return 'viewport';
+    return 'filtered';
+  }
+
+  /**
+   * Execute spatial query with all filter types
+   */
+  private async executeSpatialQuery(query: CosmosQuery, userId: string): Promise<{
+    nodes: CosmosQueryNode[];
+    edges?: CosmosEdge[];
+    metadata: {
+      totalNodes: number;
+      totalEdges?: number;
+      viewportBounds?: {
+        min: [number, number, number];
+        max: [number, number, number];
+      };
+    };
+  }> {
+    // Build base SQL query with UNION wrapped in subquery
+    let sql = `SELECT * FROM (${this.buildBaseQuery(query)}) AS combined_entities WHERE 1=1`;
+    const params: any[] = [userId];
+    let paramIndex = 2;
+
+    // Apply attribute filters
+    if (query.attributeFilters) {
+      const { attributeSql, attributeParams } = this.buildAttributeFilters(query.attributeFilters, paramIndex);
+      sql += attributeSql;
+      params.push(...attributeParams);
+      paramIndex += attributeParams.length;
+    }
+
+    // Apply spatial filters
+    if (query.spatialFilters) {
+      const { spatialSql, spatialParams } = this.buildSpatialFilters(query.spatialFilters, paramIndex);
+      sql += spatialSql;
+      params.push(...spatialParams);
+      paramIndex += spatialParams.length;
+    }
+
+    // Apply set-based filters
+    if (query.setFilters) {
+      const { setSql, setParams } = this.buildSetFilters(query.setFilters, paramIndex);
+      sql += setSql;
+      params.push(...setParams);
+      paramIndex += setParams.length;
+    }
+
+    // Apply time travel filters
+    if (query.timeTravel) {
+      const { timeSql, timeParams } = this.buildTimeTravelFilters(query.timeTravel, paramIndex);
+      sql += timeSql;
+      params.push(...timeParams);
+      paramIndex += timeParams.length;
+    }
+
+    // Apply sorting and limits
+    const { sortLimitSql, sortLimitParams } = this.buildSortAndLimit(query.options, paramIndex);
+    sql += sortLimitSql;
+    params.push(...sortLimitParams);
+
+    console.log('🌌 GraphController.executeSpatialQuery - SQL:', sql);
+    console.log('🌌 GraphController.executeSpatialQuery - Params:', params);
+
+    // Execute query
+    const result = await this.databaseService.prisma.$queryRawUnsafe(sql, ...params);
+    const nodes = this.transformToCosmosNodes(result as any[]);
+
+    // Get edges if requested
+    let edges: CosmosEdge[] | undefined;
+    if (query.options?.includeEdges) {
+      edges = await this.getEdgesForNodes(nodes.map(n => n.entity_id), userId);
+    }
+
+    return {
+      nodes,
+      edges,
+      metadata: {
+        totalNodes: nodes.length,
+        totalEdges: edges?.length,
+        viewportBounds: query.spatialFilters?.viewport
+      }
+    };
+  }
+
+  /**
+   * Build base SQL query for all entity types
+   */
+  private buildBaseQuery(query: CosmosQuery): string {
+    return `
+      SELECT 
+        entity_id,
+        'concept' as entity_type,
+        title,
+        content,
+        type,
+        status,
+        created_at,
+        updated_at,
+        importance_score,
+        position_x,
+        position_y,
+        position_z
+      FROM concepts 
+      WHERE user_id = $1 
+        AND position_x IS NOT NULL 
+        AND position_y IS NOT NULL 
+        AND position_z IS NOT NULL
+      
+      UNION ALL
+      
+      SELECT 
+        entity_id,
+        'memory_unit' as entity_type,
+        title,
+        content,
+        type,
+        status,
+        created_at,
+        updated_at,
+        importance_score,
+        position_x,
+        position_y,
+        position_z
+      FROM memory_units 
+      WHERE user_id = $1 
+        AND position_x IS NOT NULL 
+        AND position_y IS NOT NULL 
+        AND position_z IS NOT NULL
+      
+      UNION ALL
+      
+      SELECT 
+        entity_id,
+        'derived_artifact' as entity_type,
+        title,
+        content,
+        type,
+        status,
+        created_at,
+        updated_at,
+        NULL as importance_score,
+        position_x,
+        position_y,
+        position_z
+      FROM derived_artifacts 
+      WHERE user_id = $1 
+        AND position_x IS NOT NULL 
+        AND position_y IS NOT NULL 
+        AND position_z IS NOT NULL
+      
+      UNION ALL
+      
+      SELECT 
+        entity_id,
+        'community' as entity_type,
+        title,
+        content,
+        type,
+        status,
+        created_at,
+        updated_at,
+        NULL as importance_score,
+        position_x,
+        position_y,
+        position_z
+      FROM communities 
+      WHERE user_id = $1 
+        AND position_x IS NOT NULL 
+        AND position_y IS NOT NULL 
+        AND position_z IS NOT NULL
+      
+      UNION ALL
+      
+      SELECT 
+        entity_id,
+        'growth_event' as entity_type,
+        title,
+        content,
+        type,
+        status,
+        created_at,
+        updated_at,
+        NULL as importance_score,
+        position_x,
+        position_y,
+        position_z
+      FROM growth_events 
+      WHERE user_id = $1 
+        AND position_x IS NOT NULL 
+        AND position_y IS NOT NULL 
+        AND position_z IS NOT NULL
+    `;
+  }
+
+  /**
+   * Build attribute-based filters
+   */
+  private buildAttributeFilters(filters: NonNullable<CosmosQuery['attributeFilters']>, paramIndex: number): {
+    attributeSql: string;
+    attributeParams: any[];
+  } {
+    let sql = '';
+    const params: any[] = [];
+
+    if (filters.entityTypes && filters.entityTypes.length > 0) {
+      sql += ` AND entity_type = ANY($${paramIndex})`;
+      params.push(filters.entityTypes);
+      paramIndex++;
+    }
+
+    if (filters.dateRange) {
+      sql += ` AND created_at BETWEEN $${paramIndex} AND $${paramIndex + 1}`;
+      params.push(filters.dateRange.start, filters.dateRange.end);
+      paramIndex += 2;
+    }
+
+    if (filters.importanceRange) {
+      sql += ` AND importance_score BETWEEN $${paramIndex} AND $${paramIndex + 1}`;
+      params.push(filters.importanceRange.min, filters.importanceRange.max);
+      paramIndex += 2;
+    }
+
+    if (filters.status && filters.status.length > 0) {
+      sql += ` AND status = ANY($${paramIndex})`;
+      params.push(filters.status);
+    }
+
+    return { attributeSql: sql, attributeParams: params };
+  }
+
+  /**
+   * Build spatial filters
+   */
+  private buildSpatialFilters(filters: NonNullable<CosmosQuery['spatialFilters']>, paramIndex: number): {
+    spatialSql: string;
+    spatialParams: any[];
+  } {
+    let sql = '';
+    const params: any[] = [];
+
+    if (filters.viewport) {
+      const { min, max } = filters.viewport;
+      sql += ` AND position_x BETWEEN $${paramIndex} AND $${paramIndex + 1}`;
+      sql += ` AND position_y BETWEEN $${paramIndex + 2} AND $${paramIndex + 3}`;
+      sql += ` AND position_z BETWEEN $${paramIndex + 4} AND $${paramIndex + 5}`;
+      params.push(min[0], max[0], min[1], max[1], min[2], max[2]);
+      paramIndex += 6;
+    }
+
+    if (filters.radius) {
+      const { center, radius } = filters.radius;
+      sql += ` AND SQRT((position_x - $${paramIndex})^2 + (position_y - $${paramIndex + 1})^2 + (position_z - $${paramIndex + 2})^2) <= $${paramIndex + 3}`;
+      params.push(center[0], center[1], center[2], radius);
+      paramIndex += 4;
+    }
+
+    return { spatialSql: sql, spatialParams: params };
+  }
+
+  /**
+   * Build set-based filters
+   */
+  private buildSetFilters(filters: NonNullable<CosmosQuery['setFilters']>, paramIndex: number): {
+    setSql: string;
+    setParams: any[];
+  } {
+    let sql = '';
+    const params: any[] = [];
+
+    if (filters.nodeIds && filters.nodeIds.length > 0) {
+      sql += ` AND entity_id = ANY($${paramIndex})`;
+      params.push(filters.nodeIds);
+      paramIndex++;
+    }
+
+    if (filters.excludeIds && filters.excludeIds.length > 0) {
+      sql += ` AND entity_id != ALL($${paramIndex})`;
+      params.push(filters.excludeIds);
+    }
+
+    return { setSql: sql, setParams: params };
+  }
+
+  /**
+   * Build time travel filters
+   */
+  private buildTimeTravelFilters(timeTravel: NonNullable<CosmosQuery['timeTravel']>, paramIndex: number): {
+    timeSql: string;
+    timeParams: any[];
+  } {
+    const { timestamp, direction = 'backward' } = timeTravel;
+    
+    if (direction === 'backward') {
+      return {
+        timeSql: ` AND created_at <= $${paramIndex}::timestamp`,
+        timeParams: [timestamp]
+      };
+    } else {
+      return {
+        timeSql: ` AND created_at >= $${paramIndex}::timestamp`,
+        timeParams: [timestamp]
+      };
+    }
+  }
+
+  /**
+   * Build sorting and limit clauses
+   */
+  private buildSortAndLimit(options: CosmosQuery['options'], paramIndex: number): {
+    sortLimitSql: string;
+    sortLimitParams: any[];
+  } {
+    let sql = '';
+    const params: any[] = [];
+
+    if (options?.sortBy) {
+      switch (options.sortBy) {
+        case 'importance':
+          sql += ' ORDER BY importance_score';
+          break;
+        case 'created_at':
+          sql += ' ORDER BY created_at';
+          break;
+        case 'distance':
+          // Distance sorting would require a center point - implement if needed
+          sql += ' ORDER BY created_at';
+          break;
+        default:
+          sql += ' ORDER BY created_at';
+      }
+      
+      sql += options.sortOrder === 'asc' ? ' ASC' : ' DESC';
+    } else {
+      sql += ' ORDER BY created_at DESC';
+    }
+
+    if (options?.limit) {
+      sql += ` LIMIT $${paramIndex}`;
+      params.push(options.limit);
+    }
+
+    if (options?.offset) {
+      sql += ` OFFSET $${paramIndex + (options?.limit ? 1 : 0)}`;
+      params.push(options.offset);
+    }
+
+    return { sortLimitSql: sql, sortLimitParams: params };
+  }
+
+  /**
+   * Transform database results to CosmosQueryNode format
+   */
+  private transformToCosmosNodes(results: any[]): CosmosQueryNode[] {
+    return results.map(row => ({
+      id: row.entity_id,
+      entity_id: row.entity_id,
+      entity_type: row.entity_type,
+      title: row.title || '',
+      content: row.content || '',
+      type: row.type || '',
+      status: row.status || 'active',
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      importance_score: row.importance_score,
+      position_x: row.position_x,
+      position_y: row.position_y,
+      position_z: row.position_z,
+      metadata: {}
+    }));
+  }
+
+  /**
+   * Get edges for a set of nodes
+   */
+  private async getEdgesForNodes(nodeIds: string[], userId: string): Promise<CosmosEdge[]> {
+    try {
+      const cypher = `
+        MATCH (a)-[r]->(b)
+        WHERE a.entity_id IN $nodeIds 
+          AND b.entity_id IN $nodeIds
+          AND a.user_id = $userId
+          AND b.user_id = $userId
+        RETURN 
+          id(r) as id,
+          a.entity_id as source,
+          b.entity_id as target,
+          type(r) as type,
+          r.weight as weight,
+          r.created_at as created_at
+        ORDER BY r.created_at DESC
+      `;
+
+      const session = this.databaseService.neo4j.session();
+      try {
+        const result = await session.run(cypher, { nodeIds, userId });
+        
+        return result.records.map((record: any) => ({
+          id: record.get('id').toString(),
+          source: record.get('source'),
+          target: record.get('target'),
+          type: record.get('type'),
+          weight: record.get('weight') || 1.0,
+          created_at: new Date(record.get('created_at')),
+          metadata: {}
+        }));
+      } finally {
+        await session.close();
+      }
+    } catch (error) {
+      console.error('🌌 GraphController.getEdgesForNodes - Error:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Simple entity lookup by ID - Proof of Concept
+   */
+  async getEntityById(req: Request, res: Response): Promise<void> {
+    try {
+      const { entityId } = req.params;
+
+      if (!entityId) {
+        res.status(400).json({
+          success: false,
+          error: 'Entity ID is required'
+        });
+        return;
+      }
+
+      console.log(`🔍 GraphController.getEntityById - Looking up entity: ${entityId}`);
+
+      // Search across all entity tables
+      const entityQueries = [
+        this.databaseService.prisma.concepts.findFirst({
+          where: { entity_id: entityId },
+          select: {
+            entity_id: true,
+            title: true,
+            content: true,
+            type: true,
+            status: true,
+            created_at: true,
+            updated_at: true,
+            importance_score: true,
+            position_x: true,
+            position_y: true,
+            position_z: true,
+          }
+        }),
+        this.databaseService.prisma.memory_units.findFirst({
+          where: { entity_id: entityId },
+          select: {
+            entity_id: true,
+            title: true,
+            content: true,
+            type: true,
+            status: true,
+            created_at: true,
+            updated_at: true,
+            importance_score: true,
+            position_x: true,
+            position_y: true,
+            position_z: true,
+          }
+        }),
+        this.databaseService.prisma.derived_artifacts.findFirst({
+          where: { entity_id: entityId },
+          select: {
+            entity_id: true,
+            title: true,
+            content: true,
+            type: true,
+            status: true,
+            created_at: true,
+            updated_at: true,
+            position_x: true,
+            position_y: true,
+            position_z: true,
+          }
+        })
+      ];
+
+      const results = await Promise.all(entityQueries);
+      const entity = results.find((result: any) => result !== null);
+
+      if (!entity) {
+        res.status(404).json({
+          success: false,
+          error: `Entity with ID "${entityId}" not found`
+        });
+        return;
+      }
+
+      // Determine entity type based on which table it came from
+      let entityType = 'unknown';
+      if (results[0] === entity) entityType = 'concept';
+      else if (results[1] === entity) entityType = 'memory_unit';
+      else if (results[2] === entity) entityType = 'derived_artifact';
+
+      const response: CosmosQueryNode = {
+        id: entity.entity_id,
+        entity_id: entity.entity_id,
+        entity_type: entityType,
+        title: entity.title || 'Untitled',
+        content: entity.content || '',
+        type: entity.type || 'unknown',
+        status: entity.status || 'unknown',
+        created_at: entity.created_at,
+        updated_at: entity.updated_at || entity.created_at,
+        importance_score: (entity as any).importance_score || 0,
+        position_x: entity.position_x || 0,
+        position_y: entity.position_y || 0,
+        position_z: entity.position_z || 0,
+        metadata: {},
+      };
+
+      res.status(200).json({
+        success: true,
+        data: {
+          entity: response
+        }
+      });
+
+    } catch (error) {
+      console.error('🔍 GraphController.getEntityById - Error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error'
+      });
+    }
+  }
+
+  /**
+   * POST /api/v1/neo4j/query
+   * V11.0: Direct Neo4j query endpoint for graph traversal
+   */
+  public executeNeo4jQuery = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { cypher, params } = req.body;
+      const userId = req.user?.id || 'dev-user-123';
+
+      console.log('🔍 GraphController.executeNeo4jQuery - Executing query:', {
+        userId,
+        cypher: cypher.substring(0, 100) + '...',
+        params
+      });
+
+      if (!cypher) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'MISSING_CYPHER',
+            message: 'Cypher query is required'
+          }
+        });
+        return;
+      }
+
+      // Execute the Neo4j query
+      const records = await this.neo4jService.executeCustomQuery(cypher, { ...params, userId });
+
+      console.log('🔍 GraphController.executeNeo4jQuery - Query completed:', {
+        recordCount: records.length
+      });
+
+      // Transform the result to a more usable format
+      const data = records.map((record: any) => {
+        const obj: any = {};
+        record.keys.forEach((key: string) => {
+          obj[key] = record.get(key);
+        });
+        return obj;
+      });
+
+      res.json({
+        success: true,
+        data
+      });
+    } catch (error) {
+      console.error('🔍 GraphController.executeNeo4jQuery - Error:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'NEO4J_ERROR',
+          message: error instanceof Error ? error.message : 'Unknown Neo4j error occurred'
+        }
+      });
+    }
+  };
 } 

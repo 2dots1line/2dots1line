@@ -43,6 +43,13 @@ export class Neo4jService {
       await session.close();
     }
   }
+
+  /**
+   * Executes a custom Cypher query (public method for API endpoints)
+   */
+  public async executeCustomQuery(cypher: string, params: Record<string, any> = {}): Promise<Neo4jRecord[]> {
+    return this.runReadQuery(cypher, params);
+  }
   
   /**
    * Get all relationships for a user

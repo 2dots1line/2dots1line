@@ -260,6 +260,18 @@ const CosmosScene: React.FC = () => {
 
   return (
     <div className="w-full h-full relative">
+      {/* Lookup Mode Navigation Button */}
+      <div className="absolute top-4 left-4 z-10">
+        <div className="bg-black/20 backdrop-blur-md rounded-lg p-3 text-white">
+          <button
+            onClick={() => window.location.href = '/cosmos/lookup'}
+            className="px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-400 rounded text-sm font-medium transition-colors"
+          >
+            🔍 Try Entity Lookup
+          </button>
+        </div>
+      </div>
+
       <Graph3D
         graphData={safeGraphData}
         onNodeClick={(node) => setSelectedNode(node)}

@@ -14,31 +14,60 @@ export const CameraController: React.FC = () => {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
-      if (['w', 'a', 's', 'd', ' '].includes(key)) {
-        setKeys((prev) => ({ ...prev, [key]: true, space: event.key === ' ' ? true : prev.space, shift: event.shiftKey }));
+      if (['w', 'a', 's', 'd'].includes(key)) {
+        setKeys((prev) => ({ ...prev, [key]: true, shift: event.shiftKey }));
+      } else if (event.key === ' ') {
+        setKeys((prev) => ({ ...prev, space: true, shift: event.shiftKey }));
       }
     };
 
     const handleKeyUp = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
-      if (['w', 'a', 's', 'd', ' '].includes(key)) {
-        setKeys((prev) => ({ ...prev, [key]: false, space: event.key === ' ' ? false : prev.space, shift: event.shiftKey }));
+      if (['w', 'a', 's', 'd'].includes(key)) {
+        setKeys((prev) => ({ ...prev, [key]: false, shift: event.shiftKey }));
+      } else if (event.key === ' ') {
+        setKeys((prev) => ({ ...prev, space: false, shift: event.shiftKey }));
       }
+    };
+
+    const handleCameraFocus = (event: CustomEvent) => {
+      const { position, entity } = event.detail;
+      console.log('🎥 CameraController: Focusing camera on entity:', entity.title, 'at position:', position);
+      
+      // Position camera near the entity
+      camera.position.set(
+        position.x + 20, // Offset to view the entity
+        position.y + 20,
+        position.z + 20
+      );
+      
+      // Look at the entity
+      camera.lookAt(position.x, position.y, position.z);
+      
+      // Update camera controls if they exist
+      if (controlsRef.current) {
+        controlsRef.current.target.set(position.x, position.y, position.z);
+        controlsRef.current.update();
+      }
+      
+      console.log('🎥 Camera focused on entity at:', position);
     };
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('camera-focus-request', handleCameraFocus as EventListener);
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('camera-focus-request', handleCameraFocus as EventListener);
     };
-  }, []);
+  }, [camera]);
 
   useFrame(() => {
-    const moveSpeed = keys.shift ? 20 : 10;
-
     if (hasManualInput) {
+      const moveSpeed = keys.shift ? 20 : 10;
+      
       // Free camera movement - move in camera's local space
       const direction = new THREE.Vector3();
       camera.getWorldDirection(direction);
@@ -53,15 +82,22 @@ export const CameraController: React.FC = () => {
       }
       
       if (keys.space) camera.position.y += moveSpeed;
+      
+      // When using manual input, update OrbitControls target to current camera position
+      // This prevents snapping when switching back to OrbitControls
+      if (controlsRef.current) {
+        const direction = new THREE.Vector3();
+        camera.getWorldDirection(direction);
+        const target = camera.position.clone().add(direction.multiplyScalar(50));
+        controlsRef.current.target.copy(target);
+      }
     }
   });
 
-  // Use OrbitControls with no distance constraints for free movement
-  // This allows both free 3D movement AND preserves hover detection
   return (
     <OrbitControls
       ref={controlsRef}
-      enabled={!hasManualInput} // Disable OrbitControls when WASD is active for free flight
+      enabled={!hasManualInput} // Only disable when WASD is active
       enableDamping
       dampingFactor={0.05}
       enableRotate={true}
@@ -70,8 +106,6 @@ export const CameraController: React.FC = () => {
       zoomSpeed={3.0}
       rotateSpeed={0.5}
       panSpeed={0.8}
-      // Remove distance constraints for free flight through all layers
-      // minDistance and maxDistance removed to allow unlimited movement
     />
   );
 };

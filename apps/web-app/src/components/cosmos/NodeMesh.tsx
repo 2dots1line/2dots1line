@@ -26,6 +26,7 @@ interface NodeMeshProps {
   modalOpen?: boolean;
   onHover?: (nodeId: string | null) => void;
   isHighlighted?: boolean;
+  isSearchResult?: boolean; // New prop to indicate if this is a search result (use bright star textures)
 }
 
 export const NodeMesh: React.FC<NodeMeshProps> = ({ 
@@ -33,7 +34,8 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
   onClick, 
   modalOpen = false, 
   onHover,
-  isHighlighted = false 
+  isHighlighted = false,
+  isSearchResult = false
 }) => {
   const meshRef = useRef<THREE.Mesh>(null!);
   const groupRef = useRef<THREE.Group>(null!);
@@ -50,7 +52,25 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
   // Load star texture for this node
   useEffect(() => {
     const loadTexture = async () => {
-      const texturePath = getStarTexture(node.entityType || 'default');
+      let texturePath: string;
+      
+      if (isSearchResult) {
+        // Randomly assign from bright star textures and giant_star for search results
+        const searchResultTextures = [
+          '/textures/brightstar1.png',
+          '/textures/brightstar2.png', 
+          '/textures/brightstar3.png',
+          '/textures/brightstar4.png',
+          '/textures/giant_star.png'
+        ];
+        const randomIndex = Math.floor(Math.random() * searchResultTextures.length);
+        texturePath = searchResultTextures[randomIndex];
+        console.log('🌟 NodeMesh: Search result using random bright texture:', texturePath);
+      } else {
+        // Use regular entity type-based texture for non-search results
+        texturePath = getStarTexture(node.entityType || 'default');
+      }
+      
       const loader = new THREE.TextureLoader();
       
       try {
@@ -71,7 +91,7 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
     };
 
     loadTexture();
-  }, [node.entityType]);
+  }, [node.entityType, isSearchResult]);
 
   // Calculate importance-based size
   const importance = node.importance || node.metadata?.importance_score || 0.5;
@@ -79,7 +99,13 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
   const normalizedImportance = Math.min(importance / 10, 1.0);
   
   // Increased sizing formula: base size 2.0 + normalized importance * 2.5
-  const baseSize = Math.max(2.0 + normalizedImportance * 2.5, 1.5); // Minimum size of 1.5
+  let baseSize = Math.max(2.0 + normalizedImportance * 2.5, 1.5); // Minimum size of 1.5
+  
+  // Make search results much larger and more prominent
+  if (isSearchResult) {
+    baseSize = Math.max(baseSize * 4, 12.0); // At least 12.0 for search results
+    console.log('🌟 NodeMesh: Search result detected, using bright star texture and size:', baseSize);
+  }
   
   // Celestial body color scheme based on entity type
   const getCelestialColor = useMemo(() => {

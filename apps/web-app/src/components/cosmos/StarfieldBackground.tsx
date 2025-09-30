@@ -56,11 +56,11 @@ export const StarfieldBackground: React.FC = () => {
         />
       </bufferGeometry>
       <pointsMaterial
-        size={1.2}
+        size={2}
         sizeAttenuation={false}
         vertexColors
         transparent
-        opacity={0.4}
+        opacity={0.8}
       />
     </points>
   );

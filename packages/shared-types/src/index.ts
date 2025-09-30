@@ -167,6 +167,18 @@ export type {
   LayoutConfig
 } from './entities/CosmosNode';
 
+export type {
+  // Cosmos query types (V11.0 new - interactive spatial queries)
+  CosmosQuery,
+  CosmosQueryResponse,
+  CosmosQueryNode,
+  CosmosEdge,
+  SpatialQueryType,
+  SpatialQueryJob,
+  ViewportBounds,
+  CameraState
+} from './cosmos-query.types';
+
 export interface UserGraphProjection {
   version: string;
   createdAt: string;

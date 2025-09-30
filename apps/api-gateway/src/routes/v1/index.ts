@@ -95,6 +95,15 @@ v1Router.get('/nodes/:nodeId/details', authMiddleware, graphController.getNodeDe
 // --- Graph Projection Routes (Temporarily Unauthenticated for Testing) --- V11.0: 3D visualization data
 v1Router.get('/graph-projection/latest', graphController.getLatestGraphProjection.bind(graphController));
 
+// --- Cosmos Query Routes (Temporarily Unauthenticated for Testing) --- V11.0: Interactive spatial queries
+v1Router.post('/cosmos/query', graphController.processCosmosQuery.bind(graphController));
+
+// --- Simple Entity Lookup (Temporarily Unauthenticated for Testing) --- V11.0: Direct entity lookup by ID
+v1Router.get('/entities/:entityId', graphController.getEntityById.bind(graphController));
+
+// --- Neo4j Query (Temporarily Unauthenticated for Testing) --- V11.0: Direct Neo4j graph traversal
+v1Router.post('/neo4j/query', graphController.executeNeo4jQuery.bind(graphController));
+
 // --- Media Routes (Temporarily Unauthenticated for Testing) ---
 v1Router.get('/media/search', mediaController.searchMedia.bind(mediaController));
 v1Router.get('/media/recommended', mediaController.getRecommendedMedia.bind(mediaController));

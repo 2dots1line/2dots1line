@@ -28,6 +28,7 @@ interface Graph3DProps {
   onBackgroundLoadStart?: () => void;
   onBackgroundLoadComplete?: () => void;
   onBackgroundLoadError?: (error: Error) => void;
+  isSearchResult?: boolean; // New prop to indicate if nodes are search results (use bright star textures)
 }
 
 export const Graph3D: React.FC<Graph3DProps> = ({ 
@@ -40,7 +41,8 @@ export const Graph3D: React.FC<Graph3DProps> = ({
   modalOpen = false,
   onBackgroundLoadStart,
   onBackgroundLoadComplete,
-  onBackgroundLoadError
+  onBackgroundLoadError,
+  isSearchResult = false
 }) => {
   // State for hover management
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
@@ -255,7 +257,7 @@ export const Graph3D: React.FC<Graph3DProps> = ({
         castShadow={false}
       />
       
-      {/* Render nodes with 3D parallax rotation */}
+      {/* Render nodes and edges with 3D parallax rotation */}
       <NodeClusterContainer 
         rotationSpeed={0.0005} 
         enableRotation={true}
@@ -275,65 +277,66 @@ export const Graph3D: React.FC<Graph3DProps> = ({
             }}
             isHighlighted={hoveredNodeId === node.id || 
               (!!hoveredNodeId && getConnectedNodes(hoveredNodeId).includes(node.id))}
+            isSearchResult={isSearchResult} // Use prop to determine if nodes are search results
           />
         ))}
 
         {/* Render edges - controlled by showEdges prop and hover state */}
-      {edges.map((edge, index) => {
-        // Only show edge if it meets visibility criteria
-        if (!shouldShowEdge(edge)) return null;
-        
-        const sourceNode = graphData.nodes.find((n) => n.id === edge.source);
-        const targetNode = graphData.nodes.find((n) => n.id === edge.target);
-        
-        if (!sourceNode || !targetNode) {
-          console.warn('🔍 Graph3D: Missing source or target node for edge:', edge);
-          return null;
-        }
-        
-        // Use positions directly without additional scaling
-        const points = [
-          new THREE.Vector3(sourceNode.x, sourceNode.y, sourceNode.z),
-          new THREE.Vector3(targetNode.x, targetNode.y, targetNode.z),
-        ];
-        
-        const edgeColor = getEdgeColor(edge);
-        const edgeWeight = getEdgeWeight(edge);
-        const edgeLabel = getEdgeLabel(edge);
-        
-        return (
-          <group key={`edge-${index}`}>
-            {animatedEdges ? (
-              <AnimatedEdgeMesh 
+        {edges.map((edge, index) => {
+          // Only show edge if it meets visibility criteria
+          if (!shouldShowEdge(edge)) return null;
+          
+          const sourceNode = graphData.nodes.find((n) => n.id === edge.source);
+          const targetNode = graphData.nodes.find((n) => n.id === edge.target);
+          
+          if (!sourceNode || !targetNode) {
+            console.warn('🔍 Graph3D: Missing source or target node for edge:', edge);
+            return null;
+          }
+          
+          // Use positions directly without additional scaling
+          const points = [
+            new THREE.Vector3(sourceNode.x, sourceNode.y, sourceNode.z),
+            new THREE.Vector3(targetNode.x, targetNode.y, targetNode.z),
+          ];
+          
+          const edgeColor = getEdgeColor(edge);
+          const edgeWeight = getEdgeWeight(edge);
+          const edgeLabel = getEdgeLabel(edge);
+          
+          return (
+            <group key={`edge-${index}`}>
+              {animatedEdges ? (
+                <AnimatedEdgeMesh 
+                  points={points}
+                  color={edgeColor}
+                  width={edgeWidth}
+                  opacity={edgeOpacity}
+                  type={edge.type}
+                  weight={edgeWeight}
+                  animated={true}
+                />
+              ) : (
+                <EdgeMesh 
+                  points={points}
+                  color={edgeColor}
+                  width={edgeWidth}
+                  opacity={edgeOpacity}
+                  type={edge.type}
+                  weight={edgeWeight}
+                />
+              )}
+              
+              {/* Edge label */}
+              <EdgeLabel 
                 points={points}
+                label={edgeLabel}
                 color={edgeColor}
-                width={edgeWidth}
-                opacity={edgeOpacity}
-                type={edge.type}
-                weight={edgeWeight}
-                animated={true}
+                edgeId={`${edge.source}-${edge.target}`}
               />
-            ) : (
-              <EdgeMesh 
-                points={points}
-                color={edgeColor}
-                width={edgeWidth}
-                opacity={edgeOpacity}
-                type={edge.type}
-                weight={edgeWeight}
-              />
-            )}
-            
-            {/* Edge label */}
-            <EdgeLabel 
-              points={points}
-              label={edgeLabel}
-              color={edgeColor}
-              edgeId={`${edge.source}-${edge.target}`}
-            />
-          </group>
-        );
-      })}
+            </group>
+          );
+        })}
       </NodeClusterContainer>
     </Canvas>
   );
