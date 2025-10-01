@@ -89,6 +89,18 @@ cd ../..
 npx prisma studio --schema=./packages/database/prisma/schema.prisma
 ```
 
+How to reset python dimension reducer 
+docker compose -f docker-compose.dev.yml build dimension-reducer
+docker compose -f docker-compose.dev.yml up -d dimension-reducer
+
+
+Manual scripts:
+node scripts/trigger-graph-projection.js "entity-id"
+node scripts/trigger-ingestion.js "conversation-id"
+node scripts/GUIDES/trigger-insight-enhanced.js
+node scripts/force-umap-learning.js
+
+
 #### Alternative: Step-by-Step Startup
 ```bash
 # 1. Start databases

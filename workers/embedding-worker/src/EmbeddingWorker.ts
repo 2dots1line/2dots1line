@@ -22,6 +22,7 @@ export interface EmbeddingJob {
   entityType: 'MemoryUnit' | 'Concept' | 'DerivedArtifact' | 'Community' | 'ProactivePrompt' | 'GrowthEvent' | 'User' | 'MergedConcept';
   textContent: string;        // The text to be embedded
   userId: string;             // For multi-tenant indexing
+  upsertMode?: boolean;       // If true, update existing object instead of creating new one
 }
 
 export interface EmbeddingWorkerConfig {
@@ -138,9 +139,9 @@ export class EmbeddingWorker {
    * Process embedding generation jobs
    */
   private async processJob(job: Job<EmbeddingJob>): Promise<void> {
-    const { entityId, entityType, textContent, userId } = job.data;
+    const { entityId, entityType, textContent, userId, upsertMode } = job.data;
     
-    console.log(`[EmbeddingWorker] Processing embedding for ${entityType} ${entityId}`);
+    console.log(`[EmbeddingWorker] Processing embedding for ${entityType} ${entityId} (upsertMode: ${upsertMode || false})`);
 
     try {
       // Generate embedding using TextEmbeddingTool with correct input format
@@ -161,7 +162,8 @@ export class EmbeddingWorker {
           entityType,
           textContent,
           userId,
-          vector: embedding.result.vector
+          vector: embedding.result.vector,
+          upsertMode
         });
         
         console.log(`[EmbeddingWorker] ✅ Successfully stored embedding in Weaviate with ID: ${weaviateId}`);
@@ -186,6 +188,7 @@ export class EmbeddingWorker {
     textContent: string;
     userId: string;
     vector: number[];
+    upsertMode?: boolean;
   }): Promise<string> {
     try {
       // Use DatabaseService's Weaviate client if available
@@ -211,7 +214,39 @@ export class EmbeddingWorker {
         entityStatus = concept?.status || 'active';
       }
 
-      // Use unified UserKnowledgeItem class for all entity types
+      // Check if object already exists (for upsert mode)
+      if (data.upsertMode) {
+        const existingObject = await this.databaseService.weaviate
+          .graphql
+          .get()
+          .withClassName('UserKnowledgeItem')
+          .withFields('_additional { id }')
+          .withWhere({
+            path: ['entity_id'],
+            operator: 'Equal',
+            valueString: data.entityId
+          })
+          .withLimit(1)
+          .do();
+
+        const existing = existingObject.data?.Get?.UserKnowledgeItem?.[0];
+
+        if (existing) {
+          // Update existing object with new vector using data updater
+          const result = await this.databaseService.weaviate
+            .data
+            .updater()
+            .withClassName('UserKnowledgeItem')
+            .withId(existing._additional.id)
+            .withVector(data.vector)
+            .do();
+          
+          console.log(`✅ [EmbeddingWorker] Updated existing ${data.entityType} embedding: ${result.id}`);
+          return result.id;
+        }
+      }
+
+      // Create new object (either upsertMode is false or no existing object found)
       const result = await this.databaseService.weaviate
         .data
         .creator()
@@ -229,7 +264,7 @@ export class EmbeddingWorker {
         .withVector(data.vector)
         .do();
       
-      console.log(`✅ [EmbeddingWorker] Stored ${data.entityType} embedding in Weaviate: ${result.id}`);
+      console.log(`✅ [EmbeddingWorker] Created new ${data.entityType} embedding: ${result.id}`);
       return result.id || 'weaviate-id-undefined';
     } catch (error) {
       console.error(`❌ [EmbeddingWorker] Failed to store embedding in Weaviate:`, error);

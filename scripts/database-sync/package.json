@@ -1,0 +1,30 @@
+{
+  "name": "@2dots1line/database-sync",
+  "version": "1.0.0",
+  "description": "Database synchronization toolkit for 2D1L system",
+  "main": "run-full-sync.js",
+  "scripts": {
+    "status": "node status.js",
+    "analyze": "node analyze-database-sync.js",
+    "monitor": "node monitor-embedding-queue.js",
+    "fix-missing": "node batch-embed-missing.js",
+    "fix-null-vectors": "node fix-null-vectors.js",
+    "cleanup-duplicates": "node cleanup-duplicate-vectors.js",
+    "cleanup-orphaned": "node cleanup-orphaned-entities.js",
+    "full-sync": "node run-full-sync.js",
+    "help": "echo 'Available commands: status, analyze, monitor, fix-missing, fix-null-vectors, cleanup-duplicates, cleanup-orphaned, full-sync'"
+  },
+  "keywords": [
+    "database",
+    "synchronization",
+    "postgresql",
+    "weaviate",
+    "neo4j",
+    "embeddings"
+  ],
+  "author": "2D1L Team",
+  "license": "MIT",
+  "dependencies": {
+    "@2dots1line/database": "workspace:*"
+  }
+}
