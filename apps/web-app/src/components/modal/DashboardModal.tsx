@@ -1,6 +1,8 @@
 'use client';
 
-import { GlassmorphicPanel, GlassButton, MarkdownRenderer } from '@2dots1line/ui-components';
+import { GlassmorphicPanel, GlassButton, MarkdownRenderer, CardTile } from '@2dots1line/ui-components';
+import { useCardStore } from '../../stores/CardStore';
+import { useHUDStore } from '../../stores/HUDStore';
 import { 
   X, 
   TrendingUp, 
@@ -23,7 +25,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
-import { dashboardService, type RecentActivity, type DynamicDashboardData } from '../../services/dashboardService';
+import { dashboardService, type RecentActivity, type DynamicDashboardData, type DashboardSectionItem } from '../../services/dashboardService';
 
 interface DashboardModalProps {
   isOpen: boolean;
@@ -37,6 +39,9 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
   const [userData, setUserData] = useState<{ name: string; email: string; memberSince: string } | null>(null);
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [dynamicDashboardData, setDynamicDashboardData] = useState<DynamicDashboardData | null>(null);
+  // Use the same stores as infinite/sorted card views
+  const { cards, setSelectedCard, initializeSortedLoader } = useCardStore();
+  const { setCardDetailModalOpen } = useHUDStore();
   const [dashboardConfig, setDashboardConfig] = useState<{
     dashboard_sections: Record<string, {
       title: string;
@@ -81,8 +86,6 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
     'activity': 'Activity'
   };
 
-  // Mock data will be replaced by API calls
-
   useEffect(() => {
     if (isOpen) {
       // Use setTimeout to defer the API calls to next tick, allowing UI to render first
@@ -93,6 +96,48 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
       return () => clearTimeout(loadTimeout);
     }
   }, [isOpen]);
+
+  // Load cards when dashboard opens (since main page clears cards when switching away from cards view)
+  useEffect(() => {
+    if (isOpen && cards.length === 0) {
+      initializeSortedLoader('newest');
+    }
+  }, [isOpen, cards.length, initializeSortedLoader]);
+
+  // Handle card selection - same approach as infinite/sorted card views
+  const handleCardSelect = (card: any) => {
+    setSelectedCard(card);
+    setCardDetailModalOpen(true);
+  };
+
+  // Render recent cards section - mini sorted card view
+  const renderRecentCards = () => {
+    // Use the same card store as sorted view, but limit to 5 most recent
+    const recentCards = cards.slice(0, 5);
+    
+    if (recentCards.length === 0) {
+      return (
+        <div className="text-center py-4 text-white/60">
+          <div className="text-2xl mb-2">📭</div>
+          <p className="text-sm">No recent cards available</p>
+        </div>
+      );
+    }
+
+    return recentCards.map((card: any, index: number) => (
+      <div key={card.card_id || `card-${index}`} className="mx-auto w-48 h-48">
+        <CardTile
+          card={card}
+          size="lg"
+          onClick={() => handleCardSelect(card)}
+          showActions={false}
+          showMetadata={true}
+          className="w-full h-full"
+          optimizeForInfiniteGrid={false}
+        />
+      </div>
+    ));
+  };
 
   const loadDashboardData = async () => {
     setIsLoading(true);
@@ -108,9 +153,9 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
       
       if (legacyResponse.success && legacyResponse.data) {
         setUserData({
-          name: 'Alex', // This would come from user service
-          email: 'alex@example.com',
-          memberSince: '2024-06-15'
+          name: 'User',
+          email: 'user@example.com',
+          memberSince: '2024-01-01'
         });
         setRecentActivity(legacyResponse.data.recentActivity);
       } else {
@@ -124,26 +169,21 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
       }
 
       if (configResponse.success && configResponse.data) {
-        console.log('🔧 Dashboard config loaded:', configResponse.data);
-        console.log('🔧 Dashboard sections:', configResponse.data.dashboard_sections);
-        console.log('🔧 Dashboard layout tabs:', configResponse.data.dashboard_layout?.tabs);
         setDashboardConfig(configResponse.data);
       } else {
-        console.error('❌ Failed to load dashboard config:', configResponse.error);
+        console.error('Failed to load dashboard config:', configResponse.error);
       }
 
       if (greetingResponse.success && greetingResponse.data) {
         setProactiveGreeting(greetingResponse.data.greeting);
-        console.log('👋 Proactive greeting loaded:', greetingResponse.data.greeting);
       } else {
-        console.error('❌ Failed to load proactive greeting:', greetingResponse.error);
+        console.error('Failed to load proactive greeting:', greetingResponse.error);
       }
 
       if (metricsResponse.success && metricsResponse.data) {
         setUserMetrics(metricsResponse.data);
-        console.log('📊 User metrics loaded:', metricsResponse.data);
       } else {
-        console.error('❌ Failed to load user metrics:', metricsResponse.error);
+        console.error('Failed to load user metrics:', metricsResponse.error);
       }
 
     } catch (error) {
@@ -213,17 +253,14 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
   // Get section groups for a specific tab from configuration
   const getTabSectionGroups = (tabKey: string) => {
     if (!dashboardConfig) {
-      console.log(`[DashboardModal] DEBUG: No dashboardConfig for tab ${tabKey}`);
       return [];
     }
     
     const tabConfig = dashboardConfig.dashboard_layout?.tabs?.[tabKey];
     if (!tabConfig?.section_groups) {
-      console.log(`[DashboardModal] DEBUG: No section_groups for tab ${tabKey}`, { tabConfig, dashboardLayout: dashboardConfig.dashboard_layout });
       return [];
     }
     
-    console.log(`[DashboardModal] DEBUG: Found ${tabConfig.section_groups.length} section groups for tab ${tabKey}`, tabConfig.section_groups);
     return tabConfig.section_groups.sort((a, b) => a.priority - b.priority);
   };
 
@@ -557,64 +594,7 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                         <h4 className="text-white/90 font-medium">Recent Cards</h4>
                       </div>
                 <div className="space-y-6 h-full overflow-y-auto custom-scrollbar">
-                  {(() => {
-                    const cards = dynamicDashboardData?.sections?.recent_cards?.items || [];
-                    console.log('🎨 Opening tab rendering - cards from sections:', cards);
-                    console.log('🎨 Opening tab rendering - cards.length:', cards.length);
-                    return cards.length > 0 ? (
-                      cards.map((card, index) => {
-                        console.log(`🎨 Rendering card ${index}:`, card);
-                        
-                        // Get card type for gradient selection
-                        const cardType = card.metadata?.card_type || 'default';
-                        const gradients = {
-                          memoryunit: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-                          concept: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
-                          derived_artifact: 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
-                          proactive_prompt: 'linear-gradient(135deg, #ffaa00 0%, #ff8800 100%)',
-                          default: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-                        };
-                        
-                        const backgroundImage = card.metadata?.background_image_url 
-                          ? `url(${card.metadata.background_image_url})` 
-                          : gradients[cardType as keyof typeof gradients] || gradients.default;
-                        
-                        return (
-                          <div 
-                            key={card.id || `card-${index}`} 
-                            className="relative w-48 h-48 mx-auto rounded-2xl overflow-hidden cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-2xl"
-                            style={{
-                              backgroundImage,
-                              backgroundSize: 'cover',
-                              backgroundPosition: 'center',
-                              backgroundRepeat: 'no-repeat'
-                            }}
-                          >
-                            {/* Card Overlay */}
-                            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/20 to-black/60 rounded-2xl" />
-                            
-                            {/* Card Content */}
-                            <div className="relative z-10 h-full flex flex-col justify-end p-4">
-                              <div className="text-white">
-                                <h3 className="text-sm font-semibold mb-1 text-shadow-sm">
-                                  {card.title}
-                                </h3>
-                                <p className="text-xs text-white/80 text-shadow-sm line-clamp-2">
-                                  {card.content}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <div className="text-center py-4 text-white/60">
-                        <div className="text-2xl mb-2">📭</div>
-                        <p className="text-sm">No recent cards available</p>
-                        <p className="text-xs text-white/40 mt-1">Check console for API errors</p>
-                      </div>
-                    );
-                  })()}
+                  {renderRecentCards()}
                 </div>
                     </GlassmorphicPanel>
                   </div>
@@ -732,6 +712,8 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
           </div>
         )}
       </GlassmorphicPanel>
+
+      {/* Card Detail Modal is handled by ModalContainer */}
     </div>
   );
 };

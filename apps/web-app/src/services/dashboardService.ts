@@ -65,6 +65,11 @@ export interface DashboardSectionItem {
   priority?: number;
   created_at: string;
   metadata?: any;
+  // Additional fields that are returned by the API for recent_cards
+  type?: string;
+  source_entity_id?: string;
+  source_entity_type?: string;
+  background_image_url?: string;
 }
 
 export interface DashboardSection {

@@ -678,36 +678,14 @@ function HomePage() {
                                     max-[768px]:gap_[32px]
                                     max-[480px]:gap_[27px]">
                       {visibleSortedCards.map((card: any, idx: number) => (
-                        <div
+                        <CardTile
                           key={String(card.card_id ?? card.id ?? idx)}
-                          className="relative rounded-2xl overflow-hidden ring-1 ring-white/10 bg-white/5 backdrop-blur-md hover:bg-white/10 transition
-                                     w-[200px] h-[200px]
-                                     max-[1600px]:w-[180px] max-[1600px]:h-[180px]
-                                     max-[1200px]:w-[160px] max-[1200px]:h-[160px]
-                                     max-[768px]:w-[140px]  max-[768px]:h-[140px]
-                                     max-[480px]:w-[120px]  max-[480px]:h-[120px]"
+                          card={card}
+                          useResponsiveSizing={true}
                           onClick={() => handleCardSelect(card)}
-                          role="button"
-                          aria-label={card?.title || 'Card'}
-                        >
-                          {/* Background image (cover or gradient) */}
-                          {card?.background_image_url ? (
-                            <img
-                              src={card.background_image_url}
-                              alt=""
-                              className="absolute inset-0 w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-white/5" />
-                          )}
-                          {/* Readability overlay */}
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                          {/* Text */}
-                          <div className="absolute bottom-2 left-2 right-2 text-white">
-                            <div className="text-sm font-semibold truncate">{card?.title || 'Card'}</div>
-                            <div className="text-xs opacity-80 truncate">{card?.subtitle || card?.source_entity_type || ''}</div>
-                          </div>
-                        </div>
+                          showActions={false}
+                          showMetadata={true}
+                        />
                       ))}
                     </div>
                   </div>

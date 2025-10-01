@@ -98,12 +98,12 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
   // Normalize importance from 1-10 scale to 0-1 scale for better visual balance
   const normalizedImportance = Math.min(importance / 10, 1.0);
   
-  // Increased sizing formula: base size 2.0 + normalized importance * 2.5
-  let baseSize = Math.max(2.0 + normalizedImportance * 2.5, 1.5); // Minimum size of 1.5
+  // Smaller sizing formula: base size 1.0 + normalized importance * 1.0
+  let baseSize = Math.max(1.0 + normalizedImportance * 1.0, 0.8); // Minimum size of 0.8
   
   // Make search results much larger and more prominent
   if (isSearchResult) {
-    baseSize = Math.max(baseSize * 4, 12.0); // At least 12.0 for search results
+    baseSize = Math.max(baseSize * 2, 6.0); // At least 12.0 for search results
     console.log('🌟 NodeMesh: Search result detected, using bright star texture and size:', baseSize);
   }
   
@@ -160,14 +160,14 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
     if (!starTexture) return null;
 
     return new THREE.PointsMaterial({
-      size: baseSize * 3, // Scale up more for better visibility
+      size: baseSize * 2, // Reduced scale for smaller appearance
       map: starTexture,
       sizeAttenuation: true,
       depthWrite: false,
       transparent: true,
       blending: THREE.AdditiveBlending,
       color: getStarColor,
-      opacity: 0.8
+      opacity: 1.0 // Increased from 0.8 to 1.0 for less transparency
     });
   }, [starTexture, baseSize, getStarColor]);
 
@@ -201,7 +201,7 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
         onClick={() => onClick(node)}
         scale={hovered ? 1.2 : 1.0}
       >
-        <sphereGeometry args={[baseSize * 2, 8, 8]} />
+        <sphereGeometry args={[baseSize * 1.5, 8, 8]} />
         <meshBasicMaterial 
           transparent 
           opacity={0}
@@ -212,12 +212,12 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
       
       {/* Add subtle glow effect for important nodes */}
       {importance > 7 && (
-        <mesh scale={[baseSize * 1.5, baseSize * 1.5, baseSize * 1.5]}>
+        <mesh scale={[baseSize * 1.2, baseSize * 1.2, baseSize * 1.2]}>
           <sphereGeometry args={[1, 8, 8]} />
           <meshBasicMaterial 
             color={getStarColor}
             transparent={true}
-            opacity={0.1}
+            opacity={0.3}
             side={THREE.BackSide}
           />
         </mesh>

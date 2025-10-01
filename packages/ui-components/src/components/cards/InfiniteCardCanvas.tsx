@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { DisplayCard } from '@2dots1line/shared-types';
+import { CardTile } from './CardTile';
 import './InfiniteCardCanvas.css';
 
 /**
@@ -338,58 +339,22 @@ export const InfiniteCardCanvas: React.FC<InfiniteCardCanvasProps> = ({
         style={{ transform: `translate(${offset.x}px, ${offset.y}px)` }}
       >
         {visibleCards.map((card) => {
-          // Determine display values with resilient fallbacks
-          const displayTitle =
-            card?.title ||
-            (typeof card?.type === 'string' ? card.type.replace(/_/g, ' ') : '') ||
-            'Card';
-          const displaySubtitle =
-            card?.subtitle ||
-            (typeof card?.source_entity_type === 'string' ? card.source_entity_type.replace(/_/g, ' ') : '') ||
-            'Item';
-
           return (
-            <div
-              // Use stable per-cell key so identity never changes during drag
+            <CardTile
               key={`cell-${card.gridRow}-${card.gridCol}`}
-              className="card-tile"
+              card={card}
+              optimizeForInfiniteGrid={true}
               style={{
                 position: 'absolute',
                 left: card.x,
                 top: card.y,
                 width: CARD_SIZE,
                 height: CARD_SIZE,
-                borderRadius: 24,
-                overflow: 'hidden',
-                background: 'transparent',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08)',
-                cursor: 'pointer',
               }}
               onClick={() => handleTileClick(card)}
-            >
-              {/* Background image */}
-              <div
-                className="card-background"
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: '100%',
-                  backgroundImage: card.background_image_url ? `url(${card.background_image_url})` : undefined,
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                  backgroundRepeat: 'no-repeat',
-                }}
-              />
-              {/* Readability overlay */}
-              <div className="card-overlay" />
-              {/* Content */}
-              <div className="card-content">
-                <div className="card-title">{displayTitle}</div>
-                <div className="card-subtitle">{displaySubtitle}</div>
-              </div>
-            </div>
+              showActions={false}
+              showMetadata={true}
+            />
           );
         })}
       </div>
