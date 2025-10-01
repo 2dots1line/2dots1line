@@ -40,7 +40,7 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [dynamicDashboardData, setDynamicDashboardData] = useState<DynamicDashboardData | null>(null);
   // Use the same stores as infinite/sorted card views
-  const { cards, setSelectedCard, initializeSortedLoader } = useCardStore();
+  const { cards, setSelectedCard } = useCardStore();
   const { setCardDetailModalOpen } = useHUDStore();
   const [dashboardConfig, setDashboardConfig] = useState<{
     dashboard_sections: Record<string, {
@@ -97,12 +97,7 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
     }
   }, [isOpen]);
 
-  // Load cards when dashboard opens (since main page clears cards when switching away from cards view)
-  useEffect(() => {
-    if (isOpen && cards.length === 0) {
-      initializeSortedLoader('newest');
-    }
-  }, [isOpen, cards.length, initializeSortedLoader]);
+  // Cards are now loaded automatically when user is authenticated via useAutoLoadCards
 
   // Handle card selection - same approach as infinite/sorted card views
   const handleCardSelect = (card: any) => {

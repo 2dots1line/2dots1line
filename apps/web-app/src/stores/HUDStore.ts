@@ -10,6 +10,9 @@ interface HUDState {
   isDragging: boolean;
   position: { x: number; y: number };
   
+  // Navigation state
+  isNavigatingFromCosmos: boolean;
+  
   // Card detail modal (overlays on cards view)
   cardDetailModalOpen: boolean;
   
@@ -22,6 +25,7 @@ interface HUDState {
   updatePosition: (position: { x: number; y: number }) => void;
   resetPosition: () => void;
   setCardDetailModalOpen: (open: boolean) => void;
+  setIsNavigatingFromCosmos: (navigating: boolean) => void;
 }
 
 const DEFAULT_POSITION = { x: 20, y: 120 }; // 20px from right, 120px from top
@@ -34,6 +38,7 @@ export const useHUDStore = create<HUDState>()(
       activeView: null, // Unified view state
       isDragging: false,
       position: DEFAULT_POSITION,
+      isNavigatingFromCosmos: false,
       cardDetailModalOpen: false,
 
       // Actions
@@ -72,6 +77,10 @@ export const useHUDStore = create<HUDState>()(
 
       setCardDetailModalOpen: (open: boolean) => {
         set({ cardDetailModalOpen: open });
+      },
+
+      setIsNavigatingFromCosmos: (navigating: boolean) => {
+        set({ isNavigatingFromCosmos: navigating });
       },
     }),
     {

@@ -22,14 +22,14 @@ function HomePage() {
   const [isSignupModalOpen, setIsSignupModalOpen] = useState(false);
 
   const { user, isAuthenticated, logout, initializeAuth, hasHydrated } = useUserStore();
-  const { setActiveView, activeView, setCardDetailModalOpen } = useHUDStore();
+  const { setActiveView, activeView, setCardDetailModalOpen, isNavigatingFromCosmos } = useHUDStore();
   const { 
     cards, 
     isLoading, 
     setSelectedCard, 
     updateCardBackground, 
-    initializeRandomLoader, 
-    initializeSortedLoader, 
+    initializeRandomLoader,
+    initializeSortedLoader,
     loadMoreRandomCards, 
     loadMoreSortedCards,
     clearCards 
@@ -63,48 +63,25 @@ function HomePage() {
   // Automatically load cards when user is authenticated
   const { cardsLoaded, totalCards } = useAutoLoadCards();
 
-  // Load cards when cards view becomes active - LAZY LOADING
+  // Initialize the appropriate loader when view mode changes
   useEffect(() => {
     if (isAuthenticated && activeView === 'cards') {
-      // Don't clear cards immediately - let the view render first
-      // Use setTimeout to defer loading to next tick, allowing UI to update
-      const loadCardsTimeout = setTimeout(() => {
-        // Only clear and reload if we don't have cards or need different view mode
-        const { cards: currentCards, randomLoader, sortedLoader } = useCardStore.getState();
-        
-        if (currentCards.length === 0 || 
-            (viewMode === 'infinite' && !randomLoader) || 
-            (viewMode === 'sorted' && !sortedLoader)) {
-          
-          console.log('Cards view: Lazy loading cards for view mode:', viewMode);
-          clearCards();
-          
-          // Initialize the appropriate loader based on view mode
-          if (viewMode === 'infinite') {
-            initializeRandomLoader();
-          } else {
-            initializeSortedLoader(sortKey);
-          }
-        } else {
-          console.log('Cards view: Using existing cards, no reload needed');
-        }
-      }, 0); // Defer to next tick
+      const { randomLoader, sortedLoader } = useCardStore.getState();
       
-      return () => {
-        clearTimeout(loadCardsTimeout);
-        // Cancel any ongoing card loading when switching away from cards view
-        if (activeView !== 'cards') {
-          useCardStore.getState().cancelCurrentRequest();
-        }
-      };
+      if (viewMode === 'infinite' && !randomLoader) {
+        console.log('Cards view: Initializing random loader for infinite view');
+        initializeRandomLoader();
+      } else if (viewMode === 'sorted' && !sortedLoader) {
+        console.log('Cards view: Initializing sorted loader for sorted view');
+        initializeSortedLoader(sortKey);
+      }
     }
-  }, [isAuthenticated, activeView, viewMode, sortKey, clearCards, initializeRandomLoader, initializeSortedLoader]);
+  }, [isAuthenticated, activeView, viewMode, sortKey, initializeRandomLoader, initializeSortedLoader]);
 
-  // CRITICAL: Clear cards when switching away from cards view to prevent blocking
+  // Clear cards only when switching to heavy views (cosmos) to prevent memory issues
   useEffect(() => {
-    if (isAuthenticated && activeView !== 'cards') {
-      console.log('[HomePage] Switching away from cards view - clearing cards to prevent blocking');
-      // Clear cards immediately when switching away to prevent heavy processing
+    if (isAuthenticated && activeView === 'cosmos') {
+      console.log('[HomePage] Switching to cosmos view - clearing cards to prevent memory issues');
       clearCards();
     }
   }, [isAuthenticated, activeView, clearCards]);
@@ -170,11 +147,12 @@ function HomePage() {
   }, [isAuthenticated, hasHydrated, loadUserPreferences]);
 
   // Auto-open dashboard when user is authenticated and no view is active
+  // Only run this on initial page load, not when navigating from cosmos
   useEffect(() => {
-    if (isAuthenticated && hasHydrated && !activeView) {
+    if (isAuthenticated && hasHydrated && !activeView && !isNavigatingFromCosmos) {
       setActiveView('dashboard');
     }
-  }, [isAuthenticated, hasHydrated, activeView, setActiveView]);
+  }, [isAuthenticated, hasHydrated, activeView, setActiveView, isNavigatingFromCosmos]);
 
   // Handle opening login modal
   const openLoginModal = () => {
@@ -470,15 +448,56 @@ function HomePage() {
     });
   }, [sortedCards, activeView]);
 
+  // Search state for backend search
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Perform backend search when search query changes
+  useEffect(() => {
+    const performSearch = async () => {
+      const q = searchQuery.trim();
+      if (!q) {
+        setSearchResults([]);
+        return;
+      }
+
+      setIsSearching(true);
+      try {
+        const response = await cardService.searchCards(q, 100);
+        if (response.success && response.cards) {
+          setSearchResults(response.cards);
+        } else {
+          setSearchResults([]);
+        }
+      } catch (error) {
+        console.error('Search error:', error);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    // Debounce search
+    const timeoutId = setTimeout(performSearch, 300);
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
+
   // NEW: Search applies to Sorted View only
   const visibleSortedCards = useMemo(() => {
     // CRITICAL: Don't process cards if we're not in cards view
     if (activeView !== 'cards') return [] as any[];
     
-    const q = searchQuery.trim().toLowerCase();
+    const q = searchQuery.trim();
     if (!q) return uniqueSortedCards;
-    return uniqueSortedCards.filter((c: any) => (c?.title || '').toLowerCase().includes(q));
-  }, [uniqueSortedCards, searchQuery, activeView]);
+    
+    // Use backend search results if available
+    if (searchResults.length > 0) {
+      return searchResults;
+    }
+    
+    // Fallback to local search
+    return uniqueSortedCards.filter((c: any) => (c?.title || '').toLowerCase().includes(q.toLowerCase()));
+  }, [uniqueSortedCards, searchQuery, searchResults, activeView]);
 
   // NOTE: Infinite Canvas now uses the raw pool (no search filtering)
   const filteredCards = useMemo(() => {
@@ -632,13 +651,25 @@ function HomePage() {
                       )}
 
                       {viewMode === 'sorted' && (
-                        <input
-                          type="text"
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          placeholder="Search by name…"
-                          className="ml-3 bg-transparent border border-white/20 rounded px-2 py-1 text-sm text-onSurface placeholder:text-onSurface/50 w-48"
-                        />
+                        <div className="ml-3 relative">
+                          <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search by name…"
+                            className="bg-transparent border border-white/20 rounded px-2 py-1 text-sm text-onSurface placeholder:text-onSurface/50 w-48 pr-8"
+                          />
+                          {isSearching && (
+                            <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                            </div>
+                          )}
+                          {!isSearching && searchQuery.trim() && searchResults.length > 0 && (
+                            <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-xs text-white/70">
+                              {searchResults.length}
+                            </div>
+                          )}
+                        </div>
                       )}
 
                       {viewMode === 'sorted' && (

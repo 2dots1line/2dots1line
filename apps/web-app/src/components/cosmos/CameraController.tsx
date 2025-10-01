@@ -3,7 +3,11 @@ import { OrbitControls } from '@react-three/drei';
 import React, { useRef, useState, useEffect } from 'react';
 import * as THREE from 'three';
 
-export const CameraController: React.FC = () => {
+interface CameraControllerProps {
+  flySpeed?: number;
+}
+
+export const CameraController: React.FC<CameraControllerProps> = ({ flySpeed = 2.5 }) => {
   const { camera } = useThree();
   const controlsRef = useRef<any>();
   const [keys, setKeys] = useState({ w: false, a: false, s: false, d: false, shift: false, space: false });
@@ -66,7 +70,7 @@ export const CameraController: React.FC = () => {
 
   useFrame(() => {
     if (hasManualInput) {
-      const moveSpeed = keys.shift ? 20 : 10;
+      const moveSpeed = keys.shift ? flySpeed * 2 : flySpeed; // Use flySpeed from navigation controls
       
       // Free camera movement - move in camera's local space
       const direction = new THREE.Vector3();

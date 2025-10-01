@@ -40,19 +40,17 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
     activeView,
     isDragging,
     position,
+    isNavigatingFromCosmos,
     toggleHUD,
     setActiveView,
     setIsDragging,
     updatePosition,
+    setIsNavigatingFromCosmos,
   } = useHUDStore();
 
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const hudRef = useRef<HTMLDivElement>(null);
 
-  // Debug: Log HUD state
-  useEffect(() => {
-    console.log('HUDContainer - State:', { isExpanded, position, activeView });
-  }, [isExpanded, position, activeView]);
 
   // Handle mouse down for dragging
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -105,8 +103,6 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
 
   // Handle view button click
   const handleButtonClick = (viewId: ViewType) => {
-    console.log(`[HUDContainer] Switching to view: ${viewId}`);
-    
     if (viewId === 'cosmos') {
       // Navigate to cosmos page
       router.push('/cosmos');
@@ -115,14 +111,11 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
       if (pathname === '/cosmos') {
         // We're on cosmos page, navigate back to main page
         setPendingView(viewId);
+        setIsNavigatingFromCosmos(true);
         router.push('/');
       } else {
         // We're on main page, just set the active view
-        // Cancel any ongoing card loading when switching away from cards
-        if (activeView === 'cards' && viewId !== 'cards') {
-          const { cancelCurrentRequest } = useCardStore.getState();
-          cancelCurrentRequest();
-        }
+        // Card loading is now managed by CardStore internally
         
         setActiveView(viewId);
         onViewSelect?.(viewId);
@@ -136,17 +129,11 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
       setActiveView(pendingView);
       onViewSelect?.(pendingView);
       setPendingView(null);
+      setIsNavigatingFromCosmos(false);
     }
   }, [pathname, pendingView, setActiveView, onViewSelect]);
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      // Cancel any ongoing card loading when HUD unmounts
-      const { cancelCurrentRequest } = useCardStore.getState();
-      cancelCurrentRequest();
-    };
-  }, []);
+  // Cleanup on unmount - CardStore manages its own lifecycle
 
   // Determine active view based on current route
   const getCurrentActiveView = (): ViewType => {
@@ -158,7 +145,6 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
 
   const currentActiveView = getCurrentActiveView();
 
-  console.log('HUDContainer - Rendering with isExpanded:', isExpanded, 'position:', position);
 
   return (
     <div

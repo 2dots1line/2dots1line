@@ -4,6 +4,7 @@ import { PerspectiveCamera } from '@react-three/drei';
 import { StarfieldBackground } from './StarfieldBackground';
 import { NASAStarfieldBackground } from './NASAStarfieldBackground';
 import { CameraController } from './CameraController';
+import { CosmosNavigationControls } from './CosmosNavigationControls';
 import { NodeMesh } from './NodeMesh';
 import { EdgeMesh, AnimatedEdgeMesh } from './EdgeMesh';
 import { EdgeLabel } from './EdgeLabel';
@@ -46,6 +47,15 @@ export const Graph3D: React.FC<Graph3DProps> = ({
 }) => {
   // State for hover management
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  
+  // Navigation state
+  const [cameraMode, setCameraMode] = useState<'free' | 'orbit' | 'follow' | 'cinematic'>('free');
+  const [isFlying, setIsFlying] = useState(false);
+  const [isOrbiting, setIsOrbiting] = useState(false);
+  const [flySpeed, setFlySpeed] = useState(2.5); // Match the slower speed from CameraController
+  const [orbitSpeed, setOrbitSpeed] = useState(0.5);
+  const [isNavigationMinimized, setIsNavigationMinimized] = useState(false);
+  const [showNavigationHelp, setShowNavigationHelp] = useState(false);
   
   // Normalize edge data - handle both 'links' and 'edges' properties
   const edges = graphData.links || graphData.edges || [];
@@ -243,20 +253,67 @@ export const Graph3D: React.FC<Graph3DProps> = ({
     console.log('🔍 Camera positioning disabled for node:', nodeId);
   }, []);
 
+  // Navigation control handlers
+  const handleCameraModeChange = useCallback((mode: 'free' | 'orbit' | 'follow' | 'cinematic') => {
+    setCameraMode(mode);
+    console.log('🎮 Graph3D: Camera mode changed to', mode);
+  }, []);
+
+  const handleFlySpeedChange = useCallback((speed: number) => {
+    console.log('🎮 Graph3D: handleFlySpeedChange called with speed:', speed);
+    setFlySpeed(speed);
+    console.log('🎮 Graph3D: Fly speed changed to', speed);
+  }, []);
+
+  const handleOrbitSpeedChange = useCallback((speed: number) => {
+    setOrbitSpeed(speed);
+    console.log('🎮 Graph3D: Orbit speed changed to', speed);
+  }, []);
+
+  const handleResetCamera = useCallback(() => {
+    // Reset camera to default position
+    console.log('🎮 Graph3D: Resetting camera');
+    // This could be enhanced to actually reset the camera position
+  }, []);
+
+  const handleStopAllMovement = useCallback(() => {
+    setIsFlying(false);
+    setIsOrbiting(false);
+    console.log('🎮 Graph3D: Stopping all movement');
+  }, []);
+
+  const handleToggleAutoOrbit = useCallback(() => {
+    setIsOrbiting(!isOrbiting);
+    console.log('🎮 Graph3D: Toggling auto orbit to', !isOrbiting);
+  }, [isOrbiting]);
+
+  const handleFlyToPosition = useCallback((position: [number, number, number]) => {
+    setIsFlying(true);
+    console.log('🎮 Graph3D: Flying to position', position);
+    // This could be enhanced to actually fly to the position
+    setTimeout(() => setIsFlying(false), 2000); // Simulate flight duration
+  }, []);
+
+  const handleMoveCamera = useCallback((direction: [number, number, number]) => {
+    console.log('🎮 Graph3D: Moving camera in direction', direction);
+    // This could be enhanced to actually move the camera
+  }, []);
+
   return (
-    <Canvas
-      id="cosmos-canvas"
-      style={{
-        width: '100vw',
-        height: '100vh',
-        background: '#000',
-      }}
-      gl={{
-        antialias: true,
-        alpha: false,
-        powerPreference: 'high-performance',
-      }}
-    >
+    <>
+      <Canvas
+        id="cosmos-canvas"
+        style={{
+          width: '100vw',
+          height: '100vh',
+          background: '#000',
+        }}
+        gl={{
+          antialias: true,
+          alpha: false,
+          powerPreference: 'high-performance',
+        }}
+      >
       <PerspectiveCamera 
         makeDefault 
         position={[0, 0, 100]} 
@@ -275,7 +332,7 @@ export const Graph3D: React.FC<Graph3DProps> = ({
       {/* Procedural Starfield - Layer 2 (Nearby stars for depth) */}
       <StarfieldBackground />
       
-      <CameraController />
+      <CameraController flySpeed={flySpeed} />
       {/* Ambient light for overall illumination */}
       <ambientLight intensity={0.2} />
       
@@ -379,5 +436,29 @@ export const Graph3D: React.FC<Graph3DProps> = ({
         })}
       </NodeClusterContainer>
     </Canvas>
+    
+    {/* Navigation Controls */}
+    <CosmosNavigationControls
+      cameraMode={cameraMode}
+      isFlying={isFlying}
+      isOrbiting={isOrbiting}
+      flySpeed={flySpeed}
+      orbitSpeed={orbitSpeed}
+      onCameraModeChange={handleCameraModeChange}
+      onFlySpeedChange={handleFlySpeedChange}
+      onOrbitSpeedChange={handleOrbitSpeedChange}
+      onResetCamera={handleResetCamera}
+      onStopAllMovement={handleStopAllMovement}
+      onToggleAutoOrbit={handleToggleAutoOrbit}
+      onFlyToPosition={handleFlyToPosition}
+      onMoveCamera={handleMoveCamera}
+      position="top-right"
+      isMinimized={isNavigationMinimized}
+      onToggleMinimize={() => setIsNavigationMinimized(!isNavigationMinimized)}
+      showHelp={showNavigationHelp}
+      onToggleHelp={() => setShowNavigationHelp(!showNavigationHelp)}
+      debug={true}
+    />
+    </>
   );
 };

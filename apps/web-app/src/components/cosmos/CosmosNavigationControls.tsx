@@ -56,28 +56,36 @@ interface CosmosNavigationControlsProps {
   debug?: boolean;
 }
 
-export const CosmosNavigationControls: React.FC<CosmosNavigationControlsProps> = ({
-  cameraMode,
-  isFlying,
-  isOrbiting,
-  flySpeed,
-  orbitSpeed,
-  onCameraModeChange,
-  onFlySpeedChange,
-  onOrbitSpeedChange,
-  onResetCamera,
-  onStopAllMovement,
-  onToggleAutoOrbit,
-  onFlyToPosition,
-  onMoveCamera,
-  position = 'top-left',
-  isMinimized = false,
-  onToggleMinimize,
-  showHelp = false,
-  onToggleHelp,
-  className = '',
-  debug = false,
-}) => {
+export const CosmosNavigationControls: React.FC<CosmosNavigationControlsProps> = (props) => {
+  const {
+    cameraMode,
+    isFlying,
+    isOrbiting,
+    flySpeed,
+    orbitSpeed,
+    onCameraModeChange,
+    onFlySpeedChange,
+    onOrbitSpeedChange,
+    onResetCamera,
+    onStopAllMovement,
+    onToggleAutoOrbit,
+    onFlyToPosition,
+    onMoveCamera,
+    position = 'top-left',
+    isMinimized = false,
+    onToggleMinimize,
+    showHelp = false,
+    onToggleHelp,
+    className = '',
+    debug = false,
+  } = props;
+
+  console.log('🎮 CosmosNavigationControls: Component rendered with props:', {
+    cameraMode,
+    flySpeed,
+    isMinimized,
+    hasOnFlySpeedChange: !!onFlySpeedChange
+  });
   const [activePanel, setActivePanel] = useState<'main' | 'speed' | 'presets' | 'help'>('main');
   const [keyboardShortcuts, setKeyboardShortcuts] = useState({
     w: false,
@@ -170,6 +178,13 @@ export const CosmosNavigationControls: React.FC<CosmosNavigationControlsProps> =
             <Minimize2 size={18} className="text-white/70" />
             <span className="text-sm font-medium text-white">Navigation</span>
           </div>
+          {/* Test button */}
+          <button
+            onClick={() => console.log('🎮 Test button clicked!')}
+            className="px-2 py-1 bg-red-500 text-white text-xs rounded"
+          >
+            Test
+          </button>
           <div className="flex items-center gap-1">
             {onToggleHelp && (
               <GlassButton
@@ -263,7 +278,10 @@ export const CosmosNavigationControls: React.FC<CosmosNavigationControlsProps> =
               {/* Panel Navigation */}
               <div className="flex gap-1">
                 <GlassButton
-                  onClick={() => setActivePanel('speed')}
+                  onClick={() => {
+                    console.log('🎮 CosmosNavigationControls: Speed panel clicked');
+                    setActivePanel('speed');
+                  }}
                   className="flex-1 p-2 text-xs text-white/70 hover:bg-white/20"
                 >
                   Speed
@@ -332,7 +350,10 @@ export const CosmosNavigationControls: React.FC<CosmosNavigationControlsProps> =
               {/* Speed Presets */}
               <div className="grid grid-cols-3 gap-1">
                 <GlassButton
-                  onClick={() => onFlySpeedChange(0.5)}
+                  onClick={() => {
+                    console.log('🎮 CosmosNavigationControls: Slow speed clicked');
+                    onFlySpeedChange(0.5);
+                  }}
                   className="p-2 text-xs text-white/70 hover:bg-white/20"
                 >
                   Slow

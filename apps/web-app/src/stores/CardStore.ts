@@ -46,6 +46,7 @@ interface CardState {
   updateCardBackground: (cardId: string, url: string) => void;
   clearCards: () => void;
   cancelCurrentRequest: () => void;
+  refreshCards: () => Promise<void>;
 }
 
 export const useCardStore = create<CardState>()(
@@ -64,8 +65,14 @@ export const useCardStore = create<CardState>()(
       initializeRandomLoader: async () => {
         console.log('CardStore.initializeRandomLoader - Starting initialization');
         
-        // Cancel any existing request
+        // Check if we already have cards loaded - if so, don't reinitialize
         const state = get();
+        if (state.cards.length > 0 && state.randomLoader) {
+          console.log('CardStore.initializeRandomLoader - Cards already loaded, skipping initialization');
+          return;
+        }
+        
+        // Cancel any existing request
         if (state.currentAbortController) {
           state.currentAbortController.abort();
         }
@@ -120,8 +127,14 @@ export const useCardStore = create<CardState>()(
       initializeSortedLoader: async (sortKey: 'newest' | 'oldest' | 'title_asc' | 'title_desc' = 'newest') => {
         console.log('CardStore.initializeSortedLoader - Starting initialization with sort:', sortKey);
         
-        // Cancel any existing request
+        // Check if we already have cards loaded - if so, don't reinitialize
         const state = get();
+        if (state.cards.length > 0 && state.sortedLoader) {
+          console.log('CardStore.initializeSortedLoader - Cards already loaded, skipping initialization');
+          return;
+        }
+        
+        // Cancel any existing request
         if (state.currentAbortController) {
           state.currentAbortController.abort();
         }
@@ -276,6 +289,30 @@ export const useCardStore = create<CardState>()(
           state.currentAbortController.abort();
           set({ currentAbortController: null, isLoading: false });
         }
+      },
+
+      // Refresh cards (clear and reload)
+      refreshCards: async () => {
+        console.log('CardStore.refreshCards - Refreshing all cards');
+        const state = get();
+        
+        // Cancel any existing request
+        if (state.currentAbortController) {
+          state.currentAbortController.abort();
+        }
+        
+        // Clear current state
+        set({
+          cards: [],
+          selectedCard: null,
+          randomLoader: null,
+          sortedLoader: null,
+          error: null,
+          currentAbortController: null,
+        });
+        
+        // Reload cards
+        await get().initializeSortedLoader('newest');
       },
     }),
     {
