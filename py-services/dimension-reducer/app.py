@@ -253,8 +253,8 @@ def _reduce_with_umap_learning(X: np.ndarray, request: DimensionReductionRequest
             "umap_version": getattr(umap, '__version__', 'unknown')
         }
         
-        # Step 5: Normalize coordinates
-        coordinates = _normalize_coordinates(umap_coordinates, target_range=50.0)
+        # Step 5: Use raw UMAP coordinates (no normalization)
+        coordinates = umap_coordinates
         
         logger.info(f"UMAP Learning: Created {transformation_matrix.shape} transformation matrix and {len(fitted_model_bytes)} byte fitted model")
         return coordinates, transformation_matrix.tolist(), fitted_model_bytes, umap_params, model_metadata
@@ -342,8 +342,7 @@ def _reduce_with_umap_transform(X: np.ndarray, request: DimensionReductionReques
         # Transform new points using the fitted model
         coordinates = fitted_model.transform(X)
         
-        # Normalize coordinates to reasonable range
-        coordinates = _normalize_coordinates(coordinates, target_range=50.0)
+        # Use raw UMAP coordinates (no normalization)
         
         logger.info(f"UMAP transform completed for {X.shape[0]} new vectors using fitted model")
         return coordinates

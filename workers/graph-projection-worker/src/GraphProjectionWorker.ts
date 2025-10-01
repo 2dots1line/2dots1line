@@ -40,7 +40,17 @@ export interface CycleArtifactsCreatedEvent {
   }>;
 }
 
-export type GraphProjectionEvent = NewEntitiesCreatedEvent | CycleArtifactsCreatedEvent;
+export interface ForceUMAPLearningEvent {
+  type: "force_umap_learning";
+  userId: string;
+  source: "Manual Override";
+  entities: Array<{
+    id: string;
+    type: "MemoryUnit" | "Concept" | "DerivedArtifact" | "Community" | "ProactivePrompt" | "GrowthEvent" | "User";
+  }>;
+}
+
+export type GraphProjectionEvent = NewEntitiesCreatedEvent | CycleArtifactsCreatedEvent | ForceUMAPLearningEvent;
 
 export interface GraphProjectionWorkerConfig {
   queueName?: string;
@@ -224,22 +234,33 @@ export class GraphProjectionWorker {
   private async processJob(job: Job<GraphProjectionEvent>): Promise<void> {
     const { data } = job;
 
-    // Process both new_entities_created and cycle_artifacts_created events
-    if (data.type !== 'new_entities_created' && data.type !== 'cycle_artifacts_created') {
-      console.log(`[GraphProjectionWorker] Skipping event - only processing new_entities_created and cycle_artifacts_created`);
+    // Process new_entities_created, cycle_artifacts_created, and force_umap_learning events
+    if (data.type !== 'new_entities_created' && data.type !== 'cycle_artifacts_created' && data.type !== 'force_umap_learning') {
+      console.log(`[GraphProjectionWorker] Skipping event - only processing new_entities_created, cycle_artifacts_created, and force_umap_learning`);
       return;
     }
 
     // Now we know data is properly typed, so we can safely access its properties
-    const sourceWorker = data.type === 'new_entities_created' ? 'IngestionAnalyst' : 'InsightEngine';
+    const sourceWorker = data.type === 'new_entities_created' ? 'IngestionAnalyst' : 
+                        data.type === 'cycle_artifacts_created' ? 'InsightEngine' : 
+                        'Manual Override';
     console.log(`[GraphProjectionWorker] ✅ ${sourceWorker} finished job for user ${data.userId}`);
     console.log(`[GraphProjectionWorker] Event contains ${data.entities.length} entities: ${data.entities.map(e => `${e.type}:${e.id}`).join(', ')}`);
 
     const startTime = Date.now();
 
     try {
-      // Check if embeddings are ready for the new entities
-      const missingEmbeddings = await this.checkMissingEmbeddings(data.entities);
+      // Skip entity validation for force UMAP learning since it processes ALL existing entities
+      const forceUMAPLearning = data.type === 'force_umap_learning';
+      let missingEmbeddings: string[] = [];
+      
+      if (!forceUMAPLearning) {
+        // Check if embeddings are ready for the new entities
+        missingEmbeddings = await this.checkMissingEmbeddings(data.entities);
+      } else {
+        console.log(`[GraphProjectionWorker] 🧠 Force UMAP Learning: Skipping entity validation - will process ALL existing entities`);
+      }
+      
       if (missingEmbeddings.length > 0) {
         // Check retry limit (max 15 retries = 30 seconds total wait)
         const jobKey = `${data.userId}_${data.entities.map(e => e.id).join('_')}`;
@@ -266,7 +287,7 @@ export class GraphProjectionWorker {
       
       // Generate 3D coordinates using hybrid UMAP approach (V11.0 Cosmos)
       console.log(`[GraphProjectionWorker] 🔄 Generating 3D coordinates for user ${data.userId} after ${sourceWorker} completion`);
-      const projection = await this.generateProjectionWithHybridUMAP(data.userId, data.entities);
+      const projection = await this.generateProjectionWithHybridUMAP(data.userId, data.entities, forceUMAPLearning);
 
       const duration = Date.now() - startTime;
       console.log(`[GraphProjectionWorker] ✅ Successfully generated coordinates for user ${data.userId} in ${duration}ms`);
@@ -350,7 +371,7 @@ export class GraphProjectionWorker {
    * V11.0 Hybrid UMAP: Generate coordinates using hybrid approach
    * Decides between UMAP learning and linear transformation based on node count
    */
-  public async generateProjectionWithHybridUMAP(userId: string, newEntities: Array<{id: string, type: string}>): Promise<{
+  public async generateProjectionWithHybridUMAP(userId: string, newEntities: Array<{id: string, type: string}>, forceUMAPLearning: boolean = false): Promise<{
     nodes: Node3D[];
     projectionMethod: string;
     metadata?: {
@@ -367,8 +388,8 @@ export class GraphProjectionWorker {
     
     console.log(`[GraphProjectionWorker] Current nodes: ${currentNodeCount}, New entities: ${newEntities.length}, Total: ${totalNodes}`);
 
-    if (this.shouldRunUMAP(totalNodes)) {
-      console.log(`[GraphProjectionWorker] 🧠 Running UMAP Learning Phase (total nodes: ${totalNodes})`);
+    if (forceUMAPLearning || this.shouldRunUMAP(totalNodes)) {
+      console.log(`[GraphProjectionWorker] 🧠 Running UMAP Learning Phase (total nodes: ${totalNodes}${forceUMAPLearning ? ', FORCED' : ''})`);
       return await this.handleUMAPLearningPhase(userId, newEntities);
     } else {
       console.log(`[GraphProjectionWorker] 🔄 Running UMAP Transform Phase (total nodes: ${totalNodes})`);
@@ -478,17 +499,10 @@ export class GraphProjectionWorker {
     const dimensionResult = await this.callDimensionReducer(allEmbeddings);
     console.log(`[GraphProjectionWorker] UMAP Learning: Generated coordinates for ${dimensionResult.coordinates.length} nodes`);
 
-    // Step 4: Store transformation matrix and UMAP model for future use
-    if (dimensionResult.transformationMatrix) {
-      await this.storeTransformationMatrix(userId, dimensionResult.transformationMatrix, dimensionResult.umapParameters);
-      console.log(`[GraphProjectionWorker] UMAP Learning: Stored transformation matrix`);
-    }
-    
-    // Store fitted UMAP model for UMAP transform
-    if (dimensionResult.fittedUmapModel && dimensionResult.modelMetadata) {
-      const fittedModelBytes = new Uint8Array(dimensionResult.fittedUmapModel);
-      await this.storeUMAPModel(userId, fittedModelBytes, dimensionResult.umapParameters, dimensionResult.modelMetadata);
-      console.log(`[GraphProjectionWorker] UMAP Learning: Stored fitted UMAP model`);
+    // Step 4: Store transformation matrix and UMAP model in a single record
+    if (dimensionResult.transformationMatrix || (dimensionResult.fittedUmapModel && dimensionResult.modelMetadata)) {
+      await this.storeUMAPLearningResult(userId, dimensionResult);
+      console.log(`[GraphProjectionWorker] UMAP Learning: Stored complete UMAP learning result`);
     }
 
     // Step 5: Update all coordinates in entity tables
@@ -611,7 +625,41 @@ export class GraphProjectionWorker {
   }
 
   /**
-   * V11.0: Store transformation matrix in user_graph_projections table
+   * V11.0: Store complete UMAP learning result in user_graph_projections table
+   */
+  private async storeUMAPLearningResult(userId: string, dimensionResult: any): Promise<void> {
+    try {
+      const fittedModelBytes = dimensionResult.fittedUmapModel ? new Uint8Array(dimensionResult.fittedUmapModel) : null;
+      
+      await this.databaseService.prisma.user_graph_projections.create({
+        data: {
+          projection_id: `umap_learning_${userId}_${Date.now()}`,
+          user_id: userId,
+          status: 'completed',
+          transformation_matrix: dimensionResult.transformationMatrix as any,
+          fitted_umap_model: fittedModelBytes ? Buffer.from(fittedModelBytes) : null,
+          umap_parameters: dimensionResult.umapParameters as any,
+          model_metadata: dimensionResult.modelMetadata as any,
+          projection_method: 'umap_learning',
+          metadata: {
+            version: `v${Date.now()}`,
+            createdAt: new Date().toISOString(),
+            processingMethod: 'hybrid_umap',
+            isIncremental: false,
+            hybridUMAP: true,
+            phase: 'umap_learning'
+          }
+        }
+      });
+      console.log(`[GraphProjectionWorker] ✅ Stored complete UMAP learning result for user ${userId}`);
+    } catch (error) {
+      console.error(`[GraphProjectionWorker] Failed to store UMAP learning result for user ${userId}:`, error);
+      throw new Error(`Failed to store UMAP learning result: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * V11.0: Store transformation matrix in user_graph_projections table (DEPRECATED - use storeUMAPLearningResult)
    */
   private async storeTransformationMatrix(userId: string, transformationMatrix: number[][], umapParameters?: any): Promise<void> {
     try {
