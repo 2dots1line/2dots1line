@@ -48,6 +48,21 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
   const messageInputRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Auto-resize textarea function
+  const autoResizeTextarea = useCallback(() => {
+    const textarea = messageInputRef.current;
+    if (textarea) {
+      // Reset height to auto to get the correct scrollHeight
+      textarea.style.height = 'auto';
+      // Set height to scrollHeight, but respect min/max constraints
+      const scrollHeight = textarea.scrollHeight;
+      const minHeight = 40; // min-h-[40px]
+      const maxHeight = 120; // max-h-[120px]
+      const newHeight = Math.min(Math.max(scrollHeight, minHeight), maxHeight);
+      textarea.style.height = `${newHeight}px`;
+    }
+  }, []);
+
   // Chat store state
   const {
     currentConversationId,
@@ -193,6 +208,13 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
       return () => clearTimeout(checkTimeout);
     }
   }, [isOpen, currentConversationId]);
+
+  // Auto-resize textarea when message changes or component mounts
+  useEffect(() => {
+    if (isOpen) {
+      autoResizeTextarea();
+    }
+  }, [message, isOpen, autoResizeTextarea]);
 
   const loadExistingConversation = useCallback(async () => {
     if (!currentConversationId) return;
@@ -560,7 +582,11 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
               <textarea
                 ref={messageInputRef}
                 value={message}
-                onChange={(e) => setMessage(e.target.value)}
+                onChange={(e) => {
+                  setMessage(e.target.value);
+                  // Auto-resize the textarea after state update
+                  setTimeout(autoResizeTextarea, 0);
+                }}
                 onKeyPress={handleKeyPress}
                 placeholder="Share your thoughts..."
                 className="
