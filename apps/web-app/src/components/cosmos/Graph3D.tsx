@@ -29,6 +29,9 @@ interface Graph3DProps {
   onBackgroundLoadComplete?: () => void;
   onBackgroundLoadError?: (error: Error) => void;
   isSearchResult?: boolean; // New prop to indicate if nodes are search results (use bright star textures)
+  customCameraPosition?: [number, number, number]; // Custom camera position for lookup scenes
+  customCameraTarget?: { x: number; y: number; z: number }; // Custom camera target
+  customTargetDistance?: number; // Custom target distance
 }
 
 export const Graph3D: React.FC<Graph3DProps> = ({ 
@@ -42,7 +45,10 @@ export const Graph3D: React.FC<Graph3DProps> = ({
   onBackgroundLoadStart,
   onBackgroundLoadComplete,
   onBackgroundLoadError,
-  isSearchResult = false
+  isSearchResult = false,
+  customCameraPosition,
+  customCameraTarget,
+  customTargetDistance
 }) => {
   // State for hover management
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
@@ -214,6 +220,12 @@ export const Graph3D: React.FC<Graph3DProps> = ({
 
   // Calculate node cluster center for camera positioning
   const nodeClusterCenter = useMemo(() => {
+    // Use custom target if provided (for lookup scenes)
+    if (customCameraTarget) {
+      console.log('🌌 Using custom camera target:', customCameraTarget);
+      return customCameraTarget;
+    }
+    
     if (graphData.nodes.length === 0) return { x: 0, y: 0, z: 0 };
     
     const sum = graphData.nodes.reduce(
@@ -233,7 +245,7 @@ export const Graph3D: React.FC<Graph3DProps> = ({
     
     console.log('🌌 Node cluster center:', center);
     return center;
-  }, [graphData.nodes]);
+  }, [graphData.nodes, customCameraTarget]);
 
   // Camera auto-positioning disabled - keeping manual camera control
   const positionCameraForNode = useCallback((nodeId: string) => {
@@ -257,7 +269,7 @@ export const Graph3D: React.FC<Graph3DProps> = ({
     >
       <PerspectiveCamera 
         makeDefault 
-        position={[nodeClusterCenter.x + 50, nodeClusterCenter.y + 30, nodeClusterCenter.z + 50]} 
+        position={customCameraPosition || [nodeClusterCenter.x + 50, nodeClusterCenter.y + 30, nodeClusterCenter.z + 50]} 
         fov={75} 
         near={0.1} 
         far={50000} 
@@ -275,7 +287,7 @@ export const Graph3D: React.FC<Graph3DProps> = ({
       
       <CameraController 
         initialTarget={nodeClusterCenter}
-        initialTargetDistance={80}
+        initialTargetDistance={customTargetDistance || 80}
       />
       {/* Ambient light for overall illumination */}
       <ambientLight intensity={0.2} />

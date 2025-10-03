@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Graph3D } from '../../../components/cosmos/Graph3D';
 import { useCosmosStore } from '../../../stores/CosmosStore';
 import { cosmosService } from '../../../services/cosmosService';
@@ -9,6 +9,7 @@ import CosmosError from '../../../components/modal/CosmosError';
 import CosmosLoading from '../../../components/modal/CosmosLoading';
 import CosmosNodeModal from '../../../components/modal/CosmosNodeModal';
 import { NodeLabelControls } from '../../../components/cosmos/NodeLabelControls';
+import { CameraController } from '../../../components/cosmos/CameraController';
 
 interface EntityLookupState {
   entityId: string;
@@ -62,7 +63,7 @@ const CosmosLookupScene: React.FC = () => {
   const { showEdges } = useCosmosStore();
   const edgeOpacity = 0.8;
   const edgeWidth = 3;
-  const animatedEdges = false;
+  const animatedEdges = true; // Turn on edge animation for search results
   
   // Background loading state
   const [isBackgroundLoading, setIsBackgroundLoading] = useState(false);
@@ -572,6 +573,41 @@ const CosmosLookupScene: React.FC = () => {
 
   const POSITION_SCALE = 10;
   
+  // Calculate search result cluster center for camera positioning
+  const searchResultClusterCenter = useMemo(() => {
+    if (graphData.nodes.length === 0) return { x: 0, y: 0, z: 0 };
+    
+    const sum = graphData.nodes.reduce(
+      (acc, node) => {
+        const nodeAny = node as any;
+        let x = nodeAny.position_x || nodeAny.x || 0;
+        let y = nodeAny.position_y || nodeAny.y || 0;
+        let z = nodeAny.position_z || nodeAny.z || 0;
+        
+        // Apply the same scaling that's applied to nodes
+        x = x * POSITION_SCALE;
+        y = y * POSITION_SCALE;
+        z = z * POSITION_SCALE;
+        
+        return {
+          x: acc.x + x,
+          y: acc.y + y,
+          z: acc.z + z
+        };
+      },
+      { x: 0, y: 0, z: 0 }
+    );
+    
+    const center = {
+      x: sum.x / graphData.nodes.length,
+      y: sum.y / graphData.nodes.length,
+      z: sum.z / graphData.nodes.length
+    };
+    
+    console.log('🔍 CosmosLookupScene: Search result cluster center (scaled):', center);
+    return center;
+  }, [graphData.nodes]);
+  
   // Process graph data for display
   const safeGraphData = {
     ...graphData,
@@ -807,6 +843,13 @@ const CosmosLookupScene: React.FC = () => {
         onBackgroundLoadComplete={handleBackgroundLoadComplete}
         onBackgroundLoadError={handleBackgroundLoadError}
         isSearchResult={true} // Enable bright star textures for search results
+        customCameraPosition={[
+          searchResultClusterCenter.x + 150, 
+          searchResultClusterCenter.y + 200, 
+          searchResultClusterCenter.z - 150
+        ]}
+        customCameraTarget={searchResultClusterCenter}
+        customTargetDistance={80}
       />
       
       
