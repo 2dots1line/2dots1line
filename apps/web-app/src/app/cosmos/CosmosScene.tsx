@@ -24,9 +24,9 @@ const CosmosScene: React.FC = () => {
 
   // Edge control state - using defaults
   const { showEdges } = useCosmosStore();
-  const edgeOpacity = 0.8;
-  const edgeWidth = 3;
-  const animatedEdges = false;
+  const edgeOpacity = 0.5;
+  const edgeWidth = 1;
+  const animatedEdges = true; // Turn on edge animation
   
   // Background loading state
   const [isBackgroundLoading, setIsBackgroundLoading] = useState(false);
