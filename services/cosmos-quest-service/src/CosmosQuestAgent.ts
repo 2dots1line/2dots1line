@@ -368,7 +368,7 @@ export class CosmosQuestAgent {
     if (augmentedContext.retrievedMemoryUnits) {
       augmentedContext.retrievedMemoryUnits.forEach((unit, index) => {
         entities.push({
-          entityId: `memoryunit_${unit.id}`,
+          entityId: `memoryunit_${unit.entity_id}`,
           entityType: 'MemoryUnit',
           position: [
             (Math.random() - 0.5) * 20,
@@ -377,7 +377,7 @@ export class CosmosQuestAgent {
           ],
           starTexture: 'bright_star',
           title: unit.title || `Memory ${index + 1}`,
-          relevanceScore: unit.relevance_score || 0.9,
+          relevanceScore: unit.importance_score || 0.9,
           connectionType: undefined,
           connectedTo: undefined
         });
@@ -388,7 +388,7 @@ export class CosmosQuestAgent {
     if (entities.length === 0 && augmentedContext.retrievedConcepts) {
       augmentedContext.retrievedConcepts.forEach((concept, index) => {
         entities.push({
-          entityId: `concept_${concept.id}`,
+          entityId: `concept_${concept.entity_id}`,
           entityType: 'Concept',
           position: [
             (Math.random() - 0.5) * 20,
@@ -397,7 +397,7 @@ export class CosmosQuestAgent {
           ],
           starTexture: 'bright_star',
           title: concept.title || `Concept ${index + 1}`,
-          relevanceScore: concept.relevance_score || 0.9,
+          relevanceScore: concept.importance_score || 0.9,
           connectionType: undefined,
           connectedTo: undefined
         });
@@ -418,7 +418,7 @@ export class CosmosQuestAgent {
     if (augmentedContext.retrievedMemoryUnits && augmentedContext.retrievedConcepts) {
       augmentedContext.retrievedConcepts.forEach((concept, index) => {
         entities.push({
-          entityId: `concept_${concept.id}`,
+          entityId: `concept_${concept.entity_id}`,
           entityType: 'Concept',
           position: [
             (Math.random() - 0.5) * 20,
@@ -427,7 +427,7 @@ export class CosmosQuestAgent {
           ],
           starTexture: 'medium_star',
           title: concept.title || `Concept ${index + 1}`,
-          relevanceScore: concept.relevance_score || 0.7,
+          relevanceScore: concept.importance_score || 0.7,
           connectionType: '1_hop',
           connectedTo: [`memoryunit_${index}`] // Connect to a memory unit
         });
@@ -447,7 +447,7 @@ export class CosmosQuestAgent {
     if (augmentedContext.retrievedArtifacts) {
       augmentedContext.retrievedArtifacts.forEach((artifact, index) => {
         entities.push({
-          entityId: `artifact_${artifact.id}`,
+          entityId: `artifact_${artifact.entity_id}`,
           entityType: 'Artifact',
           position: [
             (Math.random() - 0.5) * 20,
@@ -456,7 +456,7 @@ export class CosmosQuestAgent {
           ],
           starTexture: 'dim_star',
           title: artifact.title || `Artifact ${index + 1}`,
-          relevanceScore: artifact.relevance_score || 0.5,
+          relevanceScore: artifact.importance_score || 0.5,
           connectionType: '2_hop',
           connectedTo: [`concept_${index}`] // Connect to a concept
         });
