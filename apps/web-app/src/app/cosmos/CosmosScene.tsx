@@ -225,24 +225,13 @@ const CosmosScene: React.FC = () => {
       
       return scaledNode;
     }),
-    // Map edges to both 'edges' and 'links' for compatibility
+    // Pass raw edges; Graph3D handles color mapping and normalization
     edges: (graphData.edges ?? []).map(edge => ({
       ...edge,
-      // Ensure source and target are strings
       source: String(edge.source),
       target: String(edge.target),
-      // Add default weight if missing
-      weight: edge.weight || 1.0,
-      // Add color based on type
-      color: getEdgeColor(edge.type),
-    })),
-    links: (graphData.edges ?? []).map(edge => ({
-      ...edge,
-      source: String(edge.source),
-      target: String(edge.target),
-      weight: edge.weight || 1.0,
-      color: getEdgeColor(edge.type),
-    })),
+      weight: edge.weight || 1.0
+    }))
   };
 
   // Debug logging for edges
@@ -326,26 +315,6 @@ const CosmosScene: React.FC = () => {
   );
 };
 
-// Helper function to get edge color based on type
-function getEdgeColor(type: string): string {
-  switch (type) {
-    case 'related':
-      return '#00ff88';
-    case 'temporal':
-      return '#ff8800';
-    case 'semantic':
-      return '#0088ff';
-    case 'hierarchical':
-      return '#ff0088';
-    case 'causal':
-      return '#ffff00';
-    case 'similar':
-      return '#00ffff';
-    case 'opposite':
-      return '#ff0080';
-    default:
-      return '#ffffff';
-  }
-}
+// Edge color is determined inside Graph3D; no local overrides here
 
 export default CosmosScene;
