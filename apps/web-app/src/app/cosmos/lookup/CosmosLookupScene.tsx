@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Graph3D } from '../../../components/cosmos/Graph3D';
+import { LookupCameraController } from '../../../components/cosmos/LookupCameraController';
 import { useCosmosStore } from '../../../stores/CosmosStore';
 import { cosmosService } from '../../../services/cosmosService';
 import CosmosInfoPanel from '../../../components/modal/CosmosInfoPanel';
@@ -9,7 +10,6 @@ import CosmosError from '../../../components/modal/CosmosError';
 import CosmosLoading from '../../../components/modal/CosmosLoading';
 import CosmosNodeModal from '../../../components/modal/CosmosNodeModal';
 import { NodeLabelControls } from '../../../components/cosmos/NodeLabelControls';
-import { CameraController } from '../../../components/cosmos/CameraController';
 
 interface EntityLookupState {
   entityId: string;
@@ -59,11 +59,11 @@ const CosmosLookupScene: React.FC = () => {
     enableGraphHops: true,
   });
 
-  // Edge control state - using defaults
+  // Edge control state - using defaults (consistent with CosmosScene)
   const { showEdges } = useCosmosStore();
-  const edgeOpacity = 0.8;
-  const edgeWidth = 3;
-  const animatedEdges = true; // Turn on edge animation for search results
+  const edgeOpacity = 0.5;
+  const edgeWidth = 1;
+  const animatedEdges = true; // Turn on edge animation
   
   // Background loading state
   const [isBackgroundLoading, setIsBackgroundLoading] = useState(false);
@@ -571,7 +571,7 @@ const CosmosLookupScene: React.FC = () => {
     setLookupState(prev => ({ ...prev, entityId: value }));
   }, []);
 
-  // Function to focus camera on a specific entity using the existing CameraController system
+  // Function to focus camera on a specific entity using the clean LookupCameraController system
   const focusCameraOnEntity = useCallback((entityId: string) => {
     const entity = graphData.nodes.find(node => node.id === entityId);
     if (entity) {
@@ -580,7 +580,7 @@ const CosmosLookupScene: React.FC = () => {
       const y = (nodeAny.position_y || nodeAny.y || 0) * POSITION_SCALE;
       const z = (nodeAny.position_z || nodeAny.z || 0) * POSITION_SCALE;
       
-      // Use the existing CameraController focus system
+      // Use the clean LookupCameraController focus system
       const event = new CustomEvent('camera-focus-request', {
         detail: {
           position: { x, y, z },
@@ -678,16 +678,8 @@ const CosmosLookupScene: React.FC = () => {
       ...edge,
       source: String(edge.source),
       target: String(edge.target),
-      weight: edge.weight || 1.0,
-      color: getEdgeColor(edge.type),
-    })),
-    links: (graphData.edges ?? []).map(edge => ({
-      ...edge,
-      source: String(edge.source),
-      target: String(edge.target),
-      weight: edge.weight || 1.0,
-      color: getEdgeColor(edge.type),
-    })),
+      weight: edge.weight || 1.0
+    }))
   };
 
   console.log('🔍 CosmosLookupScene: Current graph data:', {
@@ -850,7 +842,7 @@ const CosmosLookupScene: React.FC = () => {
                     </div>
                   )}
                   <div className="text-yellow-400">
-                    • Ranked by HRT-style scoring (semantic + recency + importance)
+                    • Clean camera controls: mouse drag to rotate, scroll to zoom
                   </div>
                   <div className="text-cyan-400">
                     • {safeGraphData.edges.length} total edges/relationships found
@@ -868,6 +860,18 @@ const CosmosLookupScene: React.FC = () => {
               </div>
               <div className="text-xs text-white/50 mt-2">
                 💡 Try the highlighted IDs for rich graph connections and edges
+              </div>
+            </div>
+
+            <div className="p-2 bg-purple-500/20 border border-purple-500/30 rounded-md">
+              <h4 className="font-semibold text-purple-300 mb-1 text-sm">Camera Controls:</h4>
+              <div className="text-xs text-white/70 space-y-1">
+                <div>🖱️ <strong>Mouse drag:</strong> Rotate around the graph</div>
+                <div>🔍 <strong>Scroll wheel:</strong> Zoom in/out</div>
+                <div>📍 <strong>Focus buttons:</strong> Jump to specific entities</div>
+              </div>
+              <div className="text-xs text-white/50 mt-2">
+                ✨ Clean, isolated camera system - no competing controls!
               </div>
             </div>
           </div>
@@ -906,6 +910,7 @@ const CosmosLookupScene: React.FC = () => {
         customCameraTarget={searchResultClusterCenter}
         customTargetDistance={80}
         rotationSpeed={0.0001}
+        customCameraController={LookupCameraController}
       />
       
       
@@ -950,25 +955,6 @@ const CosmosLookupScene: React.FC = () => {
 };
 
 // Helper function to get edge color based on type
-function getEdgeColor(type: string): string {
-  switch (type) {
-    case 'related':
-      return '#00ff88';
-    case 'temporal':
-      return '#ff8800';
-    case 'semantic':
-      return '#0088ff';
-    case 'hierarchical':
-      return '#ff0088';
-    case 'causal':
-      return '#ffff00';
-    case 'similar':
-      return '#00ffff';
-    case 'opposite':
-      return '#ff0080';
-    default:
-      return '#ffffff';
-  }
-}
+// Edge color is determined inside Graph3D; no local overrides here
 
 export default CosmosLookupScene;

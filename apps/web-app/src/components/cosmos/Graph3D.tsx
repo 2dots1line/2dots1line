@@ -33,6 +33,7 @@ interface Graph3DProps {
   customCameraTarget?: { x: number; y: number; z: number }; // Custom camera target
   customTargetDistance?: number; // Custom target distance
   rotationSpeed?: number; // Custom rotation speed for the node cluster
+  customCameraController?: React.ComponentType<any>; // Custom camera controller component
 }
 
 export const Graph3D: React.FC<Graph3DProps> = ({ 
@@ -50,7 +51,8 @@ export const Graph3D: React.FC<Graph3DProps> = ({
   customCameraPosition,
   customCameraTarget,
   customTargetDistance,
-  rotationSpeed
+  rotationSpeed,
+  customCameraController
 }) => {
   // State for hover management
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
@@ -283,10 +285,17 @@ export const Graph3D: React.FC<Graph3DProps> = ({
       {/* Procedural Starfield - Layer 2 (Nearby stars for depth) */}
       <StarfieldBackground />
       
-      <CameraController 
-        initialTarget={nodeClusterCenter}
-        initialTargetDistance={customTargetDistance || 80}
-      />
+      {customCameraController ? (
+        React.createElement(customCameraController, {
+          initialTarget: nodeClusterCenter,
+          initialDistance: customTargetDistance || 80
+        })
+      ) : (
+        <CameraController 
+          initialTarget={nodeClusterCenter}
+          initialTargetDistance={customTargetDistance || 80}
+        />
+      )}
       {/* Ambient light for overall illumination */}
       <ambientLight intensity={0.2} />
       
