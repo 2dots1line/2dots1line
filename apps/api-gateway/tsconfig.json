@@ -49,6 +49,9 @@
     },
     {
       "path": "../../services/card-service/tsconfig.build.json"
+    },
+    {
+      "path": "../../services/cosmos-quest-service/tsconfig.build.json"
     }
   ]
 }

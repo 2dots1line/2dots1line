@@ -68,6 +68,25 @@ export type {
   TIngestionContentItem
 } from './ai/agent.types';
 
+export type {
+  // V11.0 CosmosQuestAgent types
+  CosmosQuestInput,
+  CosmosQuestResult,
+  KeyPhraseCapsule,
+  VisualizationEntity,
+  WalkthroughStep,
+  CosmosQuestAgentInputPayload,
+  CosmosQuestAgentResult,
+  CosmosQuestAgentInput,
+  CosmosQuestAgentOutput,
+  KeyPhraseBatch,
+  VisualizationStage1Batch,
+  VisualizationStages2And3Batch,
+  FinalResponseBatch,
+  QuestUpdateBatch,
+  QuestMockSequence
+} from './ai/cosmos-quest.types';
+
 // === AI JOB TYPES ===
 export type {
   EmbeddingJob,

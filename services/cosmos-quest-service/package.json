@@ -1,0 +1,25 @@
+{
+  "name": "@2dots1line/cosmos-quest-service",
+  "version": "1.0.0",
+  "description": "CosmosQuest service for immersive memory exploration through 3D visualization",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@2dots1line/shared-types": "workspace:*",
+    "@2dots1line/database": "workspace:*",
+    "@2dots1line/tools": "workspace:*",
+    "@2dots1line/core-utils": "workspace:*",
+    "@2dots1line/config-service": "workspace:*",
+    "ioredis": "^5.3.2",
+    "mustache": "^4.2.0"
+  },
+  "devDependencies": {
+    "@types/mustache": "^4.2.5",
+    "typescript": "^5.3.3"
+  }
+}

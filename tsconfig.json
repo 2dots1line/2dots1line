@@ -16,6 +16,7 @@
     { "path": "./services/dialogue-service" },
     { "path": "./services/user-service" },
     { "path": "./services/card-service" },
+    { "path": "./services/cosmos-quest-service" },
     { "path": "./workers/card-worker" },
     { "path": "./workers/conversation-timeout-worker" },
     { "path": "./workers/embedding-worker" },

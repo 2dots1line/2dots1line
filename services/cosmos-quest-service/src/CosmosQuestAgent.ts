@@ -1,0 +1,704 @@
+/**
+ * CosmosQuestAgent.ts
+ * V11.0 - Specialized conversational AI for immersive memory exploration through 3D visualization.
+ * Always retrieves memory and generates guided walkthroughs.
+ */
+
+import { ConversationRepository, UserRepository } from '@2dots1line/database';
+import { 
+  CosmosQuestInput,
+  CosmosQuestResult,
+  KeyPhraseCapsule,
+  WalkthroughStep,
+  VisualizationEntity
+} from '@2dots1line/shared-types';
+import { 
+  LLMChatTool, 
+  HybridRetrievalTool 
+} from '@2dots1line/tools';
+import { ExtendedAugmentedMemoryContext } from '@2dots1line/tools/src/retrieval/types';
+import { LLMRetryHandler } from '@2dots1line/core-utils';
+import { Redis } from 'ioredis';
+
+import { ConfigService } from '../../config-service/src/ConfigService';
+import { CosmosQuestPromptBuilder } from './CosmosQuestPromptBuilder';
+
+// Dependencies to be injected into the agent
+export interface CosmosQuestAgentDependencies {
+  configService: ConfigService;
+  conversationRepository: ConversationRepository;
+  userRepository: UserRepository;
+  redisClient: Redis;
+  promptBuilder: CosmosQuestPromptBuilder;
+  llmChatTool: any;
+  hybridRetrievalTool: HybridRetrievalTool;
+}
+
+export class CosmosQuestAgent {
+  // Store injected dependencies
+  private configService: ConfigService;
+  private conversationRepo: ConversationRepository;
+  private userRepo: UserRepository;
+  private redis: Redis;
+  private promptBuilder: CosmosQuestPromptBuilder;
+  private llmChatTool: any;
+  private hybridRetrievalTool: HybridRetrievalTool;
+
+  constructor(dependencies: CosmosQuestAgentDependencies) {
+    this.configService = dependencies.configService;
+    this.conversationRepo = dependencies.conversationRepository;
+    this.userRepo = dependencies.userRepository;
+    this.redis = dependencies.redisClient;
+    this.promptBuilder = dependencies.promptBuilder;
+    this.llmChatTool = dependencies.llmChatTool;
+    this.hybridRetrievalTool = dependencies.hybridRetrievalTool;
+
+    console.log("CosmosQuestAgent V11.0 initialized.");
+  }
+
+  /**
+   * Main entry point for processing a quest request with progressive updates.
+   * Always retrieves memory and generates guided walkthroughs.
+   */
+  public async processQuestWithProgressiveUpdates(
+    input: CosmosQuestInput, 
+    onUpdate: (updateType: string, data: any) => void
+  ): Promise<CosmosQuestResult> {
+    const executionId = `cq_${Date.now()}`;
+    console.log(`[${executionId}] Starting quest processing for user: ${input.userId}`);
+
+    try {
+      // --- PHASE I: LLM-BASED KEY PHRASE EXTRACTION ---
+      console.log(`[${executionId}] 🔍 Phase 1: Extracting key phrases with LLM context`);
+      const keyPhrases = await this.extractKeyPhrasesWithLLM(input, executionId);
+      
+      // Send key phrases immediately
+      onUpdate('key_phrases', { capsules: keyPhrases });
+      
+      // --- PHASE II: MEMORY RETRIEVAL ---
+      console.log(`[${executionId}] 📊 Phase 2: Retrieving memory with key phrases:`, keyPhrases);
+      const augmentedContext = await this.retrieveMemory(keyPhrases, input.userId, executionId);
+      
+      // --- PHASE III: PROGRESSIVE VISUALIZATION GENERATION ---
+      console.log(`[${executionId}] 🎨 Phase 3: Generating progressive visualization`);
+      const visualization = await this.generateProgressiveVisualization(augmentedContext, executionId);
+      
+      // Send visualization stages progressively
+      onUpdate('visualization_stage_1', { 
+        stage: 1, 
+        entities: visualization.stage1 
+      });
+      
+      onUpdate('visualization_stages_2_and_3', {
+        stage2: visualization.stage2,
+        stage3: visualization.stage3
+      });
+      
+      // --- PHASE IV: FINAL RESPONSE & WALKTHROUGH ---
+      console.log(`[${executionId}] 📝 Phase 4: Generating final response and walkthrough`);
+      const finalResponse = await this.generateFinalResponse(input, augmentedContext, visualization, executionId);
+
+      // Send final response
+      onUpdate('final_response', {
+        response_text: finalResponse.response_text,
+        walkthrough_script: finalResponse.walkthrough_script,
+        reflective_question: finalResponse.reflective_question
+      });
+
+      return {
+        execution_id: executionId,
+        key_phrases: keyPhrases,
+        visualization_stages: visualization,
+        response_text: finalResponse.response_text,
+        walkthrough_script: finalResponse.walkthrough_script,
+        reflective_question: finalResponse.reflective_question,
+        metadata: {
+          processing_time_ms: Date.now() - parseInt(executionId.split('_')[1]),
+          memory_units_retrieved: augmentedContext.retrievedMemoryUnits?.length || 0,
+          concepts_retrieved: augmentedContext.retrievedConcepts?.length || 0,
+          artifacts_retrieved: augmentedContext.retrievedArtifacts?.length || 0
+        }
+      };
+
+    } catch (error) {
+      console.error(`[${executionId}] ❌ Quest processing failed:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Main entry point for processing a quest request.
+   * Always retrieves memory and generates guided walkthroughs.
+   */
+  public async processQuest(input: CosmosQuestInput): Promise<CosmosQuestResult> {
+    const executionId = `cq_${Date.now()}`;
+    console.log(`[${executionId}] Starting quest processing for user: ${input.userId}`);
+
+    try {
+      // --- PHASE I: LLM-BASED KEY PHRASE EXTRACTION ---
+      console.log(`[${executionId}] 🔍 Phase 1: Extracting key phrases with LLM context`);
+      const keyPhrases = await this.extractKeyPhrasesWithLLM(input, executionId);
+      
+      // --- PHASE II: MEMORY RETRIEVAL ---
+      console.log(`[${executionId}] 📊 Phase 2: Retrieving memory with key phrases:`, keyPhrases);
+      const augmentedContext = await this.retrieveMemory(keyPhrases, input.userId, executionId);
+      
+      // --- PHASE III: PROGRESSIVE VISUALIZATION GENERATION ---
+      console.log(`[${executionId}] 🎨 Phase 3: Generating progressive visualization`);
+      const visualization = await this.generateProgressiveVisualization(augmentedContext, executionId);
+      
+      // --- PHASE IV: FINAL RESPONSE & WALKTHROUGH ---
+      console.log(`[${executionId}] 📝 Phase 4: Generating final response and walkthrough`);
+      const finalResponse = await this.generateFinalResponse(input, augmentedContext, visualization, executionId);
+
+      return {
+        execution_id: executionId,
+        key_phrases: keyPhrases,
+        visualization_stages: visualization,
+        response_text: finalResponse.response_text,
+        walkthrough_script: finalResponse.walkthrough_script,
+        reflective_question: finalResponse.reflective_question,
+        metadata: {
+          processing_time_ms: Date.now() - parseInt(executionId.split('_')[1]),
+          memory_units_retrieved: augmentedContext.retrievedMemoryUnits?.length || 0,
+          concepts_retrieved: augmentedContext.retrievedConcepts?.length || 0,
+          artifacts_retrieved: augmentedContext.retrievedArtifacts?.length || 0
+        }
+      };
+
+    } catch (error) {
+      console.error(`[${executionId}] ❌ Quest processing failed:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Extract key phrases using LLM with proper context (like DialogueAgent)
+   */
+  private async extractKeyPhrasesWithLLM(input: CosmosQuestInput, executionId: string): Promise<KeyPhraseCapsule[]> {
+    console.log(`[${executionId}] 🤖 Extracting key phrases with LLM context`);
+
+    // Build quest-specific prompt with user context
+    const promptOutput = await this.promptBuilder.buildKeyPhraseExtractionPrompt({
+      userId: input.userId,
+      conversationId: input.conversationId,
+      userQuestion: input.userQuestion,
+      questType: input.questType || 'exploration'
+    });
+
+    const llmToolInput = {
+      payload: {
+        userId: input.userId,
+        sessionId: input.conversationId,
+        workerType: 'cosmos-quest-service',
+        workerJobId: `quest-${Date.now()}`,
+        conversationId: input.conversationId,
+        messageId: `msg-${Date.now()}`,
+        sourceEntityId: input.conversationId,
+        systemPrompt: promptOutput.systemPrompt,
+        userMessage: promptOutput.userPrompt,
+        history: promptOutput.conversationHistory,
+        temperature: 0.3,
+        maxTokens: 2000
+      },
+      request_id: `quest-keyphrases-${Date.now()}`
+    };
+
+    console.log(`[${executionId}] 📝 LLM input prepared for key phrase extraction:`, {
+      systemPromptLength: llmToolInput.payload.systemPrompt.length,
+      userMessageLength: llmToolInput.payload.userMessage.length,
+      historyCount: llmToolInput.payload.history.length
+    });
+
+    // Enhanced LLM call with retry logic
+    const llmResult = await LLMRetryHandler.executeWithRetry(
+      this.llmChatTool,
+      llmToolInput,
+      { 
+        maxAttempts: 3, 
+        baseDelay: 1000,
+        callType: 'key_phrase_extraction'
+      }
+    );
+
+    // Parse LLM response to extract key phrases
+    const keyPhrases = this.parseKeyPhraseResponse(llmResult, executionId);
+    
+    console.log(`[${executionId}] ✅ Extracted ${keyPhrases.length} key phrases:`, keyPhrases.map(kp => kp.phrase));
+    
+    return keyPhrases;
+  }
+
+  /**
+   * Parse LLM response to extract key phrases with confidence scores
+   */
+  private parseKeyPhraseResponse(llmResult: any, executionId: string): KeyPhraseCapsule[] {
+    const rawText = llmResult.result.text;
+    console.log(`[${executionId}] Raw LLM key phrase response:`, rawText.substring(0, 200) + '...');
+    
+    try {
+      // Extract JSON from LLM response
+      const firstBrace = rawText.indexOf('{');
+      const lastBrace = rawText.lastIndexOf('}');
+      
+      if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+        throw new Error("No valid JSON found in LLM response");
+      }
+      
+      const jsonText = rawText.substring(firstBrace, lastBrace + 1).trim();
+      const parsed = JSON.parse(jsonText);
+      
+      // Extract key phrases from the parsed response
+      const keyPhrases = parsed.key_phrases || [];
+      
+      // Convert to KeyPhraseCapsule format with confidence scores and colors
+      return keyPhrases.map((phrase: string, index: number) => ({
+        phrase: phrase.trim(),
+        confidence_score: 0.8 + (Math.random() * 0.2), // 0.8-1.0 confidence
+        color: this.getKeyPhraseColor(index)
+      }));
+      
+    } catch (e) {
+      console.error(`[${executionId}] Key phrase JSON parsing error:`, e);
+      console.error(`[${executionId}] Raw LLM response:`, llmResult.result.text);
+      
+      // Fallback: extract phrases from raw text
+      return this.fallbackKeyPhraseExtraction(rawText, executionId);
+    }
+  }
+
+  /**
+   * Fallback key phrase extraction from raw text
+   */
+  private fallbackKeyPhraseExtraction(rawText: string, executionId: string): KeyPhraseCapsule[] {
+    console.log(`[${executionId}] Using fallback key phrase extraction`);
+    
+    // Simple extraction: look for quoted phrases or bullet points
+    const phrases: string[] = [];
+    
+    // Extract quoted phrases
+    const quotedMatches = rawText.match(/"([^"]+)"/g);
+    if (quotedMatches) {
+      phrases.push(...quotedMatches.map(match => match.replace(/"/g, '')));
+    }
+    
+    // Extract bullet point phrases
+    const bulletMatches = rawText.match(/[-•]\s*([^\n]+)/g);
+    if (bulletMatches) {
+      phrases.push(...bulletMatches.map(match => match.replace(/[-•]\s*/, '').trim()));
+    }
+    
+    // If no structured phrases found, extract words from the question
+    if (phrases.length === 0) {
+      const words = rawText.toLowerCase().match(/\b\w{3,}\b/g) || [];
+      phrases.push(...words.slice(0, 5)); // Take first 5 words
+    }
+    
+    return phrases.slice(0, 5).map((phrase, index) => ({
+      phrase: phrase.trim(),
+      confidence_score: 0.7 + (Math.random() * 0.2), // 0.7-0.9 confidence for fallback
+      color: this.getKeyPhraseColor(index)
+    }));
+  }
+
+  /**
+   * Get color for key phrase based on index
+   */
+  private getKeyPhraseColor(index: number): string {
+    const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57', '#ff9ff3', '#54a0ff'];
+    return colors[index % colors.length];
+  }
+
+  /**
+   * Retrieve memory using hybrid retrieval tool
+   */
+  private async retrieveMemory(keyPhrases: KeyPhraseCapsule[], userId: string, executionId: string): Promise<ExtendedAugmentedMemoryContext> {
+    console.log(`[${executionId}] 🔍 Executing memory retrieval with key phrases:`, keyPhrases.map(kp => kp.phrase));
+    
+    // Load user-specific HRT parameters
+    const userParameters = await this.loadUserHRTParameters(userId);
+    
+    const augmentedContext = await this.hybridRetrievalTool.execute({
+      keyPhrasesForRetrieval: keyPhrases.map(kp => kp.phrase),
+      userId: userId,
+      userParameters: userParameters
+    });
+    
+    console.log(`[${executionId}] 📊 Memory retrieval results:`, {
+      memoryUnits: augmentedContext.retrievedMemoryUnits?.length || 0,
+      concepts: augmentedContext.retrievedConcepts?.length || 0,
+      artifacts: augmentedContext.retrievedArtifacts?.length || 0,
+      hasContext: !!augmentedContext
+    });
+
+    return augmentedContext;
+  }
+
+  /**
+   * Generate progressive visualization stages
+   */
+  private async generateProgressiveVisualization(augmentedContext: ExtendedAugmentedMemoryContext, executionId: string): Promise<{
+    stage1: VisualizationEntity[];
+    stage2: VisualizationEntity[];
+    stage3: VisualizationEntity[];
+  }> {
+    console.log(`[${executionId}] 🎨 Generating progressive visualization stages`);
+    
+    // Stage 1: Direct semantic matches (bright stars)
+    const stage1 = this.generateStage1Entities(augmentedContext);
+    
+    // Stage 2: 1-hop connections (medium stars)
+    const stage2 = this.generateStage2Entities(augmentedContext);
+    
+    // Stage 3: 2-hop connections (dim stars)
+    const stage3 = this.generateStage3Entities(augmentedContext);
+    
+    console.log(`[${executionId}] ✅ Generated visualization: Stage1(${stage1.length}), Stage2(${stage2.length}), Stage3(${stage3.length})`);
+    
+    return { stage1, stage2, stage3 };
+  }
+
+  /**
+   * Generate Stage 1 entities (direct semantic matches)
+   */
+  private generateStage1Entities(augmentedContext: ExtendedAugmentedMemoryContext): VisualizationEntity[] {
+    const entities: VisualizationEntity[] = [];
+    
+    // Use retrieved memory units as bright stars
+    if (augmentedContext.retrievedMemoryUnits) {
+      augmentedContext.retrievedMemoryUnits.forEach((unit, index) => {
+        entities.push({
+          entityId: `memoryunit_${unit.id}`,
+          entityType: 'MemoryUnit',
+          position: [
+            (Math.random() - 0.5) * 20,
+            (Math.random() - 0.5) * 20,
+            (Math.random() - 0.5) * 20
+          ],
+          starTexture: 'bright_star',
+          title: unit.title || `Memory ${index + 1}`,
+          relevanceScore: unit.relevance_score || 0.9,
+          connectionType: undefined,
+          connectedTo: undefined
+        });
+      });
+    }
+    
+    // If no memory units, use concepts as direct matches (they are the semantic matches)
+    if (entities.length === 0 && augmentedContext.retrievedConcepts) {
+      augmentedContext.retrievedConcepts.forEach((concept, index) => {
+        entities.push({
+          entityId: `concept_${concept.id}`,
+          entityType: 'Concept',
+          position: [
+            (Math.random() - 0.5) * 20,
+            (Math.random() - 0.5) * 20,
+            (Math.random() - 0.5) * 20
+          ],
+          starTexture: 'bright_star',
+          title: concept.title || `Concept ${index + 1}`,
+          relevanceScore: concept.relevance_score || 0.9,
+          connectionType: undefined,
+          connectedTo: undefined
+        });
+      });
+    }
+    
+    return entities;
+  }
+
+  /**
+   * Generate Stage 2 entities (1-hop connections)
+   */
+  private generateStage2Entities(augmentedContext: ExtendedAugmentedMemoryContext): VisualizationEntity[] {
+    const entities: VisualizationEntity[] = [];
+    
+    // Only add concepts to Stage 2 if they weren't already used in Stage 1
+    // (i.e., if we have memory units, then concepts go to Stage 2)
+    if (augmentedContext.retrievedMemoryUnits && augmentedContext.retrievedConcepts) {
+      augmentedContext.retrievedConcepts.forEach((concept, index) => {
+        entities.push({
+          entityId: `concept_${concept.id}`,
+          entityType: 'Concept',
+          position: [
+            (Math.random() - 0.5) * 20,
+            (Math.random() - 0.5) * 20,
+            (Math.random() - 0.5) * 20
+          ],
+          starTexture: 'medium_star',
+          title: concept.title || `Concept ${index + 1}`,
+          relevanceScore: concept.relevance_score || 0.7,
+          connectionType: '1_hop',
+          connectedTo: [`memoryunit_${index}`] // Connect to a memory unit
+        });
+      });
+    }
+    
+    return entities;
+  }
+
+  /**
+   * Generate Stage 3 entities (2-hop connections)
+   */
+  private generateStage3Entities(augmentedContext: ExtendedAugmentedMemoryContext): VisualizationEntity[] {
+    const entities: VisualizationEntity[] = [];
+    
+    // Use retrieved artifacts as dim stars
+    if (augmentedContext.retrievedArtifacts) {
+      augmentedContext.retrievedArtifacts.forEach((artifact, index) => {
+        entities.push({
+          entityId: `artifact_${artifact.id}`,
+          entityType: 'Artifact',
+          position: [
+            (Math.random() - 0.5) * 20,
+            (Math.random() - 0.5) * 20,
+            (Math.random() - 0.5) * 20
+          ],
+          starTexture: 'dim_star',
+          title: artifact.title || `Artifact ${index + 1}`,
+          relevanceScore: artifact.relevance_score || 0.5,
+          connectionType: '2_hop',
+          connectedTo: [`concept_${index}`] // Connect to a concept
+        });
+      });
+    }
+    
+    return entities;
+  }
+
+  /**
+   * Generate final response and walkthrough
+   */
+  private async generateFinalResponse(
+    input: CosmosQuestInput, 
+    augmentedContext: ExtendedAugmentedMemoryContext, 
+    visualization: any,
+    executionId: string
+  ): Promise<{
+    response_text: string;
+    walkthrough_script: WalkthroughStep[];
+    reflective_question: string;
+  }> {
+    console.log(`[${executionId}] 📝 Generating final response and walkthrough`);
+    
+    // Build final response prompt
+    const promptOutput = await this.promptBuilder.buildFinalResponsePrompt({
+      userId: input.userId,
+      conversationId: input.conversationId,
+      userQuestion: input.userQuestion,
+      augmentedContext,
+      visualization
+    });
+
+    const llmToolInput = {
+      payload: {
+        userId: input.userId,
+        sessionId: input.conversationId,
+        workerType: 'cosmos-quest-service',
+        workerJobId: `quest-final-${Date.now()}`,
+        conversationId: input.conversationId,
+        messageId: `msg-${Date.now()}`,
+        sourceEntityId: input.conversationId,
+        systemPrompt: promptOutput.systemPrompt,
+        userMessage: promptOutput.userPrompt,
+        history: promptOutput.conversationHistory,
+        temperature: 0.7,
+        maxTokens: 3000
+      },
+      request_id: `quest-final-${Date.now()}`
+    };
+
+    // Enhanced LLM call with retry logic
+    const llmResult = await LLMRetryHandler.executeWithRetry(
+      this.llmChatTool,
+      llmToolInput,
+      { 
+        maxAttempts: 3, 
+        baseDelay: 1000,
+        callType: 'final_response'
+      }
+    );
+
+    // Parse final response
+    return this.parseFinalResponse(llmResult, executionId);
+  }
+
+  /**
+   * Parse final response from LLM
+   */
+  private parseFinalResponse(llmResult: any, executionId: string): {
+    response_text: string;
+    walkthrough_script: WalkthroughStep[];
+    reflective_question: string;
+  } {
+    const rawText = llmResult.result.text;
+    console.log(`[${executionId}] Raw LLM final response:`, rawText.substring(0, 200) + '...');
+    
+    try {
+      // Extract JSON from LLM response
+      const firstBrace = rawText.indexOf('{');
+      const lastBrace = rawText.lastIndexOf('}');
+      
+      if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+        throw new Error("No valid JSON found in LLM response");
+      }
+      
+      let jsonText = rawText.substring(firstBrace, lastBrace + 1).trim();
+      
+      // Handle truncated JSON by attempting to fix common issues
+      if (!jsonText.endsWith('}')) {
+        // Try to find the last complete field
+        const lastCompleteField = jsonText.lastIndexOf('",');
+        if (lastCompleteField > 0) {
+          jsonText = jsonText.substring(0, lastCompleteField + 1) + '}';
+        }
+      }
+      
+      // Try to fix incomplete reflective_question field
+      if (jsonText.includes('"reflective_question": "') && !jsonText.includes('"reflective_question": "', jsonText.lastIndexOf('"reflective_question": "'))) {
+        const reflectiveStart = jsonText.lastIndexOf('"reflective_question": "');
+        if (reflectiveStart > 0) {
+          const beforeReflective = jsonText.substring(0, reflectiveStart);
+          const afterReflective = jsonText.substring(reflectiveStart);
+          const lastQuote = afterReflective.lastIndexOf('"');
+          if (lastQuote > 0) {
+            jsonText = beforeReflective + afterReflective.substring(0, lastQuote + 1) + '}';
+          } else {
+            // If no closing quote, add a default question and close
+            jsonText = beforeReflective + '"reflective_question": "What patterns do you notice in these connections?"}';
+          }
+        }
+      }
+      
+      const parsed = JSON.parse(jsonText);
+      
+      return {
+        response_text: parsed.response_text || "I've explored your memories and found some interesting connections.",
+        walkthrough_script: parsed.walkthrough_script || this.generateDefaultWalkthrough(),
+        reflective_question: parsed.reflective_question || "What patterns do you notice in these connections?"
+      };
+      
+    } catch (e) {
+      console.error(`[${executionId}] Final response JSON parsing error:`, e);
+      console.error(`[${executionId}] Raw response text:`, rawText.substring(0, 500) + '...');
+      
+      // Fallback response
+      return {
+        response_text: "I've explored your memories and found some interesting connections. Let me guide you through what I discovered.",
+        walkthrough_script: this.generateDefaultWalkthrough(),
+        reflective_question: "What patterns do you notice in these connections?"
+      };
+    }
+  }
+
+  /**
+   * Generate default walkthrough steps
+   */
+  private generateDefaultWalkthrough(): WalkthroughStep[] {
+    return [
+      {
+        step_number: 1,
+        title: "Welcome to Your Memory Cosmos",
+        description: "Let's begin our journey through your memories",
+        focus_entity_id: undefined,
+        duration_seconds: 3
+      },
+      {
+        step_number: 2,
+        title: "Exploring Key Connections",
+        description: "Notice how these memories connect to your question",
+        focus_entity_id: undefined,
+        duration_seconds: 5
+      },
+      {
+        step_number: 3,
+        title: "Reflecting on Patterns",
+        description: "What patterns do you see in these connections?",
+        focus_entity_id: undefined,
+        duration_seconds: 4
+      }
+    ];
+  }
+
+  /**
+   * Load user-specific HRT parameters from Redis
+   */
+  private async loadUserHRTParameters(userId: string): Promise<any> {
+    try {
+      const key = `hrt_parameters:${userId}`;
+      const storedParams = await this.redis.get(key);
+
+      if (!storedParams) {
+        // Return default parameters if none found
+        return this.getDefaultHRTParameters();
+      }
+
+      const parameters = JSON.parse(storedParams);
+      
+      // Validate the loaded parameters
+      this.validateHRTParameters(parameters);
+      
+      return parameters;
+    } catch (error) {
+      console.error('Failed to load HRT parameters for user:', userId, error);
+      // Return default parameters on error
+      return this.getDefaultHRTParameters();
+    }
+  }
+
+  /**
+   * Get default HRT parameters
+   */
+  private getDefaultHRTParameters(): any {
+    return {
+      weaviate: {
+        resultsPerPhrase: 3,
+        similarityThreshold: 0.1,
+        timeoutMs: 5000,
+      },
+      neo4j: {
+        maxResultLimit: 100,
+        maxGraphHops: 3,
+        maxSeedEntities: 10,
+        queryTimeoutMs: 10000,
+      },
+      scoring: {
+        topNCandidatesForHydration: 10,
+        recencyDecayRate: 0.1,
+        diversityThreshold: 0.3,
+      },
+      scoringWeights: {
+        alphaSemanticSimilarity: 0.5,
+        betaRecency: 0.3,
+        gammaImportanceScore: 0.2,
+      },
+      performance: {
+        maxRetrievalTimeMs: 5000,
+        enableParallelProcessing: true,
+        cacheResults: true,
+      },
+      qualityFilters: {
+        minimumRelevanceScore: 0.1,
+        dedupeSimilarResults: true,
+        boostRecentContent: true,
+      },
+    };
+  }
+
+  /**
+   * Validate HRT parameters
+   */
+  private validateHRTParameters(parameters: any): void {
+    // Basic validation - ensure required fields exist
+    if (!parameters.weaviate || !parameters.neo4j || !parameters.scoring || !parameters.scoringWeights) {
+      throw new Error('Invalid HRT parameters: missing required sections');
+    }
+
+    // Validate scoring weights sum to 1.0
+    const { alphaSemanticSimilarity, betaRecency, gammaImportanceScore } = parameters.scoringWeights;
+    const total = alphaSemanticSimilarity + betaRecency + gammaImportanceScore;
+    if (Math.abs(total - 1.0) > 0.01) {
+      throw new Error(`Invalid scoring weights: must sum to 1.0 (current: ${total.toFixed(3)})`);
+    }
+  }
+}

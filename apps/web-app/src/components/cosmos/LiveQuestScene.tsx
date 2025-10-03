@@ -12,8 +12,15 @@ const LiveQuestScene: React.FC = () => {
     e.preventDefault();
     const res = await fetch('http://localhost:3001/api/v1/quest/process', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userQuestion: question, userId: userId || 'dev-user-123' })
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken || 'dev-token'}`
+      },
+      body: JSON.stringify({ 
+        userQuestion: question, 
+        conversationId: `quest-${Date.now()}`,
+        questType: 'exploration'
+      })
     });
     const j = await res.json();
     const execId = j?.data?.executionId;

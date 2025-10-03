@@ -13,6 +13,7 @@ import { HRTParametersController } from '../../controllers/hrtParameters.control
 import { createAgentRoutes } from './agent.routes';
 import { createQuestRoutes } from './quest.routes';
 import { QuestController } from '../../controllers/quest.controller';
+import { CosmosQuestAgent } from '@2dots1line/cosmos-quest-service';
 import dashboardRoutes from '../../routes/dashboard';
 
 export function createV1Routes(
@@ -22,10 +23,11 @@ export function createV1Routes(
   conversationController: ConversationController,
   graphController: GraphController,
   mediaController: MediaController,
-  hrtParametersController: HRTParametersController
+  hrtParametersController: HRTParametersController,
+  cosmosQuestAgent: CosmosQuestAgent
 ): IRouter {
   const v1Router: IRouter = Router();
-  const questController = new QuestController();
+  const questController = new QuestController(undefined, cosmosQuestAgent);
 
 // --- Health Check ---
 v1Router.get('/health', (req, res) => {

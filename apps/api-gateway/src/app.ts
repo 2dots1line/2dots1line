@@ -7,6 +7,7 @@ import { createV1Routes } from './routes/v1';
 import { DatabaseService } from '@2dots1line/database';
 import { ConfigService } from '@2dots1line/config-service';
 import { DialogueAgent, PromptBuilder } from '@2dots1line/dialogue-service';
+import { CosmosQuestAgent, CosmosQuestPromptBuilder } from '@2dots1line/cosmos-quest-service';
 import { UserService, AuthService, DashboardService } from '@2dots1line/user-service';
 import { CardService } from '@2dots1line/card-service';
 import { UserRepository, ConversationRepository, SessionRepository, CardRepository, MediaRepository } from '@2dots1line/database';
@@ -81,6 +82,19 @@ async function createApp(): Promise<express.Application> {
     hybridRetrievalTool: hybridRetrievalTool
   });
 
+  // CosmosQuestAgent with all required dependencies
+  const cosmosQuestPromptBuilder = new CosmosQuestPromptBuilder(configService, userRepo, conversationRepo, databaseService.redis);
+  
+  const cosmosQuestAgent = new CosmosQuestAgent({
+    configService,
+    conversationRepository: conversationRepo,
+    userRepository: userRepo,
+    redisClient: databaseService.redis,
+    promptBuilder: cosmosQuestPromptBuilder,
+    llmChatTool: LLMChatTool,
+    hybridRetrievalTool: hybridRetrievalTool
+  });
+
   // Level 4: Controllers (The final layer, receives services) - V11.0 Architecture
   const authController = new AuthController(authService);
   const userController = new UserController(userService, dashboardService);
@@ -95,7 +109,7 @@ async function createApp(): Promise<express.Application> {
   console.log('✅ HRTParametersController initialized successfully');
 
   // Level 5: Mount controllers onto the Express app
-  app.use('/api/v1', createV1Routes(authController, userController, cardController, conversationController, graphController, mediaController, hrtParametersController));
+  app.use('/api/v1', createV1Routes(authController, userController, cardController, conversationController, graphController, mediaController, hrtParametersController, cosmosQuestAgent));
 
   // Central Error Handler
   app.use(errorHandler);

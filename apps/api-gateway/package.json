@@ -15,6 +15,7 @@
     "@2dots1line/core-utils": "workspace:*",
     "@2dots1line/database": "workspace:*",
     "@2dots1line/dialogue-service": "workspace:*",
+    "@2dots1line/cosmos-quest-service": "workspace:*",
     "@2dots1line/user-service": "workspace:*",
     "@2dots1line/card-service": "workspace:*",
     "@2dots1line/pexels-service": "workspace:*",
