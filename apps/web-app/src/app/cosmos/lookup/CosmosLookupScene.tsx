@@ -844,12 +844,13 @@ const CosmosLookupScene: React.FC = () => {
         onBackgroundLoadError={handleBackgroundLoadError}
         isSearchResult={true} // Enable bright star textures for search results
         customCameraPosition={[
-          searchResultClusterCenter.x + 150, 
+          searchResultClusterCenter.x + 200, 
           searchResultClusterCenter.y + 200, 
           searchResultClusterCenter.z - 150
         ]}
         customCameraTarget={searchResultClusterCenter}
         customTargetDistance={80}
+        rotationSpeed={0.0001}
       />
       
       

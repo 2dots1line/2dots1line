@@ -32,6 +32,7 @@ interface Graph3DProps {
   customCameraPosition?: [number, number, number]; // Custom camera position for lookup scenes
   customCameraTarget?: { x: number; y: number; z: number }; // Custom camera target
   customTargetDistance?: number; // Custom target distance
+  rotationSpeed?: number; // Custom rotation speed for the node cluster
 }
 
 export const Graph3D: React.FC<Graph3DProps> = ({ 
@@ -48,7 +49,8 @@ export const Graph3D: React.FC<Graph3DProps> = ({
   isSearchResult = false,
   customCameraPosition,
   customCameraTarget,
-  customTargetDistance
+  customTargetDistance,
+  rotationSpeed
 }) => {
   // State for hover management
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
@@ -308,7 +310,7 @@ export const Graph3D: React.FC<Graph3DProps> = ({
       
       {/* Render nodes and edges with 3D parallax rotation */}
       <NodeClusterContainer 
-        rotationSpeed={0.0005} 
+        rotationSpeed={rotationSpeed || 0.0005} 
         enableRotation={true}
         isHovered={!!hoveredNodeId}
       >
