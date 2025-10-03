@@ -11,6 +11,8 @@ import { GraphController } from '../../controllers/graph.controller';
 import { MediaController } from '../../controllers/media.controller';
 import { HRTParametersController } from '../../controllers/hrtParameters.controller';
 import { createAgentRoutes } from './agent.routes';
+import { createQuestRoutes } from './quest.routes';
+import { QuestController } from '../../controllers/quest.controller';
 import dashboardRoutes from '../../routes/dashboard';
 
 export function createV1Routes(
@@ -23,6 +25,7 @@ export function createV1Routes(
   hrtParametersController: HRTParametersController
 ): IRouter {
   const v1Router: IRouter = Router();
+  const questController = new QuestController();
 
 // --- Health Check ---
 v1Router.get('/health', (req, res) => {
@@ -121,6 +124,9 @@ v1Router.post('/hrt/parameters/:userId/reset', authMiddleware, hrtParametersCont
 
 // Agent routes
 v1Router.use('/agent', createAgentRoutes(conversationController));
+
+// Quest routes (initial minimal endpoint)
+v1Router.use('/quest', createQuestRoutes(questController));
 
   // Notification routes removed - now handled by dedicated Socket.IO service
 

@@ -89,6 +89,21 @@ if (require.main === module) {
       // Get port from environment
       const port = parseInt(process.env.NOTIFICATION_SERVICE_PORT || '3002', 10);
 
+      // Internal API to push quest updates from other services (API Gateway)
+      app.post('/internal/quest/update', (req: any, res: any) => {
+        try {
+          const { executionId, data } = req.body || {};
+          if (!executionId || !data) {
+            return res.status(400).json({ success: false, error: 'executionId and data are required' });
+          }
+          worker.sendQuestUpdate(executionId, data);
+          return res.json({ success: true });
+        } catch (err: any) {
+          console.error('[NotificationWorker] Internal quest update error:', err?.message || err);
+          return res.status(500).json({ success: false, error: 'internal_error' });
+        }
+      });
+
       // Start HTTP server
       httpServer.listen(port, () => {
         console.log(`🚀 Notification Worker running on port ${port}`);

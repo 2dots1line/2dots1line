@@ -175,6 +175,21 @@ export class NotificationWorker {
       socket.on('ping', () => {
         socket.emit('pong', { timestamp: new Date().toISOString() });
       });
+
+      // Quest: join/leave specific execution room
+      socket.on('quest:join', (data: { executionId: string }) => {
+        if (!data?.executionId) return;
+        const room = `quest:${data.executionId}`;
+        socket.join(room);
+        console.log(`[NotificationWorker] User ${userId} joined ${room}`);
+      });
+
+      socket.on('quest:leave', (data: { executionId: string }) => {
+        if (!data?.executionId) return;
+        const room = `quest:${data.executionId}`;
+        socket.leave(room);
+        console.log(`[NotificationWorker] User ${userId} left ${room}`);
+      });
     });
   }
 
@@ -196,6 +211,19 @@ export class NotificationWorker {
 
     this.worker.on('active', (job) => {
       console.log(`[NotificationWorker] 🔄 Job ${job.id} started processing`);
+    });
+  }
+
+  /**
+   * Send quest update to an execution-specific room
+   */
+  public sendQuestUpdate(executionId: string, data: any): void {
+    if (!this.io) return;
+    const room = `quest:${executionId}`;
+    this.io.to(room).emit('quest:update', {
+      execution_id: executionId,
+      ...data,
+      created_at: new Date().toISOString(),
     });
   }
 
