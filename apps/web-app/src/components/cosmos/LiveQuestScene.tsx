@@ -23,10 +23,10 @@ const LiveQuestScene: React.FC = () => {
     showEdges,
     setShowEdges
   } = useCosmosStore();
-  
-  // Local state for additional edge controls
+
+  // Local edge control state
   const [edgeOpacity, setEdgeOpacity] = useState(0.5);
-  const [edgeWidth, setEdgeWidth] = useState(1);
+  const [edgeWidth, setEdgeWidth] = useState(1.0);
   const [animatedEdges, setAnimatedEdges] = useState(true);
 
   const startLiveQuest = async (e: React.FormEvent) => {
@@ -40,7 +40,8 @@ const LiveQuestScene: React.FC = () => {
       body: JSON.stringify({ 
         userQuestion: question, 
         conversationId: `quest-${Date.now()}`,
-        questType: 'exploration'
+        questType: 'exploration',
+        userId: userId || 'dev-user-123' 
       })
     });
     const j = await res.json();
@@ -48,6 +49,7 @@ const LiveQuestScene: React.FC = () => {
     if (execId) joinQuest(execId);
   };
 
+  // Process visualization data
   const viz = questState.visualization_stages;
   const POSITION_SCALE = 10;
   
@@ -71,7 +73,6 @@ const LiveQuestScene: React.FC = () => {
     const y = e.position[1] * POSITION_SCALE;
     const z = e.position[2] * POSITION_SCALE;
     
-    // Map entity type to API-compatible format
     const apiEntityType = mapEntityType(e.entityType);
     
     return {
@@ -142,9 +143,22 @@ const LiveQuestScene: React.FC = () => {
           id: `${entity.entityId}-${targetId}`,
           source: entity.entityId,
           target: targetId,
-          type: entity.connectionType || 'related',
-          weight: entity.relevanceScore || 1.0,
-          strength: entity.relevanceScore || 1.0
+          type: '1_hop',
+          animated: animatedEdges
+        });
+      });
+    }
+  });
+
+  viz.stage3?.forEach((entity: any) => {
+    if (entity.connectedTo && entity.connectedTo.length > 0) {
+      entity.connectedTo.forEach((targetId: string) => {
+        edges.push({
+          id: `${entity.entityId}-${targetId}`,
+          source: entity.entityId,
+          target: targetId,
+          type: '2_hop',
+          animated: animatedEdges
         });
       });
     }
@@ -159,111 +173,147 @@ const LiveQuestScene: React.FC = () => {
     return { x: sum.x / nodes.length, y: sum.y / nodes.length, z: sum.z / nodes.length };
   }, [nodes]);
 
+  // Show loading state
+  if (questState.isProcessing) {
+    return (
+      <div className="w-full h-full relative">
+        <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-black/80 backdrop-blur-md rounded-lg p-8 text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <h3 className="text-xl font-semibold text-white mb-2">Processing Quest</h3>
+            <p className="text-white/70">Exploring your memories...</p>
+          </div>
+        </div>
+        <Graph3D
+          graphData={{ nodes: [], edges: [] }}
+          onNodeClick={() => {}}
+          showEdges={false}
+          edgeOpacity={0}
+          edgeWidth={1}
+          animatedEdges={false}
+          modalOpen={false}
+          customCameraPosition={[0, 0, 100]}
+          customCameraTarget={{ x: 0, y: 0, z: 0 }}
+          customTargetDistance={100}
+          customCameraController={LookupCameraController}
+        />
+      </div>
+    );
+  }
+
+  // Show error state
+  if (questState.error) {
+    return (
+      <div className="w-full h-full relative">
+        <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-red-900/80 backdrop-blur-md rounded-lg p-8 text-center max-w-md">
+            <h3 className="text-xl font-semibold text-white mb-2">Quest Error</h3>
+            <p className="text-red-200 mb-4">{questState.error}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+        <Graph3D
+          graphData={{ nodes: [], edges: [] }}
+          onNodeClick={() => {}}
+          showEdges={false}
+          edgeOpacity={0}
+          edgeWidth={1}
+          animatedEdges={false}
+          modalOpen={false}
+          customCameraPosition={[0, 0, 100]}
+          customCameraTarget={{ x: 0, y: 0, z: 0 }}
+          customTargetDistance={100}
+          customCameraController={LookupCameraController}
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className="w-full h-full relative p-4 text-white">
-      <div className="absolute top-4 left-4 z-10 w-96">
-        <div className="bg-black/20 backdrop-blur-md rounded-lg p-4">
-          <h3 className="text-lg font-semibold mb-3">⚡ Live Cosmos Quest</h3>
-          <form onSubmit={startLiveQuest} className="space-y-3">
+    <div className="w-full h-full relative text-white">
+      {/* Top Controls - Edge Controls Only */}
+      <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between">
+        {/* Left: Empty space */}
+        <div></div>
+
+        {/* Center: Edge Controls */}
+        <div className="flex items-center space-x-4 text-sm bg-black/30 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/10">
+          <label className="flex items-center space-x-2 text-white/70">
             <input
-              className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-md text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              type="checkbox"
+              checked={showEdges}
+              onChange={(e) => setShowEdges(e.target.checked)}
+              className="rounded"
+            />
+            <span>Edges</span>
+          </label>
+          <label className="flex items-center space-x-2 text-white/70">
+            <input
+              type="checkbox"
+              checked={animatedEdges}
+              onChange={(e) => setAnimatedEdges(e.target.checked)}
+              className="rounded"
+            />
+            <span>Animate</span>
+          </label>
+        </div>
+
+        {/* Right: Navigation */}
+        <button
+          onClick={() => window.location.href = '/cosmos/lookup'}
+          className="px-4 py-2 bg-black/30 backdrop-blur-sm border border-white/20 text-white rounded-lg hover:bg-black/50 transition-colors text-sm"
+        >
+          ← Entity Lookup
+        </button>
+      </div>
+
+      {/* Quest Input - Bottom Left */}
+      <div className="absolute bottom-4 left-4 z-20">
+        <div className="bg-black/30 backdrop-blur-sm rounded-lg p-3 border border-white/10">
+          <form onSubmit={startLiveQuest} className="flex items-center space-x-3">
+            <input
               type="text"
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
-              placeholder="Ask a question about your memories..."
+              placeholder="Ask about your memories..."
+              className="px-3 py-2 bg-white/10 border border-white/20 rounded-md text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
               disabled={questState.isProcessing}
             />
             <button
               type="submit"
-              className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium disabled:opacity-50"
               disabled={questState.isProcessing}
             >
-              {questState.isProcessing ? 'Processing…' : 'Start Live Quest'}
+              {questState.isProcessing ? 'Processing…' : 'Start Quest'}
             </button>
           </form>
+        </div>
+      </div>
 
-          {questState.key_phrases.length > 0 && (
-            <div className="mt-3">
-              <h4 className="text-sm font-medium text-white/80 mb-2">Key Phrases</h4>
-              <div className="flex flex-wrap gap-2">
-                {questState.key_phrases.map((c: any, i: number) => (
-                  <span key={i} className="px-2 py-1 rounded text-xs" style={{ backgroundColor: c.color + '33', border: `1px solid ${c.color}66` }}>
-                    {c.phrase}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Edge Controls Panel */}
-          <div className="mt-4 border-t border-white/20 pt-3">
-            <h4 className="text-sm font-medium text-white/80 mb-2">Visualization Controls</h4>
-            
-            <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between">
-                <label className="text-white/70">Show Edges</label>
-                <input
-                  type="checkbox"
-                  checked={showEdges}
-                  onChange={(e) => setShowEdges(e.target.checked)}
-                  className="rounded"
-                />
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <label className="text-white/70">Animated Edges</label>
-                <input
-                  type="checkbox"
-                  checked={animatedEdges}
-                  onChange={(e) => setAnimatedEdges(e.target.checked)}
-                  className="rounded"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-white/70 mb-1">Edge Opacity</label>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.1"
-                  value={edgeOpacity}
-                  onChange={(e) => setEdgeOpacity(parseFloat(e.target.value))}
-                  className="w-full"
-                />
-                <span className="text-white/50 text-xs">{edgeOpacity.toFixed(1)}</span>
-              </div>
-              
-              <div>
-                <label className="block text-white/70 mb-1">Edge Width</label>
-                <input
-                  type="range"
-                  min="0.5"
-                  max="3"
-                  step="0.1"
-                  value={edgeWidth}
-                  onChange={(e) => setEdgeWidth(parseFloat(e.target.value))}
-                  className="w-full"
-                />
-                <span className="text-white/50 text-xs">{edgeWidth.toFixed(1)}</span>
-              </div>
+      {/* Key Phrases - Compact Display */}
+      {questState.key_phrases && questState.key_phrases.length > 0 && (
+        <div className="absolute top-16 left-4 z-20">
+          <div className="bg-black/30 backdrop-blur-sm rounded-lg p-2 border border-white/10">
+            <div className="flex flex-wrap gap-1">
+              {questState.key_phrases.map((phrase: any, index: number) => (
+                <span
+                  key={index}
+                  className="px-2 py-1 bg-blue-500/20 text-blue-200 text-xs rounded border border-blue-400/30"
+                >
+                  {phrase.phrase || phrase}
+                </span>
+              ))}
             </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Navigation */}
-      <div className="absolute top-4 right-4 z-10">
-        <div className="bg-black/20 backdrop-blur-md rounded-lg p-3 text-white">
-          <button
-            onClick={() => window.location.href = '/cosmos/lookup'}
-            className="px-4 py-2 bg-gray-500/20 hover:bg-gray-500/30 border border-gray-500/30 text-gray-400 rounded text-sm font-medium transition-colors"
-          >
-            ← Entity Lookup
-          </button>
-        </div>
-      </div>
-
+      {/* 3D Visualization */}
       <Graph3D
         graphData={graphData}
         onNodeClick={(node) => setSelectedNode(node)}
@@ -286,36 +336,38 @@ const LiveQuestScene: React.FC = () => {
       <CosmosInfoPanel />
       {selectedNode && <CosmosNodeModal node={selectedNode} onClose={() => setSelectedNode(null)} />}
 
-      {/* Final response + interactive walkthrough */}
-      {questState.response && (
-        <div className="absolute bottom-4 left-4 right-4">
-          <div className="bg-black/40 backdrop-blur-md rounded-lg p-4 mb-4">
-            <div className="text-sm mb-2">{questState.response}</div>
+      {/* Walkthrough - Bottom Right */}
+      {questState.response && questState.walkthrough_script?.length > 0 && (
+        <div className="absolute bottom-4 right-4 z-20 max-w-xs">
+          <WalkthroughControls
+            walkthroughScript={questState.walkthrough_script}
+            reflectiveQuestion={questState.reflective_question || ''}
+            onStepChange={(step) => {
+              console.log('Walkthrough step changed:', step);
+              if (step?.focus_entity_id) {
+                focusCameraOnEntity(step.focus_entity_id);
+              }
+            }}
+            onCameraMove={(position, target) => {
+              console.log('Camera move requested:', { position, target });
+              // Camera movement is handled by the LookupCameraController
+            }}
+            onEntityHighlight={(entityId, color) => {
+              console.log('Entity highlight requested:', { entityId, color });
+              if (entityId) {
+                focusCameraOnEntity(entityId);
+              }
+            }}
+          />
+        </div>
+      )}
+
+      {/* Response Display - Bottom Center (only if no walkthrough) */}
+      {questState.response && (!questState.walkthrough_script || questState.walkthrough_script.length === 0) && (
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 max-w-sm">
+          <div className="bg-black/30 backdrop-blur-sm rounded-lg p-3 border border-white/10">
+            <div className="text-sm text-white/90">{questState.response}</div>
           </div>
-          
-          {/* Interactive Walkthrough Controls */}
-          {questState.walkthrough_script?.length > 0 && (
-            <WalkthroughControls
-              walkthroughScript={questState.walkthrough_script}
-              reflectiveQuestion={questState.reflective_question || ''}
-              onStepChange={(step) => {
-                console.log('Walkthrough step changed:', step);
-                if (step?.focus_entity_id) {
-                  focusCameraOnEntity(step.focus_entity_id);
-                }
-              }}
-              onCameraMove={(position, target) => {
-                console.log('Camera move requested:', { position, target });
-                // Camera movement is handled by the LookupCameraController
-              }}
-              onEntityHighlight={(entityId, color) => {
-                console.log('Entity highlight requested:', { entityId, color });
-                if (entityId) {
-                  focusCameraOnEntity(entityId);
-                }
-              }}
-            />
-          )}
         </div>
       )}
     </div>
@@ -323,5 +375,3 @@ const LiveQuestScene: React.FC = () => {
 };
 
 export default LiveQuestScene;
-
-

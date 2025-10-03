@@ -90,3 +90,6 @@ DevLog/multiverse/
 apps/web-app/public/NASA/starmap_2020_16k.exr
 apps/web-app/public/NASA/starmap_2020_8k.exr
 apps/web-app/public/NASA/starmap_2020_32k.exr
+
+# music files
+apps/web-app/public/music/
