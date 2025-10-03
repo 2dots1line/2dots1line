@@ -30,6 +30,7 @@ export class LLMRetryHandler {
     /network.*error/i,
     /connection.*error/i,
     /api.*error/i,
+    /fetch.*failed/i, // Added for TypeError: fetch failed
     /503/i, // Service Unavailable
     /429/i, // Too Many Requests
     /502/i, // Bad Gateway
@@ -138,6 +139,13 @@ export class LLMRetryHandler {
     if (!error) return false;
     
     const errorMessage = (typeof error === 'string') ? error : (error.message || error.toString() || '');
+    const errorName = (typeof error === 'object' && error.name) ? error.name : '';
+    
+    // Check for specific error types that should be retryable
+    if (errorName === 'TypeError' && errorMessage.includes('fetch failed')) {
+      return true;
+    }
+    
     return patterns.some(pattern => pattern.test(errorMessage));
   }
 

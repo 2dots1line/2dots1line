@@ -199,7 +199,7 @@ export class CosmosQuestAgent {
         userMessage: promptOutput.userPrompt,
         history: promptOutput.conversationHistory,
         temperature: 0.3,
-        maxTokens: 2000
+        maxTokens: 50000
       },
       request_id: `quest-keyphrases-${Date.now()}`
     };
@@ -234,7 +234,7 @@ export class CosmosQuestAgent {
    */
   private parseKeyPhraseResponse(llmResult: any, executionId: string): KeyPhraseCapsule[] {
     const rawText = llmResult.result.text;
-    console.log(`[${executionId}] Raw LLM key phrase response:`, rawText.substring(0, 200) + '...');
+    console.log(`[${executionId}] Raw LLM key phrase response (${rawText.length} chars):`, rawText);
     
     try {
       // Extract JSON from LLM response
@@ -359,110 +359,223 @@ export class CosmosQuestAgent {
   }
 
   /**
-   * Generate Stage 1 entities (direct semantic matches)
+   * Generate Stage 1 entities (highest relevance - direct semantic matches)
    */
   private generateStage1Entities(augmentedContext: ExtendedAugmentedMemoryContext): VisualizationEntity[] {
     const entities: VisualizationEntity[] = [];
     
-    // Use retrieved memory units as bright stars
+    // Collect all entities with their relevance scores
+    const allEntities: Array<{
+      entity: any;
+      type: 'MemoryUnit' | 'Concept' | 'Artifact';
+      relevanceScore: number;
+    }> = [];
+    
+    // Add memory units
     if (augmentedContext.retrievedMemoryUnits) {
-      augmentedContext.retrievedMemoryUnits.forEach((unit, index) => {
-        entities.push({
-          entityId: `memoryunit_${unit.entity_id}`,
-          entityType: 'MemoryUnit',
-          position: [
-            (Math.random() - 0.5) * 20,
-            (Math.random() - 0.5) * 20,
-            (Math.random() - 0.5) * 20
-          ],
-          starTexture: 'bright_star',
-          title: unit.title || `Memory ${index + 1}`,
-          relevanceScore: unit.importance_score || 0.9,
-          connectionType: undefined,
-          connectedTo: undefined
+      augmentedContext.retrievedMemoryUnits.forEach(unit => {
+        allEntities.push({
+          entity: unit,
+          type: 'MemoryUnit',
+          relevanceScore: unit.importance_score || 0.8
         });
       });
     }
     
-    // If no memory units, use concepts as direct matches (they are the semantic matches)
-    if (entities.length === 0 && augmentedContext.retrievedConcepts) {
-      augmentedContext.retrievedConcepts.forEach((concept, index) => {
-        entities.push({
-          entityId: `concept_${concept.entity_id}`,
-          entityType: 'Concept',
-          position: [
-            (Math.random() - 0.5) * 20,
-            (Math.random() - 0.5) * 20,
-            (Math.random() - 0.5) * 20
-          ],
-          starTexture: 'bright_star',
-          title: concept.title || `Concept ${index + 1}`,
-          relevanceScore: concept.importance_score || 0.9,
-          connectionType: undefined,
-          connectedTo: undefined
+    // Add concepts
+    if (augmentedContext.retrievedConcepts) {
+      augmentedContext.retrievedConcepts.forEach(concept => {
+        allEntities.push({
+          entity: concept,
+          type: 'Concept',
+          relevanceScore: concept.importance_score || 0.7
         });
       });
     }
     
+    // Add artifacts
+    if (augmentedContext.retrievedArtifacts) {
+      augmentedContext.retrievedArtifacts.forEach(artifact => {
+        allEntities.push({
+          entity: artifact,
+          type: 'Artifact',
+          relevanceScore: artifact.importance_score || 0.6
+        });
+      });
+    }
+    
+    // Sort by relevance score (highest first) and take top 40% for Stage 1
+    allEntities.sort((a, b) => b.relevanceScore - a.relevanceScore);
+    const stage1Count = Math.max(1, Math.ceil(allEntities.length * 0.4));
+    const stage1Entities = allEntities.slice(0, stage1Count);
+    
+    // Convert to visualization entities
+    stage1Entities.forEach((item, index) => {
+      entities.push({
+        entityId: item.entity.entity_id, // Use raw UUID without prefix
+        entityType: item.type,
+        position: [
+          (Math.random() - 0.5) * 20,
+          (Math.random() - 0.5) * 20,
+          (Math.random() - 0.5) * 20
+        ],
+        starTexture: 'bright_star',
+        title: item.entity.title || `${item.type} ${index + 1}`,
+        relevanceScore: item.relevanceScore,
+        connectionType: undefined,
+        connectedTo: undefined
+      });
+    });
+    
+    console.log(`[Stage1] Selected ${entities.length} entities as direct semantic matches (bright stars)`);
     return entities;
   }
 
   /**
-   * Generate Stage 2 entities (1-hop connections)
+   * Generate Stage 2 entities (medium relevance - 1-hop connections)
    */
   private generateStage2Entities(augmentedContext: ExtendedAugmentedMemoryContext): VisualizationEntity[] {
     const entities: VisualizationEntity[] = [];
     
-    // Only add concepts to Stage 2 if they weren't already used in Stage 1
-    // (i.e., if we have memory units, then concepts go to Stage 2)
-    if (augmentedContext.retrievedMemoryUnits && augmentedContext.retrievedConcepts) {
-      augmentedContext.retrievedConcepts.forEach((concept, index) => {
-        entities.push({
-          entityId: `concept_${concept.entity_id}`,
-          entityType: 'Concept',
-          position: [
-            (Math.random() - 0.5) * 20,
-            (Math.random() - 0.5) * 20,
-            (Math.random() - 0.5) * 20
-          ],
-          starTexture: 'medium_star',
-          title: concept.title || `Concept ${index + 1}`,
-          relevanceScore: concept.importance_score || 0.7,
-          connectionType: '1_hop',
-          connectedTo: [`memoryunit_${index}`] // Connect to a memory unit
+    // Collect all entities with their relevance scores (same as Stage 1)
+    const allEntities: Array<{
+      entity: any;
+      type: 'MemoryUnit' | 'Concept' | 'Artifact';
+      relevanceScore: number;
+    }> = [];
+    
+    // Add memory units
+    if (augmentedContext.retrievedMemoryUnits) {
+      augmentedContext.retrievedMemoryUnits.forEach(unit => {
+        allEntities.push({
+          entity: unit,
+          type: 'MemoryUnit',
+          relevanceScore: unit.importance_score || 0.8
         });
       });
     }
     
+    // Add concepts
+    if (augmentedContext.retrievedConcepts) {
+      augmentedContext.retrievedConcepts.forEach(concept => {
+        allEntities.push({
+          entity: concept,
+          type: 'Concept',
+          relevanceScore: concept.importance_score || 0.7
+        });
+      });
+    }
+    
+    // Add artifacts
+    if (augmentedContext.retrievedArtifacts) {
+      augmentedContext.retrievedArtifacts.forEach(artifact => {
+        allEntities.push({
+          entity: artifact,
+          type: 'Artifact',
+          relevanceScore: artifact.importance_score || 0.6
+        });
+      });
+    }
+    
+    // Sort by relevance score and take middle 40% for Stage 2
+    allEntities.sort((a, b) => b.relevanceScore - a.relevanceScore);
+    const stage1Count = Math.max(1, Math.ceil(allEntities.length * 0.4));
+    const stage2Count = Math.max(1, Math.ceil(allEntities.length * 0.4));
+    const stage2Entities = allEntities.slice(stage1Count, stage1Count + stage2Count);
+    
+    // Convert to visualization entities
+    stage2Entities.forEach((item, index) => {
+      entities.push({
+        entityId: item.entity.entity_id, // Use raw UUID without prefix
+        entityType: item.type,
+        position: [
+          (Math.random() - 0.5) * 20,
+          (Math.random() - 0.5) * 20,
+          (Math.random() - 0.5) * 20
+        ],
+        starTexture: 'medium_star',
+        title: item.entity.title || `${item.type} ${index + 1}`,
+        relevanceScore: item.relevanceScore,
+        connectionType: '1_hop',
+        connectedTo: [allEntities[0].entity.entity_id] // Connect to first Stage 1 entity (raw UUID)
+      });
+    });
+    
+    console.log(`[Stage2] Selected ${entities.length} entities as 1-hop connections (medium stars)`);
     return entities;
   }
 
   /**
-   * Generate Stage 3 entities (2-hop connections)
+   * Generate Stage 3 entities (lowest relevance - 2-hop connections)
    */
   private generateStage3Entities(augmentedContext: ExtendedAugmentedMemoryContext): VisualizationEntity[] {
     const entities: VisualizationEntity[] = [];
     
-    // Use retrieved artifacts as dim stars
-    if (augmentedContext.retrievedArtifacts) {
-      augmentedContext.retrievedArtifacts.forEach((artifact, index) => {
-        entities.push({
-          entityId: `artifact_${artifact.entity_id}`,
-          entityType: 'Artifact',
-          position: [
-            (Math.random() - 0.5) * 20,
-            (Math.random() - 0.5) * 20,
-            (Math.random() - 0.5) * 20
-          ],
-          starTexture: 'dim_star',
-          title: artifact.title || `Artifact ${index + 1}`,
-          relevanceScore: artifact.importance_score || 0.5,
-          connectionType: '2_hop',
-          connectedTo: [`concept_${index}`] // Connect to a concept
+    // Collect all entities with their relevance scores (same as Stage 1 & 2)
+    const allEntities: Array<{
+      entity: any;
+      type: 'MemoryUnit' | 'Concept' | 'Artifact';
+      relevanceScore: number;
+    }> = [];
+    
+    // Add memory units
+    if (augmentedContext.retrievedMemoryUnits) {
+      augmentedContext.retrievedMemoryUnits.forEach(unit => {
+        allEntities.push({
+          entity: unit,
+          type: 'MemoryUnit',
+          relevanceScore: unit.importance_score || 0.8
         });
       });
     }
     
+    // Add concepts
+    if (augmentedContext.retrievedConcepts) {
+      augmentedContext.retrievedConcepts.forEach(concept => {
+        allEntities.push({
+          entity: concept,
+          type: 'Concept',
+          relevanceScore: concept.importance_score || 0.7
+        });
+      });
+    }
+    
+    // Add artifacts
+    if (augmentedContext.retrievedArtifacts) {
+      augmentedContext.retrievedArtifacts.forEach(artifact => {
+        allEntities.push({
+          entity: artifact,
+          type: 'Artifact',
+          relevanceScore: artifact.importance_score || 0.6
+        });
+      });
+    }
+    
+    // Sort by relevance score and take bottom 20% for Stage 3
+    allEntities.sort((a, b) => b.relevanceScore - a.relevanceScore);
+    const stage1Count = Math.max(1, Math.ceil(allEntities.length * 0.4));
+    const stage2Count = Math.max(1, Math.ceil(allEntities.length * 0.4));
+    const stage3Entities = allEntities.slice(stage1Count + stage2Count);
+    
+    // Convert to visualization entities
+    stage3Entities.forEach((item, index) => {
+      entities.push({
+        entityId: item.entity.entity_id, // Use raw UUID without prefix
+        entityType: item.type,
+        position: [
+          (Math.random() - 0.5) * 20,
+          (Math.random() - 0.5) * 20,
+          (Math.random() - 0.5) * 20
+        ],
+        starTexture: 'dim_star',
+        title: item.entity.title || `${item.type} ${index + 1}`,
+        relevanceScore: item.relevanceScore,
+        connectionType: '2_hop',
+        connectedTo: [allEntities[stage1Count].entity.entity_id] // Connect to first Stage 2 entity (raw UUID)
+      });
+    });
+    
+    console.log(`[Stage3] Selected ${entities.length} entities as 2-hop connections (dim stars)`);
     return entities;
   }
 
@@ -503,7 +616,7 @@ export class CosmosQuestAgent {
         userMessage: promptOutput.userPrompt,
         history: promptOutput.conversationHistory,
         temperature: 0.7,
-        maxTokens: 3000
+        maxTokens: 50000
       },
       request_id: `quest-final-${Date.now()}`
     };
@@ -520,19 +633,19 @@ export class CosmosQuestAgent {
     );
 
     // Parse final response
-    return this.parseFinalResponse(llmResult, executionId);
+    return this.parseFinalResponse(llmResult, executionId, visualization);
   }
 
   /**
    * Parse final response from LLM
    */
-  private parseFinalResponse(llmResult: any, executionId: string): {
+  private parseFinalResponse(llmResult: any, executionId: string, visualization: any): {
     response_text: string;
     walkthrough_script: WalkthroughStep[];
     reflective_question: string;
   } {
     const rawText = llmResult.result.text;
-    console.log(`[${executionId}] Raw LLM final response:`, rawText.substring(0, 200) + '...');
+    console.log(`[${executionId}] Raw LLM final response (${rawText.length} chars):`, rawText);
     
     try {
       // Extract JSON from LLM response
@@ -574,7 +687,7 @@ export class CosmosQuestAgent {
       
       return {
         response_text: parsed.response_text || "I've explored your memories and found some interesting connections.",
-        walkthrough_script: parsed.walkthrough_script || this.generateDefaultWalkthrough(),
+        walkthrough_script: parsed.walkthrough_script || this.generateWalkthroughFromEntities(visualization),
         reflective_question: parsed.reflective_question || "What patterns do you notice in these connections?"
       };
       
@@ -585,37 +698,150 @@ export class CosmosQuestAgent {
       // Fallback response
       return {
         response_text: "I've explored your memories and found some interesting connections. Let me guide you through what I discovered.",
-        walkthrough_script: this.generateDefaultWalkthrough(),
+        walkthrough_script: this.generateWalkthroughFromEntities(visualization),
         reflective_question: "What patterns do you notice in these connections?"
       };
     }
   }
 
   /**
-   * Generate default walkthrough steps
+   * Generate walkthrough steps based on actual visualization entities
+   */
+  private generateWalkthroughFromEntities(visualization: {
+    stage1: VisualizationEntity[];
+    stage2: VisualizationEntity[];
+    stage3: VisualizationEntity[];
+  }): WalkthroughStep[] {
+    const steps: WalkthroughStep[] = [];
+    
+    // Step 1: Overview
+    steps.push({
+      step_number: 1,
+      title: "Welcome to Your Memory Cosmos",
+      description: "Let's begin our journey through your memories. I'll guide you through the most relevant connections I found.",
+      focus_entity_id: "overview",
+      duration_seconds: 3,
+      camera_position: [0, 0, 50],
+      camera_target: [0, 0, 0],
+      highlight_color: "#4ecdc4"
+    });
+    
+    // Step 2: Stage 1 entities (bright stars - direct matches)
+    if (visualization.stage1.length > 0) {
+      const firstEntity = visualization.stage1[0];
+      steps.push({
+        step_number: 2,
+        title: "Exploring Key Connections",
+        description: `This bright star represents "${firstEntity.title}" - one of the most relevant memories to your question.`,
+        focus_entity_id: firstEntity.entityId,
+        duration_seconds: 4,
+        camera_position: [
+          firstEntity.position[0] + 5,
+          firstEntity.position[1] + 5,
+          firstEntity.position[2] + 10
+        ],
+        camera_target: firstEntity.position,
+        highlight_color: "#ff6b6b"
+      });
+    }
+    
+    // Step 3: Stage 2 entities (medium stars - 1-hop connections)
+    if (visualization.stage2.length > 0) {
+      const firstEntity = visualization.stage2[0];
+      steps.push({
+        step_number: 3,
+        title: "Discovering Related Memories",
+        description: `Now let's explore "${firstEntity.title}" - a connected memory that provides additional context.`,
+        focus_entity_id: firstEntity.entityId,
+        duration_seconds: 4,
+        camera_position: [
+          firstEntity.position[0] + 5,
+          firstEntity.position[1] + 5,
+          firstEntity.position[2] + 10
+        ],
+        camera_target: firstEntity.position,
+        highlight_color: "#45b7d1"
+      });
+    }
+    
+    // Step 4: Stage 3 entities (dim stars - 2-hop connections)
+    if (visualization.stage3.length > 0) {
+      const firstEntity = visualization.stage3[0];
+      steps.push({
+        step_number: 4,
+        title: "Exploring Deeper Connections",
+        description: `Let's look at "${firstEntity.title}" - a deeper connection that reveals interesting patterns.`,
+        focus_entity_id: firstEntity.entityId,
+        duration_seconds: 4,
+        camera_position: [
+          firstEntity.position[0] + 5,
+          firstEntity.position[1] + 5,
+          firstEntity.position[2] + 10
+        ],
+        camera_target: firstEntity.position,
+        highlight_color: "#96ceb4"
+      });
+    }
+    
+    // Step 5: Final overview
+    steps.push({
+      step_number: steps.length + 1,
+      title: "Reflecting on Patterns",
+      description: "Take a moment to observe the patterns and connections between these memories. What insights emerge?",
+      focus_entity_id: "overview",
+      duration_seconds: 5,
+      camera_position: [0, 20, 30],
+      camera_target: [0, 0, 0],
+      highlight_color: "#feca57"
+    });
+    
+    return steps;
+  }
+
+  /**
+   * Generate default walkthrough steps with interactive camera movements
    */
   private generateDefaultWalkthrough(): WalkthroughStep[] {
     return [
       {
         step_number: 1,
         title: "Welcome to Your Memory Cosmos",
-        description: "Let's begin our journey through your memories",
-        focus_entity_id: undefined,
-        duration_seconds: 3
+        description: "Let's begin our journey through your memories. I'll guide you through the most relevant connections I found.",
+        focus_entity_id: "overview", // Special ID for overview
+        duration_seconds: 3,
+        camera_position: [0, 0, 50], // High overview position
+        camera_target: [0, 0, 0], // Look at center
+        highlight_color: "#4ecdc4"
       },
       {
         step_number: 2,
         title: "Exploring Key Connections",
-        description: "Notice how these memories connect to your question",
-        focus_entity_id: undefined,
-        duration_seconds: 5
+        description: "These bright stars represent the most relevant memories to your question. Let me show you the first one.",
+        focus_entity_id: "stage1_first", // Will be replaced with actual entity ID
+        duration_seconds: 4,
+        camera_position: [10, 5, 15], // Closer to entities
+        camera_target: [0, 0, 0], // Look at entities
+        highlight_color: "#ff6b6b"
       },
       {
         step_number: 3,
+        title: "Discovering Related Memories",
+        description: "Now let's explore the connected memories that provide additional context.",
+        focus_entity_id: "stage2_first", // Will be replaced with actual entity ID
+        duration_seconds: 4,
+        camera_position: [-10, 5, 15], // Different angle
+        camera_target: [0, 0, 0],
+        highlight_color: "#45b7d1"
+      },
+      {
+        step_number: 4,
         title: "Reflecting on Patterns",
-        description: "What patterns do you see in these connections?",
-        focus_entity_id: undefined,
-        duration_seconds: 4
+        description: "Take a moment to observe the patterns and connections between these memories.",
+        focus_entity_id: "overview", // Back to overview
+        duration_seconds: 5,
+        camera_position: [0, 20, 30], // High overview
+        camera_target: [0, 0, 0],
+        highlight_color: "#96ceb4"
       }
     ];
   }

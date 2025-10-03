@@ -62,6 +62,9 @@ export interface WalkthroughStep {
   description: string;
   focus_entity_id?: string; // Optional entity to focus on
   duration_seconds: number;
+  camera_position?: [number, number, number]; // Camera position for this step
+  camera_target?: [number, number, number]; // Camera target for this step
+  highlight_color?: string; // Color to highlight entities
 }
 
 // === AGENT WRAPPER TYPES ===

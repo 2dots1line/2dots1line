@@ -7,6 +7,8 @@ import CosmosError from '../modal/CosmosError';
 import CosmosLoading from '../modal/CosmosLoading';
 import CosmosNodeModal from '../modal/CosmosNodeModal';
 import { NodeLabelControls } from './NodeLabelControls';
+import WalkthroughControls from './WalkthroughControls';
+import { LookupCameraController } from './LookupCameraController';
 
 const LiveQuestScene: React.FC = () => {
   const [question, setQuestion] = useState('What do you know about my skating experience?');
@@ -49,6 +51,16 @@ const LiveQuestScene: React.FC = () => {
   const viz = questState.visualization_stages;
   const POSITION_SCALE = 10;
   
+  // Map entity types from CosmosQuestAgent format to API format
+  const mapEntityType = (entityType: string): string => {
+    const mapping: Record<string, string> = {
+      'Concept': 'concept',
+      'MemoryUnit': 'memoryunit', 
+      'Artifact': 'derivedartifact'
+    };
+    return mapping[entityType] || 'concept';
+  };
+
   // Process nodes with proper labels and properties (like CosmosLookupScene)
   const nodes = [
     ...viz.stage1,
@@ -59,9 +71,13 @@ const LiveQuestScene: React.FC = () => {
     const y = e.position[1] * POSITION_SCALE;
     const z = e.position[2] * POSITION_SCALE;
     
+    // Map entity type to API-compatible format
+    const apiEntityType = mapEntityType(e.entityType);
+    
     return {
       id: e.entityId,
-      type: e.entityType,
+      type: apiEntityType, // Use mapped type for API compatibility
+      entity_type: apiEntityType, // Also add entity_type field for API
       label: e.title || e.entityId, // Proper label mapping
       name: e.title || e.entityId, // Fallback for name
       x,
@@ -72,7 +88,7 @@ const LiveQuestScene: React.FC = () => {
       content: e.content || '',
       properties: { 
         title: e.title || e.entityId,
-        type: e.entityType,
+        type: apiEntityType, // Use mapped type
         starTexture: e.starTexture,
         relevanceScore: e.relevanceScore,
         connectionType: e.connectionType,
@@ -81,7 +97,7 @@ const LiveQuestScene: React.FC = () => {
       // Add metadata for proper display
       metadata: {
         title: e.title || e.entityId,
-        type: e.entityType,
+        type: apiEntityType, // Use mapped type
         content: e.content || '',
         importance: e.relevanceScore || 1,
         createdAt: new Date().toISOString(),
@@ -89,6 +105,33 @@ const LiveQuestScene: React.FC = () => {
       }
     };
   });
+
+  // Function to focus camera on a specific entity
+  const focusCameraOnEntity = useCallback((entityId: string) => {
+    const entity = nodes.find(node => node.id === entityId);
+    if (entity) {
+      const x = entity.x || 0;
+      const y = entity.y || 0;
+      const z = entity.z || 0;
+      
+      // Dispatch camera focus event
+      const event = new CustomEvent('camera-focus-request', {
+        detail: {
+          position: { x, y, z },
+          entity: {
+            id: entity.id,
+            title: entity.name || entity.label || entity.id,
+            type: entity.type || 'unknown'
+          }
+        }
+      });
+      
+      window.dispatchEvent(event);
+      console.log('🎥 LiveQuestScene: Focusing camera on entity:', entityId, 'at position:', { x, y, z });
+    } else {
+      console.warn('🎥 LiveQuestScene: Entity not found for focus:', entityId);
+    }
+  }, [nodes]);
 
   // Process edges from walkthrough connections
   const edges: any[] = [];
@@ -233,6 +276,7 @@ const LiveQuestScene: React.FC = () => {
         customCameraPosition={[center.x + 200, center.y + 200, center.z - 150]}
         customCameraTarget={center}
         customTargetDistance={80}
+        customCameraController={LookupCameraController}
       />
       
       {/* Node Label Controls */}
@@ -242,27 +286,35 @@ const LiveQuestScene: React.FC = () => {
       <CosmosInfoPanel />
       {selectedNode && <CosmosNodeModal node={selectedNode} onClose={() => setSelectedNode(null)} />}
 
-      {/* Final response + walkthrough */}
+      {/* Final response + interactive walkthrough */}
       {questState.response && (
-        <div className="absolute bottom-4 left-4 right-4 bg-black/40 backdrop-blur-md rounded-lg p-4">
-          <div className="text-sm mb-2">{questState.response}</div>
+        <div className="absolute bottom-4 left-4 right-4">
+          <div className="bg-black/40 backdrop-blur-md rounded-lg p-4 mb-4">
+            <div className="text-sm mb-2">{questState.response}</div>
+          </div>
+          
+          {/* Interactive Walkthrough Controls */}
           {questState.walkthrough_script?.length > 0 && (
-            <div className="text-xs text-white/80">
-              <div className="font-semibold mb-1">Walkthrough Steps:</div>
-              <ol className="list-decimal pl-5 space-y-1">
-                {questState.walkthrough_script.slice(0, 3).map((s: any, index: number) => (
-                  <li key={s.step_number || index}>
-                    <strong>{s.title}:</strong> {s.description}
-                    {s.focus_entity_id && (
-                      <span className="text-blue-300 ml-2">(Focus: {s.focus_entity_id})</span>
-                    )}
-                  </li>
-                ))}
-              </ol>
-              {questState.reflective_question && (
-                <div className="mt-2 text-white/70">{questState.reflective_question}</div>
-              )}
-            </div>
+            <WalkthroughControls
+              walkthroughScript={questState.walkthrough_script}
+              reflectiveQuestion={questState.reflective_question || ''}
+              onStepChange={(step) => {
+                console.log('Walkthrough step changed:', step);
+                if (step?.focus_entity_id) {
+                  focusCameraOnEntity(step.focus_entity_id);
+                }
+              }}
+              onCameraMove={(position, target) => {
+                console.log('Camera move requested:', { position, target });
+                // Camera movement is handled by the LookupCameraController
+              }}
+              onEntityHighlight={(entityId, color) => {
+                console.log('Entity highlight requested:', { entityId, color });
+                if (entityId) {
+                  focusCameraOnEntity(entityId);
+                }
+              }}
+            />
           )}
         </div>
       )}

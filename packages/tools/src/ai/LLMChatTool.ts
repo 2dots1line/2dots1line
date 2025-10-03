@@ -450,6 +450,13 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
     if (!error || typeof error !== 'object') return false;
     
     const errorMessage = error.message || error.toString() || '';
+    const errorName = error.name || '';
+    
+    // Check for specific error types that should be retryable
+    if (errorName === 'TypeError' && errorMessage.includes('fetch failed')) {
+      return true;
+    }
+    
     const retryablePatterns = [
       /model is overloaded/i,
       /service unavailable/i,
@@ -460,6 +467,7 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
       /timeout/i,
       /network error/i,
       /connection error/i,
+      /fetch failed/i, // Added for TypeError: fetch failed
       /503/i, // Service Unavailable
       /429/i, // Too Many Requests
       /500/i  // Internal Server Error
