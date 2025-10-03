@@ -249,11 +249,7 @@ export const Graph3D: React.FC<Graph3DProps> = ({
     return center;
   }, [graphData.nodes, customCameraTarget]);
 
-  // Camera auto-positioning disabled - keeping manual camera control
-  const positionCameraForNode = useCallback((nodeId: string) => {
-    // Camera positioning disabled - keeping manual camera control
-    console.log('🔍 Camera positioning disabled for node:', nodeId);
-  }, []);
+  // Camera positioning is handled by CameraController via camera-focus-request events
 
   return (
     <Canvas
@@ -322,9 +318,7 @@ export const Graph3D: React.FC<Graph3DProps> = ({
             modalOpen={modalOpen}
             onHover={(nodeId) => {
               setHoveredNodeId(nodeId);
-              if (nodeId) {
-                positionCameraForNode(nodeId);
-              }
+              // Camera positioning is handled by CameraController via camera-focus-request events
             }}
             isHighlighted={hoveredNodeId === node.id || 
               (!!hoveredNodeId && getConnectedNodes(hoveredNodeId).includes(node.id))}

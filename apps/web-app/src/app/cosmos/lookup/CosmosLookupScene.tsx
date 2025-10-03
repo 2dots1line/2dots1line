@@ -571,6 +571,34 @@ const CosmosLookupScene: React.FC = () => {
     setLookupState(prev => ({ ...prev, entityId: value }));
   }, []);
 
+  // Function to focus camera on a specific entity using the existing CameraController system
+  const focusCameraOnEntity = useCallback((entityId: string) => {
+    const entity = graphData.nodes.find(node => node.id === entityId);
+    if (entity) {
+      const nodeAny = entity as any;
+      const x = (nodeAny.position_x || nodeAny.x || 0) * POSITION_SCALE;
+      const y = (nodeAny.position_y || nodeAny.y || 0) * POSITION_SCALE;
+      const z = (nodeAny.position_z || nodeAny.z || 0) * POSITION_SCALE;
+      
+      // Use the existing CameraController focus system
+      const event = new CustomEvent('camera-focus-request', {
+        detail: {
+          position: { x, y, z },
+          entity: {
+            id: entity.id,
+            title: nodeAny.title || nodeAny.label || entity.id,
+            type: nodeAny.entity_type || nodeAny.type || 'unknown'
+          }
+        }
+      });
+      
+      window.dispatchEvent(event);
+      console.log('🔍 CosmosLookupScene: Focusing camera on entity:', entityId, 'at position:', { x, y, z });
+    } else {
+      console.warn('🔍 CosmosLookupScene: Entity not found:', entityId);
+    }
+  }, [graphData.nodes]);
+
   const POSITION_SCALE = 10;
   
   // Calculate search result cluster center for camera positioning
@@ -766,6 +794,33 @@ const CosmosLookupScene: React.FC = () => {
                 Clear
               </button>
             </div>
+
+            {/* Camera Focus Controls */}
+            {lookupState.foundEntity && (
+              <div className="mt-3 p-2 bg-purple-500/20 border border-purple-500/30 rounded-md">
+                <h4 className="font-semibold text-purple-300 mb-2 text-sm">Camera Focus</h4>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => focusCameraOnEntity(lookupState.foundEntity.id)}
+                    className="px-3 py-1 bg-purple-600 text-white rounded text-xs hover:bg-purple-700"
+                  >
+                    Focus on Main Entity
+                  </button>
+                  <button
+                    onClick={() => {
+                      // Focus on first similar entity
+                      if (lookupState.similarEntities.length > 0) {
+                        focusCameraOnEntity(lookupState.similarEntities[0].id);
+                      }
+                    }}
+                    className="px-3 py-1 bg-purple-600 text-white rounded text-xs hover:bg-purple-700"
+                    disabled={lookupState.similarEntities.length === 0}
+                  >
+                    Focus on First Similar
+                  </button>
+                </div>
+              </div>
+            )}
 
             {lookupState.error && (
               <div className="p-2 bg-red-500/20 border border-red-500/30 text-red-300 rounded-md text-sm">
