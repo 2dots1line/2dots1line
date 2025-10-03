@@ -3,13 +3,47 @@ import { OrbitControls } from '@react-three/drei';
 import React, { useRef, useState, useEffect } from 'react';
 import * as THREE from 'three';
 
-export const CameraController: React.FC = () => {
+interface CameraControllerProps {
+  initialTarget?: { x: number; y: number; z: number };
+  initialTargetDistance?: number;
+}
+
+export const CameraController: React.FC<CameraControllerProps> = ({ 
+  initialTarget = { x: 0, y: 0, z: 0 },
+  initialTargetDistance: propInitialDistance = 50
+}) => {
   const { camera } = useThree();
   const controlsRef = useRef<any>();
   const [keys, setKeys] = useState({ w: false, a: false, s: false, d: false, shift: false, space: false });
+  const initialTargetDistance = useRef<number>(propInitialDistance); // Store initial target distance
+  const [isInitialized, setIsInitialized] = useState(false);
   
   // Calculate if manual input is active (for OrbitControls enabled state)
   const hasManualInput = keys.w || keys.a || keys.s || keys.d || keys.space;
+
+  // Initialize OrbitControls target with cluster center
+  useEffect(() => {
+    if (controlsRef.current && !isInitialized) {
+      // Set the target to the cluster center
+      controlsRef.current.target.set(initialTarget.x, initialTarget.y, initialTarget.z);
+      controlsRef.current.update();
+      setIsInitialized(true);
+      
+      console.log('🎥 CameraController: Initialized with target:', initialTarget, 'distance:', propInitialDistance);
+    }
+  }, [controlsRef.current, initialTarget, propInitialDistance, isInitialized]);
+
+  // Capture initial target distance when controls are first available
+  useEffect(() => {
+    if (controlsRef.current && initialTargetDistance.current === propInitialDistance) {
+      const currentTarget = controlsRef.current.target;
+      const actualDistance = camera.position.distanceTo(currentTarget);
+      if (actualDistance > 0) {
+        initialTargetDistance.current = actualDistance;
+        console.log('🎥 CameraController: Captured actual target distance:', actualDistance);
+      }
+    }
+  }, [camera, controlsRef.current, propInitialDistance]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -83,13 +117,19 @@ export const CameraController: React.FC = () => {
       
       if (keys.space) camera.position.y += moveSpeed;
       
-      // When using manual input, update OrbitControls target to current camera position
-      // This prevents snapping when switching back to OrbitControls
+      // When using manual input, update OrbitControls target to maintain seamless transition
       if (controlsRef.current) {
-        const direction = new THREE.Vector3();
-        camera.getWorldDirection(direction);
-        const target = camera.position.clone().add(direction.multiplyScalar(50));
-        controlsRef.current.target.copy(target);
+        // Calculate current distance from camera to target, fallback to initial distance
+        const currentTarget = controlsRef.current.target;
+        const currentDistance = camera.position.distanceTo(currentTarget);
+        const targetDistance = currentDistance > 0 ? currentDistance : initialTargetDistance.current;
+        
+        // Update target to maintain the same distance in camera's look direction
+        const newTarget = camera.position.clone().add(direction.multiplyScalar(targetDistance));
+        controlsRef.current.target.copy(newTarget);
+        
+        // Pre-update the controls to prevent snapping
+        controlsRef.current.update();
       }
     }
   });

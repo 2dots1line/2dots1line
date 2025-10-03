@@ -212,7 +212,7 @@ export const Graph3D: React.FC<Graph3DProps> = ({
     return true;
   };
 
-  // Calculate node cluster center for better camera positioning
+  // Calculate node cluster center for camera positioning
   const nodeClusterCenter = useMemo(() => {
     if (graphData.nodes.length === 0) return { x: 0, y: 0, z: 0 };
     
@@ -232,8 +232,6 @@ export const Graph3D: React.FC<Graph3DProps> = ({
     };
     
     console.log('🌌 Node cluster center:', center);
-    console.log('🌌 Node positions sample:', graphData.nodes.slice(0, 5).map(n => ({ id: n.id, x: n.x, y: n.y, z: n.z })));
-    
     return center;
   }, [graphData.nodes]);
 
@@ -259,7 +257,7 @@ export const Graph3D: React.FC<Graph3DProps> = ({
     >
       <PerspectiveCamera 
         makeDefault 
-        position={[0, 0, 100]} 
+        position={[nodeClusterCenter.x + 50, nodeClusterCenter.y + 30, nodeClusterCenter.z + 50]} 
         fov={75} 
         near={0.1} 
         far={50000} 
@@ -275,7 +273,10 @@ export const Graph3D: React.FC<Graph3DProps> = ({
       {/* Procedural Starfield - Layer 2 (Nearby stars for depth) */}
       <StarfieldBackground />
       
-      <CameraController />
+      <CameraController 
+        initialTarget={nodeClusterCenter}
+        initialTargetDistance={80}
+      />
       {/* Ambient light for overall illumination */}
       <ambientLight intensity={0.2} />
       
