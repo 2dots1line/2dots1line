@@ -351,7 +351,7 @@ model users {
   account_status                    String                   @default("active")
   concepts_created_in_cycle         Int                      @default(0)
   last_cycle_started_at             DateTime?
-  memory_profile                    Json?
+  memory_profile                    String?
   next_conversation_context_package Json?
   key_phrases                       Json?
   cards                             cards[]

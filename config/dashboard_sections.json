@@ -432,6 +432,14 @@
       "max_items": 1,
       "priority": 1,
       "category": "growth"
+    },
+    "memory_profile": {
+      "title": "Memory Profile",
+      "icon": "👤",
+      "description": "Comprehensive summary of your life, values, and journey",
+      "max_items": 1,
+      "priority": 1,
+      "category": "content"
     }
   },
   "section_categories": {

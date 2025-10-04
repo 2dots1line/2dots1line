@@ -38,7 +38,8 @@ export const DashboardSection: React.FC<DashboardSectionProps> = ({
       exploration_prompts: '🔍',
       goal_setting_prompts: '🎯',
       skill_development_prompts: '📚',
-      creative_expression_prompts: '🎨'
+      creative_expression_prompts: '🎨',
+      memory_profile: '👤'
     };
     return icons[sectionType] || '📄';
   };

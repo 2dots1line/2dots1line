@@ -1277,49 +1277,25 @@ export class InsightEngine {
 
 
   /**
-   * Update user memory profile with strategic insights
+   * Update user memory profile with the memory_profile derived artifact content
    */
   private async updateUserMemoryProfile(userId: string, analysisOutput: StrategicSynthesisOutput): Promise<void> {
     try {
-      const { ontology_optimizations, derived_artifacts, proactive_prompts } = analysisOutput;
+      const { derived_artifacts } = analysisOutput;
       
-      const memoryProfileUpdate = {
-        last_updated: new Date().toISOString(),
-        strategic_insights: {
-          derived_artifacts: derived_artifacts.length,
-          proactive_prompts: proactive_prompts.length,
-          cycle_timestamp: new Date().toISOString()
-        },
-        growth_patterns: {
-          concept_consolidation: ontology_optimizations.concepts_to_merge.map(merge => ({
-            primary_concept: merge.primary_entity_id,
-            merged_concepts: merge.secondary_entity_ids,
-            rationale: merge.merge_rationale
-          }))
-        },
-        // Key insights from derived artifacts
-        key_insights: derived_artifacts?.map(artifact => ({
-          title: artifact.title,
-          content: artifact.content,
-          type: artifact.type,
-          confidence: artifact.confidence_score,
-          actionability: artifact.actionability
-        })) || [],
-        // Proactive guidance
-        proactive_guidance: proactive_prompts?.map(prompt => ({
-          title: prompt.title,
-          content: prompt.content,
-          type: prompt.type,
-          timing: prompt.timing_suggestion,
-          priority: prompt.priority_level
-        })) || []
-      };
-
-      await this.userRepository.update(userId, {
-        memory_profile: memoryProfileUpdate
-      });
+      // Find the memory profile derived artifact
+      const memoryProfileArtifact = derived_artifacts.find(artifact => artifact.type === 'memory_profile');
       
-      console.log(`[InsightEngine] Updated comprehensive memory profile for user ${userId} with strategic insights`);
+      if (memoryProfileArtifact) {
+        // Store the memory profile content as a simple string
+        await this.userRepository.update(userId, {
+          memory_profile: memoryProfileArtifact.content
+        });
+        
+        console.log(`[InsightEngine] Updated memory profile for user ${userId}`);
+      } else {
+        console.log(`[InsightEngine] No memory_profile artifact found for user ${userId}`);
+      }
     } catch (error: unknown) {
       console.error('[InsightEngine] Error updating user memory profile:', error);
       throw error;

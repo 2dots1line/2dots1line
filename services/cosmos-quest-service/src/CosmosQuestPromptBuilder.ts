@@ -45,7 +45,7 @@ export class CosmosQuestPromptBuilder {
   ) {}
 
   /**
-   * Build prompt for key phrase extraction with proper context
+   * Build prompt for key phrase extraction with minimal context (OPTIMIZED)
    */
   public async buildKeyPhraseExtractionPrompt(input: KeyPhraseExtractionInput): Promise<PromptBuildOutput> {
     console.log('\n🔧 CosmosQuestPromptBuilder.buildKeyPhraseExtractionPrompt - Starting...');
@@ -56,34 +56,25 @@ export class CosmosQuestPromptBuilder {
       questType: input.questType
     });
 
-    // Fetch all required data in parallel
-    const [user, conversationHistory, recentSummaries, turnContextStr] = await Promise.all([
-      this.userRepository.findUserByIdWithContext(input.userId),
-      this.conversationRepository.getMostRecentMessages(input.conversationId, 10),
-      this.conversationRepository.getRecentImportantConversationSummaries(input.userId),
-      this.redisClient.get(`turn_context:${input.conversationId}`)
-    ]);
+    // OPTIMIZED: Only fetch essential user data - no conversation history or summaries
+    const user = await this.userRepository.findUserByIdWithContext(input.userId);
 
     if (!user) {
       throw new Error(`CosmosQuestPromptBuilder Error: User not found for userId: ${input.userId}`);
     }
 
-    const turnContext = turnContextStr ? JSON.parse(turnContextStr) : null;
-
-    console.log('📊 Data fetched:', {
+    console.log('📊 Data fetched (OPTIMIZED):', {
       userFound: !!user,
-      historyLength: conversationHistory.length,
-      summariesCount: Array.isArray(recentSummaries) ? recentSummaries.length : 0,
-      hasTurnContext: !!turnContext
+      userName: user.name
     });
 
-    // Build quest-specific system prompt
-    const systemPrompt = this.buildKeyPhraseSystemPrompt(user, recentSummaries, conversationHistory, turnContext);
+    // Build quest-specific system prompt with minimal context
+    const systemPrompt = this.buildKeyPhraseSystemPrompt(user, [], [], null);
     
     // Build user prompt for key phrase extraction
     const userPrompt = this.buildKeyPhraseUserPrompt(input.userQuestion, input.questType, user.name || 'User');
 
-    console.log('\n📝 CosmosQuestPromptBuilder - KEY PHRASE SYSTEM PROMPT:');
+    console.log('\n📝 CosmosQuestPromptBuilder - KEY PHRASE SYSTEM PROMPT (OPTIMIZED):');
     console.log('='.repeat(50));
     console.log(systemPrompt.substring(0, 300) + '...');
     console.log('='.repeat(50));
@@ -96,7 +87,7 @@ export class CosmosQuestPromptBuilder {
     return {
       systemPrompt,
       userPrompt,
-      conversationHistory
+      conversationHistory: [] // Not needed for key phrase extraction
     };
   }
 
@@ -152,13 +143,11 @@ export class CosmosQuestPromptBuilder {
   }
 
   /**
-   * Build system prompt for key phrase extraction
+   * Build system prompt for key phrase extraction (OPTIMIZED - minimal context)
    */
   private buildKeyPhraseSystemPrompt(user: any, recentSummaries: any[], conversationHistory: any[], turnContext: any): string {
-    const userMemoryProfile = this.formatComponentContent('user_memory_profile', user.memory_profile);
-    const conversationSummaries = this.formatComponentContent('conversation_summaries', recentSummaries);
-    const currentConversationHistory = this.formatComponentContent('current_conversation_history', conversationHistory);
-    const contextFromLastTurn = turnContext ? this.formatComponentContent('context_from_last_turn', turnContext) : null;
+    // Only include essential user context - no verbose memory profile
+    const essentialUserContext = this.formatEssentialUserContext(user);
 
     return `=== COSMOS QUEST AGENT - KEY PHRASE EXTRACTION ===
 
@@ -189,10 +178,7 @@ Return a JSON object with this exact structure:
   "key_phrases": ["phrase1", "phrase2", "phrase3", "phrase4", "phrase5"]
 }
 
-${userMemoryProfile ? `\n${userMemoryProfile}\n` : ''}
-${conversationSummaries ? `\n${conversationSummaries}\n` : ''}
-${currentConversationHistory ? `\n${currentConversationHistory}\n` : ''}
-${contextFromLastTurn ? `\n${contextFromLastTurn}\n` : ''}`;
+${essentialUserContext ? `\n${essentialUserContext}\n` : ''}`;
   }
 
   /**
@@ -211,10 +197,11 @@ Remember: These phrases will be used to search through ${userName}'s personal me
   }
 
   /**
-   * Build system prompt for final response generation
+   * Build system prompt for final response generation (OPTIMIZED - minimal context)
    */
   private buildFinalResponseSystemPrompt(user: any): string {
-    const userMemoryProfile = this.formatComponentContent('user_memory_profile', user.memory_profile);
+    // Only include essential user context - no verbose memory profile
+    const essentialUserContext = this.formatEssentialUserContext(user);
 
     return `=== COSMOS QUEST AGENT - FINAL RESPONSE GENERATION ===
 
@@ -262,7 +249,7 @@ Return a JSON object with this exact structure:
   "reflective_question": "What patterns do you notice in these connections?"
 }
 
-${userMemoryProfile ? `\n${userMemoryProfile}\n` : ''}`;
+${essentialUserContext ? `\n${essentialUserContext}\n` : ''}`;
   }
 
   /**
@@ -438,5 +425,39 @@ Please generate a thoughtful response, walkthrough script, and reflective questi
       .replace(/&lt;/g, '<')
       .replace(/&gt;/g, '>')
       .replace(/&#39;/g, "'");
+  }
+
+  /**
+   * Format essential user context (OPTIMIZED - minimal context)
+   */
+  private formatEssentialUserContext(user: any): string | null {
+    if (!user) return null;
+    
+    const essentialInfo = [];
+    
+    // User name
+    if (user.name) {
+      essentialInfo.push(`User: ${user.name}`);
+    }
+    
+    // Current focus areas (if available and concise)
+    if (user.current_focus_areas && Array.isArray(user.current_focus_areas) && user.current_focus_areas.length > 0) {
+      const focusAreas = user.current_focus_areas.slice(0, 3).join(', '); // Limit to 3 areas
+      essentialInfo.push(`Current Focus: ${focusAreas}`);
+    }
+    
+    // Basic preferences (if available and concise)
+    if (user.preferences && typeof user.preferences === 'object') {
+      const prefs = [];
+      if (user.preferences.communication_style) prefs.push(`Communication: ${user.preferences.communication_style}`);
+      if (user.preferences.exploration_depth) prefs.push(`Exploration: ${user.preferences.exploration_depth}`);
+      if (prefs.length > 0) {
+        essentialInfo.push(`Preferences: ${prefs.join(', ')}`);
+      }
+    }
+    
+    if (essentialInfo.length === 0) return null;
+    
+    return `<essential_user_context>\n${essentialInfo.join('\n')}\n</essential_user_context>`;
   }
 }

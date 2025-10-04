@@ -47,7 +47,7 @@ export const StrategicSynthesisOutputSchema = z.object({
     }))
   }),
   derived_artifacts: z.array(z.object({
-    type: z.enum(['opening', 'deeper_story', 'hidden_connection', 'values_revolution', 'mastery_quest', 'breakthrough_moment', 'synergy_discovery', 'authentic_voice', 'leadership_evolution', 'creative_renaissance', 'wisdom_integration', 'vision_crystallization', 'legacy_building', 'horizon_expansion', 'transformation_phase', 'insight', 'pattern', 'recommendation', 'synthesis', 'identified_pattern', 'emerging_theme', 'focus_area', 'blind_spot', 'celebration_moment']),
+    type: z.enum(['opening', 'deeper_story', 'hidden_connection', 'values_revolution', 'mastery_quest', 'breakthrough_moment', 'synergy_discovery', 'authentic_voice', 'leadership_evolution', 'creative_renaissance', 'wisdom_integration', 'vision_crystallization', 'legacy_building', 'horizon_expansion', 'transformation_phase', 'insight', 'pattern', 'recommendation', 'synthesis', 'identified_pattern', 'emerging_theme', 'focus_area', 'blind_spot', 'celebration_moment', 'memory_profile']),
     title: z.string(),
     content: z.string(),
     confidence_score: z.number().min(0).max(1),

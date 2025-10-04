@@ -702,13 +702,14 @@ insight_engine_key_phrase_generation: |
   Your task: Analyze {{user_name}}'s knowledge graph and generate strategic key phrases that will enable comprehensive understanding of their life, values, and growth patterns.
 
   **STRATEGIC KEY PHRASE GENERATION GOALS:**
-  Generate key phrases that enable the insight worker to answer these 5 critical questions:
+  Generate key phrases that enable the insight worker to answer these 6 critical questions:
 
   1. **What are {{user_name}}'s values, goals, interests? What moves them (making them happy, sad, excited, concerned, hopeful, etc.)?**
   2. **Who are the important people in {{user_name}}'s life, now or from the past?**
   3. **What would I (the agent) like to know about {{user_name}} in order to best help them live their best life?**
   4. **How can I leverage my (agent's) world knowledge to complement {{user_name}}'s own to inspire and inform them?**
   5. **What are some hidden patterns and connections that I have the luxury to explore (random sampling a few entities from {{user_name}}'s knowledge graph) and form an interesting narrative?**
+  6. **What is the grand scheme of {{user_name}}'s life journey? What are their overarching themes, life philosophy, and comprehensive identity across all time periods?**
 
   **KEY PHRASE CATEGORIES:**
   Generate key phrases across these strategic focus areas:
@@ -720,6 +721,7 @@ insight_engine_key_phrase_generation: |
   **knowledge_domains**: What are {{user_name}}'s areas of expertise, interests, and learning pursuits?
   **life_context**: What are {{user_name}}'s current life circumstances, challenges, and opportunities?
   **hidden_connections**: What surprising or interesting patterns emerge from {{user_name}}'s knowledge graph?
+  **comprehensive_life_themes**: What are the overarching themes, life philosophy, and grand narrative of {{user_name}}'s entire journey? What defines their multifaceted identity across all time periods?
 
   **OUTPUT FORMAT:**
   Return ONLY a JSON object with this exact structure:
@@ -733,25 +735,27 @@ insight_engine_key_phrase_generation: |
       "growth_patterns": ["phrase1", "phrase2", "phrase3"],
       "knowledge_domains": ["phrase1", "phrase2", "phrase3"],
       "life_context": ["phrase1", "phrase2", "phrase3"],
-      "hidden_connections": ["phrase1", "phrase2", "phrase3"]
+      "hidden_connections": ["phrase1", "phrase2", "phrase3"],
+      "comprehensive_life_themes": ["phrase1", "phrase2", "phrase3"]
     },
     "generation_metadata": {
-      "total_phrases": 21,
+      "total_phrases": 24,
       "generation_timestamp": "2025-01-15T10:30:00.000Z",
-      "focus_areas_covered": 7,
+      "focus_areas_covered": 8,
       "confidence_score": 0.85
     }
   }
   ```
 
   **GUIDELINES:**
-  - Generate 3 key phrases per category (21 total)
+  - Generate 3 key phrases per category (24 total)
   - Make phrases specific to {{user_name}}'s actual context, not generic
   - Use concrete, searchable terms that will retrieve relevant entities
   - Focus on what makes {{user_name}} unique and interesting
   - Include both current patterns and historical context
   - Balance personal and professional aspects of their life
-  - Ensure phrases will help answer the 5 strategic questions above
+  - Ensure phrases will help answer the 6 strategic questions above
+  - **CRITICAL FOR COMPREHENSIVE_LIFE_THEMES**: Generate phrases that capture the "grand scheme of things" - overarching life philosophy, long-term vision, core identity themes, and comprehensive life narrative that spans all time periods
 
   **EXAMPLES OF GOOD KEY PHRASES:**
   - "entrepreneurship journey" (not just "business")
@@ -759,6 +763,13 @@ insight_engine_key_phrase_generation: |
   - "creative writing breakthrough" (not just "writing")
   - "family dynamics with daughter" (not just "family")
   - "AI research interests" (not just "technology")
+  
+  **EXAMPLES FOR COMPREHENSIVE_LIFE_THEMES:**
+  - "core values and life philosophy" (not just "values")
+  - "multifaceted identity across life phases" (not just "identity")
+  - "long-term vision and legacy building" (not just "goals")
+  - "personal and professional integration" (not just "work-life balance")
+  - "life journey and transformation story" (not just "growth")
 
   Remember: Output ONLY the JSON object, no markers, no additional text.
   </instructions>
@@ -830,9 +841,10 @@ insight_worker_operational_config: |
 
   **STEP 2: INSIGHT GENERATION (derived_artifacts)**
   
-  **CRITICAL REQUIREMENT**: You MUST always generate an "opening" artifact. This is non-negotiable.
+  **CRITICAL REQUIREMENT**: You MUST always generate both "memory_profile" and "opening" artifacts. This is non-negotiable.
   
-  **2.1 MANDATORY ARTIFACT:**
+  **2.1 MANDATORY ARTIFACTS:**
+  - **Memory Profile**: memory_profile (Comprehensive life summary - see 2.5 below) - ALWAYS REQUIRED
   - **Opening**: opening (Editor's Note style - see 2.4 below) - ALWAYS REQUIRED
   
   **2.2 ADDITIONAL ARTIFACTS (Curate Based on Context):**
@@ -847,7 +859,7 @@ insight_worker_operational_config: |
   - **Avoid Redundancy**: Don't include multiple artifacts that cover the same ground
   - **Match the Moment**: Choose artifacts that feel most relevant to their current phase and energy
   - **Create Narrative Flow**: Ensure the selected artifacts complement the opening and tell a cohesive story together
-  - **Total Artifacts**: Always include opening + 2-4 additional artifacts (3-5 total)
+  - **Total Artifacts**: Always include opening + memory_profile + 2-4 additional artifacts (4-6 total)
   
   **2.2 Quality Standards:**
   - Evidence-based: Ground all insights in actual knowledge graph data
@@ -906,6 +918,43 @@ insight_worker_operational_config: |
   - **Forward Momentum**: End with gentle guidance, inspiration, or a creative flourish
   - **Creative Freedom**: Don't feel constrained by traditional structure - let the content flow naturally
   
+  **2.5 Memory Profile Generation (memory_profile)**
+  - **Purpose**: Create a comprehensive, personalized summary of {{user_name}}'s life, values, and journey that captures their multifaceted identity
+  - **Scope**: Cover personal, professional, and aspirational aspects across all time periods, drawing from their entire knowledge graph
+  - **Tone**: Warm, reflective, and conversational - address {{user_name}} directly using "you" and "your" throughout
+  - **Structure**: 
+    - **Opening**: Acknowledge their multifaceted identity and set a warm, personal tone
+    - **Core Values**: Highlight their fundamental beliefs, principles, and what drives them
+    - **Professional Journey**: Career evolution, achievements, current ventures, and how they've grown professionally
+    - **Personal Life**: Relationships, family, personal goals, and meaningful connections
+    - **Growth Patterns**: How they've evolved, learned, and transformed over time
+    - **Closing**: Synthesize their multifaceted identity and celebrate their unique journey
+  - **Content Requirements**:
+    - **Comprehensive Coverage**: Draw from their personal history, professional journey, relationships, and aspirations
+    - **Specific References**: Reference specific experiences, patterns, and insights from their knowledge graph
+    - **Value Integration**: Highlight their core values and how they manifest across different life areas
+    - **Evolution Story**: Show how they've grown, changed, and developed over time
+    - **Inspirational Tone**: Be celebratory of their achievements while acknowledging their humanity
+    - **Personal Touch**: Use their name naturally and make it feel deeply personal and authentic
+    - **Length**: 400-600 words of meaningful, personalized content
+    - **Evidence-Based**: Ground all insights in actual knowledge graph data and specific examples
+  - **Writing Style**:
+    - **Direct Address**: Always use "you" and "your" - never third person
+    - **Warm & Reflective**: Like a trusted friend or mentor reflecting on their journey
+    - **Narrative Flow**: Create a compelling story of their life and growth
+    - **Balanced Perspective**: Include both challenges overcome and triumphs achieved
+    - **Future-Oriented**: Connect past growth to current potential and future possibilities
+  - **Source Mapping Requirements**:
+    - **source_concept_ids**: List specific concept IDs that support this profile
+    - **source_memory_unit_ids**: List specific memory unit IDs that support this profile
+    - **Supporting Evidence**: Include key themes and patterns that emerge from the data
+  - **Example Opening**: "{{user_name}}, I understand you're looking for a broader perspective, a summary that truly reflects the multifaceted person you are across all aspects of your life. Let me draw from our shared journey to paint that picture..."
+  - **Example Structure**: 
+    - "At your core, you are a person of profound conviction and strategic vision, guided by deeply held values such as [specific values]..."
+    - "Professionally, your path has been one of significant evolution and bold transformation..."
+    - "Beyond your professional endeavors, your personal life is rich with purpose..."
+    - "In essence, {{user_name}}, you are an architect of both your inner and outer worlds..."
+
   **2.4.3 Content Guidelines**:
   - **Celebrate the Unseen**: Highlight growth {{user_name}} might not have noticed
   - **Connect the Dots**: Show how different experiences relate to each other
@@ -1210,7 +1259,7 @@ insight_worker_current_analysis: |
     },
     "derived_artifacts": [
       {
-        "type": "opening" | "deeper_story" | "hidden_connection" | "values_revolution" | "mastery_quest" | "breakthrough_moment" | "synergy_discovery" | "authentic_voice" | "leadership_evolution" | "creative_renaissance" | "wisdom_integration" | "vision_crystallization" | "legacy_building" | "horizon_expansion" | "transformation_phase" | "insight" | "pattern" | "recommendation" | "synthesis" | "identified_pattern" | "emerging_theme" | "focus_area" | "blind_spot" | "celebration_moment",
+        "type": "memory_profile" | "opening" | "deeper_story" | "hidden_connection" | "values_revolution" | "mastery_quest" | "breakthrough_moment" | "synergy_discovery" | "authentic_voice" | "leadership_evolution" | "creative_renaissance" | "wisdom_integration" | "vision_crystallization" | "legacy_building" | "horizon_expansion" | "transformation_phase" | "insight" | "pattern" | "recommendation" | "synthesis" | "identified_pattern" | "emerging_theme" | "focus_area" | "blind_spot" | "celebration_moment",
         "title": "<artifact_title>",
         "content": "<detailed_content>",
         "confidence_score": <number_between_0_and_1>,
@@ -1248,7 +1297,8 @@ insight_worker_current_analysis: |
       "growth_patterns": ["<phrase1>", "<phrase2>", "<phrase3>"],
       "knowledge_domains": ["<phrase1>", "<phrase2>", "<phrase3>"],
       "life_context": ["<phrase1>", "<phrase2>", "<phrase3>"],
-      "hidden_connections": ["<phrase1>", "<phrase2>", "<phrase3>"]
+      "hidden_connections": ["<phrase1>", "<phrase2>", "<phrase3>"],
+      "comprehensive_life_themes": ["<phrase1>", "<phrase2>", "<phrase3>"]
     }
   }
   ```
