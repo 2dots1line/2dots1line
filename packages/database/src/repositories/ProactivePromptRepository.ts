@@ -10,6 +10,7 @@ import { randomUUID } from 'crypto';
 
 export interface CreateProactivePromptData {
   user_id: string;
+  title?: string; // Add title field for proactive prompts
   cycle_id?: string; // For dashboard grouping
   content: string;
   type: string;
@@ -29,6 +30,7 @@ export class ProactivePromptRepository {
       data: {
         entity_id: randomUUID(),
         user_id: data.user_id,
+        title: data.title ?? null, // Add title field
         cycle_id: data.cycle_id ?? null,
         content: data.content,
         type: data.type,

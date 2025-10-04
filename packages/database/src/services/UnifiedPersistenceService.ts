@@ -281,6 +281,7 @@ export class UnifiedPersistenceService {
       case 'ProactivePrompt':
         return await this.proactivePromptRepository.create({
           user_id: entityData.user_id,
+          title: entityData.title, // Add title field
           content: entityData.content,
           type: entityData.type,
           cycle_id: entityData.cycle_id,

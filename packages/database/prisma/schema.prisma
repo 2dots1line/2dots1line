@@ -224,6 +224,7 @@ model memory_units {
 model proactive_prompts {
   entity_id  String    @id @default(uuid())
   user_id    String
+  title      String?   // Add title field for proactive prompts
   status     String    @default("pending")
   created_at DateTime  @default(now())
   metadata   Json?
