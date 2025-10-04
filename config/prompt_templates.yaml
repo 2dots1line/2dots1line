@@ -460,7 +460,11 @@ ingestion_analyst_instructions: |
     * importance_score (1-10): Rate how significant this memory is to {{user_name}}'s life/journey
     * sentiment_score (-1.0 to 1.0): Rate the emotional tone from negative to positive
   - extracted_concepts: Array of topics, themes, interests, or entities discussed. ALWAYS extract at least 2-3 concepts from any conversation with meaningful content.
-  - detected_growth_events: Array of personal development moments with quantified impact
+  - detected_growth_events: Array of personal development moments with quantified impact. For each growth event, you MUST provide:
+    * title: Short, descriptive title (3-7 words, max 100 chars) - e.g., "Career Transition Breakthrough", "Self-Awareness Insight"
+    * type: One of the 6D growth dimensions (know_self, know_world, act_self, act_world, show_self, show_world)
+    * delta: Impact value between -5.0 and 5.0
+    * content: Detailed explanation addressing {{user_name}} directly using "you" and "your"
   - new_relationships: Array of connections between entities. Create relationships when entities are clearly connected in the conversation.
     
     **RELATIONSHIP STRENGTH:**
@@ -577,6 +581,7 @@ ingestion_analyst_instructions: |
       "detected_growth_events": [
         {
           "type": "know_self|know_world|act_self|act_world|show_self|show_world", // Must be one of these exact values
+          "title": "string", // Short, descriptive title (3-7 words, max 100 chars) - e.g., "Career Transition Breakthrough"
           "delta": number, // Must be between -5.0 and 5.0
           "content": "string", // CRITICAL: Address {{user_name}} directly using "you" and "your" (NOT third person)
           "source_concept_ids": ["<concept_name_1>", "<concept_name_2>"], // Specific concepts that support this growth event
@@ -1088,6 +1093,7 @@ insight_worker_operational_config: |
   **4.4 Requirements**:
   - **CRITICAL**: Address {{user_name}} directly using "you" and "your" in rationale (NOT third person)
   - **MANDATORY**: Generate growth events for ALL 6 dimensions (know_self, act_self, show_self, know_world, act_world, show_world)
+  - **TITLE REQUIREMENT**: Each growth event MUST have a short, descriptive title (3-7 words, max 100 chars) - e.g., "Career Transition Breakthrough", "Self-Awareness Insight"
   - **LEVERAGE WORLD KNOWLEDGE**: Recommend specific activities, books, films, artworks, experiences, celebrity stories, legends, theories, technologies that expand horizons
   - **CHALLENGE ASSUMPTIONS**: Question unfounded beliefs, challenge abilities, introduce contrarian perspectives
   - **UNLOCK SYNERGIES**: Connect previously unconnected strengths and experiences
@@ -1287,6 +1293,7 @@ insight_worker_current_analysis: |
     "growth_events": [
       {
         "type": "know_self" | "act_self" | "show_self" | "know_world" | "act_world" | "show_world",
+        "title": "<short_descriptive_title_3_to_7_words>",
         "delta_value": <number_between_-5.0_and_5.0>,
         "content": "<strategic_recommendation_content>",
         "source_concept_ids": ["<concept_id_1>", "<concept_id_2>"],

@@ -357,6 +357,7 @@ export class IngestionAnalyst {
           for (const growthEvent of persistence_payload.detected_growth_events) {
             const growthData: CreateGrowthEventData = {
               user_id: userId,
+              title: growthEvent.title, // Include title from LLM output
               source_memory_unit_ids: growthEvent.source_memory_unit_ids || [],
               source_concept_ids: growthEvent.source_concept_ids || [],
               source: 'IngestionAnalyst',

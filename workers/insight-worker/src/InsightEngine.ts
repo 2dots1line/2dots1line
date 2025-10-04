@@ -730,7 +730,7 @@ export class InsightEngine {
           data: {
             entity_id: randomUUID(),
             user_id: userId,
-            title: `${growthEvent.type} Growth Event`,
+            title: growthEvent.title || `${growthEvent.type} Growth Event`, // Use LLM-generated title with fallback
             content: growthEvent.content,
             type: growthEvent.type,
             status: 'active',

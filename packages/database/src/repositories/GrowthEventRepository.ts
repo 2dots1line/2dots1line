@@ -13,6 +13,7 @@ type GrowthEvent = Prisma.growth_eventsGetPayload<{}>;
 
 export interface CreateGrowthEventData {
   user_id: string;
+  title?: string; // Optional title field for growth events
   source_memory_unit_ids: string[];
   source_concept_ids: string[];
   source: string;
