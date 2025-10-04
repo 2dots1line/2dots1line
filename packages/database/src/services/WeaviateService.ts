@@ -484,13 +484,13 @@ export class WeaviateService {
     try {
       console.log(`[WeaviateService] Updating concept ${conceptId} status to: ${status}`);
       
-      // Find the Weaviate object by sourceEntityId (concept ID)
+      // Find the Weaviate object by entity_id (concept ID)
       const existingObjects = await this.client.graphql
         .get()
         .withClassName(this.className)
         .withFields('_additional { id }')
         .withWhere({
-          path: ['sourceEntityId'],
+          path: ['entity_id'],
           operator: 'Equal',
           valueString: conceptId
         })
@@ -538,13 +538,13 @@ export class WeaviateService {
       let updateCount = 0;
 
       for (const update of updates) {
-        // Find the Weaviate object by sourceEntityId
+        // Find the Weaviate object by entity_id
         const existingObjects = await this.client.graphql
           .get()
           .withClassName(this.className)
           .withFields('_additional { id }')
           .withWhere({
-            path: ['sourceEntityId'],
+            path: ['entity_id'],
             operator: 'Equal',
             valueString: update.conceptId
           })

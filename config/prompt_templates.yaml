@@ -1155,8 +1155,13 @@ insight_worker_dynamic_context: |
   Cycle Period: {{cycle_period}}
   {{/analysis_context}}
 
+  {{#user_memory_profile}}
+  ## 3.2 USER MEMORY PROFILE (High Cacheability: 80-90%)
+  {{memory_profile}}
+  {{/user_memory_profile}}
+
   {{#consolidated_knowledge_graph}}
-  ## 3.2 CONSOLIDATED KNOWLEDGE GRAPH (Medium Cacheability: 50-70%)
+  ## 3.3 CONSOLIDATED KNOWLEDGE GRAPH (Medium Cacheability: 50-70%)
   ### Concepts ({{concepts.length}} total)
   {{#concepts}}
   - **{{title}}** ({{entity_id}}): {{content}}
@@ -1184,9 +1189,9 @@ insight_worker_dynamic_context: |
   {{/consolidated_knowledge_graph}}
 
   {{#recent_conversations}}
-  ## 3.3 RECENT CONVERSATIONS (Low Cacheability: 10-30%)
+  ## 3.4 RECENT CONVERSATIONS (Low Cacheability: 10-30%)
   {{#conversations}}
-  - **{{title}}** ({{importance_score}}/10): {{summary}}
+  - {{content}}
   {{/conversations}}
   {{/recent_conversations}}
 

@@ -308,7 +308,7 @@ export class InsightEngine {
       conversations: conversationSummaries
         .filter((conv: { content: string | null }) => conv.content)
         .map((conv: { content: string | null }) => ({
-          context_summary: conv.content || 'No summary available'
+          content: conv.content || 'No content available'
         })),
       memoryUnits: await this.getUserMemoryUnits(userId, cycleDates),
       concepts: await this.getUserConcepts(userId, cycleDates),
@@ -342,6 +342,7 @@ export class InsightEngine {
       // Core identification
       userId,
       userName: user.name || 'User',
+      userMemoryProfile: user.memory_profile || undefined,
       cycleId: cycleId,
       cycleStartDate: cycleDates.cycleStartDate,
       cycleEndDate: cycleDates.cycleEndDate,

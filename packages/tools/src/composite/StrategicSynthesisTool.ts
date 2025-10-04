@@ -90,6 +90,7 @@ export interface StrategicSynthesisInput {
   // Core identification
   userId: string;
   userName?: string;
+  userMemoryProfile?: string;
   cycleId: string;
   cycleStartDate: Date;
   cycleEndDate: Date;
@@ -97,7 +98,7 @@ export interface StrategicSynthesisInput {
   // Current cycle data
   currentKnowledgeGraph: {
     conversations: Array<{
-      context_summary: string;
+      content?: string;
     }>;
     memoryUnits: Array<{
       id: string;
@@ -262,18 +263,19 @@ export class StrategicSynthesisTool {
         analysis_timestamp: new Date().toISOString(),
         cycle_period: `${input.cycleStartDate.toISOString()} to ${input.cycleEndDate.toISOString()}`
       },
+      user_memory_profile: {
+        memory_profile: input.userMemoryProfile || 'No memory profile available'
+      },
       consolidated_knowledge_graph: {
         concepts: consolidatedEntities.concepts,
         memory_units: consolidatedEntities.memoryUnits,
         concepts_needing_synthesis: input.currentKnowledgeGraph.conceptsNeedingSynthesis,
-        recent_growth_events: input.recentGrowthEvents,
+        // recent_growth_events: input.recentGrowthEvents,
         previous_key_phrases: input.previousKeyPhrases || []
       },
       recent_conversations: {
         conversations: input.currentKnowledgeGraph.conversations.map(conv => ({
-          title: conv.context_summary || 'Untitled Conversation',
-          importance_score: 7,
-          summary: conv.context_summary || 'No summary available'
+          content: conv.content || 'No content available'
         }))
       }
     };

@@ -59,15 +59,15 @@
       "enable_phrase_optimization": true
     },
     "semantic_grounding": {
-      "weaviate_timeout_ms": 5000,
-      "results_per_phrase": 3,
+      "weaviate_timeout_ms": 3000,
+      "results_per_phrase": 5,
       "minimum_similarity": 0.1,
       "enable_caching": true
     },
     "graph_traversal": {
-      "neo4j_timeout_ms": 10000,
-      "max_hops": 3,
-      "max_seed_entities": 10,
+      "neo4j_timeout_ms": 5000,
+      "max_hops": 4,
+      "max_seed_entities": 20,
       "enable_relationship_filtering": true
     },
     "pre_hydration": {
@@ -76,7 +76,7 @@
       "include_stale_detection": true
     },
     "scoring": {
-      "top_n_for_hydration": 10,
+      "top_n_for_hydration": 50,
       "enable_diversity_filtering": true,
       "diversity_threshold": 0.3,
       "recency_decay_rate": 0.1
@@ -88,9 +88,9 @@
     }
   },
   "performance_limits": {
-    "max_total_execution_time_ms": 15000,
-    "max_candidates_evaluated": 200,
-    "max_final_results": 20,
+    "max_total_execution_time_ms": 20000,
+    "max_candidates_evaluated": 300,
+    "max_final_results": 50,
     "enable_early_termination": true
   },
   "error_handling": {
