@@ -32,6 +32,14 @@ find . -name "*.tsbuildinfo" -type f -delete 2>/dev/null || true
 echo "Removing node_modules (this may take a moment)..."
 timeout 30 rm -rf node_modules 2>/dev/null || echo "⚠️  node_modules removal timed out - you may need to remove it manually"
 
+# 8. Clean Docker build cache
+echo "Cleaning Docker build cache..."
+docker builder prune -a -f 2>/dev/null || echo "⚠️  Docker builder prune failed or Docker not running"
+
+# 9. Clean unused Docker images
+# echo "Cleaning unused Docker images..."
+# docker image prune -a -f 2>/dev/null || echo "⚠️  Docker image prune failed or Docker not running"
+
 echo "✅ Quick clean completed!"
 echo ""
 echo "If you need to remove node_modules manually, try:"
