@@ -9,6 +9,7 @@ import type { IToolManifest, IExecutableTool } from '@2dots1line/shared-types';
 import { GoogleGenerativeAI, GenerativeModel, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import { EnvironmentModelConfigService } from '@2dots1line/config-service';
 import { DatabaseService } from '@2dots1line/database';
+import { OpenAI } from 'openai';
 
 interface LLMInteractionLog {
   workerType: string;
@@ -80,7 +81,7 @@ export type LLMChatOutput = TToolOutput<LLMChatResult>;
 // Tool manifest for registry discovery
 const manifest: IToolManifest<LLMChatInputPayload, LLMChatResult> = {
   name: 'llm.chat',
-  description: 'AI conversation tool using Gemini for DialogueAgent',
+  description: 'AI conversation tool for DialogueAgent',
   version: '1.0.0',
   availableRegions: ['us', 'cn'],
   categories: ['ai', 'llm', 'conversation'],
@@ -105,9 +106,8 @@ const manifest: IToolManifest<LLMChatInputPayload, LLMChatResult> = {
     isIdempotent: false
   },
   limitations: [
-    'Requires GOOGLE_API_KEY environment variable',
-    'Uses Gemini 1.5 Flash model',
-    'Rate limited by Google API quotas'
+    'Requires GOOGLE_API_KEY or OPENAI_API_KEY environment variable',
+    'Rate limited by Google/OpenAI API quotas'
   ]
 };
 
@@ -116,9 +116,11 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
   
   private genAI: GoogleGenerativeAI | null = null;
   private model: GenerativeModel | null = null;
+  private openai: OpenAI | null = null;
   private modelConfigService: EnvironmentModelConfigService | null = null;
   private currentModelName: string | null = null;
   private initialized = false;
+  private provider: 'gemini' | 'openai' = 'gemini';
 
   constructor() {
     // Remove environment variable check from constructor
@@ -126,51 +128,46 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
   }
 
   private initialize() {
-    const apiKey = process.env.GOOGLE_API_KEY;
-    if (!apiKey) {
-      throw new Error('GOOGLE_API_KEY environment variable is required');
-    }
-    
-    this.genAI = new GoogleGenerativeAI(apiKey);
+    // Decide provider
+    this.provider = (process.env.LLM_PROVIDER as 'gemini' | 'openai') || 'gemini';
     this.modelConfigService = EnvironmentModelConfigService.getInstance();
-    
-    // Get the appropriate model from environment-first configuration
-    const newModelName = this.modelConfigService.getModelForUseCase('chat');
-    
-    // Check if model has changed or if this is first initialization
-    if (!this.initialized || this.currentModelName !== newModelName) {
-      console.log(`🤖 LLMChatTool: ${this.initialized ? 'Reinitializing' : 'Initializing'} with model ${newModelName}${this.currentModelName ? ` (was: ${this.currentModelName})` : ''}`);
+    const newModelName = this.modelConfigService.getModelForUseCase('chat') || undefined;
+
+    if (!this.initialized || this.currentModelName !== newModelName || !this.provider) {
+      console.log(`🤖 LLMChatTool: Initializing with provider ${this.provider}, model ${newModelName}`);
       this.modelConfigService.logCurrentConfiguration();
-      
-      this.currentModelName = newModelName;
-      this.model = this.genAI.getGenerativeModel({ 
-        model: this.currentModelName,
-        generationConfig: {
-          temperature: 0.7,
-          topK: 40,
-          topP: 0.95,
-          maxOutputTokens: 50000, // Override for chat use case
-        },
-        safetySettings: [
-          {
-            category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+      this.currentModelName = newModelName ?? null;
+
+      if (this.provider === 'gemini') {
+        const apiKey = process.env.GOOGLE_API_KEY;
+        if (!apiKey) throw new Error('GOOGLE_API_KEY environment variable is required');
+        this.genAI = new GoogleGenerativeAI(apiKey);
+        this.model = this.genAI.getGenerativeModel({
+          model: this.currentModelName || 'gemini-1.5-flash',
+          generationConfig: {
+            temperature: 0.7,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 50000,
           },
-          {
-            category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-          },
-          {
-            category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-          },
-          {
-            category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-          },
-        ],
-      });
-      
+          safetySettings: [
+            { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+            { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+            { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+            { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+          ],
+        });
+      } else if (this.provider === 'openai') {
+        const apiKey = process.env.OPENAI_API_KEY;
+        if (!apiKey) throw new Error('OPENAI_API_KEY environment variable is required');
+        const baseUrl = process.env.OPENAI_BASE_URL;
+        if (!baseUrl) throw new Error('OPENAI_BASE_URL environment variable is required for OpenAI provider');
+        this.openai = new OpenAI({ apiKey });
+        this.openai.baseURL = baseUrl;
+      } else {
+        throw new Error('Invalid LLM provider configuration');
+      }
+
       this.initialized = true;
     }
   }
@@ -249,122 +246,155 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
         this.initialize();
 
         const startTime = performance.now();
-
-        const history = [
-          ...this.formatHistoryForGemini(input.payload.history),
-        ];
-
-        // Log the formatted history for debugging
-        console.log('🔍 LLMChatTool - Formatted history for Gemini:', {
-          originalHistoryLength: input.payload.history?.length || 0,
-          formattedHistoryLength: history.length,
-          firstMessageRole: history[0]?.role || 'none',
-          historyRoles: history.map(h => h.role)
-        });
-
-        // Validate that the first message is from user
-        if (history.length > 0 && history[0].role !== 'user') {
-          console.error('❌ LLMChatTool - Invalid history format: First message must be from user, got:', history[0].role);
-          throw new Error('Invalid conversation history: First message must be from user');
-        }
-
-        // Start chat session with history
-        const chat = this.model!.startChat({
-          history,
-          generationConfig: {
-            temperature: input.payload.temperature || 0.7,
-            maxOutputTokens: input.payload.maxTokens || 50000,
-            responseMimeType: 'application/json', // ✅ Enable Gemini's JSON mode
-          },
-        });
-        
-        // Build the conversation prompt
-        const systemPrompt = input.payload.systemPrompt;
-        currentMessage = `${systemPrompt}\n\nRELEVANT CONTEXT FROM USER'S PAST:\n${input.payload.memoryContextBlock || 'No memories provided.'}\n\nCURRENT MESSAGE: ${input.payload.userMessage}`;
-        
-        console.log('\n🤖 LLMChatTool - FINAL ASSEMBLED PROMPT SENT TO LLM:');
-        console.log('🔸'.repeat(80));
-        console.log(currentMessage);
-        console.log('🔸'.repeat(80));
-        console.log(`📏 LLMChatTool - Final prompt length: ${currentMessage.length} characters`);
-        console.log(`🔄 LLMChatTool - Attempt ${attempts}/${maxAttempts} with model: ${this.currentModelName}\n`);
-
-        console.log('🚀 LLMChatTool - Sending request to Google Gemini...');
-        const result = await chat.sendMessage(currentMessage);
-        const response = await result.response;
-        const text = response.text();
-        
-        console.log('\n🎯 LLMChatTool - RAW LLM RESPONSE RECEIVED:');
-        console.log('🔹'.repeat(80));
-        console.log('Response text length:', text.length);
-        console.log('Raw response:');
-        console.log(text);
-        console.log('🔹'.repeat(80));
-        
-        // Log usage information if available
-        if (response.usageMetadata) {
-          console.log('📊 LLMChatTool - Usage stats:', {
-            promptTokens: response.usageMetadata.promptTokenCount,
-            candidateTokens: response.usageMetadata.candidatesTokenCount,
-            totalTokens: response.usageMetadata.totalTokenCount
-          });
-        }
-        console.log('');
-
-        const endTime = performance.now();
-        const processingTime = endTime - startTime;
-        const requestCompletedAt = new Date();
-
-        // Log successful interaction
-        await this.logLLMInteraction({
-          workerType: input.payload.workerType || 'unknown',
-          workerJobId: input.payload.workerJobId,
-          sessionId: input.payload.sessionId,
-          userId: input.payload.userId,
-          conversationId: input.payload.conversationId,
-          messageId: input.payload.messageId,
-          sourceEntityId: input.payload.sourceEntityId,
-          modelName: this.currentModelName || 'unknown',
-          temperature: input.payload.temperature,
-          maxTokens: input.payload.maxTokens,
-          promptLength: currentMessage.length,
-          promptTokens: response.usageMetadata?.promptTokenCount,
-          systemPrompt: input.payload.systemPrompt,
-          userPrompt: input.payload.userMessage,
-          fullPrompt: currentMessage,
-          responseLength: text.length,
-          responseTokens: response.usageMetadata?.candidatesTokenCount,
-          rawResponse: text,
-          parsedResponse: null, // Will be set by calling tool if needed
-          finishReason: response.candidates?.[0]?.finishReason,
-          requestStartedAt,
-          requestCompletedAt,
-          processingTimeMs: Math.round(processingTime),
-          status: 'success',
-          metadata: {
-            memoryContextBlock: input.payload.memoryContextBlock,
-            historyLength: input.payload.history?.length || 0
+        console.log(`💬 LLMChatTool: Calling ${this.provider.toUpperCase()} API (Attempt ${attempts}/${maxAttempts}) for user ${input.payload.userId}, session ${input.payload.sessionId}`);
+        if (this.provider === 'gemini') {
+          const history = [
+            ...this.formatHistoryForGemini(input.payload.history),
+          ];
+          if (history.length > 0 && history[0].role !== 'user') {
+            console.error('❌ LLMChatTool - Invalid history format: First message must be from user, got:', history[0].role);
+            throw new Error('Invalid conversation history: First message must be from user');
           }
-        });
-
-        return {
-          status: 'success',
-          result: {
-            text: text,
-            usage: {
-              input_tokens: response.usageMetadata?.promptTokenCount || 0,
-              output_tokens: response.usageMetadata?.candidatesTokenCount || 0,
-              total_tokens: response.usageMetadata?.totalTokenCount || 0
+          const chat = this.model!.startChat({
+            history,
+            generationConfig: {
+              temperature: input.payload.temperature || 0.7,
+              maxOutputTokens: input.payload.maxTokens || 50000,
+              responseMimeType: 'application/json',
             },
-            model_used: this.currentModelName || 'unknown',
-            finish_reason: response.candidates?.[0]?.finishReason || 'stop'
-          },
-          metadata: {
-            processing_time_ms: Math.round(processingTime),
-            model_used: this.currentModelName || 'unknown',
-            session_id: input.payload.sessionId
+          });
+          const systemPrompt = input.payload.systemPrompt;
+          currentMessage = `${systemPrompt}\n\nRELEVANT CONTEXT FROM USER'S PAST:\n${input.payload.memoryContextBlock || 'No memories provided.'}\n\nCURRENT MESSAGE: ${input.payload.userMessage}`;
+          const result = await chat.sendMessage(currentMessage);
+          const response = await result.response;
+          const text = response.text();
+          const endTime = performance.now();
+          const processingTime = endTime - startTime;
+          const requestCompletedAt = new Date();
+
+          await this.logLLMInteraction({
+            workerType: input.payload.workerType || 'unknown',
+            workerJobId: input.payload.workerJobId,
+            sessionId: input.payload.sessionId,
+            userId: input.payload.userId,
+            conversationId: input.payload.conversationId,
+            messageId: input.payload.messageId,
+            sourceEntityId: input.payload.sourceEntityId,
+            modelName: this.currentModelName || 'unknown',
+            temperature: input.payload.temperature,
+            maxTokens: input.payload.maxTokens,
+            promptLength: currentMessage.length,
+            promptTokens: response.usageMetadata?.promptTokenCount,
+            systemPrompt: input.payload.systemPrompt,
+            userPrompt: input.payload.userMessage,
+            fullPrompt: currentMessage,
+            responseLength: text.length,
+            responseTokens: response.usageMetadata?.candidatesTokenCount,
+            rawResponse: text,
+            parsedResponse: null,
+            finishReason: response.candidates?.[0]?.finishReason,
+            requestStartedAt,
+            requestCompletedAt,
+            processingTimeMs: Math.round(processingTime),
+            status: 'success',
+            metadata: {
+              memoryContextBlock: input.payload.memoryContextBlock,
+              historyLength: input.payload.history?.length || 0
+            }
+          });
+
+          return {
+            status: 'success',
+            result: {
+              text: text,
+              usage: {
+                input_tokens: response.usageMetadata?.promptTokenCount || 0,
+                output_tokens: response.usageMetadata?.candidatesTokenCount || 0,
+                total_tokens: response.usageMetadata?.totalTokenCount || 0
+              },
+              model_used: this.currentModelName || 'unknown',
+              finish_reason: response.candidates?.[0]?.finishReason || 'stop'
+            },
+            metadata: {
+              processing_time_ms: Math.round(processingTime),
+              model_used: this.currentModelName || 'unknown',
+              session_id: input.payload.sessionId
+            }
+          };
+        } else if (this.provider === 'openai') {
+          const messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = this.formatHistoryForOpenAI(input.payload.history);
+          if (input.payload.systemPrompt) {
+            messages.unshift({ role: 'system', content: input.payload.systemPrompt });
           }
-        };
+          if (input.payload.memoryContextBlock) {
+            messages.push({ role: 'user', content: `RELEVANT CONTEXT FROM USER'S PAST:\n${input.payload.memoryContextBlock}` });
+          }
+          currentMessage = messages.map((m) => `[${m.role}] ${m.content}`).join('\n');
+          const response = await this.openai!.chat.completions.create({
+            model: this.currentModelName!,
+            messages,
+            temperature: input.payload.temperature ?? 0.7,
+            max_tokens: input.payload.maxTokens ?? 2048,
+          });
+
+          const text = response.choices[0]?.message?.content ?? '';
+          const usage = response.usage;
+          const endTime = performance.now();
+          const processingTime = endTime - startTime;
+          const requestCompletedAt = new Date();
+
+          await this.logLLMInteraction({
+            workerType: input.payload.workerType || 'unknown',
+            workerJobId: input.payload.workerJobId,
+            sessionId: input.payload.sessionId,
+            userId: input.payload.userId,
+            conversationId: input.payload.conversationId,
+            messageId: input.payload.messageId,
+            sourceEntityId: input.payload.sourceEntityId,
+            modelName: this.currentModelName || 'unknown',
+            temperature: input.payload.temperature,
+            maxTokens: input.payload.maxTokens,
+            promptLength: currentMessage.length,
+            promptTokens: usage?.prompt_tokens,
+            systemPrompt: input.payload.systemPrompt,
+            userPrompt: input.payload.userMessage,
+            fullPrompt: currentMessage,
+            responseLength: text.length,
+            responseTokens: usage?.completion_tokens,
+            rawResponse: text,
+            parsedResponse: null,
+            finishReason: response.choices[0]?.finish_reason,
+            requestStartedAt,
+            requestCompletedAt,
+            processingTimeMs: Math.round(processingTime),
+            status: 'success',
+            metadata: {
+              memoryContextBlock: input.payload.memoryContextBlock,
+              historyLength: input.payload.history?.length || 0
+            }
+          });
+
+          return {
+            status: 'success',
+            result: {
+              text,
+              usage: {
+                input_tokens: usage?.prompt_tokens || 0,
+                output_tokens: usage?.completion_tokens || 0,
+                total_tokens: usage?.total_tokens || 0
+              },
+              model_used: this.currentModelName || 'unknown',
+              finish_reason: response.choices[0]?.finish_reason || 'stop'
+            },
+            metadata: {
+              processing_time_ms: Math.round(processingTime),
+              model_used: this.currentModelName || 'unknown',
+              session_id: input.payload.sessionId
+            }
+          };
+        } else {
+          throw new Error('Unknown LLM provider');
+        }
       } catch (error) {
         const requestCompletedAt = new Date();
         const processingTime = requestCompletedAt.getTime() - requestStartedAt.getTime();
@@ -399,7 +429,7 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
           }
         });
 
-        console.error(`❌ LLMChatTool - Error calling Gemini API on attempt ${attempts}/${maxAttempts}:`, error);
+        console.error(`❌ LLMChatTool - Error calling LLM API on attempt ${attempts}/${maxAttempts}:`, error);
         
         // Check if this is a retryable error and we have more attempts
         if (attempts < maxAttempts && this.isRetryableError(error)) {
@@ -434,7 +464,7 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
       error: {
         code: 'LLM_API_ERROR',
         message: `Failed to get a response after ${maxAttempts} attempts.`,
-        details: { provider: 'google-gemini', attempts: maxAttempts }
+        details: { provider: this.provider, attempts: maxAttempts }
       },
       metadata: {
         processing_time_ms: 0,
@@ -509,6 +539,16 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
     }
     
     return formattedHistory;
+  }
+
+  private formatHistoryForOpenAI(
+    history: Array<{ role: string; content: string }>
+  ): Array<{ role: 'user' | 'assistant' | 'system'; content: string }> {
+    if (!history || history.length === 0) return [];
+    return history.map(msg => ({
+      role: msg.role === 'assistant' ? 'assistant' : (msg as any).role === 'system' ? 'system' : 'user',
+      content: msg.content
+    }));
   }
 
   /**
