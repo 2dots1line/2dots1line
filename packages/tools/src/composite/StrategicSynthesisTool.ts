@@ -53,8 +53,8 @@ export const StrategicSynthesisOutputSchema = z.object({
     confidence_score: z.number().min(0).max(1),
     supporting_evidence: z.array(z.string()),
     actionability: z.enum(['immediate', 'short_term', 'long_term', 'aspirational']),
-    source_concept_ids: z.array(z.string()).optional(),
-    source_memory_unit_ids: z.array(z.string()).optional()
+    source_concept_ids: z.array(z.string()).nullable().optional().default([]),
+    source_memory_unit_ids: z.array(z.string()).nullable().optional().default([])
   })),
   proactive_prompts: z.array(z.object({
     type: z.enum(['pattern_exploration', 'values_articulation', 'future_visioning', 'wisdom_synthesis', 'creative_expression', 'storytelling', 'metaphor_discovery', 'inspiration_hunting', 'synergy_building', 'legacy_planning', 'assumption_challenging', 'horizon_expanding', 'meaning_making', 'identity_integration', 'gratitude_deepening', 'wisdom_sharing', 'reflection', 'exploration', 'goal_setting', 'skill_development']),
@@ -69,8 +69,8 @@ export const StrategicSynthesisOutputSchema = z.object({
     title: z.string().min(1).max(100), // Short, descriptive title (3-7 words, max 100 chars)
     delta_value: z.number().min(-5.0).max(5.0),
     content: z.string(),
-    source_concept_ids: z.array(z.string()).optional(),
-    source_memory_unit_ids: z.array(z.string()).optional(),
+    source_concept_ids: z.array(z.string()).nullable().optional().default([]),
+    source_memory_unit_ids: z.array(z.string()).nullable().optional().default([]),
     confidence_score: z.number().min(0).max(1),
     actionability: z.enum(['immediate', 'short_term', 'long_term', 'aspirational'])
   })),
@@ -271,7 +271,7 @@ export class StrategicSynthesisTool {
         concepts: consolidatedEntities.concepts,
         memory_units: consolidatedEntities.memoryUnits,
         concepts_needing_synthesis: input.currentKnowledgeGraph.conceptsNeedingSynthesis,
-        // recent_growth_events: input.recentGrowthEvents,
+        recent_growth_events: input.recentGrowthEvents || [],
         previous_key_phrases: input.previousKeyPhrases || []
       },
       recent_conversations: {

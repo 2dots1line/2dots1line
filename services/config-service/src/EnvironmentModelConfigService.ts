@@ -31,6 +31,19 @@ export class EnvironmentModelConfigService {
   }
 
   /**
+   * Get current LLM provider from environment
+   */
+  public getProvider(): 'gemini' | 'openai' {
+    // Ensure env is loaded
+    environmentLoader.load();
+    const provider = (environmentLoader.get('LLM_PROVIDER') || 'gemini').toLowerCase();
+    if (provider !== 'gemini' && provider !== 'openai') {
+      return 'gemini';
+    }
+    return provider as 'gemini' | 'openai';
+  }
+
+  /**
    * Get model for specific use case, prioritizing environment variables
    */
   public getModelForUseCase(useCase: 'chat' | 'vision' | 'embedding'): string {

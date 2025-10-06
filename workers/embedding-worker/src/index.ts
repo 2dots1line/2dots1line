@@ -15,9 +15,16 @@ async function main() {
     const databaseService = DatabaseService.getInstance();
     console.log('[EmbeddingWorker] DatabaseService initialized');
 
-    // Verify required environment variables
-    if (!process.env.GOOGLE_API_KEY) {
-      throw new Error('GOOGLE_API_KEY environment variable is required for embedding generation');
+    // Verify required environment variables based on provider
+    const provider = (process.env.LLM_PROVIDER || 'gemini').toLowerCase();
+    if (provider === 'openai') {
+      if (!process.env.OPENAI_API_KEY) {
+        throw new Error('OPENAI_API_KEY environment variable is required for embedding generation with OpenAI');
+      }
+    } else {
+      if (!process.env.GOOGLE_API_KEY) {
+        throw new Error('GOOGLE_API_KEY environment variable is required for embedding generation with Gemini');
+      }
     }
 
     if (!process.env.WEAVIATE_URL) {

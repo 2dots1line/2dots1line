@@ -55,6 +55,7 @@ export interface LLMChatInputPayload {
   temperature?: number;
   maxTokens?: number;
   topP?: number;
+  enforceJsonMode?: boolean;  // Whether to enforce JSON mode for OpenAI
   
   // New fields for LLM interaction logging
   workerType?: string;        // 'insight-worker', 'ingestion-worker', 'dialogue-service'
@@ -268,6 +269,7 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
           const result = await chat.sendMessage(currentMessage);
           const response = await result.response;
           const text = response.text();
+          const providerModel = (response as any)?.model || this.currentModelName || 'unknown';
           const endTime = performance.now();
           const processingTime = endTime - startTime;
           const requestCompletedAt = new Date();
@@ -280,7 +282,7 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
             conversationId: input.payload.conversationId,
             messageId: input.payload.messageId,
             sourceEntityId: input.payload.sourceEntityId,
-            modelName: this.currentModelName || 'unknown',
+            modelName: providerModel,
             temperature: input.payload.temperature,
             maxTokens: input.payload.maxTokens,
             promptLength: currentMessage.length,
@@ -312,12 +314,12 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
                 output_tokens: response.usageMetadata?.candidatesTokenCount || 0,
                 total_tokens: response.usageMetadata?.totalTokenCount || 0
               },
-              model_used: this.currentModelName || 'unknown',
+              model_used: providerModel,
               finish_reason: response.candidates?.[0]?.finishReason || 'stop'
             },
             metadata: {
               processing_time_ms: Math.round(processingTime),
-              model_used: this.currentModelName || 'unknown',
+              model_used: providerModel,
               session_id: input.payload.sessionId
             }
           };
@@ -325,6 +327,10 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
           const messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = this.formatHistoryForOpenAI(input.payload.history);
           if (input.payload.systemPrompt) {
             messages.unshift({ role: 'system', content: input.payload.systemPrompt });
+          }
+          // CRITICAL: ensure the current user message is included
+          if (input.payload.userMessage) {
+            messages.push({ role: 'user', content: input.payload.userMessage });
           }
           if (input.payload.memoryContextBlock) {
             messages.push({ role: 'user', content: `RELEVANT CONTEXT FROM USER'S PAST:\n${input.payload.memoryContextBlock}` });
@@ -335,10 +341,13 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
             messages,
             temperature: input.payload.temperature ?? 0.7,
             max_tokens: input.payload.maxTokens ?? 2048,
+            // Only enforce JSON mode for chat conversations, not analysis tools
+            ...(input.payload.enforceJsonMode && { response_format: { type: 'json_object' } }),
           });
 
           const text = response.choices[0]?.message?.content ?? '';
           const usage = response.usage;
+          const providerModel = (response as any)?.model || this.currentModelName || 'unknown';
           const endTime = performance.now();
           const processingTime = endTime - startTime;
           const requestCompletedAt = new Date();
@@ -351,7 +360,7 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
             conversationId: input.payload.conversationId,
             messageId: input.payload.messageId,
             sourceEntityId: input.payload.sourceEntityId,
-            modelName: this.currentModelName || 'unknown',
+            modelName: providerModel,
             temperature: input.payload.temperature,
             maxTokens: input.payload.maxTokens,
             promptLength: currentMessage.length,
@@ -383,7 +392,7 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
                 output_tokens: usage?.completion_tokens || 0,
                 total_tokens: usage?.total_tokens || 0
               },
-              model_used: this.currentModelName || 'unknown',
+              model_used: providerModel,
               finish_reason: response.choices[0]?.finish_reason || 'stop'
             },
             metadata: {

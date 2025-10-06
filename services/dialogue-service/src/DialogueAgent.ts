@@ -458,7 +458,8 @@ export class DialogueAgent {
         history: formattedHistory, // ✅ Properly formatted history
         memoryContextBlock: augmentedMemoryContext?.relevant_memories?.join('\n') || '',
         temperature: 0.3, // ✅ Lower for consistent formatting
-        maxTokens: 50000
+        maxTokens: 50000,
+        enforceJsonMode: true // ✅ Enable JSON mode for DialogueAgent
       },
       request_id: `dialogue-${Date.now()}-${callType}`
     };

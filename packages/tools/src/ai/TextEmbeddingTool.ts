@@ -67,13 +67,20 @@ class TextEmbeddingToolImpl implements IExecutableTool<TTextEmbeddingInputPayloa
     this.modelConfigService = EnvironmentModelConfigService.getInstance();
     this.provider = (process.env.LLM_PROVIDER as 'gemini' | 'openai') || 'gemini';
     this.currentModelName = this.modelConfigService.getModelForUseCase('embedding');
+    if (!this.currentModelName) {
+      throw new Error('LLM_EMBEDDING_MODEL must be set (env-first). No embedding model resolved.');
+    }
 
     if (this.provider === 'openai') {
       const openAIKey = process.env.OPENAI_API_KEY;
       if (!openAIKey) {
         throw new Error('OPENAI_API_KEY environment variable is required for OpenAI provider');
       }
-      this.openAI = new OpenAI({ apiKey: openAIKey });
+      const baseURL = process.env.OPENAI_BASE_URL;
+      this.openAI = new OpenAI({ 
+        apiKey: openAIKey,
+        ...(baseURL && { baseURL })
+      });
       this.embeddingModel = this.openAI.embeddings;
     } else if (this.provider === 'gemini') {
       const apiKey = process.env.GOOGLE_API_KEY;

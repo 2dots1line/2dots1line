@@ -5,7 +5,8 @@
 
 import { TToolInput, TToolOutput, VisionCaptionInputPayload, VisionCaptionResult } from '@2dots1line/shared-types';
 import type { IToolManifest, IExecutableTool } from '@2dots1line/shared-types';
-import { ModelConfigService } from '@2dots1line/config-service';
+import { EnvironmentModelConfigService } from '@2dots1line/config-service';
+import { OpenAI } from 'openai';
 
 export type VisionCaptionToolInput = TToolInput<VisionCaptionInputPayload>;
 export type VisionCaptionToolOutput = TToolOutput<VisionCaptionResult>;
@@ -46,34 +47,51 @@ const manifest: IToolManifest<VisionCaptionInputPayload, VisionCaptionResult> = 
 class VisionCaptionToolImpl implements IExecutableTool<VisionCaptionInputPayload, VisionCaptionResult> {
   manifest = manifest;
   private genAI: any;
+  private openai: OpenAI | null = null;
   private isInitialized: boolean = false;
   private modelConfigService: any;
   private currentModelName: string = '';
+  private provider: 'gemini' | 'openai' = 'gemini';
 
   constructor() {
-    // Initialize Google API client at construction time, like LLMChatTool
-    const apiKey = process.env.GOOGLE_API_KEY;
-    this.modelConfigService = new ModelConfigService();
-    
-    if (apiKey) {
-      // Get the appropriate model from configuration
-      this.currentModelName = this.modelConfigService.getModelForUseCase('vision');
-      
-      console.log(`✅ VisionCaptionTool: Initializing with Google API key (length: ${apiKey.length})`);
-      console.log(`📱 VisionCaptionTool: Using model ${this.currentModelName} for vision analysis`);
-      
+    // Provider-aware, env-first initialization
+    this.modelConfigService = EnvironmentModelConfigService.getInstance();
+    this.provider = this.modelConfigService.getProvider();
+    this.currentModelName = this.modelConfigService.getModelForUseCase('vision');
+
+    if (this.provider === 'openai') {
+      const openaiKey = process.env.OPENAI_API_KEY;
+      if (!openaiKey) {
+        console.warn(`⚠️ VisionCaptionTool: LLM_PROVIDER=openai but OPENAI_API_KEY is not set`);
+        this.isInitialized = false;
+        return;
+      }
+      try {
+        this.openai = new OpenAI({ apiKey: openaiKey });
+        this.isInitialized = true;
+        console.log(`✅ VisionCaptionTool: Initialized OpenAI client`);
+        console.log(`📱 VisionCaptionTool: Using OpenAI model ${this.currentModelName} for vision analysis`);
+      } catch (error) {
+        console.warn(`⚠️ VisionCaptionTool: Failed to initialize OpenAI client:`, error);
+        this.isInitialized = false;
+      }
+    } else {
+      const apiKey = process.env.GOOGLE_API_KEY;
+      if (!apiKey) {
+        console.warn(`⚠️ VisionCaptionTool: LLM_PROVIDER=gemini but GOOGLE_API_KEY not set`);
+        this.isInitialized = false;
+        return;
+      }
       try {
         const { GoogleGenerativeAI } = require('@google/generative-ai');
         this.genAI = new GoogleGenerativeAI(apiKey);
         this.isInitialized = true;
-        console.log(`✅ VisionCaptionTool: Successfully initialized Google AI client`);
+        console.log(`✅ VisionCaptionTool: Initialized Google AI client`);
+        console.log(`📱 VisionCaptionTool: Using Gemini model ${this.currentModelName} for vision analysis`);
       } catch (error) {
         console.warn(`⚠️ VisionCaptionTool: Failed to initialize Google AI client:`, error);
         this.isInitialized = false;
       }
-    } else {
-      console.warn(`⚠️ VisionCaptionTool: No GOOGLE_API_KEY found during initialization`);
-      this.isInitialized = false;
     }
   }
 
@@ -84,22 +102,26 @@ class VisionCaptionToolImpl implements IExecutableTool<VisionCaptionInputPayload
       console.log(`VisionCaptionTool: Processing image ${input.payload.imageUrl}`);
       console.log(`🔍 VisionCaptionTool: Initialization status - ${this.isInitialized ? 'READY' : 'NOT READY'}`);
       
-      if (!this.isInitialized || !this.genAI) {
-        console.warn('VisionCaptionTool: Google API client not initialized, using enhanced descriptive analysis');
+      if (!this.isInitialized) {
+        console.warn('VisionCaptionTool: Vision provider not initialized, using enhanced descriptive analysis');
         return this.generateEnhancedDescription(input.payload, startTime);
       }
 
-      console.log(`✅ VisionCaptionTool: Using Google Gemini Vision API for analysis`);
-
-      // Use Google Gemini Vision API for real analysis
-      const analysisResult = await this.analyzeWithGeminiVision(input.payload);
+      let analysisResult: VisionCaptionResult;
+      if (this.provider === 'openai') {
+        console.log(`✅ VisionCaptionTool: Using OpenAI Vision API for analysis`);
+        analysisResult = await this.analyzeWithOpenAIVision(input.payload);
+      } else {
+        console.log(`✅ VisionCaptionTool: Using Google Gemini Vision API for analysis`);
+        analysisResult = await this.analyzeWithGeminiVision(input.payload);
+      }
       
       return {
         status: 'success',
         result: analysisResult,
         metadata: {
           processing_time_ms: Date.now() - startTime,
-          api_used: 'google_gemini_vision'
+          api_used: this.provider === 'openai' ? 'openai_vision' : 'google_gemini_vision'
         }
       };
       
@@ -194,6 +216,35 @@ Please be thorough and observant - don't miss important details like people, ani
     const analysisText = response.text();
 
     // Enhanced parsing with better extraction
+    return this.parseEnhancedGeminiResponse(analysisText, payload.imageType);
+  }
+
+  private async analyzeWithOpenAIVision(
+    payload: VisionCaptionInputPayload
+  ): Promise<VisionCaptionResult> {
+    if (!this.openai) {
+      throw new Error('OpenAI client not initialized');
+    }
+
+    // Basic OpenAI Vision call using Chat Completions with image input
+    // Requires models like gpt-4o or gpt-4o-mini
+    const messages: any[] = [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Please analyze this image thoroughly and provide a comprehensive caption and details.' },
+          { type: 'image_url', image_url: { url: payload.imageUrl } }
+        ]
+      }
+    ];
+
+    const completion: any = await (this.openai as any).chat.completions.create({
+      model: this.currentModelName,
+      messages
+    });
+
+    const analysisText: string = completion.choices?.[0]?.message?.content || '';
+    // Reuse the Gemini parser for now to extract sections consistently
     return this.parseEnhancedGeminiResponse(analysisText, payload.imageType);
   }
 

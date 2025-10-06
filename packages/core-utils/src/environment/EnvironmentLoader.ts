@@ -179,7 +179,12 @@ export class EnvironmentLoader {
   }
 
   private validateRequired(): void {
-    const required = ['DATABASE_URL', 'GOOGLE_API_KEY', 'JWT_SECRET'];
+    const provider = (this.config['LLM_PROVIDER'] || 'gemini').toLowerCase();
+    const requiredBase = ['DATABASE_URL', 'JWT_SECRET'];
+    const providerSpecific = provider === 'openai'
+      ? ['OPENAI_API_KEY', 'OPENAI_BASE_URL']
+      : ['GOOGLE_API_KEY'];
+    const required = [...requiredBase, ...providerSpecific];
     const missing = required.filter(key => !this.config[key]);
     
     if (missing.length > 0) {
