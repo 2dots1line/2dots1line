@@ -1,6 +1,6 @@
 /**
  * LLM Chat Tool
- * Handles AI conversation through Gemini API
+ * Handles AI conversation through LLM API
  * Adapted from legacy ai.service.js
  */
 
@@ -245,6 +245,7 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
         this.initialize();
         const startTime = performance.now();
 
+        console.log(`💬 LLMChatTool: Calling ${this.provider.toUpperCase()} API (Attempt ${attempts}/${maxAttempts}) for user ${input.payload.userId}, session ${input.payload.sessionId}`);
         if (this.provider === 'gemini') {
           // --- GEMINI LOGIC (unchanged) ---
           const history = [...this.formatHistoryForGemini(input.payload.history)];
@@ -324,8 +325,8 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
           if (input.payload.memoryContextBlock) {
             messages.push({ role: 'user', content: `RELEVANT CONTEXT FROM USER'S PAST:\n${input.payload.memoryContextBlock}` });
           }
-          messages.push({ role: 'user', content: input.payload.userMessage });
           currentMessage = messages.map(m => `[${m.role}] ${m.content}`).join('\n');
+          console.log(`📝 LLMChatTool: OpenAI messages:\n${currentMessage}`);
 
           const response = await this.openai!.chat.completions.create({
             model: this.currentModelName!,
@@ -426,7 +427,7 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
           }
         });
 
-        console.error(`❌ LLMChatTool - Error calling Gemini API on attempt ${attempts}/${maxAttempts}:`, error);
+        console.error(`❌ LLMChatTool - Error calling LLM API on attempt ${attempts}/${maxAttempts}:`, error);
         
         // Check if this is a retryable error and we have more attempts
         if (attempts < maxAttempts && this.isRetryableError(error)) {
