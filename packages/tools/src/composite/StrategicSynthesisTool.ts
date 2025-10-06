@@ -460,7 +460,19 @@ ${currentAnalysisWithUserName}`;
    * Build dynamic context using simple string interpolation (surgical fix for template processing)
    */
   private buildDynamicContextSimple(data: any): string {
-    const { analysis_context, consolidated_knowledge_graph, recent_conversations } = data;
+    const analysis_context = data?.analysis_context || {};
+    const kg = data?.consolidated_knowledge_graph || {};
+    const consolidated_knowledge_graph = {
+      concepts: Array.isArray(kg.concepts) ? kg.concepts : [],
+      memory_units: Array.isArray(kg.memory_units) ? kg.memory_units : [],
+      concepts_needing_synthesis: Array.isArray(kg.concepts_needing_synthesis) ? kg.concepts_needing_synthesis : [],
+      recent_growth_events: Array.isArray(kg.recent_growth_events) ? kg.recent_growth_events : [],
+      previous_key_phrases: Array.isArray(kg.previous_key_phrases) ? kg.previous_key_phrases : []
+    };
+    const rc = data?.recent_conversations || {};
+    const recent_conversations = {
+      conversations: Array.isArray(rc.conversations) ? rc.conversations : []
+    };
     
     return `=== SECTION 3: DYNAMIC CONTEXT ===
 
@@ -493,12 +505,12 @@ ${consolidated_knowledge_graph.recent_growth_events.map((event: any) =>
 
 ### Previous Cycle Key Phrases (${consolidated_knowledge_graph.previous_key_phrases.length} total)
 ${consolidated_knowledge_graph.previous_key_phrases.map((kp: any) => 
-  `- **${kp.category}**: ${kp.phrases.join(', ')}`
+  `- **${kp.category ?? ''}**: ${(Array.isArray(kp.phrases) ? kp.phrases : []).join(', ')}`
 ).join('\n')}
 
 ## 3.3 RECENT CONVERSATIONS (Low Cacheability: 10-30%)
 ${recent_conversations.conversations.map((conv: any) => 
-  `- **${conv.title}** (${conv.importance_score}/10): ${conv.summary}`
+  `- **${conv.title ?? ''}** (${conv.importance_score ?? 0}/10): ${conv.summary ?? (conv.content ?? '')}`
 ).join('\n')}`;
   }
 
@@ -613,6 +625,7 @@ ${recent_conversations.conversations.map((conv: any) =>
     
     // Only fix minor formatting issues - don't add missing content
     this.cleanupArrays(fixed);
+    this.coerceNullableArrays(fixed);
     
     return fixed;
   }
@@ -633,6 +646,45 @@ ${recent_conversations.conversations.map((conv: any) =>
     
     for (const field of arrayFields) {
       this.filterArrayField(data, field);
+    }
+  }
+
+  /**
+   * Coerce nullable array fields to [] when null is provided by LLM
+   */
+  private coerceNullableArrays(data: any): void {
+    const nullableArrayPaths = [
+      'derived_artifacts',
+      'proactive_prompts',
+      'growth_events',
+      // Per-item nullable arrays
+      'growth_events.*.source_concept_ids',
+      'growth_events.*.source_memory_unit_ids',
+      'derived_artifacts.*.source_concept_ids',
+      'derived_artifacts.*.source_memory_unit_ids'
+    ];
+    
+    for (const path of nullableArrayPaths) {
+      if (path.includes('*.')) {
+        const [arrayPath, itemField] = path.split('*.');
+        const arr = this.getNestedValue(data, arrayPath);
+        if (Array.isArray(arr)) {
+          for (const item of arr) {
+            if (item && item[itemField] === null) item[itemField] = [];
+          }
+        }
+      } else {
+        const arr = this.getNestedValue(data, path);
+        if (arr === null) {
+          const keys = path.split('.');
+          let current = data;
+          for (let i = 0; i < keys.length - 1; i++) {
+            if (!current[keys[i]]) return;
+            current = current[keys[i]];
+          }
+          current[keys[keys.length - 1]] = [];
+        }
+      }
     }
   }
 

@@ -334,8 +334,8 @@ export class UnifiedPersistenceService {
             e.content = $content,
             e.type = $type,
             e.status = $status,
-            e.created_at = $created_at,
-            e.updated_at = $updated_at
+            e.created_at = datetime($created_at),
+            e.updated_at = datetime($updated_at)
         RETURN e.entity_id as entity_id
       `;
 
@@ -347,8 +347,8 @@ export class UnifiedPersistenceService {
         content: entityData.content,
         type: entityData.type,
         status: entityData.status,
-        created_at: entityData.created_at,
-        updated_at: entityData.updated_at || entityData.created_at // Use created_at if updated_at is undefined
+        created_at: entityData.created_at.toISOString(),
+        updated_at: (entityData.updated_at || entityData.created_at).toISOString() // Use created_at if updated_at is undefined
       });
 
       if (result.records.length === 0) {

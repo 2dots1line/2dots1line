@@ -1331,7 +1331,7 @@ insight_worker_current_analysis: |
   - **NEVER use angle brackets like < >** - always use actual content
   - Use ONLY the exact enum values shown in the examples above
   - For replacement_concept_id in concepts_to_archive, use null if no replacement exists
-  - For optional fields like source_concept_ids, use null if not applicable
+  - For optional array fields like source_concept_ids and source_memory_unit_ids, NEVER use null — use [] when empty
   - Ensure all string fields are non-empty and meaningful
   - **CRITICAL**: Use actual values like "opening", "values_articulation", "know_self" - NOT schema syntax like "opening | deeper_story | ..."
 
