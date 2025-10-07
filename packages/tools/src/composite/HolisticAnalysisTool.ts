@@ -18,9 +18,6 @@ export const HolisticAnalysisOutputSchema = z.object({
     conversation_summary: z.string().min(1), // Removed max limit to allow comprehensive summaries
     conversation_importance_score: z.number().int().min(1).max(10),
     extracted_memory_units: z.array(z.object({
-      temp_id: z.string().regex(/^mem_[a-zA-Z0-9_]+$/, {
-        message: "temp_id must start with 'mem_' and contain only alphanumeric characters and underscores"
-      }),
       title: z.string().min(1), // Removed max limit
       content: z.string().min(1), // Removed max limit to allow detailed content
       source_type: z.enum(['conversation_extraction', 'journal_entry', 'user_input', 'system_generated']),

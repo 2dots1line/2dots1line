@@ -583,7 +583,6 @@ ingestion_analyst_instructions: |
       "conversation_importance_score": number,
       "extracted_memory_units": [
         {
-          "temp_id": "mem_career_decision_2024", // Must start with 'mem_' followed by alphanumeric characters
           "title": "string", 
           "content": "string",
           "source_type": "conversation_extraction",
@@ -615,7 +614,7 @@ ingestion_analyst_instructions: |
           "delta": number, // Must be between -5.0 and 5.0
           "content": "string", // CRITICAL: Address {{user_name}} directly using "you" and "your" (NOT third person)
           "source_concept_ids": ["<concept_name_1>", "<concept_name_2>"], // Specific concepts that support this growth event
-          "source_memory_unit_ids": ["<memory_unit_temp_id_1>", "<memory_unit_temp_id_2>"] // Specific memory units that support this growth event
+          "source_memory_unit_ids": ["<memory_unit_title_1>", "<memory_unit_title_2>"] // Specific memory units that support this growth event
         }
       ]
     },

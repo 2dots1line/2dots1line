@@ -257,9 +257,8 @@ export class IngestionAnalyst {
           
           newEntities.push({ id: createdMemory.entity_id, type: 'MemoryUnit' });
           
-          // Update entity mapping - map both title and temp_id to the actual memory unit ID
+          // Update entity mapping - map title to the actual memory unit ID
           deduplicationDecisions.entityMappings.set(memoryUnit.title, createdMemory.entity_id);
-          deduplicationDecisions.entityMappings.set(memoryUnit.temp_id, createdMemory.entity_id);
         }
 
         // ENHANCED: Process memory units to reuse (update existing)
@@ -280,11 +279,8 @@ export class IngestionAnalyst {
             importance_score: Math.max(0, decision.candidate.importance_score || 0)
           });
           
-          // Update entity mapping - map both title and temp_id to the actual memory unit ID
+          // Update entity mapping - map title to the actual memory unit ID
           deduplicationDecisions.entityMappings.set(decision.candidate.title, memoryUnitId);
-          if (decision.candidate.temp_id) {
-            deduplicationDecisions.entityMappings.set(decision.candidate.temp_id, memoryUnitId);
-          }
         }
 
         // ENHANCED: Process concepts with deduplication decisions
@@ -447,13 +443,6 @@ export class IngestionAnalyst {
     return entityMappings.get(entityNameOrId) || entityNameOrId;
   }
 
-  /**
-   * Check if an entity name is a memory unit temp_id
-   * Memory unit temp_ids start with 'mem_' and contain only alphanumeric characters and underscores
-   */
-  private isMemoryUnitTempId(entityName: string): boolean {
-    return entityName.startsWith('mem_') && /^mem_[a-zA-Z0-9_]+$/.test(entityName);
-  }
 
   /**
    * Check if an entity name is a growth dimension
@@ -580,11 +569,8 @@ export class IngestionAnalyst {
           const originalMemory = analysisOutput.persistence_payload.extracted_memory_units?.find(m => `${m.title}\n${m.content}` === similarityResult.candidateName);
           if (originalMemory) {
             decisions.memoryUnitsToCreate.push(originalMemory);
-            // Map both title and temp_id to placeholder IDs
+            // Map title to placeholder ID
             decisions.entityMappings.set(originalMemory.title, `new_memory_${originalMemory.title}`);
-            if (originalMemory.temp_id) {
-              decisions.entityMappings.set(originalMemory.temp_id, `new_memory_${originalMemory.title}`);
-            }
           }
         }
       }
@@ -892,7 +878,7 @@ export class IngestionAnalyst {
    */
   private async mapRelationshipIdToNodeId(entityIdOrName: string, userId: string): Promise<string | null> {
     // If it's already an ID, return as-is
-    if (entityIdOrName.startsWith('concept_') || entityIdOrName.startsWith('memory_')) {
+    if (entityIdOrName.startsWith('concept_')) {
       return entityIdOrName;
     }
 
@@ -902,9 +888,9 @@ export class IngestionAnalyst {
       return entityIdOrName;
     }
 
-    // Don't create concepts for memory unit temp_ids or growth dimensions
-    if (this.isMemoryUnitTempId(entityIdOrName) || this.isGrowthDimension(entityIdOrName)) {
-      console.log(`🔍 [IngestionAnalyst] DEBUG: Skipping concept creation for special entity: ${entityIdOrName}`);
+    // Don't create concepts for growth dimensions
+    if (this.isGrowthDimension(entityIdOrName)) {
+      console.log(`🔍 [IngestionAnalyst] DEBUG: Skipping concept creation for growth dimension: ${entityIdOrName}`);
       return null;
     }
 
