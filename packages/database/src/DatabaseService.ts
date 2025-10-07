@@ -180,7 +180,32 @@ export class DatabaseService {
   }
 
   public async kvDel(key: string): Promise<void> {
-    await this.redisWithRetry(() => this.redis.del(key), `DEL ${key}`);
+    // Check if key contains wildcards for pattern deletion
+    if (key.includes('*')) {
+      // Use SCAN to find matching keys and delete them
+      const keys = await this.redisWithRetry(async () => {
+        const stream = this.redis.scanStream({
+          match: key,
+          count: 100
+        });
+        
+        const foundKeys: string[] = [];
+        return new Promise<string[]>((resolve, reject) => {
+          stream.on('data', (resultKeys: string[]) => {
+            foundKeys.push(...resultKeys);
+          });
+          stream.on('end', () => resolve(foundKeys));
+          stream.on('error', reject);
+        });
+      }, `SCAN ${key}`);
+      
+      if (keys.length > 0) {
+        await this.redisWithRetry(() => this.redis.del(...keys), `DEL ${keys.length} keys`);
+      }
+    } else {
+      // Single key deletion
+      await this.redisWithRetry(() => this.redis.del(key), `DEL ${key}`);
+    }
   }
 
   // Method to gracefully close all connections

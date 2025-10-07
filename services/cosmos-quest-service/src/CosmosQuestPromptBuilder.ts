@@ -1,13 +1,14 @@
 /**
  * CosmosQuestPromptBuilder.ts
  * V11.0 - Quest-specific prompt builder for CosmosQuestAgent
- * Provides proper context to LLM for key phrase extraction and final response generation
+ * Uses shared PromptBuilder infrastructure with cosmos-specific templates
  */
 
 import { ConfigService } from '@2dots1line/config-service';
 import { UserRepository, ConversationRepository } from '@2dots1line/database';
 import { VisualizationEntity } from '@2dots1line/shared-types';
 import { ExtendedAugmentedMemoryContext } from '@2dots1line/tools/src/retrieval/types';
+import { PromptCacheService } from '@2dots1line/core-utils';
 import { Redis } from 'ioredis';
 import Mustache from 'mustache';
 
@@ -41,11 +42,12 @@ export class CosmosQuestPromptBuilder {
     private configService: ConfigService,
     private userRepository: UserRepository,
     private conversationRepository: ConversationRepository,
-    private redisClient: Redis
+    private redisClient: Redis,
+    private promptCacheService?: PromptCacheService // Optional for backward compatibility
   ) {}
 
   /**
-   * Build prompt for key phrase extraction with minimal context (OPTIMIZED)
+   * Build prompt for key phrase extraction using shared template system
    */
   public async buildKeyPhraseExtractionPrompt(input: KeyPhraseExtractionInput): Promise<PromptBuildOutput> {
     console.log('\n🔧 CosmosQuestPromptBuilder.buildKeyPhraseExtractionPrompt - Starting...');
@@ -56,32 +58,46 @@ export class CosmosQuestPromptBuilder {
       questType: input.questType
     });
 
-    // OPTIMIZED: Only fetch essential user data - no conversation history or summaries
+    // Fetch essential user data
     const user = await this.userRepository.findUserByIdWithContext(input.userId);
 
     if (!user) {
       throw new Error(`CosmosQuestPromptBuilder Error: User not found for userId: ${input.userId}`);
     }
 
-    console.log('📊 Data fetched (OPTIMIZED):', {
+    console.log('📊 Data fetched:', {
       userFound: !!user,
       userName: user.name
     });
 
-    // Build quest-specific system prompt with minimal context
-    const systemPrompt = this.buildKeyPhraseSystemPrompt(user, [], [], null);
+    // Get cosmos-specific template from shared template system
+    const template = this.configService.getTemplate('cosmos_quest_key_phrase_extraction');
     
-    // Build user prompt for key phrase extraction
-    const userPrompt = this.buildKeyPhraseUserPrompt(input.userQuestion, input.questType, user.name || 'User');
+    if (!template) {
+      throw new Error('CosmosQuestPromptBuilder Error: cosmos_quest_key_phrase_extraction template not found');
+    }
 
-    console.log('\n📝 CosmosQuestPromptBuilder - KEY PHRASE SYSTEM PROMPT (OPTIMIZED):');
+    // Prepare template variables
+    const templateVars = {
+      user_name: user.name || 'User',
+      quest_type: input.questType,
+      user_question: input.userQuestion,
+      key_phrase_extraction: true, // Enable key phrase extraction section
+      final_response_generation: false, // Disable final response section
+      essential_user_context: this.formatEssentialUserContext(user),
+      augmented_memory_context: null, // Not needed for key phrase extraction
+      visualization_data: null // Not needed for key phrase extraction
+    };
+
+    // Render the template with caching
+    const systemPrompt = await this.getCachedPrompt('cosmos_key_phrase', input.userId, templateVars, template);
+    
+    // For key phrase extraction, we only need the system prompt
+    const userPrompt = '';
+
+    console.log('\n📝 CosmosQuestPromptBuilder - KEY PHRASE SYSTEM PROMPT (CONSOLIDATED):');
     console.log('='.repeat(50));
     console.log(systemPrompt.substring(0, 300) + '...');
-    console.log('='.repeat(50));
-    
-    console.log('\n📝 CosmosQuestPromptBuilder - KEY PHRASE USER PROMPT:');
-    console.log('='.repeat(50));
-    console.log(userPrompt.substring(0, 300) + '...');
     console.log('='.repeat(50));
 
     return {
@@ -92,7 +108,7 @@ export class CosmosQuestPromptBuilder {
   }
 
   /**
-   * Build prompt for final response generation
+   * Build prompt for final response generation using shared template system
    */
   public async buildFinalResponsePrompt(input: FinalResponseInput): Promise<PromptBuildOutput> {
     console.log('\n🔧 CosmosQuestPromptBuilder.buildFinalResponsePrompt - Starting...');
@@ -114,25 +130,34 @@ export class CosmosQuestPromptBuilder {
       throw new Error(`CosmosQuestPromptBuilder Error: User not found for userId: ${input.userId}`);
     }
 
-    // Build final response system prompt
-    const systemPrompt = this.buildFinalResponseSystemPrompt(user);
+    // Get cosmos-specific template from shared template system
+    const template = this.configService.getTemplate('cosmos_quest_final_response');
     
-    // Build user prompt for final response
-    const userPrompt = this.buildFinalResponseUserPrompt(
-      input.userQuestion, 
-      input.augmentedContext, 
-      input.visualization, 
-      user.name || 'User'
-    );
+    if (!template) {
+      throw new Error('CosmosQuestPromptBuilder Error: cosmos_quest_final_response template not found');
+    }
 
-    console.log('\n📝 CosmosQuestPromptBuilder - FINAL RESPONSE SYSTEM PROMPT:');
+    // Prepare template variables
+    const templateVars = {
+      user_name: user.name || 'User',
+      quest_type: 'memory_exploration', // Default quest type
+      user_question: input.userQuestion,
+      key_phrase_extraction: false, // Disable key phrase extraction section
+      final_response_generation: true, // Enable final response section
+      essential_user_context: this.formatEssentialUserContext(user),
+      augmented_memory_context: this.formatAugmentedMemoryContext(input.augmentedContext),
+      visualization_data: this.formatVisualizationData(input.visualization)
+    };
+
+    // Render the template with caching
+    const systemPrompt = await this.getCachedPrompt('cosmos_final_response', input.userId, templateVars, template);
+    
+    // For final response, we only need the system prompt
+    const userPrompt = '';
+
+    console.log('\n📝 CosmosQuestPromptBuilder - FINAL RESPONSE SYSTEM PROMPT (CONSOLIDATED):');
     console.log('='.repeat(50));
     console.log(systemPrompt.substring(0, 300) + '...');
-    console.log('='.repeat(50));
-    
-    console.log('\n📝 CosmosQuestPromptBuilder - FINAL RESPONSE USER PROMPT:');
-    console.log('='.repeat(50));
-    console.log(userPrompt.substring(0, 300) + '...');
     console.log('='.repeat(50));
 
     return {
@@ -142,138 +167,6 @@ export class CosmosQuestPromptBuilder {
     };
   }
 
-  /**
-   * Build system prompt for key phrase extraction (OPTIMIZED - minimal context)
-   */
-  private buildKeyPhraseSystemPrompt(user: any, recentSummaries: any[], conversationHistory: any[], turnContext: any): string {
-    // Only include essential user context - no verbose memory profile
-    const essentialUserContext = this.formatEssentialUserContext(user);
-
-    return `=== COSMOS QUEST AGENT - KEY PHRASE EXTRACTION ===
-
-You are a specialized AI assistant for the CosmosQuestAgent, designed to extract meaningful key phrases from user questions for immersive memory exploration through 3D visualization.
-
-CORE PURPOSE:
-- Extract 3-7 key phrases that will guide memory retrieval and 3D visualization
-- Consider both literal words and implied concepts based on user intent
-- Generate phrases that will find relevant memories, concepts, and artifacts
-- Think like a memory explorer, not just a keyword extractor
-
-KEY PHRASE EXTRACTION GUIDELINES:
-1. **Literal Extraction**: Include important nouns, verbs, and concepts from the user's question
-2. **Intent-Based Expansion**: Add related concepts that the user likely means but didn't explicitly state
-3. **Memory Context**: Consider what memories, people, places, or experiences might be relevant
-4. **Temporal Context**: Include time-related concepts if the question implies past/present/future
-5. **Emotional Context**: Include emotional or thematic concepts that might connect to memories
-6. **Relationship Context**: Include relationship or social concepts that might be relevant
-
-EXAMPLES:
-- "Tell me about my skating memories" → ["skating", "ice skating", "winter sports", "childhood activities", "family memories", "sports"]
-- "What do I remember about my trip to Japan?" → ["Japan", "travel", "vacation", "Japanese culture", "trip memories", "international travel"]
-- "Show me memories about my daughter" → ["daughter", "family", "children", "parenting", "family memories", "relationships"]
-
-RESPONSE FORMAT:
-Return a JSON object with this exact structure:
-{
-  "key_phrases": ["phrase1", "phrase2", "phrase3", "phrase4", "phrase5"]
-}
-
-${essentialUserContext ? `\n${essentialUserContext}\n` : ''}`;
-  }
-
-  /**
-   * Build user prompt for key phrase extraction
-   */
-  private buildKeyPhraseUserPrompt(userQuestion: string, questType: string, userName: string): string {
-    return `=== CURRENT QUEST REQUEST ===
-
-User: ${userName}
-Quest Type: ${questType}
-User Question: "${userQuestion}"
-
-Please extract 3-7 key phrases that will help us explore ${userName}'s memories and create an immersive 3D visualization. Consider both the literal words and the deeper intent behind the question.
-
-Remember: These phrases will be used to search through ${userName}'s personal memory database, so think about what memories, experiences, people, places, or concepts might be relevant to this question.`;
-  }
-
-  /**
-   * Build system prompt for final response generation (OPTIMIZED - minimal context)
-   */
-  private buildFinalResponseSystemPrompt(user: any): string {
-    // Only include essential user context - no verbose memory profile
-    const essentialUserContext = this.formatEssentialUserContext(user);
-
-    return `=== COSMOS QUEST AGENT - FINAL RESPONSE GENERATION ===
-
-You are a specialized AI assistant for the CosmosQuestAgent, designed to generate thoughtful responses and guided walkthroughs for immersive memory exploration.
-
-CORE PURPOSE:
-- Create a warm, insightful response that helps the user understand their memory connections
-- Generate a step-by-step walkthrough script for the 3D visualization
-- Provide a reflective question that encourages deeper exploration
-- Be conversational, supportive, and genuinely helpful
-
-RESPONSE GUIDELINES:
-1. **Memory Integration**: Reference specific details from the retrieved memories
-2. **Connection Insights**: Highlight interesting patterns or connections you notice
-3. **Personal Touch**: Use the user's name and acknowledge their personal journey
-4. **Guided Discovery**: Help them see their memories in new ways
-5. **Reflective Engagement**: Encourage them to explore and reflect
-
-WALKTHROUGH SCRIPT GUIDELINES:
-- Create 3-5 steps that guide the user through the visualization
-- Each step should have a clear purpose and duration
-- Use the provided Entity IDs to focus on specific entities in each step
-- Focus on helping them understand the connections between memories
-- Make it feel like a guided tour of their personal cosmos
-
-REFLECTIVE QUESTION GUIDELINES:
-- Ask something that encourages deeper thinking about the patterns
-- Help them connect their memories to their current life or goals
-- Be open-ended and thought-provoking
-- Avoid yes/no questions
-
-RESPONSE FORMAT:
-Return a JSON object with this exact structure:
-{
-  "response_text": "Your warm, insightful response here...",
-  "walkthrough_script": [
-    {
-      "step_number": 1,
-      "title": "Step Title",
-      "description": "What happens in this step",
-      "focus_entity_id": null,
-      "duration_seconds": 3
-    }
-  ],
-  "reflective_question": "What patterns do you notice in these connections?"
-}
-
-${essentialUserContext ? `\n${essentialUserContext}\n` : ''}`;
-  }
-
-  /**
-   * Build user prompt for final response generation
-   */
-  private buildFinalResponseUserPrompt(
-    userQuestion: string, 
-    augmentedContext: ExtendedAugmentedMemoryContext, 
-    visualization: any,
-    userName: string
-  ): string {
-    const memoryContext = this.formatComponentContent('augmented_memory_context', augmentedContext);
-    const visualizationContext = this.formatComponentContent('visualization_data', visualization);
-
-    return `=== FINAL RESPONSE GENERATION ===
-
-User: ${userName}
-Original Question: "${userQuestion}"
-
-${memoryContext ? `\n${memoryContext}\n` : ''}
-${visualizationContext ? `\n${visualizationContext}\n` : ''}
-
-Please generate a thoughtful response, walkthrough script, and reflective question based on the retrieved memories and visualization data. Help ${userName} understand the connections between their memories and provide a meaningful exploration experience.`;
-  }
 
   /**
    * Helper to format component content for prompts
@@ -459,5 +352,32 @@ Please generate a thoughtful response, walkthrough script, and reflective questi
     if (essentialInfo.length === 0) return null;
     
     return `<essential_user_context>\n${essentialInfo.join('\n')}\n</essential_user_context>`;
+  }
+
+  /**
+   * Get cached prompt or build and cache it
+   */
+  private async getCachedPrompt(
+    sectionType: string,
+    userId: string,
+    templateVars: any,
+    template: string
+  ): Promise<string> {
+    // If no cache service, fall back to direct rendering
+    if (!this.promptCacheService) {
+      return Mustache.render(template, templateVars);
+    }
+
+    // Try to get from cache
+    const cached = await this.promptCacheService.getCachedSection(sectionType, userId, undefined, templateVars);
+    if (cached) {
+      return cached.content;
+    }
+
+    // Build and cache
+    const content = Mustache.render(template, templateVars);
+    await this.promptCacheService.setCachedSection(sectionType, userId, content, undefined, templateVars);
+    
+    return content;
   }
 }

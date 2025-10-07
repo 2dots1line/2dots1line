@@ -1,0 +1,126 @@
+{
+  "section_ttl_seconds": {
+    "core_identity": 3600,
+    "operational_config": 1800,
+    "dynamic_context": 300,
+    "current_turn": 0,
+    "cosmos_key_phrase": 3600,
+    "cosmos_final_response": 1800,
+    "ontology_optimization": 3600,
+    "artifact_generation": 1800,
+    "proactive_prompts": 1800,
+    "growth_events": 1800,
+    "key_phrase_extraction": 3600,
+    "ingestion_analyst_persona": 3600,
+    "ingestion_analyst_rules": 3600,
+    "ingestion_analyst_instructions": 1800
+  },
+  "cache_keys": {
+    "pattern": "prompt_section:{section_type}:{userId}:{conversationId?}",
+    "examples": [
+      "prompt_section:core_identity:user123",
+      "prompt_section:operational_config:user123",
+      "prompt_section:dynamic_context:user123:conv456",
+      "prompt_section:cosmos_key_phrase:user123",
+      "prompt_section:cosmos_final_response:user123",
+      "prompt_section:ontology_optimization:user123",
+      "prompt_section:artifact_generation:user123",
+      "prompt_section:proactive_prompts:user123",
+      "prompt_section:growth_events:user123",
+      "prompt_section:key_phrase_extraction:user123",
+      "prompt_section:ingestion_analyst_persona:user123",
+      "prompt_section:ingestion_analyst_rules:user123",
+      "prompt_section:ingestion_analyst_instructions:user123"
+    ]
+  },
+  "invalidation": {
+    "user_update_triggers": [
+      "user_profile_update",
+      "user_preferences_change",
+      "user_memory_profile_update",
+      "user_focus_areas_change"
+    ],
+    "global_update_triggers": [
+      "template_update",
+      "core_identity_update",
+      "operational_config_update",
+      "prompt_templates_yaml_update"
+    ]
+  },
+  "performance_targets": {
+    "core_identity_hit_rate": 0.95,
+    "operational_config_hit_rate": 0.70,
+    "dynamic_context_hit_rate": 0.30,
+    "cosmos_templates_hit_rate": 0.80,
+    "ontology_optimization_hit_rate": 0.90,
+    "artifact_generation_hit_rate": 0.60,
+    "proactive_prompts_hit_rate": 0.60,
+    "growth_events_hit_rate": 0.60,
+    "key_phrase_extraction_hit_rate": 0.95,
+    "ingestion_analyst_persona_hit_rate": 0.95,
+    "ingestion_analyst_rules_hit_rate": 0.95,
+    "ingestion_analyst_instructions_hit_rate": 0.80
+  },
+  "cache_strategies": {
+    "core_identity": {
+      "strategy": "user_level",
+      "description": "Cache per user since it contains user name substitution",
+      "invalidation": "user_profile_update"
+    },
+    "operational_config": {
+      "strategy": "user_level",
+      "description": "Cache per user for language matching and preferences",
+      "invalidation": "user_preferences_change"
+    },
+    "dynamic_context": {
+      "strategy": "conversation_level",
+      "description": "Cache per conversation since context changes frequently",
+      "invalidation": "conversation_update"
+    },
+    "cosmos_templates": {
+      "strategy": "user_level",
+      "description": "Cache cosmos-specific templates per user",
+      "invalidation": "template_update"
+    },
+    "ontology_optimization": {
+      "strategy": "user_level",
+      "description": "Cache ontology optimization patterns per user",
+      "invalidation": "user_memory_profile_update"
+    },
+    "artifact_generation": {
+      "strategy": "user_level",
+      "description": "Cache artifact generation patterns per user",
+      "invalidation": "user_memory_profile_update"
+    },
+    "proactive_prompts": {
+      "strategy": "user_level",
+      "description": "Cache proactive prompt patterns per user",
+      "invalidation": "user_focus_areas_change"
+    },
+    "growth_events": {
+      "strategy": "user_level",
+      "description": "Cache growth event patterns per user",
+      "invalidation": "user_memory_profile_update"
+    },
+    "key_phrase_extraction": {
+      "strategy": "global_level",
+      "description": "Cache key phrase extraction templates globally",
+      "invalidation": "template_update"
+    },
+    "ingestion_analyst_persona": {
+      "strategy": "user_level",
+      "description": "Cache ingestion analyst persona per user",
+      "invalidation": "template_update"
+    },
+    "ingestion_analyst_rules": {
+      "strategy": "user_level",
+      "description": "Cache ingestion analyst rules per user",
+      "invalidation": "template_update"
+    },
+    "ingestion_analyst_instructions": {
+      "strategy": "user_level",
+      "description": "Cache ingestion analyst instructions per user",
+      "invalidation": "template_update"
+    }
+  }
+}

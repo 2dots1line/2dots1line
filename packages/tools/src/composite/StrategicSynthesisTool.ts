@@ -11,7 +11,7 @@ import { z } from 'zod';
 import { ConfigService } from '@2dots1line/config-service';
 import type { TToolInput, TToolOutput } from '@2dots1line/shared-types';
 import { LLMChatTool, type LLMChatInput } from '../ai/LLMChatTool';
-import { LLMRetryHandler } from '@2dots1line/core-utils';
+import { LLMRetryHandler, PromptCacheService } from '@2dots1line/core-utils';
 
 // Output validation schema
 export const StrategicSynthesisOutputSchema = z.object({
@@ -182,7 +182,8 @@ export class StrategicSynthesisValidationError extends StrategicSynthesisError {
 
 export class StrategicSynthesisTool {
   constructor(
-    private configService: ConfigService
+    private configService: ConfigService,
+    private promptCacheService?: PromptCacheService // Optional for backward compatibility
   ) {}
 
   async execute(input: StrategicSynthesisInput): Promise<StrategicSynthesisOutput> {
@@ -250,11 +251,11 @@ export class StrategicSynthesisTool {
     
     console.log(`[StrategicSynthesisTool] Building KV cache-optimized prompt with ${input.currentKnowledgeGraph.conversations.length} conversations, ${consolidatedEntities.memoryUnits.length} memory units, ${consolidatedEntities.concepts.length} concepts`);
     
-    // Replace user name placeholders
+    // Replace user name placeholders with caching
     const user_name = input.userName || 'User';
-    const coreIdentityWithUserName = coreIdentity.replace(/\{\{user_name\}\}/g, user_name);
-    const operationalConfigWithUserName = operationalConfig.replace(/\{\{user_name\}\}/g, user_name);
-    const currentAnalysisWithUserName = currentAnalysis.replace(/\{\{user_name\}\}/g, user_name);
+    const coreIdentityWithUserName = await this.getCachedSection('ontology_optimization', input.userId, user_name, coreIdentity);
+    const operationalConfigWithUserName = await this.getCachedSection('artifact_generation', input.userId, user_name, operationalConfig);
+    const currentAnalysisWithUserName = currentAnalysis.replace(/\{\{user_name\}\}/g, user_name); // Don't cache current analysis
 
     // Build dynamic context data
     const dynamicContextData = {
@@ -295,6 +296,33 @@ ${currentAnalysisWithUserName}`;
 
     console.log(`[StrategicSynthesisTool] Final prompt length: ${masterPrompt.length} characters`);
     return masterPrompt;
+  }
+
+  /**
+   * Get cached section or build and cache it
+   */
+  private async getCachedSection(
+    sectionType: string, 
+    userId: string, 
+    userName: string, 
+    template: string
+  ): Promise<string> {
+    // If no cache service, fall back to direct rendering
+    if (!this.promptCacheService) {
+      return template.replace(/\{\{user_name\}\}/g, userName);
+    }
+
+    // Try to get from cache
+    const cached = await this.promptCacheService.getCachedSection(sectionType, userId);
+    if (cached) {
+      return cached.content;
+    }
+
+    // Build and cache
+    const content = template.replace(/\{\{user_name\}\}/g, userName);
+    await this.promptCacheService.setCachedSection(sectionType, userId, content);
+    
+    return content;
   }
 
   /**

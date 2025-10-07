@@ -19,7 +19,7 @@ import {
   KeyPhraseExtractionTool
 } from '@2dots1line/tools';
 import { ExtendedAugmentedMemoryContext } from '@2dots1line/tools/src/retrieval/types';
-import { LLMRetryHandler } from '@2dots1line/core-utils';
+import { LLMRetryHandler, PromptCacheService } from '@2dots1line/core-utils';
 import { Redis } from 'ioredis';
 
 import { ConfigService, EnvironmentModelConfigService } from '@2dots1line/config-service';
@@ -34,6 +34,7 @@ export interface CosmosQuestAgentDependencies {
   promptBuilder: CosmosQuestPromptBuilder;
   llmChatTool: any;
   hybridRetrievalTool: HybridRetrievalTool;
+  promptCacheService?: PromptCacheService; // Optional for backward compatibility
 }
 
 export class CosmosQuestAgent {
@@ -47,6 +48,7 @@ export class CosmosQuestAgent {
   private llmChatTool: any;
   private hybridRetrievalTool: HybridRetrievalTool;
   private keyPhraseExtractionTool: KeyPhraseExtractionTool;
+  private promptCacheService?: PromptCacheService;
 
   constructor(dependencies: CosmosQuestAgentDependencies) {
     this.configService = dependencies.configService;
@@ -58,6 +60,7 @@ export class CosmosQuestAgent {
     this.llmChatTool = dependencies.llmChatTool;
     this.hybridRetrievalTool = dependencies.hybridRetrievalTool;
     this.keyPhraseExtractionTool = new KeyPhraseExtractionTool();
+    this.promptCacheService = dependencies.promptCacheService;
 
     console.log("CosmosQuestAgent V11.0 initialized with KeyPhraseExtractionTool.");
   }

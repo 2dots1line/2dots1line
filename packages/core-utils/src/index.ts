@@ -12,4 +12,5 @@ export * from './environment/EnvironmentLoader';
 export * from './service/BaseService';
 export * from './llm';
 export * from './entity-mapping';
-export * from './relationship-utils'; 
+export * from './relationship-utils';
+export * from './cache/PromptCacheService'; 

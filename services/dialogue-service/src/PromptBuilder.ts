@@ -1,6 +1,6 @@
 import { ConfigService } from '@2dots1line/config-service';
 import { UserRepository, ConversationRepository } from '@2dots1line/database';
-import { getEntityTypeMapping } from '@2dots1line/core-utils';
+import { getEntityTypeMapping, PromptCacheService } from '@2dots1line/core-utils';
 
 // Use any type for now since Prisma types are complex
 type conversation_messages = any;
@@ -33,7 +33,8 @@ export class PromptBuilder {
     private userRepository: UserRepository,
     private conversationRepository: ConversationRepository,
     private sessionRepository: SessionRepository, // NEW DEPENDENCY
-    private redisClient: Redis
+    private redisClient: Redis,
+    private promptCacheService?: PromptCacheService // Optional for backward compatibility
   ) {}
 
   /**
@@ -117,13 +118,13 @@ export class PromptBuilder {
       hasProactiveGreeting: !!recentConversation?.proactive_greeting
     });
 
-    // --- STEP 3: BUILD OPTIMIZED 4-SECTION PROMPT ---
+    // --- STEP 3: BUILD OPTIMIZED 4-SECTION PROMPT WITH CACHING ---
     
     // Section 1: Core Identity (Static - Highest Cache Hit Rate)
-    const section1 = Mustache.render(coreIdentityTpl, { user_name: user.name || 'User' });
+    const section1 = await this.getCachedSection('core_identity', userId, user.name || 'User', coreIdentityTpl);
     
     // Section 2: Operational Configuration (Semi-Static - Medium Cache Hit Rate)
-    const section2 = Mustache.render(operationalConfigTpl, { user_name: user.name || 'User' });
+    const section2 = await this.getCachedSection('operational_config', userId, user.name || 'User', operationalConfigTpl);
     
     // Section 3: Dynamic Context (Variable Cache Hit Rate - Ordered by Stability)
     const section3Data = {
@@ -133,7 +134,7 @@ export class PromptBuilder {
       current_conversation_history: this.formatComponentContent('current_conversation_history', conversationHistory),
       augmented_memory_context: this.formatComponentContent('augmented_memory_context', augmentedMemoryContext)
     };
-    const section3 = Mustache.render(dynamicContextTpl, section3Data);
+    const section3 = await this.getCachedDynamicContext(userId, conversationId, section3Data, dynamicContextTpl);
     
     // Section 4: Current Turn (No Cache - Turn-Specific)
     const section4Data = {
@@ -171,6 +172,71 @@ export class PromptBuilder {
       userPrompt,
       conversationHistory
     };
+  }
+
+  /**
+   * Get cached section or build and cache it
+   */
+  private async getCachedSection(
+    sectionType: string, 
+    userId: string, 
+    userName: string, 
+    template: string
+  ): Promise<string> {
+    // If no cache service, fall back to direct rendering
+    if (!this.promptCacheService) {
+      return Mustache.render(template, { user_name: userName });
+    }
+
+    // Try to get from cache
+    const cached = await this.promptCacheService.getCachedSection(sectionType, userId);
+    if (cached) {
+      return cached.content;
+    }
+
+    // Build and cache
+    const content = Mustache.render(template, { user_name: userName });
+    await this.promptCacheService.setCachedSection(sectionType, userId, content);
+    
+    return content;
+  }
+
+  /**
+   * Get cached dynamic context section
+   */
+  private async getCachedDynamicContext(
+    userId: string,
+    conversationId: string,
+    section3Data: any,
+    template: string
+  ): Promise<string> {
+    // If no cache service, fall back to direct rendering
+    if (!this.promptCacheService) {
+      return Mustache.render(template, section3Data);
+    }
+
+    // Try to get from cache
+    const cached = await this.promptCacheService.getCachedSection(
+      'dynamic_context', 
+      userId, 
+      conversationId,
+      section3Data
+    );
+    if (cached) {
+      return cached.content;
+    }
+
+    // Build and cache
+    const content = Mustache.render(template, section3Data);
+    await this.promptCacheService.setCachedSection(
+      'dynamic_context', 
+      userId, 
+      content, 
+      conversationId,
+      section3Data
+    );
+    
+    return content;
   }
 
 

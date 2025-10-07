@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { ConfigService } from '@2dots1line/config-service';
 import type { TToolInput, TToolOutput } from '@2dots1line/shared-types';
 import { LLMChatTool, type LLMChatInput } from '../ai/LLMChatTool';
-import { LLMRetryHandler } from '@2dots1line/core-utils';
+import { LLMRetryHandler, PromptCacheService } from '@2dots1line/core-utils';
 
 // Zod validation schemas as per V9.6 specification
 // V11.1 FIX: Made schema more flexible to handle LLM response variations
@@ -112,7 +112,8 @@ export interface HolisticAnalysisInput {
 
 export class HolisticAnalysisTool {
   constructor(
-    private configService: ConfigService
+    private configService: ConfigService,
+    private promptCacheService?: PromptCacheService // Optional for backward compatibility
   ) {}
 
   async execute(input: HolisticAnalysisInput): Promise<HolisticAnalysisOutput> {
@@ -203,14 +204,21 @@ export class HolisticAnalysisTool {
     // Load prompt templates from config
     const templates = this.configService.getAllTemplates();
     
-
-    // Build the master prompt following V9.6 specification structure
+    // Build the master prompt following V9.6 specification structure with caching
     const user_name = input.userName || 'User';
-    const personaWithUserName = templates.ingestion_analyst_persona.replace(/\{\{user_name\}\}/g, user_name);
+    
+    // Cache the persona section (high hit rate - rarely changes)
+    const personaWithUserName = await this.getCachedSection('ingestion_analyst_persona', input.userId, user_name, templates.ingestion_analyst_persona);
+    
+    // Cache the rules section (high hit rate - rarely changes)
+    const rulesSection = await this.getCachedSection('ingestion_analyst_rules', input.userId, user_name, templates.ingestion_analyst_rules);
+    
+    // Cache the instructions section (medium hit rate - occasionally changes)
+    const instructionsSection = await this.getCachedSection('ingestion_analyst_instructions', input.userId, user_name, templates.ingestion_analyst_instructions);
     
     const masterPrompt = `${personaWithUserName}
 
-${templates.ingestion_analyst_rules}
+${rulesSection}
 
 <user_memory_profile>
 ${input.userMemoryProfile ? JSON.stringify(input.userMemoryProfile, null, 2) : 'No existing memory profile'}
@@ -220,9 +228,36 @@ ${input.userMemoryProfile ? JSON.stringify(input.userMemoryProfile, null, 2) : '
 ${input.fullConversationTranscript}
 </conversation_transcript>
 
-${templates.ingestion_analyst_instructions}`;
+${instructionsSection}`;
 
     return masterPrompt;
+  }
+
+  /**
+   * Get cached section or build and cache it
+   */
+  private async getCachedSection(
+    sectionType: string, 
+    userId: string, 
+    userName: string, 
+    template: string
+  ): Promise<string> {
+    // If no cache service, fall back to direct rendering
+    if (!this.promptCacheService) {
+      return template.replace(/\{\{user_name\}\}/g, userName);
+    }
+
+    // Try to get from cache
+    const cached = await this.promptCacheService.getCachedSection(sectionType, userId);
+    if (cached) {
+      return cached.content;
+    }
+
+    // Build and cache
+    const content = template.replace(/\{\{user_name\}\}/g, userName);
+    await this.promptCacheService.setCachedSection(sectionType, userId, content);
+    
+    return content;
   }
 
   /**

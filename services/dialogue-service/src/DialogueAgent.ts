@@ -21,7 +21,7 @@ import {
   HybridRetrievalTool 
 } from '@2dots1line/tools';
 import { IExecutableTool } from '@2dots1line/shared-types';
-import { LLMRetryHandler, getEntityTypeMapping } from '@2dots1line/core-utils';
+import { LLMRetryHandler, getEntityTypeMapping, PromptCacheService } from '@2dots1line/core-utils';
 import { Redis } from 'ioredis';
 
 import { ConfigService } from '../../config-service/src/ConfigService';
@@ -42,6 +42,7 @@ export interface DialogueAgentDependencies {
   audioTranscribeTool: any;
   documentExtractTool: any;
   hybridRetrievalTool: HybridRetrievalTool;
+  promptCacheService?: PromptCacheService; // Optional for backward compatibility
 }
 
 export class DialogueAgent {
@@ -55,6 +56,7 @@ export class DialogueAgent {
   private audioTranscribeTool: any;
   private documentExtractTool: any;
   private hybridRetrievalTool: HybridRetrievalTool;
+  private promptCacheService?: PromptCacheService;
 
   constructor(dependencies: DialogueAgentDependencies) {
     this.configService = dependencies.configService;
@@ -66,6 +68,7 @@ export class DialogueAgent {
     this.audioTranscribeTool = dependencies.audioTranscribeTool;
     this.documentExtractTool = dependencies.documentExtractTool;
     this.hybridRetrievalTool = dependencies.hybridRetrievalTool;
+    this.promptCacheService = dependencies.promptCacheService;
 
     console.log("DialogueAgent V10.9 initialized.");
   }
