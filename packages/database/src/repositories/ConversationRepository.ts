@@ -4,12 +4,21 @@
  */
 
 import { DatabaseService } from '../DatabaseService';
-import type { Prisma } from '@2dots1line/database';
+import type { Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 
-// Use any for now - the types are complex and the functionality works
+// Model shapes are large; use pragmatic aliases to keep repository readable
 type conversations = any;
 type conversation_messages = any;
+
+// Strongly typed local helper for session context messages returned with included conversation metadata
+type RecentMessage = conversation_messages & {
+  conversations: {
+    conversation_id: string;
+    status: string;
+    ended_at: Date | null;
+  };
+};
 
 export interface CreateConversationData {
   user_id: string;
@@ -284,7 +293,7 @@ export class ConversationRepository {
     
     // Get the most recent messages from ALL previous conversations in the same session
     // This ensures we get the most recent 10 messages regardless of which conversation they came from
-    const recentMessages = await this.db.prisma.conversation_messages.findMany({
+    const recentMessages = (await this.db.prisma.conversation_messages.findMany({
       where: {
         conversations: {
           session_id: sessionId,
@@ -302,18 +311,18 @@ export class ConversationRepository {
           }
         }
       }
-    });
+    })) as RecentMessage[];
 
     console.log(`🔍 ConversationRepository.getSessionContext - Recent messages found:`, {
       sessionId,
       currentConversationId,
       totalMessagesFound: recentMessages.length,
-      messagesByConversation: recentMessages.reduce((acc, msg) => {
+      messagesByConversation: recentMessages.reduce((acc: Record<string, number>, msg: RecentMessage) => {
         const convId = msg.conversations.conversation_id;
         acc[convId] = (acc[convId] || 0) + 1;
         return acc;
       }, {} as Record<string, number>),
-      messagePreview: recentMessages.slice(0, 3).map(m => ({
+      messagePreview: recentMessages.slice(0, 3).map((m: RecentMessage) => ({
         conversationId: m.conversations.conversation_id,
         type: m.type,
         content: m.content.substring(0, 50) + '...',
