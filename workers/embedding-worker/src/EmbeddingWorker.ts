@@ -14,6 +14,7 @@ import { environmentLoader } from '@2dots1line/core-utils/dist/environment/Envir
 import { DatabaseService } from '@2dots1line/database';
 import { TTextEmbeddingInputPayload, TTextEmbeddingResult, IExecutableTool } from '@2dots1line/shared-types';
 import { TextEmbeddingTool } from '@2dots1line/tools';
+import { EnvironmentModelConfigService } from '@2dots1line/config-service';
 import { Worker, Job } from 'bullmq';
 import { Redis } from 'ioredis';
 
@@ -52,14 +53,24 @@ export class EmbeddingWorker {
     environmentLoader.load();
     console.log('[EmbeddingWorker] Environment variables loaded successfully');
 
+    // Get current embedding model from configuration instead of hardcoding
+    const modelConfigService = EnvironmentModelConfigService.getInstance();
+    const currentEmbeddingModel = modelConfigService.getModelForUseCase('embedding');
+    
+    if (!currentEmbeddingModel) {
+      throw new Error('No embedding model configured. Please set LLM_EMBEDDING_MODEL environment variable.');
+    }
+
     this.config = {
       queueName: 'embedding-queue',
       concurrency: 3,
       retryAttempts: 3,
       retryDelay: 2000,
-      embeddingModelVersion: 'text-embedding-3-small',
+      embeddingModelVersion: currentEmbeddingModel,
       ...config
     };
+
+    console.log(`[EmbeddingWorker] Using embedding model: ${this.config.embeddingModelVersion}`);
 
     // Use TextEmbeddingTool as singleton instance
     this.textEmbeddingTool = TextEmbeddingTool;
