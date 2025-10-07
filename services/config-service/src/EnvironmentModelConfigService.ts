@@ -20,7 +20,8 @@ export class EnvironmentModelConfigService {
   private initialized = false;
 
   private constructor() {
-    this.modelConfigService = new ModelConfigService();
+    // Will be initialized based on provider
+    this.modelConfigService = new ModelConfigService('gemini');
   }
 
   public static getInstance(): EnvironmentModelConfigService {
@@ -46,7 +47,7 @@ export class EnvironmentModelConfigService {
   /**
    * Get model for specific use case, prioritizing environment variables
    */
-  public getModelForUseCase(useCase: 'chat' | 'vision' | 'embedding'): string {
+  public getModelForUseCase(useCase: 'chat' | 'vision' | 'embedding' | 'key_phrase'): string {
     // Ensure environment is loaded
     environmentLoader.load();
 
@@ -55,6 +56,12 @@ export class EnvironmentModelConfigService {
     if (envModel) {
       console.log(`🔧 EnvironmentModelConfigService: Using environment variable for ${useCase}: ${envModel}`);
       return envModel;
+    }
+
+    // Update ModelConfigService based on current provider
+    const currentProvider = this.getProvider();
+    if (this.modelConfigService['provider'] !== currentProvider) {
+      this.modelConfigService = new ModelConfigService(currentProvider);
     }
 
     // Fallback to JSON configuration
@@ -73,7 +80,7 @@ export class EnvironmentModelConfigService {
   /**
    * Get model from environment variables
    */
-  private getModelFromEnvironment(useCase: 'chat' | 'vision' | 'embedding'): string | null {
+  private getModelFromEnvironment(useCase: 'chat' | 'vision' | 'embedding' | 'key_phrase'): string | null {
     const envKey = `LLM_${useCase.toUpperCase()}_MODEL`;
     const model = environmentLoader.get(envKey);
     
@@ -84,6 +91,15 @@ export class EnvironmentModelConfigService {
 
     // Check for fallback model if specific use case not found
     if (useCase !== 'embedding') {
+      // For key_phrase, check for specific fallback first
+      if (useCase === 'key_phrase') {
+        const keyPhraseFallback = environmentLoader.get('LLM_KEY_PHRASE_FALLBACK_MODEL');
+        if (keyPhraseFallback) {
+          console.log(`🔧 EnvironmentModelConfigService: Using LLM_KEY_PHRASE_FALLBACK_MODEL=${keyPhraseFallback} for ${useCase}`);
+          return keyPhraseFallback;
+        }
+      }
+      
       const fallbackModel = environmentLoader.get('LLM_FALLBACK_MODEL');
       if (fallbackModel) {
         console.log(`🔧 EnvironmentModelConfigService: Using LLM_FALLBACK_MODEL=${fallbackModel} for ${useCase}`);
@@ -97,13 +113,26 @@ export class EnvironmentModelConfigService {
   /**
    * Hardcoded fallback models (last resort)
    */
-  private getHardcodedFallback(useCase: 'chat' | 'vision' | 'embedding'): string {
-    const fallbacks = {
-      chat: 'gemini-2.5-flash',
-      vision: 'gemini-2.5-flash',
-      embedding: 'text-embedding-004'
-    };
-    return fallbacks[useCase];
+  private getHardcodedFallback(useCase: 'chat' | 'vision' | 'embedding' | 'key_phrase'): string {
+    const provider = this.getProvider();
+    
+    if (provider === 'openai') {
+      const openaiFallbacks = {
+        chat: 'gpt-4o-mini',
+        vision: 'gpt-4o',
+        embedding: 'text-embedding-3-small',
+        key_phrase: 'gpt-4o-mini'
+      };
+      return openaiFallbacks[useCase];
+    } else {
+      const geminiFallbacks = {
+        chat: 'gemini-2.5-flash',
+        vision: 'gemini-2.5-flash',
+        embedding: 'text-embedding-004',
+        key_phrase: 'gemini-2.5-flash'
+      };
+      return geminiFallbacks[useCase];
+    }
   }
 
   /**

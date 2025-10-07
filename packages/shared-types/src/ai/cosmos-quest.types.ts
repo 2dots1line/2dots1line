@@ -5,6 +5,35 @@
 
 import { TAgentInput, TAgentOutput } from './agent.types';
 
+// === KEY PHRASE EXTRACTION TYPES ===
+
+export interface KeyPhraseInput {
+  text: string;
+  context?: {
+    userId: string;
+    conversationId?: string;
+    agentType?: 'dialogue' | 'quest' | 'general';
+  };
+  options?: {
+    maxPhrases?: number;
+    streaming?: boolean;
+    onChunk?: (chunk: string) => void;
+    temperature?: number;
+  };
+}
+
+export interface KeyPhraseResult {
+  keyPhrases: string[];
+  confidence: number;
+  processingTimeMs: number;
+  modelUsed: string;
+  metadata?: {
+    originalText: string;
+    agentType?: string;
+    userId?: string;
+  };
+}
+
 // === INPUT/OUTPUT CONTRACTS ===
 
 export interface CosmosQuestInput {

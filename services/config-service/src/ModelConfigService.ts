@@ -28,6 +28,7 @@ export interface GeminiModelConfiguration {
     chat: ModelConfig;
     vision: ModelConfig;
     embedding: ModelConfig;
+    key_phrase: ModelConfig;
   };
   available_models: Record<string, ModelDetails>;
   quota_info: {
@@ -46,21 +47,27 @@ export class ModelConfigService {
   private config: GeminiModelConfiguration | null = null;
   private configPath: string;
   private lastLoadTime: number | null = null;
+  private provider: 'gemini' | 'openai' = 'gemini';
 
-  constructor() {
+  constructor(provider: 'gemini' | 'openai' = 'gemini') {
+    this.provider = provider;
+    const configFileName = provider === 'gemini' ? 'gemini_models.json' : 'openai_models.json';
+    
     // Path to config file relative to the monorepo root
-    this.configPath = path.join(process.cwd(), '../../config/gemini_models.json');
+    this.configPath = path.join(process.cwd(), '../../config', configFileName);
     
     // Try different paths if the above doesn't work
     if (!fs.existsSync(this.configPath)) {
-      this.configPath = path.join(process.cwd(), '../../../config/gemini_models.json');
+      this.configPath = path.join(process.cwd(), '../../../config', configFileName);
     }
     if (!fs.existsSync(this.configPath)) {
-      this.configPath = path.join(__dirname, '../../../config/gemini_models.json');
+      this.configPath = path.join(__dirname, '../../../config', configFileName);
     }
     if (!fs.existsSync(this.configPath)) {
-      this.configPath = path.join(__dirname, '../../../../config/gemini_models.json');
+      this.configPath = path.join(__dirname, '../../../../config', configFileName);
     }
+    
+    console.log(`ModelConfigService: Config path resolved to: ${this.configPath} for provider: ${this.provider}`);
   }
 
 
@@ -98,7 +105,7 @@ export class ModelConfigService {
     }
   }
 
-  public getModelForUseCase(useCase: 'chat' | 'vision' | 'embedding'): string {
+  public getModelForUseCase(useCase: 'chat' | 'vision' | 'embedding' | 'key_phrase'): string {
     console.log(`🔍 === ModelConfigService.getModelForUseCase(${useCase}) called ===`);
     
     const config = this.loadConfig();

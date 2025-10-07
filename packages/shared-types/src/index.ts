@@ -94,7 +94,10 @@ export type {
   HighlightEdgesDirection,
   RevealEntitiesDirection,
   EnvironmentDirection,
-  ShowDetailsDirection
+  ShowDetailsDirection,
+  // V11.0 Key Phrase Extraction Tool types
+  KeyPhraseInput,
+  KeyPhraseResult
 } from './ai/cosmos-quest.types';
 
 // === AI JOB TYPES ===

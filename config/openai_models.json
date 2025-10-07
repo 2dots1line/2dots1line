@@ -1,0 +1,242 @@
+{
+  "models": {
+    "chat": {
+      "primary": "gpt-4o-mini",
+      "fallback": [
+        "gpt-4o",
+        "gpt-4-turbo",
+        "deepseek-ai/DeepSeek-R1",
+        "hunyuan-t1-20250822"
+      ],
+      "description": "For general conversation and text generation",
+      "capabilities": [
+        "text",
+        "reasoning",
+        "conversation"
+      ],
+      "context_window": 128000,
+      "max_output_tokens": 16384
+    },
+    "key_phrase": {
+      "primary": "gpt-4o-mini",
+      "fallback": [
+        "gpt-4o",
+        "deepseek-ai/DeepSeek-R1"
+      ],
+      "description": "For fast key phrase extraction and lightweight tasks",
+      "capabilities": [
+        "text",
+        "reasoning"
+      ],
+      "context_window": 128000,
+      "max_output_tokens": 4096
+    },
+    "vision": {
+      "primary": "gpt-4o",
+      "fallback": [
+        "gpt-4o-mini",
+        "qwen-vl-plus"
+      ],
+      "description": "For image analysis and vision tasks",
+      "capabilities": [
+        "text",
+        "images",
+        "multimodal"
+      ],
+      "context_window": 128000,
+      "max_output_tokens": 4096
+    },
+    "embedding": {
+      "primary": "text-embedding-3-small",
+      "fallback": [
+        "text-embedding-3-large",
+        "text-embedding-ada-002",
+        "netease-youdao/bce-embedding-base_v1",
+        "hunyuan-embedding"
+      ],
+      "description": "For text embeddings and semantic search",
+      "capabilities": [
+        "embeddings"
+      ],
+      "context_window": 8191
+    }
+  },
+  "available_models": {
+    "gpt-4o-mini": {
+      "status": "available",
+      "type": "stable",
+      "capabilities": [
+        "text",
+        "images",
+        "multimodal"
+      ],
+      "context_window": 128000,
+      "generation_config": {
+        "temperature": 0.7,
+        "topP": 0.95,
+        "maxOutputTokens": 16384
+      },
+      "description": "Fast, cost-effective model for most tasks"
+    },
+    "gpt-4o": {
+      "status": "available",
+      "type": "stable",
+      "capabilities": [
+        "text",
+        "images",
+        "multimodal"
+      ],
+      "context_window": 128000,
+      "generation_config": {
+        "temperature": 0.7,
+        "topP": 0.95,
+        "maxOutputTokens": 4096
+      },
+      "description": "Most capable model for complex reasoning"
+    },
+    "gpt-4-turbo": {
+      "status": "available",
+      "type": "stable",
+      "capabilities": [
+        "text",
+        "images",
+        "multimodal"
+      ],
+      "context_window": 128000,
+      "generation_config": {
+        "temperature": 0.7,
+        "topP": 0.95,
+        "maxOutputTokens": 4096
+      },
+      "description": "High-performance model for complex tasks"
+    },
+    "deepseek-ai/DeepSeek-R1": {
+      "status": "available",
+      "type": "stable",
+      "capabilities": [
+        "text",
+        "reasoning"
+      ],
+      "context_window": 64000,
+      "generation_config": {
+        "temperature": 0.7,
+        "topP": 0.95,
+        "maxOutputTokens": 8192
+      },
+      "description": "DeepSeek reasoning model with strong logical capabilities"
+    },
+    "hunyuan-t1-20250822": {
+      "status": "available",
+      "type": "stable",
+      "capabilities": [
+        "text",
+        "reasoning"
+      ],
+      "context_window": 32000,
+      "generation_config": {
+        "temperature": 0.7,
+        "topP": 0.95,
+        "maxOutputTokens": 4096
+      },
+      "description": "Hunyuan T1 model for Chinese language tasks"
+    },
+    "qwen-vl-plus": {
+      "status": "available",
+      "type": "stable",
+      "capabilities": [
+        "text",
+        "images",
+        "multimodal"
+      ],
+      "context_window": 32000,
+      "generation_config": {
+        "temperature": 0.7,
+        "topP": 0.95,
+        "maxOutputTokens": 2048
+      },
+      "description": "Qwen vision-language model"
+    },
+    "text-embedding-3-small": {
+      "status": "available",
+      "type": "stable",
+      "capabilities": [
+        "embeddings"
+      ],
+      "context_window": 8191,
+      "description": "OpenAI's most efficient embedding model"
+    },
+    "text-embedding-3-large": {
+      "status": "available",
+      "type": "stable",
+      "capabilities": [
+        "embeddings"
+      ],
+      "context_window": 8191,
+      "description": "OpenAI's most capable embedding model"
+    },
+    "text-embedding-ada-002": {
+      "status": "available",
+      "type": "stable",
+      "capabilities": [
+        "embeddings"
+      ],
+      "context_window": 8191,
+      "description": "Legacy OpenAI embedding model"
+    },
+    "netease-youdao/bce-embedding-base_v1": {
+      "status": "available",
+      "type": "stable",
+      "capabilities": [
+        "embeddings"
+      ],
+      "context_window": 2048,
+      "description": "Youdao embedding model for Chinese text"
+    },
+    "hunyuan-embedding": {
+      "status": "available",
+      "type": "stable",
+      "capabilities": [
+        "embeddings"
+      ],
+      "context_window": 2048,
+      "description": "Hunyuan embedding model"
+    }
+  },
+  "quota_info": {
+    "gpt-4o-mini": {
+      "requests_per_minute": 500,
+      "requests_per_day": 10000,
+      "tokens_per_minute": 200000,
+      "tokens_per_day": 2000000
+    },
+    "gpt-4o": {
+      "requests_per_minute": 200,
+      "requests_per_day": 5000,
+      "tokens_per_minute": 100000,
+      "tokens_per_day": 1000000
+    },
+    "gpt-4-turbo": {
+      "requests_per_minute": 200,
+      "requests_per_day": 5000,
+      "tokens_per_minute": 100000,
+      "tokens_per_day": 1000000
+    },
+    "deepseek-ai/DeepSeek-R1": {
+      "requests_per_minute": 1000,
+      "requests_per_day": 20000,
+      "tokens_per_minute": 500000,
+      "tokens_per_day": 5000000
+    },
+    "hunyuan-t1-20250822": {
+      "requests_per_minute": 500,
+      "requests_per_day": 10000,
+      "tokens_per_minute": 200000,
+      "tokens_per_day": 2000000
+    }
+  },
+  "validation": {
+    "enforce_consistent_token_limits": true,
+    "max_output_tokens": 16384,
+    "warn_on_mismatch": true
+  }
+} 

@@ -14,6 +14,20 @@
       "context_window": 1000000,
       "max_output_tokens": 50000
     },
+    "key_phrase": {
+      "primary": "gemini-2.5-flash-lite",
+      "fallback": [
+        "gemini-2.5-flash",
+        "gemini-2.0-flash-exp"
+      ],
+      "description": "For fast key phrase extraction and lightweight tasks",
+      "capabilities": [
+        "text",
+        "reasoning"
+      ],
+      "context_window": 1000000,
+      "max_output_tokens": 8192
+    },
     "vision": {
       "primary": "gemini-2.5-flash",
       "fallback": [
@@ -74,6 +88,23 @@
       }
     },
 
+    "gemini-2.5-flash-lite": {
+      "status": "available",
+      "type": "stable",
+      "capabilities": [
+        "text",
+        "reasoning"
+      ],
+      "context_window": 1000000,
+      "generation_config": {
+        "temperature": 0.3,
+        "topK": 20,
+        "topP": 0.9,
+        "maxOutputTokens": 8192
+      },
+      "description": "Optimized for speed and cost-efficiency, ideal for key phrase extraction"
+    },
+
     "text-embedding-004": {
       "status": "available",
       "type": "stable",
@@ -89,6 +120,12 @@
       "requests_per_day": 15000,
       "tokens_per_minute": 1000000,
       "tokens_per_day": 10000000
+    },
+    "gemini-2.5-flash-lite": {
+      "requests_per_minute": 2000,
+      "requests_per_day": 20000,
+      "tokens_per_minute": 2000000,
+      "tokens_per_day": 20000000
     },
     "gemini-2.0-flash-exp": {
       "requests_per_minute": 1000,

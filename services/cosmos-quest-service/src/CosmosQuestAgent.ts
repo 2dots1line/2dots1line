@@ -15,13 +15,14 @@ import {
 } from '@2dots1line/shared-types';
 import { 
   LLMChatTool, 
-  HybridRetrievalTool 
+  HybridRetrievalTool,
+  KeyPhraseExtractionTool
 } from '@2dots1line/tools';
 import { ExtendedAugmentedMemoryContext } from '@2dots1line/tools/src/retrieval/types';
 import { LLMRetryHandler } from '@2dots1line/core-utils';
 import { Redis } from 'ioredis';
 
-import { ConfigService } from '../../config-service/src/ConfigService';
+import { ConfigService, EnvironmentModelConfigService } from '@2dots1line/config-service';
 import { CosmosQuestPromptBuilder } from './CosmosQuestPromptBuilder';
 
 // Dependencies to be injected into the agent
@@ -38,23 +39,27 @@ export interface CosmosQuestAgentDependencies {
 export class CosmosQuestAgent {
   // Store injected dependencies
   private configService: ConfigService;
+  private modelConfigService: EnvironmentModelConfigService;
   private conversationRepo: ConversationRepository;
   private userRepo: UserRepository;
   private redis: Redis;
   private promptBuilder: CosmosQuestPromptBuilder;
   private llmChatTool: any;
   private hybridRetrievalTool: HybridRetrievalTool;
+  private keyPhraseExtractionTool: KeyPhraseExtractionTool;
 
   constructor(dependencies: CosmosQuestAgentDependencies) {
     this.configService = dependencies.configService;
+    this.modelConfigService = EnvironmentModelConfigService.getInstance();
     this.conversationRepo = dependencies.conversationRepository;
     this.userRepo = dependencies.userRepository;
     this.redis = dependencies.redisClient;
     this.promptBuilder = dependencies.promptBuilder;
     this.llmChatTool = dependencies.llmChatTool;
     this.hybridRetrievalTool = dependencies.hybridRetrievalTool;
+    this.keyPhraseExtractionTool = new KeyPhraseExtractionTool();
 
-    console.log("CosmosQuestAgent V11.0 initialized.");
+    console.log("CosmosQuestAgent V11.0 initialized with KeyPhraseExtractionTool.");
   }
 
   /**
@@ -194,70 +199,58 @@ export class CosmosQuestAgent {
   }
 
   /**
-   * Extract key phrases using LLM with proper context (like DialogueAgent)
-   * V11.0: Now uses gemini-2.0-flash-lite for speed and supports streaming
+   * Extract key phrases using the dedicated KeyPhraseExtractionTool
+   * V11.0: Now uses optimized KeyPhraseExtractionTool for consistency and performance
    */
   private async extractKeyPhrasesWithLLM(
     input: CosmosQuestInput, 
     executionId: string,
     onNarrationChunk?: (chunk: string) => void
   ): Promise<KeyPhraseCapsule[]> {
-    console.log(`[${executionId}] 🤖 Extracting key phrases with LLM context (flash-lite + streaming)`);
+    console.log(`[${executionId}] 🤖 Extracting key phrases with KeyPhraseExtractionTool`);
 
-    // Build quest-specific prompt with user context
-    const promptOutput = await this.promptBuilder.buildKeyPhraseExtractionPrompt({
-      userId: input.userId,
-      conversationId: input.conversationId,
-      userQuestion: input.userQuestion,
-      questType: input.questType || 'exploration'
-    });
+    try {
+      // Use the dedicated key phrase extraction tool
+      const keyPhraseResult = await this.keyPhraseExtractionTool.execute({
+        payload: {
+          text: input.userQuestion,
+          context: {
+            userId: input.userId,
+            conversationId: input.conversationId,
+            agentType: 'quest'
+          },
+          options: {
+            maxPhrases: 7,
+            streaming: !!onNarrationChunk,
+            onChunk: onNarrationChunk,
+            temperature: 0.3
+          }
+        },
+        request_id: `quest-keyphrase-${Date.now()}`
+      });
 
-    const llmToolInput = {
-      payload: {
-        userId: input.userId,
-        sessionId: input.conversationId,
-        workerType: 'cosmos-quest-service',
-        workerJobId: `quest-${Date.now()}`,
-        conversationId: input.conversationId,
-        messageId: `msg-${Date.now()}`,
-        sourceEntityId: input.conversationId,
-        systemPrompt: promptOutput.systemPrompt,
-        userMessage: promptOutput.userPrompt,
-        history: promptOutput.conversationHistory,
-        temperature: 0.3,
-        maxTokens: 50000,
-        // V11.0: Use flash-lite for fast key phrase extraction
-        modelOverride: 'gemini-2.0-flash-lite',
-        // V11.0: Enable streaming if callback provided
-        enableStreaming: !!onNarrationChunk,
-        onChunk: onNarrationChunk
-      },
-      request_id: `quest-keyphrases-${Date.now()}`
-    };
-
-    console.log(`[${executionId}] 📝 LLM input prepared for key phrase extraction:`, {
-      systemPromptLength: llmToolInput.payload.systemPrompt.length,
-      userMessageLength: llmToolInput.payload.userMessage.length,
-      historyCount: llmToolInput.payload.history.length
-    });
-
-    // Enhanced LLM call with retry logic
-    const llmResult = await LLMRetryHandler.executeWithRetry(
-      this.llmChatTool,
-      llmToolInput,
-      { 
-        maxAttempts: 3, 
-        baseDelay: 1000,
-        callType: 'key_phrase_extraction'
+      if (keyPhraseResult.status !== 'success' || !keyPhraseResult.result) {
+        throw new Error(`Key phrase extraction failed: ${keyPhraseResult.error?.message || 'Unknown error'}`);
       }
-    );
 
-    // Parse LLM response to extract key phrases
-    const keyPhrases = this.parseKeyPhraseResponse(llmResult, executionId);
-    
-    console.log(`[${executionId}] ✅ Extracted ${keyPhrases.length} key phrases:`, keyPhrases.map(kp => kp.phrase));
-    
-    return keyPhrases;
+      console.log(`[${executionId}] ✅ Key phrase extraction completed:`, {
+        phrases: keyPhraseResult.result.keyPhrases,
+        confidence: keyPhraseResult.result.confidence,
+        processingTime: keyPhraseResult.result.processingTimeMs,
+        modelUsed: keyPhraseResult.result.modelUsed
+      });
+
+      // Convert to KeyPhraseCapsule format
+      return keyPhraseResult.result.keyPhrases.map((phrase: string, index: number) => ({
+        phrase,
+        confidence_score: keyPhraseResult.result!.confidence,
+        color: this.getKeyPhraseColor(index)
+      }));
+
+    } catch (error) {
+      console.error(`[${executionId}] ❌ Key phrase extraction failed:`, error);
+      throw new Error(`Key phrase extraction failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   /**
