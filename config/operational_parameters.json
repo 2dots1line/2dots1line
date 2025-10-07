@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "conversation_timeout_seconds": 120,
+  "conversation_timeout_seconds": 300,
   "workers": {
     "check_interval_seconds": 30
   }

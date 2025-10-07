@@ -360,7 +360,7 @@ export class PromptBuilder {
       const sessionContext = await this.conversationRepository.getSessionContext(
         conversation.session_id, 
         conversationId, 
-        3 // Last 3 messages from most recent processed conversation
+        10 // Last 10 messages from most recent processed conversation
       );
       
       console.log(`🔍 PromptBuilder.getSessionContext - Session context retrieved:`, {

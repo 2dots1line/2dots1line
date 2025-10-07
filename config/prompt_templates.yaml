@@ -90,11 +90,12 @@ operational_config_section: |
   
   MEMORY RETRIEVAL RESPONSE FORMAT (WHEN CONTEXT IS PROVIDED):
   When `augmented_memory_context` is present, you MUST:
-  - Set "decision": "respond_directly"
+  - **CRITICAL**: Set "decision": "respond_directly" (NEVER "query_memory")
   - Set "key_phrases_for_retrieval": null
   - Base your response on the retrieved memories
   - Reference specific details (names, materials, places, time hints) from the retrieved memories
   - If multiple entities match, ask a brief clarifying question using the top 2–3 candidates
+  - **DO NOT** query memory again - you already have the context
 
   USING MEMORY IN YOUR RESPONSE:
   - Be creative, genuine, logical and original in how you weave memory into your response. You are not showing off, but building long term relationship, show that you care to remember and search deeply and broadly for what could be relevant and helpful.
@@ -107,20 +108,40 @@ operational_config_section: |
     * Sometimes be more conversational and less structured
  
 
-  RESPONSE FORMAT: Return exactly one JSON object with this schema:
+  RESPONSE FORMAT: Return ONLY a JSON object with this schema (no other text):
   {
     "thought_process": "Your reasoning here...",
     "response_plan": {
       "decision": "respond_directly" | "query_memory",
-      "key_phrases_for_retrieval": null | string[],
-      "direct_response_text": "Your response text here"
+      "key_phrases_for_retrieval": null | string[]
     },
     "turn_context_package": {
       "suggested_next_focus": "Next focus area",
       "emotional_tone_to_adopt": "Supportive and curious",
       "flags_for_ingestion": ["important_insight", "growth_moment"]
-    }
+    },
+    "direct_response_text": "Your response text here"
   }
+  
+  **CRITICAL DECISION RULES:**
+  - If `augmented_memory_context` is provided → ALWAYS use "decision": "respond_directly"
+  - If `augmented_memory_context` is NOT provided → Use "decision": "query_memory" or "respond_directly" based on context
+
+  ⚠️ CRITICAL STREAMING REQUIREMENTS ⚠️
+  For optimal streaming performance, follow these JSON structure rules:
+  
+  1. **JSON_ONLY**: Return ONLY the JSON object - no other text before or after
+  2. **CLEAN_RESPONSE_TEXT**: Provide clean, direct response text without any markers:
+     - Example: "Your response here"
+  3. **FIELD_POSITION**: Always place the direct_response_text field LAST in the entire JSON structure
+  4. **CLEAR_BOUNDARIES**: Ensure direct_response_text is the final field before the closing brace of the entire JSON
+  5. **NO_TRAILING_CONTENT**: Do not add any content after direct_response_text
+  6. **ESCAPE_QUOTES**: Properly escape any quotes within direct_response_text using \"
+  7. **STRUCTURE_ORDER**: Maintain this exact order:
+     - thought_process (first)
+     - response_plan (second, without direct_response_text)
+     - turn_context_package (third)
+     - direct_response_text (last - final field)
 
   AVOID FORMULAIC PATTERNS:
   ❌ "Oh, [name], that's [adjective]! [Paraphrase what user said]. [Question]"
@@ -1383,14 +1404,14 @@ response_generation_section: |
     "thought_process": "Your reasoning here...",
     "response_plan": {
       "decision": "respond_directly",
-      "key_phrases_for_retrieval": null,
-      "direct_response_text": "Your response text here using the memory context"
+      "key_phrases_for_retrieval": null
     },
     "turn_context_package": {
       "suggested_next_focus": "Next focus area",
       "emotional_tone_to_adopt": "Supportive and curious",
       "flags_for_ingestion": ["important_insight", "growth_moment"]
-    }
+    },
+    "direct_response_text": "Your response text here using the memory context"
   }
   
   **CRITICAL RULES:**
@@ -1398,4 +1419,7 @@ response_generation_section: |
   - You MUST set "key_phrases_for_retrieval": null
   - You MUST provide actual response text in "direct_response_text"
   - Base your response on the provided memory context
-  - Do not ask to query memory again - you already have the context 
+  - Do not ask to query memory again - you already have the context
+  
+  **FINAL INSTRUCTION:**
+  Return ONLY the JSON object above. Do not include any text before or after the JSON. Start your response with { and end with }. 

@@ -30,17 +30,12 @@ interface ChatModalProps {
   onClose: () => void;
 }
 
-// Enhanced ChatMessage type to support attachments
-interface EnhancedChatMessage extends ChatMessage {
-  attachment?: {
-    file: File;
-    type: 'image' | 'document';
-  };
-}
+// Using ChatMessage directly since it already supports attachments
 
 const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
   const [message, setMessage] = useState('');
   const [currentAttachment, setCurrentAttachment] = useState<File | null>(null);
+  const [currentDecision, setCurrentDecision] = useState<'respond_directly' | 'query_memory' | null>(null);
 
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -78,6 +73,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
     setCurrentSession,
     setMessages,
     addMessage,
+    updateMessage,
     clearMessages,
     setLoading,
     setInitialized,
@@ -136,7 +132,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
           
           // Set initial message with proactive greeting or fallback
           const defaultGreeting = 'Hello! I\'m here to help you explore your thoughts and experiences. What would you like to talk about today?';
-          const initialMessage: EnhancedChatMessage = {
+          const initialMessage: ChatMessage = {
             id: '1',
             type: 'bot',
             content: proactiveGreeting || defaultGreeting,
@@ -150,7 +146,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
           
           // Fallback to default greeting
           const defaultGreeting = 'Hello! I\'m here to help you explore your thoughts and experiences. What would you like to talk about today?';
-          const fallbackMessage: EnhancedChatMessage = {
+          const fallbackMessage: ChatMessage = {
             id: '1',
             type: 'bot',
             content: defaultGreeting,
@@ -185,44 +181,13 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
     }
   }, [isOpen, setSessionHistory]);
 
-  // Load existing conversation if we have a conversation ID - NON-BLOCKING
-  useEffect(() => {
-    if (isOpen && currentConversationId && messages.length === 0) {
-      // Use setTimeout to defer the API call to next tick, allowing UI to render first
-      const loadTimeout = setTimeout(() => {
-        loadExistingConversation();
-      }, 0); // Defer to next tick
-      
-      return () => clearTimeout(loadTimeout);
-    }
-  }, [isOpen, currentConversationId]);
-
-  // Check for proactive messages when returning to chat - NON-BLOCKING
-  useEffect(() => {
-    if (isOpen && currentConversationId && messages.length > 0) {
-      // Use setTimeout to defer the API call to next tick, allowing UI to render first
-      const checkTimeout = setTimeout(() => {
-        checkForProactiveMessages();
-      }, 0); // Defer to next tick
-      
-      return () => clearTimeout(checkTimeout);
-    }
-  }, [isOpen, currentConversationId]);
-
-  // Auto-resize textarea when message changes or component mounts
-  useEffect(() => {
-    if (isOpen) {
-      autoResizeTextarea();
-    }
-  }, [message, isOpen, autoResizeTextarea]);
-
   const loadExistingConversation = useCallback(async () => {
     if (!currentConversationId) return;
     
     setLoading(true);
     try {
       const response = await chatService.getConversation(currentConversationId);
-      const enhancedMessages: EnhancedChatMessage[] = response.messages.map(msg => ({
+      const enhancedMessages: ChatMessage[] = response.messages.map(msg => ({
         ...msg,
         timestamp: new Date(msg.timestamp)
       }));
@@ -238,11 +203,23 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
   }, [currentConversationId, setMessages, setInitialized, setLoading, startNewChat]);
 
   const checkForProactiveMessages = useCallback(async () => {
-    if (!currentConversationId || messages.length === 0) return;
+    if (!currentConversationId || messages.length > 0) {
+      console.log('🌊 ChatModal: Skipping proactive message check', { 
+        currentConversationId: !!currentConversationId, 
+        messagesLength: messages.length,
+        reason: messages.length > 0 ? 'conversation already has messages' : 'no conversation ID'
+      });
+      return;
+    }
     
     try {
-      // Get the timestamp of the last message
-      const lastMessageTimestamp = messages[messages.length - 1].timestamp;
+      // For new conversations, use a very old timestamp to get all messages
+      const lastMessageTimestamp = new Date('2020-01-01');
+      
+      console.log('🌊 ChatModal: Checking for proactive messages in new conversation', {
+        conversationId: currentConversationId,
+        lastMessageTimestamp: lastMessageTimestamp.toISOString()
+      });
       
       // Check for new messages from the backend
       const newMessages = await chatService.checkForProactiveMessages(currentConversationId, lastMessageTimestamp);
@@ -250,27 +227,96 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
       if (newMessages.length > 0) {
         console.log('📨 Found proactive messages:', newMessages.length);
         
-        // Add new messages to the conversation
-        const enhancedMessages: EnhancedChatMessage[] = newMessages.map(msg => ({
-          ...msg,
-          timestamp: new Date(msg.timestamp)
-        }));
+        // Filter out messages that are already in our local state to prevent duplicates
+        const existingMessageIds = new Set(messages.map(msg => msg.id));
+        const filteredMessages = newMessages.filter(msg => !existingMessageIds.has(msg.id));
         
-        enhancedMessages.forEach(msg => addMessage(msg));
+        if (filteredMessages.length > 0) {
+          console.log('📨 Adding filtered proactive messages:', filteredMessages.length);
+          
+          // Add new messages to the conversation
+          const enhancedMessages: ChatMessage[] = filteredMessages.map(msg => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp)
+          }));
+          
+          enhancedMessages.forEach(msg => addMessage(msg));
+        }
       }
     } catch (error) {
       console.error('Error checking for proactive messages:', error);
     }
   }, [currentConversationId, messages, addMessage]);
 
+  // Load existing conversation when opening a chat session
+  useEffect(() => {
+    if (isOpen && currentConversationId && messages.length === 0) {
+      // Use setTimeout to defer the API call to next tick, allowing UI to render first
+      const loadTimeout = setTimeout(() => {
+        loadExistingConversation();
+      }, 0); // Defer to next tick
+      
+      return () => clearTimeout(loadTimeout);
+    }
+  }, [isOpen, currentConversationId, loadExistingConversation]);
+
+  // Check for proactive messages only when opening a new chat session (no existing messages)
+  useEffect(() => {
+    if (isOpen && currentConversationId && messages.length === 0) {
+      // Use setTimeout to defer the API call to next tick, allowing UI to render first
+      const checkTimeout = setTimeout(() => {
+        checkForProactiveMessages();
+      }, 100); // Small delay to avoid race conditions with loadExistingConversation
+      
+      return () => clearTimeout(checkTimeout);
+    }
+  }, [isOpen, currentConversationId, checkForProactiveMessages]);
+
+  // Auto-resize textarea when message changes or component mounts
+  useEffect(() => {
+    if (isOpen) {
+      autoResizeTextarea();
+    }
+  }, [message, isOpen, autoResizeTextarea]);
+
   if (!isOpen) return null;
 
+  // Helper function to get appropriate placeholder text based on decision
+  const getPlaceholderText = (decision: 'respond_directly' | 'query_memory' | null): string => {
+    switch (decision) {
+      case 'query_memory':
+        return 'recollecting memory...';
+      case 'respond_directly':
+      case null:
+      default:
+        return 'thinking...';
+    }
+  };
+
   const handleSendMessage = async () => {
-    if ((!message.trim() && !currentAttachment) || isLoading) return;
+    console.log('🌊 ChatModal: handleSendMessage called', { 
+      message: message.trim(), 
+      hasAttachment: !!currentAttachment, 
+      isLoading,
+      messageLength: message.trim().length 
+    });
+    
+    if ((!message.trim() && !currentAttachment) || isLoading) {
+      console.log('🌊 ChatModal: handleSendMessage early return', { 
+        reason: !message.trim() && !currentAttachment ? 'no message' : 'loading' 
+      });
+      return;
+    }
+    
+    // Prevent double submission by setting loading immediately
+    setLoading(true);
+    
+    // Reset decision state for new message
+    setCurrentDecision(null);
     
     const messageContent = message.trim() || (currentAttachment && currentAttachment.type ? `Sharing ${currentAttachment.type.includes('image') ? 'an image' : 'a file'}: ${currentAttachment.name}` : '');
     
-    const userMessage: EnhancedChatMessage = {
+    const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
       type: 'user',
       content: messageContent,
@@ -281,12 +327,17 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
       attachment: undefined
     };
     
+    console.log('🌊 ChatModal: Adding user message', { 
+      id: userMessage.id, 
+      content: userMessage.content,
+      timestamp: userMessage.timestamp 
+    });
     addMessage(userMessage);
     setMessage('');
-    setLoading(true);
     
     try {
       let response;
+      let accumulatedResponse = '';
       
       if (currentAttachment) {
         // Handle file upload
@@ -298,19 +349,105 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
         );
         setCurrentAttachment(null); // Clear attachment after sending
       } else {
-        // Handle text message
-        response = await chatService.sendMessage({
-          message: messageContent,
-          conversation_id: currentConversationId || undefined,
-          context: {
-            session_id: currentSessionId || undefined, // Use actual session ID from store
-            trigger_background_processing: true
+        // Handle text message with streaming
+        let botMessageId = `bot-${Date.now()}`;
+        let finalResponse: any = null;
+        
+        // Create initial bot message for streaming with dynamic placeholder
+        const initialBotMessage: ChatMessage = {
+          id: botMessageId,
+          type: 'bot',
+          content: getPlaceholderText(currentDecision),
+          timestamp: new Date(),
+          conversation_id: currentConversationId || undefined
+        };
+        addMessage(initialBotMessage);
+        
+        // Use streaming API
+        console.log('🌊 ChatModal: Starting streaming for message:', messageContent);
+        await chatService.sendMessageStreaming(
+          {
+            message: messageContent,
+            conversation_id: currentConversationId || undefined,
+            context: {
+              session_id: currentSessionId || undefined,
+              trigger_background_processing: true
+            }
+          },
+          // onChunk callback - update the message content in real-time
+          (chunk: string) => {
+            console.log('🌊 ChatModal: Received chunk:', chunk);
+            accumulatedResponse += chunk;
+            
+            // Replace placeholder with actual content when streaming starts
+            const displayContent = accumulatedResponse || getPlaceholderText(currentDecision);
+            
+            // Update the existing bot message with accumulated content
+            updateMessage(botMessageId, {
+              content: displayContent,
+              timestamp: new Date()
+            });
+          },
+          // onMetadata callback
+          (metadata: any) => {
+            console.log('🌊 Received conversation metadata:', metadata);
+            if (metadata.conversation_id) {
+              setCurrentConversation(metadata.conversation_id);
+            }
+            if (metadata.session_id && metadata.session_id !== currentSessionId) {
+              setCurrentSession(metadata.session_id);
+              console.log('🔄 Updated session ID from streaming:', metadata.session_id);
+            }
+          },
+          // onComplete callback
+          (response: any) => {
+            finalResponse = response;
+            console.log('🌊 Streaming completed:', response);
+            
+            // Update session history with the new conversation
+            if (response.conversation_id && response.session_id) {
+              updateSessionHistoryItem(response.session_id, {
+                most_recent_conversation_title: response.conversation_title || `Conversation: ${new Date().toISOString().slice(0, 19)}`,
+                conversation_count: 1,
+                last_active_at: new Date()
+              });
+              console.log('🔄 Updated session history with new conversation:', response.conversation_title);
+            }
+          },
+          // onError callback
+          (error: Error) => {
+            console.error('🌊 Streaming error:', error);
+            // Update the bot message with error content
+            updateMessage(botMessageId, {
+              content: `I apologize, but I encountered an error processing your message: ${error.message}. Please try again.`,
+              timestamp: new Date()
+            });
+          },
+          // Pass the user message ID to the backend
+          userMessage.id,
+          // onDecision callback - update placeholder based on agent decision
+          (decision: 'respond_directly' | 'query_memory') => {
+            console.log('🌊 ChatModal: Decision received:', decision);
+            setCurrentDecision(decision);
+            
+            // Update the bot message with new placeholder if no content has streamed yet
+            if (!accumulatedResponse) {
+              updateMessage(botMessageId, {
+                content: getPlaceholderText(decision),
+                timestamp: new Date()
+              });
+            }
           }
-        });
+        );
+        
+        // Set the response for compatibility with existing code
+        response = finalResponse || { success: true, response_text: accumulatedResponse };
       }
 
-      if (response.success && response.response_text) {
-        const botMessage: EnhancedChatMessage = {
+      // Only handle non-streaming responses (like file uploads)
+      // For streaming, we don't need to add another bot message since we already created one
+      if (response && response.success && response.response_text && !accumulatedResponse) {
+        const botMessage: ChatMessage = {
           id: response.message_id || `bot-${Date.now()}`,
           type: 'bot',
           content: response.response_text,
@@ -336,12 +473,12 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
           });
           console.log('🔄 Updated session history with new conversation:', response.conversation_title);
         }
-      } else {
+      } else if (response && !response.success) {
         throw new Error(response.error || 'Failed to send message');
       }
     } catch (error: any) {
       console.error('Error sending message:', error);
-      const errorMessage: EnhancedChatMessage = {
+      const errorMessage: ChatMessage = {
         id: `error-${Date.now()}`,
         type: 'bot',
         content: `I apologize, but I encountered an error processing your message: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`,
@@ -419,7 +556,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
     setCurrentAttachment(null);
   };
 
-  const renderMessageContent = (msg: EnhancedChatMessage) => {
+  const renderMessageContent = (msg: ChatMessage) => {
     return (
       <div>
         {/* Render attachment if present and file is valid */}
@@ -438,7 +575,11 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
           <MarkdownRenderer 
             content={msg.content}
             variant="chat"
-            className="text-white/90 text-sm leading-relaxed"
+            className={`text-sm leading-relaxed ${
+              msg.content === 'thinking...' || msg.content === 'recollecting memory...'
+                ? 'text-white/60 italic animate-pulse' 
+                : 'text-white/90'
+            }`}
           />
         )}
         

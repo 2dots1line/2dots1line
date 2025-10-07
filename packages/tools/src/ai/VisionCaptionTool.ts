@@ -152,10 +152,14 @@ class VisionCaptionToolImpl implements IExecutableTool<VisionCaptionInputPayload
     payload: VisionCaptionInputPayload
   ): Promise<VisionCaptionResult> {
     // Use the pre-initialized Google AI client with configured model
-    const generationConfig = this.modelConfigService.getGenerationConfig(this.currentModelName);
     const model = this.genAI.getGenerativeModel({ 
       model: this.currentModelName,
-      generationConfig
+      generationConfig: {
+        temperature: 0.7,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 50000
+      }
     });
 
     // Prepare the image for analysis

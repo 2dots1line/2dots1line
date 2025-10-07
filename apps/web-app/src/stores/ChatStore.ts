@@ -33,6 +33,7 @@ interface ChatState {
   setCurrentSession: (sessionId: string | null) => void;
   setMessages: (messages: ChatMessage[]) => void;
   addMessage: (message: ChatMessage) => void;
+  updateMessage: (messageId: string, updates: Partial<ChatMessage>) => void;
   clearMessages: () => void;
   setLoading: (loading: boolean) => void;
   setInitialized: (initialized: boolean) => void;
@@ -105,6 +106,27 @@ export const useChatStore = create<ChatState>()(
         };
         set((state) => ({
           messages: [...state.messages, messageWithDateTimestamp]
+        }));
+      },
+      
+      updateMessage: (messageId, updates) => {
+        set((state) => ({
+          messages: state.messages.map(msg => 
+            msg.id === messageId 
+              ? {
+                  ...msg,
+                  ...updates,
+                  // Ensure timestamp is a Date object if updated
+                  timestamp: updates.timestamp 
+                    ? (updates.timestamp instanceof Date ? updates.timestamp : new Date(updates.timestamp))
+                    : msg.timestamp,
+                  // Handle attachment updates
+                  attachment: updates.attachment && updates.attachment.file && updates.attachment.file instanceof File 
+                    ? updates.attachment 
+                    : msg.attachment
+                }
+              : msg
+          )
         }));
       },
       

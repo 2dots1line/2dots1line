@@ -114,6 +114,150 @@ class ChatService {
   }
 
   /**
+   * Send a text message with streaming response to the DialogueAgent via API Gateway
+   * Uses Server-Sent Events for real-time response delivery
+   */
+  async sendMessageStreaming(
+    request: SendMessageRequest,
+    onChunk: (chunk: string) => void,
+    onMetadata?: (metadata: any) => void,
+    onComplete?: (response: SendMessageResponse) => void,
+    onError?: (error: Error) => void,
+    messageId?: string,
+    onDecision?: (decision: 'respond_directly' | 'query_memory') => void
+  ): Promise<void> {
+    console.log('🌊 ChatService.sendMessageStreaming - Starting streaming request:', {
+      url: `${API_BASE_URL}/api/v1/conversations/messages/stream`,
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: request
+    });
+
+    try {
+      console.log('🌊 ChatService: Making fetch request to streaming endpoint');
+      const requestBody = {
+        ...request,
+        message_id: messageId
+      };
+      
+      console.log('🌊 ChatService: Request body with message_id:', requestBody);
+      
+      const response = await fetch(`${API_BASE_URL}/api/v1/conversations/messages/stream`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(requestBody),
+      });
+
+      console.log('🌊 ChatService: Received response:', {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('🌊 ChatService: Response not OK:', errorData);
+        throw new Error(errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      if (!response.body) {
+        throw new Error('No response body received');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      console.log('🌊 ChatService: Starting to read stream...');
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          
+          if (done) {
+            console.log('🌊 ChatService.sendMessageStreaming - Stream completed');
+            break;
+          }
+
+          const chunk = decoder.decode(value, { stream: true });
+          console.log('🌊 ChatService: Received raw chunk:', chunk);
+          buffer += chunk;
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+          for (const line of lines) {
+            console.log('🌊 ChatService: Processing line:', line);
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                console.log('🌊 ChatService: Parsed SSE data:', data);
+                
+                switch (data.type) {
+                  case 'connected':
+                    console.log('🌊 ChatService.sendMessageStreaming - Connected:', data.message);
+                    break;
+                    
+                  case 'conversation_metadata':
+                    console.log('🌊 ChatService.sendMessageStreaming - Conversation metadata:', data);
+                    onMetadata?.(data);
+                    break;
+                    
+                  case 'response_chunk':
+                    console.log('🌊 ChatService.sendMessageStreaming - Received chunk:', data.content);
+                    
+                    // Check if this is a decision chunk
+                    if (data.content.startsWith('DECISION:')) {
+                      const decision = data.content.substring(9) as 'respond_directly' | 'query_memory';
+                      console.log('🌊 ChatService.sendMessageStreaming - Decision detected:', decision);
+                      onDecision?.(decision);
+                    } else {
+                      // Regular content chunk
+                      onChunk(data.content);
+                    }
+                    break;
+                    
+                  case 'response_complete':
+                    console.log('🌊 ChatService.sendMessageStreaming - Response complete:', data);
+                    onComplete?.({
+                      success: true,
+                      conversation_id: data.conversation_id,
+                      session_id: data.session_id,
+                      conversation_title: data.conversation_title,
+                      response_text: data.response_text || '', // Use the response text from backend
+                      message_id: data.message_id,
+                      timestamp: data.timestamp,
+                      metadata: data.metadata
+                    });
+                    break;
+                    
+                  case 'stream_end':
+                    console.log('🌊 ChatService.sendMessageStreaming - Stream ended');
+                    return;
+                    
+                  case 'error':
+                    console.error('🌊 ChatService.sendMessageStreaming - Stream error:', data.error);
+                    onError?.(new Error(data.error?.message || 'Streaming error'));
+                    return;
+                    
+                  default:
+                    console.log('🌊 ChatService.sendMessageStreaming - Unknown event type:', data.type);
+                }
+              } catch (parseError) {
+                console.warn('🌊 ChatService.sendMessageStreaming - Failed to parse SSE data:', line, parseError);
+              }
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
+    } catch (error) {
+      console.error('🌊 ChatService.sendMessageStreaming - Error:', error);
+      onError?.(error as Error);
+    }
+  }
+
+  /**
    * Send a text message to the DialogueAgent via API Gateway
    * Includes retry logic for temporary connection issues
    */

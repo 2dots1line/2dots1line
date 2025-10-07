@@ -21,8 +21,9 @@ const chatSchema = z.object({
 const messageSchema = z.object({
   message: z.string(),
   conversation_id: z.string().optional(),
+  message_id: z.string().optional(),
+  session_id: z.string().optional(),
   context: z.object({
-    session_id: z.string().optional(),
     trigger_background_processing: z.boolean().optional()
   }).optional()
 });
@@ -99,6 +100,248 @@ export class ConversationController {
   }
 
   /**
+   * POST /api/v1/conversations/messages/stream
+   * V11.0: Streaming version of postMessage for real-time response delivery
+   */
+  public postMessageStream = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ 
+          success: false, 
+          error: { code: 'UNAUTHORIZED', message: 'Authorization required' }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      const { message, message_id, conversation_id, session_id } = messageSchema.parse(req.body);
+      
+      console.log(`🌊 ConversationController.postMessageStream - Starting streaming conversation for user ${userId}`);
+      console.log(`🌊 ConversationController.postMessageStream - Received message_id: ${message_id}`);
+
+      // Set up Server-Sent Events headers
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Cache-Control'
+      });
+
+      // Send initial connection confirmation
+      res.write(`data: ${JSON.stringify({ type: 'connected', message: 'Streaming connection established' })}\n\n`);
+
+      // Handle conversation logic - FIXED to reuse active conversations
+      let session: any | null;
+      let conversation: any = null;
+
+      if (conversation_id) {
+        // Resume existing conversation - use its existing session
+        conversation = await this.conversationRepository.findById(conversation_id);
+        
+        if (!conversation) {
+          res.status(404).json({ 
+            success: false, 
+            error: { code: 'NOT_FOUND', message: 'Conversation not found' }
+          } as TApiResponse<any>);
+          return;
+        }
+
+        if (conversation.user_id !== userId) {
+          res.status(403).json({ 
+            success: false, 
+            error: { code: 'FORBIDDEN', message: 'Conversation does not belong to user' }
+          } as TApiResponse<any>);
+          return;
+        }
+
+        // If conversation is ended, create a new conversation in the same session
+        if (conversation.status === 'ended' || conversation.ended_at !== null) {
+          console.log(`🔄 Conversation ${conversation_id} is ended, creating new conversation in same session ${conversation.session_id}`);
+          
+          // Create new conversation in the same session
+          const newConversation = await this.conversationRepository.create({
+            user_id: userId,
+            title: `Conversation: ${new Date().toISOString()}`,
+            session_id: conversation.session_id
+          });
+          
+          // Update conversation to the new one
+          conversation = newConversation;
+          
+          console.log(`✅ Created new conversation ${newConversation.conversation_id} in session ${conversation.session_id}`);
+        } else {
+          console.log(`🔄 Reusing active conversation ${conversation_id} in session ${conversation.session_id}`);
+        }
+
+        // Use the conversation's existing session
+        session = await this.sessionRepository.getSessionById(conversation.session_id);
+        if (!session) {
+          res.status(500).json({ 
+            success: false, 
+            error: { code: 'INTERNAL_ERROR', message: 'Conversation has invalid session' }
+          } as TApiResponse<any>);
+          return;
+        }
+
+        // Update session activity
+        await this.sessionRepository.updateSessionActivity(session.session_id);
+        console.log(`💖 Updated activity for existing session ${session.session_id}`);
+
+      } else if (session_id) {
+        // New conversation in existing session
+        session = await this.sessionRepository.getSessionById(session_id);
+        if (!session || session.user_id !== userId) {
+          res.status(404).json({ 
+            success: false, 
+            error: { code: 'NOT_FOUND', message: 'Session not found' }
+          } as TApiResponse<any>);
+          return;
+        }
+
+        // Create new conversation in this session
+        conversation = await this.conversationRepository.create({
+          user_id: userId,
+          title: `Conversation: ${new Date().toISOString()}`,
+          session_id: session.session_id,
+        });
+        
+        console.log(`🆕 Created new conversation ${conversation.conversation_id} in existing session ${session.session_id}`);
+
+      } else {
+        // No conversation_id provided - find or create session and conversation
+        session = await this.sessionRepository.findActiveSessionByUserId(userId);
+
+        if (session) {
+          // Check if there's an active conversation in this session
+          const activeConversation = await this.conversationRepository.findActiveConversationBySessionId(session.session_id);
+          
+          if (activeConversation) {
+            // Reuse existing active conversation
+            conversation = activeConversation;
+            console.log(`🔄 Reusing active conversation ${conversation.conversation_id} in existing session ${session.session_id}`);
+          } else {
+            // Create new conversation in existing session
+            conversation = await this.conversationRepository.create({
+              user_id: userId,
+              title: `Conversation: ${new Date().toISOString()}`,
+              session_id: session.session_id,
+            });
+            console.log(`🆕 Created new conversation ${conversation.conversation_id} in existing session ${session.session_id}`);
+          }
+          
+          // Update session activity
+          await this.sessionRepository.updateSessionActivity(session.session_id);
+          console.log(`💖 Updated activity for existing session ${session.session_id}`);
+        } else {
+          // New chat - create new session and conversation
+          session = await this.sessionRepository.createSession({
+            user_id: userId
+          });
+
+          conversation = await this.conversationRepository.create({
+            user_id: userId,
+            title: `Conversation: ${new Date().toISOString()}`,
+            session_id: session.session_id,
+          });
+          console.log(`🆕 Created new session ${session.session_id} and conversation ${conversation.conversation_id}`);
+        }
+      }
+
+      const actualConversationId = conversation!.conversation_id;
+
+      // Log the USER'S message immediately
+      await this.conversationRepository.addMessage({
+        conversation_id: actualConversationId,
+        type: 'user',
+        content: message,
+        message_id: message_id, // Use the ID from frontend
+      });
+
+      // Set/Reset the Redis heartbeat for the timeout worker
+      const heartbeatKey = `${REDIS_CONVERSATION_TIMEOUT_PREFIX}${actualConversationId}`;
+      const timeoutSeconds = this.getConversationTimeout();
+      await this.redis.set(heartbeatKey, 'active', 'EX', timeoutSeconds);
+
+      console.log(`✅ Processing streaming conversation ${actualConversationId} in session ${conversation.session_id}`);
+
+      // Send conversation metadata
+      res.write(`data: ${JSON.stringify({ 
+        type: 'conversation_metadata',
+        conversation_id: conversation.conversation_id,
+        session_id: session.session_id,
+        conversation_title: conversation?.title || `Conversation: ${new Date().toISOString()}`
+      })}\n\n`);
+
+      // Call the streaming DialogueAgent
+      const agentResult = await this.dialogueAgent.processTurnStreaming({
+        userId,
+        conversationId: actualConversationId,
+        currentMessageText: message,
+        onChunk: (chunk: string) => {
+          // Send each chunk to the client
+          res.write(`data: ${JSON.stringify({ 
+            type: 'response_chunk', 
+            content: chunk,
+            conversation_id: actualConversationId
+          })}\n\n`);
+        }
+      });
+
+      // Log the ASSISTANT'S response
+      await this.conversationRepository.addMessage({
+        conversation_id: actualConversationId,
+        type: 'assistant',
+        content: agentResult.response_text,
+        metadata: agentResult.metadata || {}
+      });
+
+      // Send final response metadata
+      console.log('🌊 ConversationController: agentResult.response_text:', agentResult.response_text);
+      console.log('🌊 ConversationController: agentResult keys:', Object.keys(agentResult));
+      
+      res.write(`data: ${JSON.stringify({ 
+        type: 'response_complete',
+        conversation_id: actualConversationId,
+        session_id: session.session_id,
+        conversation_title: conversation?.title || `Conversation: ${new Date().toISOString()}`,
+        response_text: agentResult.response_text,
+        message_id: `msg_${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        metadata: agentResult.metadata,
+        ui_actions: agentResult.ui_actions
+      })}\n\n`);
+
+      // Close the stream
+      res.write(`data: ${JSON.stringify({ type: 'stream_end' })}\n\n`);
+      res.end();
+
+    } catch (error) {
+      console.error('❌ ConversationController.postMessageStream error:', error);
+      
+      // Send error to client if connection is still open
+      if (!res.headersSent) {
+        res.writeHead(200, {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Cache-Control'
+        });
+        res.write(`data: ${JSON.stringify({ 
+          type: 'error',
+          error: { 
+            code: 'INTERNAL_ERROR', 
+            message: 'Failed to process streaming message' 
+          }
+        })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: 'stream_end' })}\n\n`);
+      }
+      res.end();
+    }
+  };
+
+  /**
    * POST /api/v1/conversations/messages
    * V11.1: Correct implementation of conversation lifecycle management per tech lead guidance
    */
@@ -114,7 +357,7 @@ export class ConversationController {
       }
 
       // V11.1 FIX: CORRECTLY parse the conversation_id from the request body
-      const { message, conversation_id, session_id } = req.body;
+      const { message, conversation_id, session_id } = messageSchema.parse(req.body);
 
       if (!message) {
         res.status(400).json({ 
@@ -254,7 +497,8 @@ export class ConversationController {
         response_text: agentResult.response_text,
         message_id: `msg_${Date.now()}`,
         timestamp: new Date().toISOString(),
-        metadata: agentResult.metadata
+        metadata: agentResult.metadata,
+        ui_actions: agentResult.ui_actions
       });
 
     } catch (error) {
@@ -1019,14 +1263,20 @@ export class ConversationController {
       res.status(200).json({
         success: true,
         data: {
-          sessions: sessions.map(session => ({
-            session_id: (session as any).session_id,
-            created_at: (session as any).created_at,
-            last_active_at: (session as any).last_active_at,
-            most_recent_conversation_title: (session as any).conversations?.[0]?.title || 'New Chat',
-            conversation_count: (session as any).conversations?.length || 0,
-            conversations: (session as any).conversations || []
-          }))
+          sessions: sessions.map(session => {
+            // Find the most recent processed conversation for the title
+            const processedConversations = (session as any).conversations?.filter((conv: any) => conv.status === 'processed') || [];
+            const mostRecentProcessed = processedConversations[0]; // Already ordered by created_at desc
+            
+            return {
+              session_id: (session as any).session_id,
+              created_at: (session as any).created_at,
+              last_active_at: (session as any).last_active_at,
+              most_recent_conversation_title: mostRecentProcessed?.title || 'New Chat',
+              conversation_count: (session as any).conversations?.length || 0,
+              conversations: (session as any).conversations || []
+            };
+          })
         }
       } as TApiResponse<any>);
 

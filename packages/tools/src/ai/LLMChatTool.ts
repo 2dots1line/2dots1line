@@ -56,6 +56,8 @@ export interface LLMChatInputPayload {
   maxTokens?: number;
   topP?: number;
   enforceJsonMode?: boolean;  // Whether to enforce JSON mode for OpenAI
+  enableStreaming?: boolean;  // Whether to enable streaming responses
+  onChunk?: (chunk: string) => void;  // Callback for streaming chunks
   
   // New fields for LLM interaction logging
   workerType?: string;        // 'insight-worker', 'ingestion-worker', 'dialogue-service'
@@ -234,6 +236,33 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
   /**
    * Execute LLM chat conversation
    */
+  /**
+   * Extract JSON from response, handling potential markdown formatting
+   */
+  private extractJSONFromResponse(response: string): string {
+    try {
+      // Remove markdown code blocks if present
+      let cleaned = response.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+      
+      // Find JSON object boundaries
+      const startIndex = cleaned.indexOf('{');
+      const lastIndex = cleaned.lastIndexOf('}');
+      
+      if (startIndex !== -1 && lastIndex !== -1 && lastIndex > startIndex) {
+        const jsonString = cleaned.substring(startIndex, lastIndex + 1);
+        // Validate it's parseable JSON
+        JSON.parse(jsonString);
+        return jsonString;
+      }
+      
+      throw new Error('No valid JSON found in response');
+    } catch (error) {
+      console.error('❌ LLMChatTool - JSON extraction failed:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to extract valid JSON from response: ${errorMessage}`);
+    }
+  }
+
   async execute(input: LLMChatInput): Promise<LLMChatOutput> {
     const requestStartedAt = new Date();
     let currentMessage = '';
@@ -264,12 +293,212 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
               responseMimeType: 'application/json',
             },
           });
-          const systemPrompt = input.payload.systemPrompt;
-          currentMessage = `${systemPrompt}\n\nRELEVANT CONTEXT FROM USER'S PAST:\n${input.payload.memoryContextBlock || 'No memories provided.'}\n\nCURRENT MESSAGE: ${input.payload.userMessage}`;
-          const result = await chat.sendMessage(currentMessage);
-          const response = await result.response;
-          const text = response.text();
-          const providerModel = (response as any)?.model || this.currentModelName || 'unknown';
+          
+          // Enhanced system prompt for deterministic JSON output
+          const enhancedSystemPrompt = `You are a machine that only returns and replies with valid, iterable RFC8259 compliant JSON in your responses.
+
+CRITICAL JSON REQUIREMENTS:
+- Return ONLY the JSON object
+- Start your response with { and end with }
+- No text before or after the JSON
+- No markdown formatting (no \`\`\`json)
+- No explanations outside the JSON
+- Ensure the JSON is complete and valid
+
+CRITICAL DECISION RULE:
+- If the prompt contains "augmented_memory_context" or memory retrieval context → ALWAYS use "decision": "respond_directly"
+- If no memory context is provided → Use "decision": "query_memory" or "respond_directly" based on context
+
+${input.payload.systemPrompt}`;
+          
+          currentMessage = `${enhancedSystemPrompt}\n\nRELEVANT CONTEXT FROM USER'S PAST:\n${input.payload.memoryContextBlock || 'No memories provided.'}\n\nCURRENT MESSAGE: ${input.payload.userMessage}`;
+          
+          let text = '';
+          let response: any;
+          let providerModel = 'unknown';
+          
+          if (input.payload.enableStreaming && input.payload.onChunk) {
+            // Streaming mode
+            console.log(`🌊 LLMChatTool: Using streaming mode for user ${input.payload.userId}`);
+            const result = await chat.sendMessageStream(currentMessage);
+            const stream = result.stream;
+            
+            let accumulatedText = '';
+            let lastStreamedLength = 0;
+            let inDirectResponseText = false;
+            let directResponseTextStart = -1;
+            let responsePlanStart = -1;
+            let hasStreamedAnyContent = false;
+            let isRespondDirectlyDecision = false;
+            
+            for await (const chunk of stream) {
+              const chunkText = chunk.text();
+              accumulatedText += chunkText;
+              
+              // Debug: Log the current accumulated text to understand the structure
+              console.log(`🌊 LLMChatTool: Current accumulated text length: ${accumulatedText.length}`);
+              console.log(`🌊 LLMChatTool: Current chunk: "${chunkText}"`);
+              
+              // Try to stream only the direct_response_text content to frontend
+              try {
+                // First, find the response_plan section
+                if (responsePlanStart === -1) {
+                  const responsePlanMatch = accumulatedText.match(/"response_plan"\s*:\s*{/);
+                  if (responsePlanMatch) {
+                    responsePlanStart = responsePlanMatch.index! + responsePlanMatch[0].length;
+                    console.log(`🌊 LLMChatTool: ✅ Found response_plan at position ${responsePlanStart}`);
+                  }
+                }
+                
+                // Check if this is a "respond_directly" decision (bulletproof filtering)
+                if (responsePlanStart !== -1 && !isRespondDirectlyDecision) {
+                  const responsePlanSection = accumulatedText.substring(responsePlanStart);
+                  const decisionMatch = responsePlanSection.match(/"decision"\s*:\s*"respond_directly"/);
+                  
+                  if (decisionMatch) {
+                    isRespondDirectlyDecision = true;
+                    console.log(`🌊 LLMChatTool: ✅ Confirmed "respond_directly" decision - will stream content`);
+                    // Send decision information to frontend
+                    if (input.payload.onChunk) {
+                      input.payload.onChunk('DECISION:respond_directly');
+                    }
+                  } else {
+                    // Check if it's a different decision (like "query_memory")
+                    const queryMemoryMatch = responsePlanSection.match(/"decision"\s*:\s*"query_memory"/);
+                    if (queryMemoryMatch) {
+                      console.log(`🌊 LLMChatTool: ⏭️ Detected "query_memory" decision - skipping streaming`);
+                      // Send decision information to frontend before skipping
+                      if (input.payload.onChunk) {
+                        input.payload.onChunk('DECISION:query_memory');
+                      }
+                      continue; // Skip this chunk and all subsequent chunks for this response
+                    }
+                  }
+                }
+                
+                // Only proceed with streaming if we have a "respond_directly" decision
+                if (isRespondDirectlyDecision && !inDirectResponseText) {
+                  // Look for direct_response_text field (now at the root level, not in response_plan)
+                  const directResponseMatch = accumulatedText.match(/"direct_response_text"\s*:\s*"/);
+                  if (directResponseMatch) {
+                    // Calculate the absolute position of the text start (after the opening quote)
+                    const textStart = directResponseMatch.index! + directResponseMatch[0].length;
+                    inDirectResponseText = true;
+                    directResponseTextStart = textStart;
+                    console.log(`🌊 LLMChatTool: ✅ Entered direct_response_text field (new structure) at position ${textStart}`);
+                    console.log(`🌊 LLMChatTool: Text before direct_response_text: "${accumulatedText.substring(0, textStart)}"`);
+                  }
+                }
+                
+                // If we're in the direct_response_text field AND it's a respond_directly decision, extract and stream only that content
+                if (isRespondDirectlyDecision && inDirectResponseText) {
+                  // Extract everything from the text start to the current position
+                  let currentResponseText = accumulatedText.substring(directResponseTextStart);
+                  
+                  // Check if we've reached the end of the direct_response_text field
+                  // Since direct_response_text is now the last field, look for closing quote + closing brace
+                  let endPosition = -1;
+                  
+                  // Look for the closing quote followed by closing brace (end of JSON)
+                  const endMatch = currentResponseText.match(/^([^"]*(?:\\.[^"]*)*)"(\s*})/);
+                  if (endMatch) {
+                    endPosition = endMatch[1].length;
+                    console.log(`🌊 LLMChatTool: Found end boundary via closing quote + brace at position ${endPosition}`);
+                  } else {
+                    // Fallback to character-by-character approach
+                    let i = 0;
+                    while (i < currentResponseText.length) {
+                      if (currentResponseText[i] === '"') {
+                        // Check if this quote is escaped
+                        let escapeCount = 0;
+                        let j = i - 1;
+                        while (j >= 0 && currentResponseText[j] === '\\') {
+                          escapeCount++;
+                          j--;
+                        }
+                        // If the quote is not escaped (even number of backslashes before it)
+                        if (escapeCount % 2 === 0) {
+                          // Look ahead to see what comes after this quote
+                          let nextIndex = i + 1;
+                          // Skip whitespace
+                          while (nextIndex < currentResponseText.length && /\s/.test(currentResponseText[nextIndex])) {
+                            nextIndex++;
+                          }
+                          
+                          // Check if we have a closing brace after whitespace (end of JSON)
+                          if (nextIndex < currentResponseText.length && currentResponseText[nextIndex] === '}') {
+                            endPosition = i;
+                            console.log(`🌊 LLMChatTool: Found end boundary at position ${endPosition}, next char: "}"`);
+                            break;
+                          }
+                        }
+                      }
+                      i++;
+                    }
+                  }
+                  
+                  if (endPosition !== -1) {
+                    // We've reached the end of the direct_response_text field
+                    currentResponseText = currentResponseText.substring(0, endPosition);
+                    inDirectResponseText = false;
+                    console.log(`🌊 LLMChatTool: ✅ Exited direct_response_text field at position ${endPosition}`);
+                    console.log(`🌊 LLMChatTool: Final direct_response_text: "${currentResponseText}"`);
+                  }
+                  
+                  // Unescape the response text
+                  const unescapedText = currentResponseText.replace(/\\"/g, '"').replace(/\\n/g, '\n').replace(/\\\\/g, '\\');
+                  
+                  // Only send new content that hasn't been sent yet
+                  if (unescapedText.length > lastStreamedLength) {
+                    const newContent = unescapedText.substring(lastStreamedLength);
+                    lastStreamedLength = unescapedText.length;
+                    text = unescapedText;
+                    hasStreamedAnyContent = true;
+                    input.payload.onChunk!(newContent);
+                    console.log(`🌊 LLMChatTool: ✅ Streamed clean response chunk: "${newContent}"`);
+                  }
+                } else {
+                  // We're not in the direct_response_text field yet, or it's not a respond_directly decision
+                  // Don't stream anything to frontend, but continue accumulating for backend processing
+                  if (!isRespondDirectlyDecision) {
+                    console.log(`🌊 LLMChatTool: ⏭️ Skipping chunk (not respond_directly decision): "${chunkText}"`);
+                  } else {
+                    console.log(`🌊 LLMChatTool: ⏭️ Skipping chunk (not in direct_response_text): "${chunkText}"`);
+                  }
+                }
+              } catch (error) {
+                console.warn(`🌊 LLMChatTool: Error parsing streaming chunk:`, error);
+                // If parsing fails and we're not in direct_response_text, don't stream
+                if (!inDirectResponseText) {
+                  console.log(`🌊 LLMChatTool: ⏭️ Skipping error chunk (not in direct_response_text): "${chunkText}"`);
+                }
+              }
+            }
+            
+            // If we never streamed any content, log a warning
+            if (!hasStreamedAnyContent) {
+              if (!isRespondDirectlyDecision) {
+                console.log(`🌊 LLMChatTool: ℹ️ No streaming needed - decision was not "respond_directly"`);
+              } else {
+                console.warn(`🌊 LLMChatTool: ⚠️ Never found "direct_response_text" field in response despite "respond_directly" decision. Full response: "${accumulatedText}"`);
+              }
+            }
+            
+            // Get the final response for metadata and parsing
+            response = await result.response;
+            providerModel = (response as any)?.model || this.currentModelName || 'unknown';
+            
+            // For streaming mode, we need to return the full accumulated text for parsing
+            // The backend gets the complete JSON, frontend only got the clean direct_response_text
+            text = accumulatedText; // Use the full JSON for parsing
+          } else {
+            // Non-streaming mode (existing behavior)
+            const result = await chat.sendMessage(currentMessage);
+            response = await result.response;
+            text = response.text();
+            providerModel = (response as any)?.model || this.currentModelName || 'unknown';
+          }
+          
           const endTime = performance.now();
           const processingTime = endTime - startTime;
           const requestCompletedAt = new Date();

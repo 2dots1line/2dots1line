@@ -26,6 +26,7 @@ export interface CreateMessageData {
   content: string;
   metadata?: any;
   media_ids?: string[];
+  message_id?: string; // Allow custom message ID from frontend
 }
 
 export interface UpdateConversationData {
@@ -148,10 +149,10 @@ export class ConversationRepository {
 
   // Message operations
   async addMessage(data: CreateMessageData): Promise<conversation_messages> {
-    const { conversation_id, ...messageData } = data;
+    const { conversation_id, message_id, ...messageData } = data;
     return this.db.prisma.conversation_messages.create({
       data: {
-        message_id: randomUUID(),
+        message_id: message_id || randomUUID(), // Use provided ID or generate new one
         ...messageData,
         conversations: {
           connect: {
@@ -265,38 +266,63 @@ export class ConversationRepository {
     });
   }
 
-  // NEW METHOD: Get session context from most recently processed conversation
-  async getSessionContext(sessionId: string, currentConversationId: string, limit: number = 3): Promise<conversation_messages[]> {
-    console.log(`🔍 ConversationRepository.getSessionContext - Starting for session: ${sessionId}, current conversation: ${currentConversationId}`);
-    
-    // Get the most recently processed conversation in the same session
-    // Look for conversations that are either 'ended' (waiting for ingestion) or 'processed' (already ingested)
-    const previousConversation = await this.db.prisma.conversations.findFirst({
+  // NEW METHOD: Find active conversation in a session
+  async findActiveConversationBySessionId(sessionId: string): Promise<conversations | null> {
+    return this.db.prisma.conversations.findFirst({
       where: {
         session_id: sessionId,
-        conversation_id: { not: currentConversationId },
-        status: { in: ['ended', 'processed'] }, // Include both ended and processed conversations
-        ended_at: { not: null }
+        status: 'active',
+        ended_at: null
       },
-      orderBy: { ended_at: 'desc' },
+      orderBy: { created_at: 'desc' }
+    });
+  }
+
+  // NEW METHOD: Get session context from most recent messages across all previous conversations in session
+  async getSessionContext(sessionId: string, currentConversationId: string, limit: number = 10): Promise<conversation_messages[]> {
+    console.log(`🔍 ConversationRepository.getSessionContext - Starting for session: ${sessionId}, current conversation: ${currentConversationId}, limit: ${limit}`);
+    
+    // Get the most recent messages from ALL previous conversations in the same session
+    // This ensures we get the most recent 10 messages regardless of which conversation they came from
+    const recentMessages = await this.db.prisma.conversation_messages.findMany({
+      where: {
+        conversations: {
+          session_id: sessionId,
+          conversation_id: { not: currentConversationId }
+        }
+      },
+      orderBy: { created_at: 'desc' },
+      take: limit,
       include: {
-        conversation_messages: {
-          orderBy: { created_at: 'desc' },
-          take: limit
+        conversations: {
+          select: {
+            conversation_id: true,
+            status: true,
+            ended_at: true
+          }
         }
       }
     });
 
-    console.log(`🔍 ConversationRepository.getSessionContext - Previous conversation found:`, {
+    console.log(`🔍 ConversationRepository.getSessionContext - Recent messages found:`, {
       sessionId,
       currentConversationId,
-      previousConversationId: previousConversation?.conversation_id,
-      previousConversationStatus: previousConversation?.status,
-      previousConversationEndedAt: previousConversation?.ended_at,
-      messageCount: 0
+      totalMessagesFound: recentMessages.length,
+      messagesByConversation: recentMessages.reduce((acc, msg) => {
+        const convId = msg.conversations.conversation_id;
+        acc[convId] = (acc[convId] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>),
+      messagePreview: recentMessages.slice(0, 3).map(m => ({
+        conversationId: m.conversations.conversation_id,
+        type: m.type,
+        content: m.content.substring(0, 50) + '...',
+        createdAt: m.created_at
+      }))
     });
 
-    return [];
+    // Return messages in chronological order (oldest first) for proper context flow
+    return recentMessages.reverse();
   }
 
 

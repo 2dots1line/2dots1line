@@ -71,6 +71,162 @@ export class DialogueAgent {
   }
 
   /**
+   * Streaming version of processTurn for real-time response delivery.
+   */
+  public async processTurnStreaming(input: {
+    userId: string;
+    conversationId: string;
+    currentMessageText?: string;
+    currentMessageMedia?: Array<{
+      type: string;
+      url?: string;
+      content?: string;
+    }>;
+    onChunk?: (chunk: string) => void;
+  }): Promise<{
+    response_text: string;
+    ui_actions: Array<{
+      action: string;
+      label: string;
+      payload: Record<string, unknown>;
+    }>;
+    metadata: {
+      execution_id: string;
+      decision: string;
+      processing_time_ms: number;
+      key_phrases_used?: string[];
+      memory_retrieval_performed?: boolean;
+    };
+    vision_analysis?: string;
+    document_analysis?: string;
+  }> {
+    const executionId = `da_stream_${Date.now()}`;
+    console.log(`[${executionId}] Starting streaming turn processing for convo: ${input.conversationId}`);
+
+    // --- PHASE I: INPUT PRE-PROCESSING ---
+    const { processedText: finalInputText, visionAnalysis, documentAnalysis } = await this.processInput(input.currentMessageText, input.currentMessageMedia);
+
+    // --- PHASE II: SINGLE SYNTHESIS LLM CALL WITH STREAMING ---
+    const llmResponse = await this.performSingleSynthesisCallStreaming({ ...input, finalInputText }, undefined, 'first', input.onChunk);
+
+    // --- PHASE III: CONDITIONAL ORCHESTRATION & FINAL RESPONSE ---
+    const { response_plan, turn_context_package, ui_actions } = llmResponse;
+    
+    // Immediately persist the next turn's context to Redis
+    try {
+      await this.redis.set(`turn_context:${input.conversationId}`, JSON.stringify(turn_context_package), 'EX', 600); // 10 min TTL
+      console.log(`✅ DialogueAgent - Turn context saved to Redis for ${input.conversationId}`);
+    } catch (error) {
+      console.error(`❌ DialogueAgent - Failed to save turn context to Redis:`, error);
+      // Continue processing - Redis failure shouldn't block response
+    }
+
+    if (response_plan.decision === 'respond_directly') {
+      console.log(`[${executionId}] Decision: Respond Directly. Turn complete.`);
+      
+      // Handle new JSON structure where direct_response_text is at root level
+      const directResponseText = llmResponse.direct_response_text || 'I apologize, but I encountered an issue processing your request.';
+      
+      // Debug: Log the actual direct_response_text value
+      console.log(`[${executionId}] DEBUG: direct_response_text value:`, JSON.stringify(directResponseText));
+      console.log(`[${executionId}] DEBUG: direct_response_text type:`, typeof directResponseText);
+      console.log(`[${executionId}] DEBUG: direct_response_text is null:`, directResponseText === null);
+      console.log(`[${executionId}] DEBUG: direct_response_text is undefined:`, directResponseText === undefined);
+      
+      return { 
+        response_text: directResponseText,
+        ui_actions,
+        metadata: {
+          execution_id: executionId,
+          decision: response_plan.decision,
+          processing_time_ms: Date.now() - parseInt(executionId.split('_')[2])
+        },
+        vision_analysis: visionAnalysis,
+        document_analysis: documentAnalysis
+      };
+    } 
+    
+    if (response_plan.decision === 'query_memory') {
+      console.log(`[${executionId}] Decision: Query Memory. Key phrases:`, response_plan.key_phrases_for_retrieval);
+      
+      // Fix: Handle both string and array formats from LLM response
+      let keyPhrases: string[];
+      if (typeof response_plan.key_phrases_for_retrieval === 'string') {
+        const phrasesString = response_plan.key_phrases_for_retrieval as string;
+        keyPhrases = phrasesString
+          .split(',')
+          .map((phrase: string) => phrase.trim())
+          .filter((phrase: string) => phrase.length > 0);
+        console.log(`[${executionId}] Converted string to array:`, keyPhrases);
+      } else if (Array.isArray(response_plan.key_phrases_for_retrieval)) {
+        keyPhrases = response_plan.key_phrases_for_retrieval;
+      } else {
+        console.warn(`[${executionId}] Invalid key_phrases_for_retrieval format:`, response_plan.key_phrases_for_retrieval);
+        keyPhrases = [];
+      }
+      
+      // A. Execute retrieval
+      console.log(`[${executionId}] 🔍 Executing memory retrieval with key phrases:`, keyPhrases);
+      
+      const userParameters = await this.loadUserHRTParameters(input.userId);
+      
+      const augmentedContext = await this.hybridRetrievalTool.execute({
+        keyPhrasesForRetrieval: keyPhrases,
+        userId: input.userId,
+        userParameters: userParameters
+      });
+      
+      console.log(`[${executionId}] 📊 Memory retrieval results:`, {
+        memoryUnits: augmentedContext.retrievedMemoryUnits?.length || 0,
+        concepts: augmentedContext.retrievedConcepts?.length || 0,
+        artifacts: augmentedContext.retrievedArtifacts?.length || 0,
+        hasContext: !!augmentedContext
+      });
+
+      // B. Make the second, context-aware LLM call with streaming
+      console.log(`[${executionId}] 🤖 Making second LLM call with augmented memory context`);
+      const finalLlmResponse = await this.performSingleSynthesisCallStreaming({ ...input, finalInputText }, augmentedContext, 'second', input.onChunk);
+      
+      console.log(`[${executionId}] Retrieval complete. Generating final response.`);
+      
+      // Handle new JSON structure where direct_response_text is at root level
+      const finalDirectResponseText = finalLlmResponse.direct_response_text || 'I apologize, but I encountered an issue processing your request.';
+      
+      return {
+        response_text: finalDirectResponseText,
+        ui_actions: finalLlmResponse.ui_actions,
+        metadata: {
+          execution_id: executionId,
+          decision: response_plan.decision,
+          key_phrases_used: keyPhrases,
+          memory_retrieval_performed: true,
+          processing_time_ms: Date.now() - parseInt(executionId.split('_')[2])
+        },
+        vision_analysis: visionAnalysis,
+        document_analysis: documentAnalysis
+      };
+    }
+
+    // Fallback for unknown decisions
+    console.warn(`[${executionId}] Unknown decision: ${response_plan.decision}. Using direct response.`);
+    
+    // Handle new JSON structure where direct_response_text is at root level
+    const fallbackDirectResponseText = llmResponse.direct_response_text  || 'I apologize, but I encountered an issue processing your request.';
+    
+    return {
+      response_text: fallbackDirectResponseText,
+      ui_actions: [],
+      metadata: {
+        execution_id: executionId,
+        decision: 'fallback',
+        processing_time_ms: Date.now() - parseInt(executionId.split('_')[2])
+      },
+      vision_analysis: visionAnalysis,
+      document_analysis: documentAnalysis
+    };
+  }
+
+  /**
    * Main entry point for processing a single conversational turn.
    */
   public async processTurn(input: {
@@ -123,9 +279,12 @@ export class DialogueAgent {
     if (response_plan.decision === 'respond_directly') {
       console.log(`[${executionId}] Decision: Respond Directly. Turn complete.`);
       
+      // Handle new JSON structure where direct_response_text is at root level
+      const directResponseText = llmResponse.direct_response_text || 'I apologize, but I encountered an issue processing your request.';
+      
       // V11.0 HEADLESS SERVICE: Return pure result, no database side effects
       return { 
-        response_text: response_plan.direct_response_text,
+        response_text: directResponseText,
         ui_actions,
         metadata: {
           execution_id: executionId,
@@ -182,9 +341,12 @@ export class DialogueAgent {
       
       console.log(`[${executionId}] Retrieval complete. Generating final response.`);
       
+      // Handle new JSON structure where direct_response_text is at root level
+      const finalDirectResponseText = finalLlmResponse.direct_response_text || 'I apologize, but I encountered an issue processing your request.';
+      
       // V11.0 HEADLESS SERVICE: Return pure result, no database side effects
       return {
-        response_text: finalLlmResponse.response_plan.direct_response_text,
+        response_text: finalDirectResponseText,
         ui_actions: finalLlmResponse.ui_actions,
         metadata: {
           execution_id: executionId,
@@ -393,7 +555,6 @@ export class DialogueAgent {
   ): Promise<{
     response_plan: {
       decision: string;
-      direct_response_text: string;
       key_phrases_for_retrieval?: string[];
     };
     turn_context_package: Record<string, unknown>;
@@ -402,6 +563,7 @@ export class DialogueAgent {
       label: string;
       payload: Record<string, unknown>;
     }>;
+    direct_response_text?: string; // New structure: at root level
   }> {
     
     // V11.0 STANDARD: Determine if this is a new conversation
@@ -488,6 +650,98 @@ export class DialogueAgent {
   }
 
   /**
+   * Streaming version of performSingleSynthesisCall for real-time response delivery.
+   */
+  private async performSingleSynthesisCallStreaming(
+    input: { userId: string; conversationId: string; finalInputText: string },
+    augmentedMemoryContext?: AugmentedMemoryContext,
+    callType: 'first' | 'second' = 'first',
+    onChunk?: (chunk: string) => void
+  ): Promise<{
+    response_plan: {
+      decision: string;
+      key_phrases_for_retrieval?: string[];
+    };
+    turn_context_package: Record<string, unknown>;
+    ui_actions: Array<{
+      action: string;
+      label: string;
+      payload: Record<string, unknown>;
+    }>;
+    direct_response_text?: string; // New structure: at root level
+  }> {
+    
+    // V11.0 STANDARD: Determine if this is a new conversation
+    const conversationHistory = await this.conversationRepo.getMostRecentMessages(input.conversationId, 10);
+    const isNewConversation = conversationHistory.length === 0;
+    
+    console.log(`[DialogueAgent] V11.0 - ${callType.toUpperCase()} STREAMING LLM call - Conversation analysis: isNewConversation=${isNewConversation}, historyLength=${conversationHistory.length}, hasAugmentedMemory=${!!augmentedMemoryContext}`);
+
+    const promptBuildInput: PromptBuildInput = {
+      userId: input.userId,
+      conversationId: input.conversationId,
+      finalInputText: input.finalInputText,
+      augmentedMemoryContext,
+      isNewConversation
+    };
+
+    const promptOutput = await this.promptBuilder.buildPrompt(promptBuildInput);
+
+    // V11.0 STANDARD: Handle next_conversation_context_package cleanup here (not in PromptBuilder)
+    if (isNewConversation) {
+      console.log(`[DialogueAgent] V11.0 - New conversation detected, context package cleanup should be handled by IngestionAnalyst`);
+    }
+
+    // V11.0 STANDARD: Prepare LLM input with separated prompts and proper history
+    const formattedHistory = this.formatHistoryForLLM(promptOutput.conversationHistory);
+    
+    const llmToolInput = {
+      payload: {
+        userId: input.userId,
+        sessionId: input.conversationId,
+        workerType: 'dialogue-service',
+        workerJobId: `dialogue-stream-${Date.now()}`,
+        conversationId: input.conversationId,
+        messageId: `msg-stream-${Date.now()}`,
+        sourceEntityId: input.conversationId,
+        systemPrompt: promptOutput.systemPrompt,
+        userMessage: promptOutput.userPrompt,
+        history: formattedHistory,
+        memoryContextBlock: augmentedMemoryContext?.relevant_memories?.join('\n') || '',
+        temperature: 0.3,
+        maxTokens: 50000,
+        enforceJsonMode: true,
+        enableStreaming: true,
+        onChunk: onChunk
+      },
+      request_id: `dialogue-stream-${Date.now()}-${callType}`
+    };
+
+    console.log(`[DialogueAgent] V11.0 - ${callType.toUpperCase()} STREAMING LLM call - LLM input prepared:`, {
+      systemPromptLength: llmToolInput.payload.systemPrompt.length,
+      userMessageLength: llmToolInput.payload.userMessage.length,
+      historyCount: llmToolInput.payload.history.length,
+      hasMemoryContext: !!llmToolInput.payload.memoryContextBlock,
+      memoryContextLength: llmToolInput.payload.memoryContextBlock?.length || 0,
+      streamingEnabled: !!llmToolInput.payload.enableStreaming
+    });
+
+    // Enhanced LLM call with retry logic and streaming
+    const llmResult = await LLMRetryHandler.executeWithRetry(
+      this.llmChatTool,
+      llmToolInput,
+      { 
+        maxAttempts: 3, 
+        baseDelay: 1000,
+        callType: `${callType}-streaming`
+      }
+    );
+
+    // Use Gemini's native JSON parsing
+    return this.parseLLMResponse(llmResult);
+  }
+
+  /**
    * Simple LLM response parser using Gemini's native JSON capabilities.
    * Clean and reliable - no complex fallback strategies.
    */
@@ -496,15 +750,18 @@ export class DialogueAgent {
     console.log('DialogueAgent - Raw LLM response:', rawText.substring(0, 200) + '...');
     
     try {
-      // Simple JSON extraction - just find the JSON between { and }
-      const firstBrace = rawText.indexOf('{');
-      const lastBrace = rawText.lastIndexOf('}');
+      // Enhanced JSON extraction with markdown handling
+      let cleaned = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+      
+      // Find JSON object boundaries
+      const firstBrace = cleaned.indexOf('{');
+      const lastBrace = cleaned.lastIndexOf('}');
       
       if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
         throw new Error("No valid JSON found in LLM response");
       }
       
-      const jsonText = rawText.substring(firstBrace, lastBrace + 1).trim();
+      const jsonText = cleaned.substring(firstBrace, lastBrace + 1).trim();
       console.log('DialogueAgent - Extracted JSON:', jsonText.substring(0, 100) + '...');
       
       // Parse the JSON directly

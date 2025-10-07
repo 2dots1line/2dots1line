@@ -107,6 +107,16 @@ export class SessionRepository {
   }
 
   /**
+   * Find the most recent active session for a user
+   */
+  async findActiveSessionByUserId(userId: string): Promise<user_sessions | null> {
+    return this.db.prisma.user_sessions.findFirst({
+      where: { user_id: userId },
+      orderBy: { last_active_at: 'desc' }
+    });
+  }
+
+  /**
    * Check if a session is still active
    */
   async isSessionActive(sessionId: string): Promise<boolean> {
