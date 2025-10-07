@@ -100,7 +100,7 @@ export class KeyPhraseExtractionTool implements IExecutableTool<KeyPhraseInput, 
       const llmResult = await this.llmChatTool.execute(llmInput);
       
       // Parse the response
-      const keyPhrases = this.parseKeyPhrases(llmResult.response_text);
+      const keyPhrases = this.parseKeyPhrases(llmResult.result.text);
       
       const processingTime = Date.now() - startTime;
       
