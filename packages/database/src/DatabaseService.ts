@@ -111,6 +111,78 @@ export class DatabaseService {
     return DatabaseService.instance;
   }
 
+  /**
+   * Retry wrapper for Redis operations with exponential backoff
+   * Protects against transient Redis connection issues during Cosmos Quest streaming
+   * 
+   * @param operation - The Redis operation to execute
+   * @param operationName - Name of the operation for logging
+   * @param maxAttempts - Maximum retry attempts (default: 3)
+   * @returns Result of the Redis operation
+   */
+  public async redisWithRetry<T>(
+    operation: () => Promise<T>,
+    operationName: string = 'Redis operation',
+    maxAttempts: number = 3
+  ): Promise<T> {
+    let lastError: Error | null = null;
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await operation();
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        
+        // Don't retry on last attempt
+        if (attempt === maxAttempts) {
+          break;
+        }
+        
+        // Exponential backoff: 100ms, 200ms, 400ms
+        const delayMs = 100 * Math.pow(2, attempt - 1);
+        console.warn(
+          `⚠️ DatabaseService.redisWithRetry: ${operationName} failed (attempt ${attempt}/${maxAttempts}). ` +
+          `Retrying in ${delayMs}ms. Error: ${lastError.message}`
+        );
+        
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
+    }
+    
+    // All attempts failed
+    console.error(
+      `❌ DatabaseService.redisWithRetry: ${operationName} failed after ${maxAttempts} attempts. ` +
+      `Last error: ${lastError?.message || 'Unknown error'}`
+    );
+    throw lastError;
+  }
+
+  /**
+   * Lightweight KV helpers backed by Redis with retry
+   */
+  public async kvGet<T = any>(key: string): Promise<T | null> {
+    const raw = await this.redisWithRetry(() => this.redis.get(key), `GET ${key}`);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as T;
+    } catch {
+      return null as any;
+    }
+  }
+
+  public async kvSet<T = any>(key: string, value: T, ttlSeconds?: number): Promise<void> {
+    const payload = JSON.stringify(value);
+    if (ttlSeconds && ttlSeconds > 0) {
+      await this.redisWithRetry(() => this.redis.set(key, payload, 'EX', ttlSeconds), `SETEX ${key}`);
+    } else {
+      await this.redisWithRetry(() => this.redis.set(key, payload), `SET ${key}`);
+    }
+  }
+
+  public async kvDel(key: string): Promise<void> {
+    await this.redisWithRetry(() => this.redis.del(key), `DEL ${key}`);
+  }
+
   // Method to gracefully close all connections
   public async closeConnections(): Promise<void> {
     await this.prisma.$disconnect();

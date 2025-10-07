@@ -39,9 +39,19 @@ export const LookupCameraController: React.FC<LookupCameraControllerProps> = ({
   // Handle camera focus requests - clean and simple
   useEffect(() => {
     const handleCameraFocus = (event: CustomEvent) => {
-      const { position, entity } = event.detail;
-      
-      console.log('🎥 LookupCameraController: Focusing on entity:', entity?.title || entity?.id, 'at:', position);
+      const { position, entity, entity_id } = (event.detail || {}) as {
+        position?: { x: number; y: number; z: number };
+        entity?: { id?: string; title?: string };
+        entity_id?: string;
+      };
+
+      // Guard against malformed events (e.g., quest stage directions that only include entity_id)
+      if (!position || typeof position.x !== 'number' || typeof position.y !== 'number' || typeof position.z !== 'number') {
+        console.warn('🎥 LookupCameraController: Ignoring camera-focus-request without concrete position', { position, entity_id, entity });
+        return;
+      }
+
+      console.log('🎥 LookupCameraController: Focusing on entity:', entity?.title || entity?.id || entity_id, 'at:', position);
       
       if (controlsRef.current) {
         // Smoothly animate to the new target

@@ -83,8 +83,18 @@ export type {
   VisualizationStage1Batch,
   VisualizationStages2And3Batch,
   FinalResponseBatch,
+  NarrationChunkBatch,
+  StageDirectionBatch,
   QuestUpdateBatch,
-  QuestMockSequence
+  QuestMockSequence,
+  // V11.0 Stage Direction DSL
+  StageDirection,
+  CameraFocusDirection,
+  HighlightNodesDirection,
+  HighlightEdgesDirection,
+  RevealEntitiesDirection,
+  EnvironmentDirection,
+  ShowDetailsDirection
 } from './ai/cosmos-quest.types';
 
 // === AI JOB TYPES ===

@@ -58,6 +58,7 @@ export interface LLMChatInputPayload {
   enforceJsonMode?: boolean;  // Whether to enforce JSON mode for OpenAI
   enableStreaming?: boolean;  // Whether to enable streaming responses
   onChunk?: (chunk: string) => void;  // Callback for streaming chunks
+  modelOverride?: string;     // Optional model override (e.g., 'gemini-2.0-flash-lite', 'gemini-2.0-flash', 'gemini-2.0-pro')
   
   // New fields for LLM interaction logging
   workerType?: string;        // 'insight-worker', 'ingestion-worker', 'dialogue-service'
@@ -130,14 +131,16 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
     // Will be initialized lazily on first execute() call
   }
 
-  private initialize() {
+  private initialize(modelOverride?: string) {
     // Decide provider
     this.provider = (process.env.LLM_PROVIDER as 'gemini' | 'openai') || 'gemini';
     this.modelConfigService = EnvironmentModelConfigService.getInstance();
-    const newModelName = this.modelConfigService.getModelForUseCase('chat') || undefined;
+    
+    // Use modelOverride if provided, otherwise use default from config
+    const newModelName = modelOverride || this.modelConfigService.getModelForUseCase('chat') || undefined;
 
     if (!this.initialized || this.currentModelName !== newModelName || !this.provider) {
-      console.log(`🤖 LLMChatTool: Initializing with provider ${this.provider}, model ${newModelName}`);
+      console.log(`🤖 LLMChatTool: Initializing with provider ${this.provider}, model ${newModelName}${modelOverride ? ' (override)' : ''}`);
       this.modelConfigService.logCurrentConfiguration();
       this.currentModelName = newModelName ?? null;
 
@@ -272,8 +275,8 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
     while (attempts < maxAttempts) {
       attempts++;
       try {
-        // Initialize on first execution
-        this.initialize();
+        // Initialize on first execution, with optional model override
+        this.initialize(input.payload.modelOverride);
 
         const startTime = performance.now();
         console.log(`💬 LLMChatTool: Calling ${this.provider.toUpperCase()} API (Attempt ${attempts}/${maxAttempts}) for user ${input.payload.userId}, session ${input.payload.sessionId}`);

@@ -10,7 +10,8 @@ import {
   CosmosQuestResult,
   KeyPhraseCapsule,
   WalkthroughStep,
-  VisualizationEntity
+  VisualizationEntity,
+  StageDirection
 } from '@2dots1line/shared-types';
 import { 
   LLMChatTool, 
@@ -59,6 +60,7 @@ export class CosmosQuestAgent {
   /**
    * Main entry point for processing a quest request with progressive updates.
    * Always retrieves memory and generates guided walkthroughs.
+   * V11.0: Now supports streaming narration via onUpdate('narration_chunk')
    */
   public async processQuestWithProgressiveUpdates(
     input: CosmosQuestInput, 
@@ -70,7 +72,13 @@ export class CosmosQuestAgent {
     try {
       // --- PHASE I: LLM-BASED KEY PHRASE EXTRACTION ---
       console.log(`[${executionId}] 🔍 Phase 1: Extracting key phrases with LLM context`);
-      const keyPhrases = await this.extractKeyPhrasesWithLLM(input, executionId);
+      
+      // Callback for streaming narration during key phrase extraction
+      const onNarrationChunk = (chunk: string) => {
+        onUpdate('narration_chunk', { content: chunk });
+      };
+      
+      const keyPhrases = await this.extractKeyPhrasesWithLLM(input, executionId, onNarrationChunk);
       
       // Send key phrases immediately
       onUpdate('key_phrases', { capsules: keyPhrases });
@@ -96,7 +104,20 @@ export class CosmosQuestAgent {
       
       // --- PHASE IV: FINAL RESPONSE & WALKTHROUGH ---
       console.log(`[${executionId}] 📝 Phase 4: Generating final response and walkthrough`);
-      const finalResponse = await this.generateFinalResponse(input, augmentedContext, visualization, executionId);
+      
+      // Callback for stage directions
+      const onStageDirection = (direction: StageDirection) => {
+        onUpdate('stage_direction', { direction });
+      };
+      
+      const finalResponse = await this.generateFinalResponse(
+        input, 
+        augmentedContext, 
+        visualization, 
+        executionId,
+        onNarrationChunk,  // Pass streaming callback
+        onStageDirection   // Pass stage direction callback
+      );
 
       // Send final response
       onUpdate('final_response', {
@@ -174,9 +195,14 @@ export class CosmosQuestAgent {
 
   /**
    * Extract key phrases using LLM with proper context (like DialogueAgent)
+   * V11.0: Now uses gemini-2.0-flash-lite for speed and supports streaming
    */
-  private async extractKeyPhrasesWithLLM(input: CosmosQuestInput, executionId: string): Promise<KeyPhraseCapsule[]> {
-    console.log(`[${executionId}] 🤖 Extracting key phrases with LLM context`);
+  private async extractKeyPhrasesWithLLM(
+    input: CosmosQuestInput, 
+    executionId: string,
+    onNarrationChunk?: (chunk: string) => void
+  ): Promise<KeyPhraseCapsule[]> {
+    console.log(`[${executionId}] 🤖 Extracting key phrases with LLM context (flash-lite + streaming)`);
 
     // Build quest-specific prompt with user context
     const promptOutput = await this.promptBuilder.buildKeyPhraseExtractionPrompt({
@@ -199,7 +225,12 @@ export class CosmosQuestAgent {
         userMessage: promptOutput.userPrompt,
         history: promptOutput.conversationHistory,
         temperature: 0.3,
-        maxTokens: 50000
+        maxTokens: 50000,
+        // V11.0: Use flash-lite for fast key phrase extraction
+        modelOverride: 'gemini-2.0-flash-lite',
+        // V11.0: Enable streaming if callback provided
+        enableStreaming: !!onNarrationChunk,
+        onChunk: onNarrationChunk
       },
       request_id: `quest-keyphrases-${Date.now()}`
     };
@@ -581,18 +612,21 @@ export class CosmosQuestAgent {
 
   /**
    * Generate final response and walkthrough
+   * V11.0: Now supports streaming narration with flash/pro models and stage directions
    */
   private async generateFinalResponse(
     input: CosmosQuestInput, 
     augmentedContext: ExtendedAugmentedMemoryContext, 
     visualization: any,
-    executionId: string
+    executionId: string,
+    onNarrationChunk?: (chunk: string) => void,
+    onStageDirection?: (direction: StageDirection) => void
   ): Promise<{
     response_text: string;
     walkthrough_script: WalkthroughStep[];
     reflective_question: string;
   }> {
-    console.log(`[${executionId}] 📝 Generating final response and walkthrough`);
+    console.log(`[${executionId}] 📝 Generating final response and walkthrough (flash + streaming)`);
     
     // Build final response prompt
     const promptOutput = await this.promptBuilder.buildFinalResponsePrompt({
@@ -616,7 +650,12 @@ export class CosmosQuestAgent {
         userMessage: promptOutput.userPrompt,
         history: promptOutput.conversationHistory,
         temperature: 0.7,
-        maxTokens: 50000
+        maxTokens: 50000,
+        // V11.0: Use flash for quality synthesis (pro for complex cases)
+        modelOverride: 'gemini-2.0-flash',
+        // V11.0: Enable streaming if callback provided
+        enableStreaming: !!onNarrationChunk,
+        onChunk: onNarrationChunk
       },
       request_id: `quest-final-${Date.now()}`
     };
@@ -633,7 +672,84 @@ export class CosmosQuestAgent {
     );
 
     // Parse final response
-    return this.parseFinalResponse(llmResult, executionId, visualization);
+    const parsedResponse = this.parseFinalResponse(llmResult, executionId, visualization);
+    
+    // V11.0: Generate and emit stage directions based on visualization entities
+    if (onStageDirection && visualization.stage1?.length > 0) {
+      this.emitBasicStageDirections(visualization, onStageDirection, executionId);
+    }
+    
+    return parsedResponse;
+  }
+
+  /**
+   * Emit basic stage directions based on visualization
+   * V11.0: Temporary implementation until LLM can generate stage directions
+   * TODO: In Phase 2.2 full implementation, parse stage_directions from LLM JSON response
+   */
+  private emitBasicStageDirections(
+    visualization: any,
+    onStageDirection: (direction: StageDirection) => void,
+    executionId: string
+  ): void {
+    console.log(`[${executionId}] 🎬 Emitting basic stage directions`);
+    
+    // Stage 1: Focus on first bright star, dim others
+    if (visualization.stage1?.[0]) {
+      const firstEntity = visualization.stage1[0];
+      
+      // Camera focus
+      onStageDirection({
+        action: 'camera_focus',
+        entity_id: firstEntity.entityId,
+        offset: [10, 5, 10],
+        ease_ms: 800
+      });
+      
+      // Highlight first entity
+      onStageDirection({
+        action: 'highlight_nodes',
+        ids: [firstEntity.entityId],
+        mode: 'spotlight',
+        dim_others: true,
+        ease_ms: 600
+      });
+    }
+    
+    // Stage 2: Reveal connections
+    if (visualization.stage2?.length > 0) {
+      setTimeout(() => {
+        const stage2Entity = visualization.stage2[0];
+        
+        // Reveal stage 2 entity
+        onStageDirection({
+          action: 'reveal_entities',
+          ids: [stage2Entity.entityId],
+          layout_hint: visualization.stage1?.[0]?.entityId,
+          ease_ms: 1000
+        });
+        
+        // Highlight edge if connected
+        if (visualization.stage1?.[0]) {
+          onStageDirection({
+            action: 'highlight_edges',
+            pairs: [[visualization.stage1[0].entityId, stage2Entity.entityId]],
+            strength: 1.0,
+            ease_ms: 500
+          });
+        }
+      }, 1500); // Delay for narrative pacing
+    }
+    
+    // Stage 3: Dim background for focus
+    setTimeout(() => {
+      onStageDirection({
+        action: 'environment',
+        starfield: 'dim',
+        vignette_opacity: 0.3,
+        fade_ms: 500
+      });
+    }, 3000);
   }
 
   /**

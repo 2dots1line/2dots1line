@@ -10,6 +10,14 @@ interface QuestState {
   response: string;
   reflective_question: string;
   error: string | null;
+  // V11.0: Streaming narration and stage control
+  accumulatedNarration: string;
+  highlightedNodeIds: string[];
+  highlightedEdges: Array<[string, string]>;
+  dimOthers: boolean;
+  starfieldOpacity: number;
+  vignetteOpacity: number;
+  revealingNodeIds: string[];
 }
 
 export const useQuestConnection = (authToken: string | null, userId: string | null) => {
@@ -22,6 +30,14 @@ export const useQuestConnection = (authToken: string | null, userId: string | nu
     response: '',
     reflective_question: '',
     error: null,
+    // V11.0: Streaming narration and stage control
+    accumulatedNarration: '',
+    highlightedNodeIds: [],
+    highlightedEdges: [],
+    dimOthers: false,
+    starfieldOpacity: 1.0,
+    vignetteOpacity: 0,
+    revealingNodeIds: [],
   });
 
   const socketRef = useRef<Socket | null>(null);
@@ -67,6 +83,71 @@ export const useQuestConnection = (authToken: string | null, userId: string | nu
           break;
         case 'error':
           setQuestState((prev) => ({ ...prev, error: data.message, isProcessing: false }));
+          break;
+        
+        // V11.0: Streaming narration
+        case 'narration_chunk':
+          setQuestState((prev) => ({
+            ...prev,
+            accumulatedNarration: prev.accumulatedNarration + (data.content || ''),
+          }));
+          break;
+        
+        // V11.0: Stage directions
+        case 'stage_direction':
+          const direction = data.direction;
+          if (!direction) break;
+          
+          switch (direction.action) {
+            case 'camera_focus':
+              // Dispatch custom event for camera controller
+              window.dispatchEvent(new CustomEvent('camera-focus-request', {
+                detail: { 
+                  entity_id: direction.entity_id,
+                  offset: direction.offset,
+                  ease_ms: direction.ease_ms
+                }
+              }));
+              break;
+            
+            case 'highlight_nodes':
+              setQuestState((prev) => ({
+                ...prev,
+                highlightedNodeIds: direction.ids || [],
+                dimOthers: direction.dim_others || false,
+              }));
+              break;
+            
+            case 'highlight_edges':
+              setQuestState((prev) => ({
+                ...prev,
+                highlightedEdges: direction.pairs || [],
+              }));
+              break;
+            
+            case 'reveal_entities':
+              setQuestState((prev) => ({
+                ...prev,
+                revealingNodeIds: direction.ids || [],
+              }));
+              // TODO: Add revealed nodes to visualization_stages after animation
+              break;
+            
+            case 'environment':
+              setQuestState((prev) => ({
+                ...prev,
+                starfieldOpacity: direction.starfield === 'dim' ? 0.3 : 1.0,
+                vignetteOpacity: direction.vignette_opacity || 0,
+              }));
+              break;
+            
+            case 'show_details':
+              // Dispatch custom event for details panel
+              window.dispatchEvent(new CustomEvent('show-entity-details', {
+                detail: { entity_id: direction.entity_id }
+              }));
+              break;
+          }
           break;
       }
     };

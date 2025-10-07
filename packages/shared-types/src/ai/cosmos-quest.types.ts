@@ -67,6 +67,62 @@ export interface WalkthroughStep {
   highlight_color?: string; // Color to highlight entities
 }
 
+// === STAGE DIRECTION DSL (V11.0) ===
+// Fine-grained scene control primitives for agent-driven cinematography
+
+export interface CameraFocusDirection {
+  action: 'camera_focus';
+  entity_id: string;
+  offset?: [number, number, number]; // Optional camera offset from entity
+  ease_ms: number; // Smooth transition duration
+}
+
+export interface HighlightNodesDirection {
+  action: 'highlight_nodes';
+  ids: string[]; // Entity IDs to highlight
+  mode: 'spotlight' | 'pulse'; // Highlight style
+  dim_others: boolean; // Whether to dim non-highlighted nodes
+  ease_ms: number; // Transition duration
+}
+
+export interface HighlightEdgesDirection {
+  action: 'highlight_edges';
+  pairs: [string, string][]; // Pairs of [source_id, target_id]
+  strength: number; // Glow intensity (0.0-1.0)
+  ease_ms: number; // Transition duration
+}
+
+export interface RevealEntitiesDirection {
+  action: 'reveal_entities';
+  ids: string[]; // Entity IDs to reveal/add to scene
+  layout_hint?: string; // Optional layout hint (e.g., "near_entity_id")
+  ease_ms: number; // Fade-in duration
+}
+
+export interface EnvironmentDirection {
+  action: 'environment';
+  starfield: 'dim' | 'bright'; // Background starfield intensity
+  vignette_opacity: number; // Vignette overlay opacity (0.0-1.0)
+  fade_ms: number; // Transition duration
+}
+
+export interface ShowDetailsDirection {
+  action: 'show_details';
+  entity_id: string; // Entity to show details panel for
+}
+
+/**
+ * Union type for all stage directions
+ * Agent emits these to control the 3D scene dynamically
+ */
+export type StageDirection = 
+  | CameraFocusDirection 
+  | HighlightNodesDirection 
+  | HighlightEdgesDirection 
+  | RevealEntitiesDirection 
+  | EnvironmentDirection 
+  | ShowDetailsDirection;
+
 // === AGENT WRAPPER TYPES ===
 
 export interface CosmosQuestAgentInputPayload extends CosmosQuestInput {}
@@ -102,11 +158,24 @@ export interface FinalResponseBatch {
   reflective_question: string;
 }
 
+// V11.0: New batch types for streaming and stage directions
+export interface NarrationChunkBatch {
+  type: 'narration_chunk';
+  content: string; // Streaming text chunk
+}
+
+export interface StageDirectionBatch {
+  type: 'stage_direction';
+  direction: StageDirection; // Single stage direction
+}
+
 export type QuestUpdateBatch = 
   | KeyPhraseBatch 
   | VisualizationStage1Batch 
   | VisualizationStages2And3Batch 
-  | FinalResponseBatch;
+  | FinalResponseBatch
+  | NarrationChunkBatch
+  | StageDirectionBatch;
 
 // === MOCK DATA TYPES ===
 

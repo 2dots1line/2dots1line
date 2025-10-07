@@ -35,6 +35,10 @@ export class HybridRetrievalTool {
   private hydrationAdapter: HydrationAdapter | null = null;
   private embeddingTool!: IExecutableTool<TTextEmbeddingInputPayload, TTextEmbeddingResult>;
   private parametersLoader: HRTParametersLoader;
+  private cachingEnabled: boolean = false;
+  private cacheTtlSeconds: number = 300;
+  private cacheKeyIncludesWeights: boolean = true;
+  private initPromise?: Promise<void>;
 
   constructor(databaseService: DatabaseService, configService: any) {
     this.db = databaseService;
@@ -43,7 +47,7 @@ export class HybridRetrievalTool {
     this.parametersLoader = new HRTParametersLoader(databaseService);
     
     // Initialize internal modules with loaded configurations
-    this.initializeInternalModules(configService);
+    this.initPromise = this.initializeInternalModules(configService);
   }
 
   /**
@@ -54,6 +58,7 @@ export class HybridRetrievalTool {
       // Load configurations
       const cypherTemplates = await configService.loadConfig('cypher_templates');
       const retrievalWeights = await configService.loadConfig('retrieval_weights');
+      const hrtConfig = await configService.loadConfig('hrt_config');
       
       // Initialize modules
       this.cypherBuilder = new CypherBuilder(cypherTemplates);
@@ -95,6 +100,12 @@ export class HybridRetrievalTool {
       
       // Initialize embedding tool for semantic search
       this.embeddingTool = TextEmbeddingTool;
+      // Caching flags
+      if (hrtConfig?.caching) {
+        this.cachingEnabled = !!hrtConfig.caching.enable_result_caching;
+        this.cacheTtlSeconds = Number(hrtConfig.caching.cache_ttl_seconds) || 300;
+        this.cacheKeyIncludesWeights = !!hrtConfig.caching.cache_key_includes_weights;
+      }
       
       console.log('HybridRetrievalTool: Internal modules initialized successfully');
     } catch (error) {
@@ -108,6 +119,10 @@ export class HybridRetrievalTool {
    * Main orchestration method - delegates to internal modules
    */
   async execute(input: HRTInput): Promise<ExtendedAugmentedMemoryContext> {
+      // Ensure initialization completed
+      if (this.initPromise) {
+        await this.initPromise;
+      }
           // Ensure modules are initialized
       if (!this.cypherBuilder || !this.entityScorer || !this.hydrationAdapter || !this.embeddingTool) {
         throw new Error('HybridRetrievalTool: Internal modules not initialized');
@@ -134,8 +149,26 @@ export class HybridRetrievalTool {
       });
 
     const context: HRTExecutionContext = this.createExecutionContext(input, userParameters);
+    const phraseSignature = this.computePhraseSignature(input.keyPhrasesForRetrieval);
+    const weightsHash = this.cacheKeyIncludesWeights ? this.computeWeightsHash(this.entityScorer!.getWeights()) : 'now';
+    const cacheKey = this.composeCacheKey({
+      userId: input.userId,
+      conversationId: (input as any).conversationId || 'none',
+      scenario: input.retrievalScenario || 'neighborhood',
+      phraseSignature,
+      weightsHash
+    });
     
     try {
+      if (this.cachingEnabled) {
+        const cached = await this.db.kvGet<ExtendedAugmentedMemoryContext>(cacheKey);
+        if (cached) {
+          console.log(`[HRT ${context.requestId}] Cache hit for key ${cacheKey}. Returning cached context.`);
+          return cached;
+        }
+        console.log(`[HRT ${context.requestId}] Cache miss for key ${cacheKey}. Proceeding with retrieval.`);
+      }
+
       console.log(`[HRT ${context.requestId}] Starting V9.5 six-stage retrieval pipeline`);
       
       // Stage 1: Key Phrase Processing
@@ -161,6 +194,11 @@ export class HybridRetrievalTool {
       console.log(`[HRT ${context.requestId}] Completed in ${context.timings.totalDuration}ms`);
       console.log(`[HRT ${context.requestId}] Final results: ${augmentedContext.retrievedMemoryUnits?.length || 0} memories, ${augmentedContext.retrievedConcepts?.length || 0} concepts`);
       
+      if (this.cachingEnabled) {
+        await this.db.kvSet(cacheKey, augmentedContext, this.cacheTtlSeconds);
+        console.log(`[HRT ${context.requestId}] Cached result at key ${cacheKey} (ttl=${this.cacheTtlSeconds}s)`);
+      }
+
       return augmentedContext;
       
     } catch (error) {
@@ -212,6 +250,16 @@ export class HybridRetrievalTool {
       for (const phrase of phrases) {
         try {
           console.log(`[HRT ${context.requestId}] Generating embedding for phrase: "${phrase}"`);
+          // Micro-cache per phrase → seeds
+          if (this.cachingEnabled) {
+            const phraseKey = this.composeSeedsCacheKey(userId, phrase);
+            const cachedSeeds = await this.db.kvGet<SeedEntity[]>(phraseKey);
+            if (cachedSeeds && cachedSeeds.length > 0) {
+              console.log(`[HRT ${context.requestId}] Seeds cache hit for phrase '${phrase}'`);
+              seedEntities.push(...cachedSeeds);
+              continue;
+            }
+          }
           
           // Generate embedding for the search phrase
           const embeddingResult = await this.embeddingTool.execute({
@@ -298,6 +346,12 @@ export class HybridRetrievalTool {
               }
             }
           }
+          // Write phrase seeds cache
+          if (this.cachingEnabled) {
+            const phraseKey = this.composeSeedsCacheKey(userId, phrase);
+            const toCache = seedEntities.filter(s => !!s);
+            await this.db.kvSet(phraseKey, toCache, this.cacheTtlSeconds);
+          }
         } catch (phraseError) {
           console.warn(`[HRT ${context.requestId}] Weaviate search failed for phrase "${phrase}":`, phraseError);
         }
@@ -352,6 +406,22 @@ export class HybridRetrievalTool {
       }
       
       console.log(`[HRT ${context.requestId}] Stage 3: Executing graph traversal with ${seedEntityParams.length} seed entities`);
+      // Micro-cache per seed set → candidates
+      if (this.cachingEnabled) {
+        const seedSetHash = this.computeSeedSetHash(seedEntityParams);
+        const candidatesKey = this.composeCandidatesCacheKey(context.userId, scenario, seedSetHash);
+        const cachedCandidates = await this.db.kvGet<CandidateEntity[]>(candidatesKey);
+        if (cachedCandidates) {
+          console.log(`[HRT ${context.requestId}] Candidates cache hit for scenario '${scenario}', seedSet=${seedSetHash}`);
+          const uniqueCandidates = this.deduplicateEntities(cachedCandidates);
+          context.timings.neo4jLatency = 0;
+          context.stageResults.graphTraversal = {
+            success: true,
+            candidatesFound: uniqueCandidates.length
+          };
+          return uniqueCandidates;
+        }
+      }
       console.log(`[HRT ${context.requestId}] Stage 3: Available templates: ${this.cypherBuilder!.getAvailableTemplates().join(', ')}`);
       console.log(`[HRT ${context.requestId}] Stage 3: Using scenario: ${scenario}`);
       
@@ -407,6 +477,11 @@ export class HybridRetrievalTool {
       }
       
       const uniqueCandidates = this.deduplicateEntities(candidateEntities);
+      if (this.cachingEnabled) {
+        const seedSetHash = this.computeSeedSetHash(seedEntityParams);
+        const candidatesKey = this.composeCandidatesCacheKey(context.userId, scenario, seedSetHash);
+        await this.db.kvSet(candidatesKey, uniqueCandidates, this.cacheTtlSeconds);
+      }
       
       context.timings.neo4jLatency = Date.now() - stageStart;
       context.stageResults.graphTraversal = {
@@ -727,5 +802,58 @@ export class HybridRetrievalTool {
       seen.add(entity.id);
       return true;
     });
+  }
+
+  // Caching helpers
+  private computePhraseSignature(phrases: string[]): string {
+    const norm = phrases
+      .filter(p => typeof p === 'string')
+      .map(p => p.trim().toLowerCase())
+      .filter(p => p.length > 0)
+      .sort()
+      .join('|');
+    // Simple non-crypto hash for stability; acceptable for cache keying
+    let hash = 0;
+    for (let i = 0; i < norm.length; i++) {
+      hash = ((hash << 5) - hash) + norm.charCodeAt(i);
+      hash |= 0;
+    }
+    return `p${Math.abs(hash)}`;
+  }
+
+  private computeWeightsHash(weights: RetrievalWeights): string {
+    const s = `${weights.alpha_semantic_similarity}:${weights.beta_recency}:${weights.gamma_importance_score}`;
+    let hash = 0;
+    for (let i = 0; i < s.length; i++) {
+      hash = ((hash << 5) - hash) + s.charCodeAt(i);
+      hash |= 0;
+    }
+    return `w${Math.abs(hash)}`;
+  }
+
+  private composeCacheKey(input: { userId: string; conversationId: string; scenario: string; phraseSignature: string; weightsHash: string; }): string {
+    return `hrt:result:v9_5:${input.userId}:${input.conversationId}:${input.scenario}:${input.phraseSignature}:${input.weightsHash}`;
+  }
+
+  private composeSeedsCacheKey(userId: string, phrase: string): string {
+    const norm = phrase.trim().toLowerCase();
+    return `hrt:seeds:${userId}:${norm}`;
+  }
+
+  private computeSeedSetHash(seeds: { id: string; type: string }[]): string {
+    const norm = seeds
+      .map(s => `${s.id}:${s.type}`)
+      .sort()
+      .join('|');
+    let hash = 0;
+    for (let i = 0; i < norm.length; i++) {
+      hash = ((hash << 5) - hash) + norm.charCodeAt(i);
+      hash |= 0;
+    }
+    return `s${Math.abs(hash)}`;
+  }
+
+  private composeCandidatesCacheKey(userId: string, scenario: string, seedSetHash: string): string {
+    return `hrt:candidates:${userId}:${scenario}:${seedSetHash}`;
   }
 } 
