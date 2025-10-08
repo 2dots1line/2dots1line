@@ -1,6 +1,6 @@
 import { ConfigService } from '@2dots1line/config-service';
 import { DatabaseService, ConceptRepository } from '@2dots1line/database/dist';
-import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
+import { environmentLoader, PromptCacheService } from '@2dots1line/core-utils/dist';
 import { Redis } from 'ioredis';
 import { SemanticSimilarityTool } from '@2dots1line/tools/dist';
 import { Worker, Queue } from 'bullmq';
@@ -53,7 +53,7 @@ async function main() {
         family: 4,
         keepAlive: 30000,
         connectTimeout: 10000,
-        commandTimeout: 10000,
+        commandTimeout: 30000, // Increased from 10s to 30s for BullMQ maintenance operations
         enableOfflineQueue: true
       });
     } else {
@@ -71,15 +71,34 @@ async function main() {
         family: 4,
         keepAlive: 30000,
         connectTimeout: 10000,
-        commandTimeout: 10000,
+        commandTimeout: 30000, // Increased from 10s to 30s for BullMQ maintenance operations
         enableOfflineQueue: true
       });
     }
 
     console.log(`[OntologyOptimizationWorker] Using dedicated Redis connection for BullMQ`);
 
+    // Initialize prompt cache service with proper Redis wrapper
+    const promptCacheService = new PromptCacheService({
+      kvGet: async (key: string) => await redisConnection.get(key),
+      kvSet: async (key: string, value: string, ttl?: number) => {
+        if (ttl) {
+          await redisConnection.setex(key, ttl, value);
+        } else {
+          await redisConnection.set(key, value);
+        }
+      },
+      kvDel: async (key: string) => { await redisConnection.del(key); }
+    });
+    console.log('[OntologyOptimizationWorker] PromptCacheService initialized');
+
     // Initialize optimization strategy
-    const llmOptimizer = new LLMBasedOptimizer(dbService, new ConceptRepository(dbService));
+    const llmOptimizer = new LLMBasedOptimizer(
+      dbService, 
+      new ConceptRepository(dbService),
+      configService,
+      promptCacheService
+    );
 
     // Create the ontology optimizer
     const ontologyOptimizer = new OntologyOptimizer(
@@ -117,7 +136,7 @@ async function main() {
 
     // Handle worker events
     worker.on('completed', (job) => {
-      console.log(`[OntologyOptimizationWorker] Job ${job.id} completed successfully`);
+      console.log(`[OntologyOptimizationWorker] Job ${job.id} completed - see detailed logs for results`);
     });
 
     worker.on('failed', (job, err) => {

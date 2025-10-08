@@ -28,8 +28,21 @@ export interface CachedSection {
 
 export interface CacheConfig {
   section_ttl_seconds: {
+    // SHARED SECTIONS (used across all stages)
     core_identity: number;
     operational_config: number;
+    
+    // STAGE-SPECIFIC SECTIONS
+    foundation_stage: number;
+    strategic_stage: number;
+    ontology_stage: number;
+    
+    // DYNAMIC CONTEXT SECTIONS (stage-specific)
+    foundation_dynamic_context: number;
+    strategic_dynamic_context: number;
+    ontology_dynamic_context: number;
+    
+    // LEGACY SECTIONS (for backward compatibility)
     dynamic_context: number;
     current_turn: number;
     cosmos_key_phrase: number;
@@ -63,23 +76,36 @@ export class PromptCacheService {
   ) {
     // Default cache configuration
     this.config = {
-      section_ttl_seconds: {
-        core_identity: 3600,        // 1 hour - rarely changes
-        operational_config: 1800,   // 30 minutes - changes occasionally
-        dynamic_context: 300,       // 5 minutes - changes frequently
-        current_turn: 0,            // Never cache - always unique
-        cosmos_key_phrase: 3600,    // 1 hour - template rarely changes
-        cosmos_final_response: 1800, // 30 minutes - template changes occasionally
-        ontology_optimization: 3600, // 1 hour - ontology structure stable
-        artifact_generation: 1800,   // 30 minutes - generation patterns stable
-        proactive_prompts: 1800,     // 30 minutes - prompt patterns stable
-        growth_events: 1800,         // 30 minutes - event patterns stable
-        key_phrase_extraction: 3600, // 1 hour - extraction patterns stable
-        ingestion_analyst_persona: 3600,    // 1 hour - persona rarely changes
-        ingestion_analyst_rules: 3600,      // 1 hour - rules rarely change
-        ingestion_analyst_instructions: 1800, // 30 minutes - instructions occasionally change
-        ...config?.section_ttl_seconds
-      },
+  section_ttl_seconds: {
+    // SHARED SECTIONS (used across all stages)
+    core_identity: 3600,        // 1 hour - rarely changes, shared across all stages
+    operational_config: 1800,   // 30 minutes - changes occasionally, shared across all stages
+    
+    // STAGE-SPECIFIC SECTIONS
+    foundation_stage: 1800,     // 30 minutes - foundation stage template
+    strategic_stage: 1800,      // 30 minutes - strategic stage template
+    ontology_stage: 3600,       // 1 hour - ontology stage template (stable)
+    
+    // DYNAMIC CONTEXT SECTIONS (stage-specific)
+    foundation_dynamic_context: 600,  // 10 minutes - foundation context changes frequently
+    strategic_dynamic_context: 300,   // 5 minutes - strategic context changes very frequently
+    ontology_dynamic_context: 1800,   // 30 minutes - ontology context more stable
+    
+    // LEGACY SECTIONS (for backward compatibility)
+    dynamic_context: 300,       // 5 minutes - changes frequently
+    current_turn: 0,            // Never cache - always unique
+    cosmos_key_phrase: 3600,    // 1 hour - template rarely changes
+    cosmos_final_response: 1800, // 30 minutes - template changes occasionally
+    ontology_optimization: 3600, // 1 hour - ontology structure stable
+    artifact_generation: 1800,   // 30 minutes - generation patterns stable
+    proactive_prompts: 1800,     // 30 minutes - prompt patterns stable
+    growth_events: 1800,         // 30 minutes - event patterns stable
+    key_phrase_extraction: 3600, // 1 hour - extraction patterns stable
+    ingestion_analyst_persona: 3600,    // 1 hour - persona rarely changes
+    ingestion_analyst_rules: 3600,      // 1 hour - rules rarely change
+    ingestion_analyst_instructions: 1800, // 30 minutes - instructions occasionally change
+    ...config?.section_ttl_seconds
+  },
       cache_keys: {
         pattern: 'prompt_section:{section_type}:{userId}:{conversationId?}',
         examples: [

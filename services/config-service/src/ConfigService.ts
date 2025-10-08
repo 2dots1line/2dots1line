@@ -245,4 +245,44 @@ export class ConfigService {
       throw new Error(`Model configuration not found: ${configPath}`);
     }
   }
+
+  /**
+   * Get operational parameters from operational_parameters.json
+   */
+  async getOperationalParameters(): Promise<any> {
+    const configPath = path.join(this.configDir, 'operational_parameters.json');
+    try {
+      const content = await fs.readFile(configPath, 'utf8');
+      return JSON.parse(content);
+    } catch (error) {
+      console.error('Failed to load operational parameters:', error);
+      throw new Error(`Operational parameters not found: ${configPath}`);
+    }
+  }
+
+  /**
+   * Get a specific operational parameter by dot notation path
+   * @param path - Dot notation path (e.g., 'ontology_optimization.default_date_range_days')
+   * @param defaultValue - Default value if parameter not found
+   */
+  async getOperationalParameter(path: string, defaultValue?: any): Promise<any> {
+    try {
+      const params = await this.getOperationalParameters();
+      const keys = path.split('.');
+      let value = params;
+      
+      for (const key of keys) {
+        if (value && typeof value === 'object' && key in value) {
+          value = value[key];
+        } else {
+          return defaultValue;
+        }
+      }
+      
+      return value;
+    } catch (error) {
+      console.warn(`Failed to get operational parameter '${path}':`, error);
+      return defaultValue;
+    }
+  }
 } 

@@ -53,7 +53,7 @@ export class KeyPhraseExtractionTool implements IExecutableTool<KeyPhraseInput, 
 
   constructor() {
     // Initialize LLMChatTool instance
-    this.llmChatTool = LLMChatTool;
+    this.llmChatTool = LLMChatTool; // Use the exported instance
   }
 
   async execute(input: TToolInput<KeyPhraseInput>): Promise<TToolOutput<KeyPhraseResult>> {

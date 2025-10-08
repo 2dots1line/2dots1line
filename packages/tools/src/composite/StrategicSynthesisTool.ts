@@ -66,7 +66,7 @@ export const StrategicSynthesisOutputSchema = z.object({
   })),
   growth_events: z.array(z.object({
     type: z.enum(['know_self', 'act_self', 'show_self', 'know_world', 'act_world', 'show_world']),
-    title: z.string().min(1).max(100), // Short, descriptive title (3-7 words, max 100 chars)
+    title: z.string().min(1), // Removed max limit to allow descriptive titles
     delta_value: z.number().min(-5.0).max(5.0),
     content: z.string(),
     source_concept_ids: z.array(z.string()).nullable().optional().default([]),

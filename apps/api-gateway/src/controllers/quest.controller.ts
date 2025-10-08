@@ -77,6 +77,7 @@ export class QuestController {
       
       // Process quest with progressive updates
       const result = await this.cosmosQuestAgent!.processQuestWithProgressiveUpdates(input, (updateType: string, data: any) => {
+        console.log(`[QuestController] Received quest update: ${updateType} for ${executionId}`);
         this.sendQuestUpdate(executionId, updateType, data);
       });
       
@@ -95,13 +96,17 @@ export class QuestController {
    * Send a single quest update
    */
   private sendQuestUpdate(executionId: string, updateType: string, data: any) {
+    console.log(`[QuestController] sendQuestUpdate called: ${updateType} for ${executionId}, notifier: ${!!this.notifier}`);
+    
     if (this.notifier) {
+      console.log(`[QuestController] Using notifier for ${updateType}`);
       this.notifier.sendQuestUpdate(executionId, {
         type: updateType,
         ...data
       });
     } else {
       // HTTP fallback
+      console.log(`[QuestController] Using HTTP fallback for ${updateType}`);
       const notificationWorkerUrl = 'http://localhost:3002';
       fetch(`${notificationWorkerUrl}/internal/quest/update`, {
         method: 'POST',
@@ -113,6 +118,8 @@ export class QuestController {
             ...data
           }
         })
+      }).then(response => {
+        console.log(`[QuestController] HTTP response for ${updateType}: ${response.status}`);
       }).catch(error => console.error(`[QuestController] Failed to send ${updateType} via HTTP for ${executionId}:`, error));
     }
   }

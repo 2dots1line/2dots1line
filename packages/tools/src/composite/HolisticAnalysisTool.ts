@@ -14,7 +14,7 @@ import { LLMRetryHandler, PromptCacheService } from '@2dots1line/core-utils';
 // V11.1 FIX: Made schema more flexible to handle LLM response variations
 export const HolisticAnalysisOutputSchema = z.object({
   persistence_payload: z.object({
-    conversation_title: z.string().min(1).max(100), // Short, descriptive title (3-7 words, max 100 chars)
+    conversation_title: z.string().min(1), // Removed max limit to allow descriptive titles
     conversation_summary: z.string().min(1), // Removed max limit to allow comprehensive summaries
     conversation_importance_score: z.number().int().min(1).max(10),
     extracted_memory_units: z.array(z.object({
@@ -49,7 +49,7 @@ export const HolisticAnalysisOutputSchema = z.object({
     
     detected_growth_events: z.array(z.object({
       type: z.enum(['know_self', 'know_world', 'act_self', 'act_world', 'show_self', 'show_world']),
-      title: z.string().min(1).max(100), // Short, descriptive title (3-7 words, max 100 chars)
+      title: z.string().min(1), // Removed max limit to allow descriptive titles
       delta: z.number().min(-5.0).max(5.0), // V11.1 FIX: Increased range to prevent validation failures
       content: z.string().min(1), // Removed max limit to allow high-quality LLM responses
       source_concept_ids: z.array(z.string()).optional().default([]), // Specific concepts that support this growth event

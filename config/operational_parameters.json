@@ -3,5 +3,17 @@
   "conversation_timeout_seconds": 300,
   "workers": {
     "check_interval_seconds": 30
+  },
+  "ontology_optimization": {
+    "default_date_range_days": 2,
+    "max_date_range_days": 7,
+    "min_date_range_days": 1,
+    "max_user_prompt_tokens": 20000,
+    "max_output_tokens": 50000,
+    "max_total_tokens": 50000,
+    "sampling_strategy": "entity_id_hash",
+    "max_concept_merges": 20,
+    "max_strategic_relationships": 30,
+    "max_community_structures": 10
   }
 } 

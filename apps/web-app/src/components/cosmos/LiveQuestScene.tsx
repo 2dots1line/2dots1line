@@ -2,16 +2,21 @@ import React, { useMemo, useState, useCallback } from 'react';
 import { Graph3D } from './Graph3D';
 import { useQuestConnection } from '../../hooks/useQuestConnection';
 import { useCosmosStore } from '../../stores/CosmosStore';
-import CosmosInfoPanel from '../modal/CosmosInfoPanel';
 import CosmosError from '../modal/CosmosError';
 import CosmosLoading from '../modal/CosmosLoading';
 import CosmosNodeModal from '../modal/CosmosNodeModal';
+import CosmosInfoPanel from '../modal/CosmosInfoPanel';
 import { NodeLabelControls } from './NodeLabelControls';
-import WalkthroughControls from './WalkthroughControls';
 import { LookupCameraController } from './LookupCameraController';
+import { HUDContainer } from '../hud/HUDContainer';
+import { GlassmorphicPanel, GlassButton } from '@2dots1line/ui-components';
+import { Send, Loader2, MessageSquare, X, Plus } from 'lucide-react';
 
 const LiveQuestScene: React.FC = () => {
   const [question, setQuestion] = useState('What do you know about my skating experience?');
+  const [isChatOpen, setIsChatOpen] = useState(true); // Open by default
+  const [messages, setMessages] = useState<Array<{type: 'user' | 'agent' | 'system', content: string, timestamp: Date}>>([]);
+  
   const authToken = typeof window !== 'undefined' ? localStorage.getItem('auth_token') || 'dev-token' : null;
   const userId = typeof window !== 'undefined' ? (localStorage.getItem('user_id') || 'dev-user-123') : null;
   const { questState, joinQuest } = useQuestConnection(authToken, userId);
@@ -21,7 +26,8 @@ const LiveQuestScene: React.FC = () => {
     selectedNode,
     setSelectedNode,
     showEdges,
-    setShowEdges
+    setShowEdges,
+    graphData
   } = useCosmosStore();
 
   // Local edge control state
@@ -31,7 +37,13 @@ const LiveQuestScene: React.FC = () => {
 
   const startLiveQuest = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await fetch('http://localhost:3001/api/v1/quest/process', {
+    
+    // Add user message to chat
+    const userMessage = { type: 'user' as const, content: question, timestamp: new Date() };
+    setMessages(prev => [...prev, userMessage]);
+    setIsChatOpen(true);
+    
+    const res = await fetch('http://localhost:3000/api/v1/quest/process', {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -48,6 +60,28 @@ const LiveQuestScene: React.FC = () => {
     const execId = j?.data?.executionId;
     if (execId) joinQuest(execId);
   };
+
+  // Update messages when quest state changes
+  React.useEffect(() => {
+    if (questState.key_phrases && questState.key_phrases.length > 0) {
+      const keyPhrasesText = questState.key_phrases.map((kp: any) => kp.phrase || kp).join(', ');
+      const systemMessage = { 
+        type: 'system' as const, 
+        content: `🔍 Key phrases extracted: ${keyPhrasesText}`, 
+        timestamp: new Date() 
+      };
+      setMessages(prev => [...prev, systemMessage]);
+    }
+    
+    if (questState.response) {
+      const agentMessage = { 
+        type: 'agent' as const, 
+        content: questState.response, 
+        timestamp: new Date() 
+      };
+      setMessages(prev => [...prev, agentMessage]);
+    }
+  }, [questState.key_phrases, questState.response]);
 
   // Process visualization data
   const viz = questState.visualization_stages;
@@ -164,7 +198,7 @@ const LiveQuestScene: React.FC = () => {
     }
   });
 
-  const graphData = { nodes, edges };
+  const questGraphData = { nodes, edges };
 
   // Compute cluster center for camera positioning
   const center = useMemo(() => {
@@ -173,33 +207,7 @@ const LiveQuestScene: React.FC = () => {
     return { x: sum.x / nodes.length, y: sum.y / nodes.length, z: sum.z / nodes.length };
   }, [nodes]);
 
-  // Show loading state
-  if (questState.isProcessing) {
-    return (
-      <div className="w-full h-full relative">
-        <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-black/80 backdrop-blur-md rounded-lg p-8 text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-            <h3 className="text-xl font-semibold text-white mb-2">Processing Quest</h3>
-            <p className="text-white/70">Exploring your memories...</p>
-          </div>
-        </div>
-        <Graph3D
-          graphData={{ nodes: [], edges: [] }}
-          onNodeClick={() => {}}
-          showEdges={false}
-          edgeOpacity={0}
-          edgeWidth={1}
-          animatedEdges={false}
-          modalOpen={false}
-          customCameraPosition={[0, 0, 100]}
-          customCameraTarget={{ x: 0, y: 0, z: 0 }}
-          customTargetDistance={100}
-          customCameraController={LookupCameraController}
-        />
-      </div>
-    );
-  }
+  // Remove full-screen processing overlay - make it fluid
 
   // Show error state
   if (questState.error) {
@@ -236,86 +244,175 @@ const LiveQuestScene: React.FC = () => {
 
   return (
     <div className="w-full h-full relative text-white">
-      {/* Top Controls - Edge Controls Only */}
-      <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between">
-        {/* Left: Empty space */}
-        <div></div>
+      {/* Top Left: Node Label Controls (Labels/Edges Toggle) */}
+      <NodeLabelControls />
+      
+      {/* Top Right: HUD */}
+      <HUDContainer className="top-4 right-4" onViewSelect={(view) => {
+        if (view === 'cosmos') {
+          window.location.href = '/cosmos';
+        } else {
+          window.location.href = '/';
+        }
+      }} />
+      
+      {/* Bottom Left: Cosmos Stats - Exact same as CosmosScene */}
+      <CosmosInfoPanel />
 
-        {/* Center: Edge Controls */}
-        <div className="flex items-center space-x-4 text-sm bg-black/30 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/10">
-          <label className="flex items-center space-x-2 text-white/70">
-            <input
-              type="checkbox"
-              checked={showEdges}
-              onChange={(e) => setShowEdges(e.target.checked)}
-              className="rounded"
-            />
-            <span>Edges</span>
-          </label>
-          <label className="flex items-center space-x-2 text-white/70">
-            <input
-              type="checkbox"
-              checked={animatedEdges}
-              onChange={(e) => setAnimatedEdges(e.target.checked)}
-              className="rounded"
-            />
-            <span>Animate</span>
-          </label>
-        </div>
+      {/* Quest Chat Modal - Bottom positioned, 50% wider, 1/3 height, no header */}
+      {isChatOpen && (
+        <div className="fixed bottom-4 left-4 right-4 z-40 pointer-events-none">
+          <GlassmorphicPanel
+            variant="glass-panel"
+            rounded="xl"
+            padding="none"
+            className="relative w-full max-w-6xl h-[20vh] flex flex-col overflow-hidden pointer-events-auto mx-auto"
+          >
 
-        {/* Right: Navigation */}
-        <button
-          onClick={() => window.location.href = '/cosmos/lookup'}
-          className="px-4 py-2 bg-black/30 backdrop-blur-sm border border-white/20 text-white rounded-lg hover:bg-black/50 transition-colors text-sm"
-        >
-          ← Entity Lookup
-        </button>
-      </div>
-
-      {/* Quest Input - Bottom Left */}
-      <div className="absolute bottom-4 left-4 z-20">
-        <div className="bg-black/30 backdrop-blur-sm rounded-lg p-3 border border-white/10">
-          <form onSubmit={startLiveQuest} className="flex items-center space-x-3">
-            <input
-              type="text"
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              placeholder="Ask about your memories..."
-              className="px-3 py-2 bg-white/10 border border-white/20 rounded-md text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
-              disabled={questState.isProcessing}
-            />
-            <button
-              type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium disabled:opacity-50"
-              disabled={questState.isProcessing}
-            >
-              {questState.isProcessing ? 'Processing…' : 'Start Quest'}
-            </button>
-          </form>
-        </div>
-      </div>
-
-      {/* Key Phrases - Compact Display */}
-      {questState.key_phrases && questState.key_phrases.length > 0 && (
-        <div className="absolute top-16 left-4 z-20">
-          <div className="bg-black/30 backdrop-blur-sm rounded-lg p-2 border border-white/10">
-            <div className="flex flex-wrap gap-1">
-              {questState.key_phrases.map((phrase: any, index: number) => (
-                <span
-                  key={index}
-                  className="px-2 py-1 bg-blue-500/20 text-blue-200 text-xs rounded border border-blue-400/30"
-                >
-                  {phrase.phrase || phrase}
-                </span>
-              ))}
+            {/* Messages Area */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
+              {messages.length === 0 && !questState.isProcessing ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <div className="w-12 h-12 bg-gradient-to-br from-white/20 to-white/10 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <MessageSquare size={24} className="text-white/60" />
+                    </div>
+                    <p className="text-white/60 text-sm">Ask about your memories to start exploring</p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {messages.map((message, index) => (
+                    <div
+                      key={index}
+                      className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div className={`max-w-[70%] ${message.type === 'user' ? 'order-1' : 'order-2'}`}>
+                        <GlassmorphicPanel
+                          variant="glass-panel"
+                          rounded="lg"
+                          padding="sm"
+                          className={`
+                            ${message.type === 'user' 
+                              ? 'bg-white/20 ml-auto' 
+                              : message.type === 'system'
+                              ? 'bg-yellow-600/20 border border-yellow-400/30'
+                              : 'bg-white/10'
+                            }
+                          `}
+                        >
+                          <div className="text-sm leading-relaxed text-white/90">
+                            {message.content}
+                          </div>
+                          <div className="mt-2">
+                            <span className="text-xs text-white/50">
+                              {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        </GlassmorphicPanel>
+                      </div>
+                      
+                      {/* Avatar */}
+                      <div className={`
+                        w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center mt-1
+                        ${message.type === 'user' 
+                          ? 'bg-white/20 order-2 ml-3' 
+                          : 'bg-gradient-to-br from-white/30 to-white/10 order-1 mr-3'
+                        }
+                      `}>
+                        {message.type === 'user' ? (
+                          <div className="w-4 h-4 bg-white/70 rounded-full" />
+                        ) : (
+                          <div className="w-2 h-2 bg-white/70 rounded-full animate-pulse" />
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {questState.isProcessing && (
+                    <div className="flex justify-start">
+                      <div className="order-2">
+                        <GlassmorphicPanel
+                          variant="glass-panel"
+                          rounded="lg"
+                          padding="sm"
+                          className="bg-white/10"
+                        >
+                          <div className="flex items-center space-x-2 text-sm text-white/90">
+                            <Loader2 size={16} className="animate-spin" />
+                            <span>Processing quest...</span>
+                          </div>
+                        </GlassmorphicPanel>
+                      </div>
+                      <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center mt-1 bg-gradient-to-br from-white/30 to-white/10 order-1 mr-3">
+                        <div className="w-2 h-2 bg-white/70 rounded-full animate-pulse" />
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
-          </div>
+
+            {/* Input Area */}
+            <div className="p-3 border-t border-white/20">
+              <GlassmorphicPanel
+                variant="glass-panel"
+                rounded="lg"
+                padding="sm"
+                className="flex items-end gap-3"
+              >
+                {/* Message Input */}
+                <div className="flex-1">
+                  <textarea
+                    value={question}
+                    onChange={(e) => setQuestion(e.target.value)}
+                    placeholder="Ask about your memories..."
+                    className="
+                      w-full bg-transparent text-white placeholder-white/50 
+                      resize-none outline-none text-sm leading-relaxed
+                      min-h-[40px] max-h-[120px] py-2
+                    "
+                    rows={1}
+                    disabled={questState.isProcessing}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        startLiveQuest(e as any);
+                      }
+                    }}
+                  />
+                </div>
+
+                {/* Send Button */}
+                <GlassButton
+                  onClick={startLiveQuest}
+                  disabled={(!question.trim()) || questState.isProcessing}
+                  className="
+                    p-2 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed
+                    transition-all duration-200
+                  "
+                  title="Send message"
+                >
+                  {questState.isProcessing ? (
+                    <div className="animate-spin w-[18px] h-[18px] border-2 border-white/30 border-t-white rounded-full" />
+                  ) : (
+                    <Send size={18} className="stroke-current" strokeWidth={1.5} />
+                  )}
+                </GlassButton>
+              </GlassmorphicPanel>
+              
+              <p className="text-xs text-white/40 mt-2 text-center">
+                Press Enter to send • Shift+Enter for new line
+              </p>
+            </div>
+          </GlassmorphicPanel>
         </div>
       )}
 
+
       {/* 3D Visualization */}
       <Graph3D
-        graphData={graphData}
+        graphData={questGraphData}
         onNodeClick={(node) => setSelectedNode(node)}
         showEdges={showEdges}
         edgeOpacity={edgeOpacity}
@@ -329,47 +426,8 @@ const LiveQuestScene: React.FC = () => {
         customCameraController={LookupCameraController}
       />
       
-      {/* Node Label Controls */}
-      <NodeLabelControls />
-      
-      {/* Modals */}
-      <CosmosInfoPanel />
+      {/* Node Modal */}
       {selectedNode && <CosmosNodeModal node={selectedNode} onClose={() => setSelectedNode(null)} />}
-
-      {/* Walkthrough - Bottom Right */}
-      {questState.response && questState.walkthrough_script?.length > 0 && (
-        <div className="absolute bottom-4 right-4 z-20 max-w-xs">
-          <WalkthroughControls
-            walkthroughScript={questState.walkthrough_script}
-            reflectiveQuestion={questState.reflective_question || ''}
-            onStepChange={(step) => {
-              console.log('Walkthrough step changed:', step);
-              if (step?.focus_entity_id) {
-                focusCameraOnEntity(step.focus_entity_id);
-              }
-            }}
-            onCameraMove={(position, target) => {
-              console.log('Camera move requested:', { position, target });
-              // Camera movement is handled by the LookupCameraController
-            }}
-            onEntityHighlight={(entityId, color) => {
-              console.log('Entity highlight requested:', { entityId, color });
-              if (entityId) {
-                focusCameraOnEntity(entityId);
-              }
-            }}
-          />
-        </div>
-      )}
-
-      {/* Response Display - Bottom Center (only if no walkthrough) */}
-      {questState.response && (!questState.walkthrough_script || questState.walkthrough_script.length === 0) && (
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 max-w-sm">
-          <div className="bg-black/30 backdrop-blur-sm rounded-lg p-3 border border-white/10">
-            <div className="text-sm text-white/90">{questState.response}</div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

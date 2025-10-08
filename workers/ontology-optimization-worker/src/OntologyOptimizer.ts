@@ -16,6 +16,7 @@ export interface OptimizationStrategy {
   identifyArchiveCandidates(userId: string, conceptIds?: string[]): Promise<ConceptArchive[]>;
   detectCommunities(conceptGraph: ConceptGraph): Promise<CommunityStructure[]>;
   buildConceptGraph(userId: string, conceptIds?: string[]): Promise<ConceptGraph>;
+  performFullOptimization(userId: string): Promise<any>;
 }
 
 export interface SimilarConcept {
@@ -105,7 +106,7 @@ export class OntologyOptimizer {
           break;
       }
       
-      console.log(`[OntologyOptimizer] Successfully completed ${optimizationType} optimization`);
+      console.log(`[OntologyOptimizer] Completed ${optimizationType} optimization - see detailed logs for results`);
     } catch (error) {
       console.error(`[OntologyOptimizer] Error in ${optimizationType} optimization:`, error);
       throw error;
@@ -218,15 +219,13 @@ export class OntologyOptimizer {
   private async performFullOptimization(userId: string, threshold?: number): Promise<void> {
     console.log(`[OntologyOptimizer] Starting full optimization for user ${userId}`);
     
-    // 1. Merge similar concepts
-    await this.optimizeConceptMerging(userId, undefined, threshold);
-    
-    // 2. Archive irrelevant concepts
-    await this.optimizeConceptArchiving(userId);
-    
-    // 3. Form communities
-    await this.optimizeCommunityFormation(userId);
-    
-    console.log(`[OntologyOptimizer] Completed full optimization for user ${userId}`);
+    try {
+      // Use LLMBasedOptimizer for full optimization with OntologyStageTool
+      const result = await this.optimizationStrategy.performFullOptimization(userId);
+      console.log(`[OntologyOptimizer] Full optimization completed: ${JSON.stringify(result)}`);
+    } catch (error) {
+      console.error(`[OntologyOptimizer] Error in full optimization:`, error);
+      throw error;
+    }
   }
 }

@@ -218,13 +218,19 @@ export class NotificationWorker {
    * Send quest update to an execution-specific room
    */
   public sendQuestUpdate(executionId: string, data: any): void {
-    if (!this.io) return;
+    console.log(`[NotificationWorker] sendQuestUpdate called for executionId: ${executionId}, data:`, JSON.stringify(data, null, 2));
+    if (!this.io) {
+      console.log('[NotificationWorker] Socket.IO not available, cannot send quest update');
+      return;
+    }
     const room = `quest:${executionId}`;
+    console.log(`[NotificationWorker] Emitting quest:update to room: ${room}`);
     this.io.to(room).emit('quest:update', {
       execution_id: executionId,
       ...data,
       created_at: new Date().toISOString(),
     });
+    console.log(`[NotificationWorker] Quest update emitted successfully to room: ${room}`);
   }
 
   /**

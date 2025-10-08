@@ -632,6 +632,9 @@ importers:
       '@2dots1line/database':
         specifier: workspace:*
         version: link:../database
+      '@2dots1line/ontology-core':
+        specifier: workspace:*
+        version: link:../ontology-core
       '@2dots1line/shared-types':
         specifier: workspace:*
         version: link:../shared-types
@@ -1014,6 +1017,9 @@ importers:
       '@2dots1line/ai-clients':
         specifier: workspace:^0.1.0
         version: link:../../packages/ai-clients
+      '@2dots1line/config-service':
+        specifier: workspace:^1.0.0
+        version: link:../../services/config-service
       '@2dots1line/core-utils':
         specifier: workspace:^0.1.0
         version: link:../../packages/core-utils

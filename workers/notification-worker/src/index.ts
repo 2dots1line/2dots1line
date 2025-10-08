@@ -93,10 +93,13 @@ if (require.main === module) {
       app.post('/internal/quest/update', (req: any, res: any) => {
         try {
           const { executionId, data } = req.body || {};
+          console.log(`[NotificationWorker] Received quest update request for executionId: ${executionId}`);
           if (!executionId || !data) {
+            console.log('[NotificationWorker] Missing executionId or data in quest update request');
             return res.status(400).json({ success: false, error: 'executionId and data are required' });
           }
           worker.sendQuestUpdate(executionId, data);
+          console.log(`[NotificationWorker] Quest update processed successfully for executionId: ${executionId}`);
           return res.json({ success: true });
         } catch (err: any) {
           console.error('[NotificationWorker] Internal quest update error:', err?.message || err);

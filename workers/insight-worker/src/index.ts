@@ -5,12 +5,12 @@
 
 import { ConfigService } from '@2dots1line/config-service';
 import { DatabaseService } from '@2dots1line/database';
-import { StrategicSynthesisTool, HybridRetrievalTool } from '@2dots1line/tools';
-import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
+import { FoundationStageTool, StrategicStageTool, OntologyStageTool, HybridRetrievalTool } from '@2dots1line/tools';
+import { environmentLoader, PromptCacheService } from '@2dots1line/core-utils';
 import { Worker, Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 
-import { InsightEngine, InsightJobData } from './InsightEngine';
+import { InsightWorkflowOrchestrator, InsightJobData } from './InsightWorkflowOrchestrator';
 
 async function main() {
   console.log('[InsightWorker] Starting V11.0 insight worker...');
@@ -29,11 +29,21 @@ async function main() {
     const dbService = DatabaseService.getInstance();
     console.log('[InsightWorker] DatabaseService initialized');
 
-    // 2. Directly instantiate the StrategicSynthesisTool
-    const strategicSynthesisTool = new StrategicSynthesisTool(configService);
-    console.log('[InsightWorker] StrategicSynthesisTool instantiated');
+    // 2. Initialize prompt cache service
+    const promptCacheService = new PromptCacheService(dbService);
+    console.log('[InsightWorker] PromptCacheService initialized');
 
-    // 2.1. Instantiate the HybridRetrievalTool
+    // 3. Instantiate the new multi-stage tools
+    const foundationStageTool = new FoundationStageTool(configService, promptCacheService);
+    console.log('[InsightWorker] FoundationStageTool instantiated');
+
+    const strategicStageTool = new StrategicStageTool(configService, promptCacheService);
+    console.log('[InsightWorker] StrategicStageTool instantiated');
+
+    const ontologyStageTool = new OntologyStageTool(configService, dbService, promptCacheService);
+    console.log('[InsightWorker] OntologyStageTool instantiated');
+
+    // 4. Instantiate the HybridRetrievalTool
     const hybridRetrievalTool = new HybridRetrievalTool(dbService, configService);
     console.log('[InsightWorker] HybridRetrievalTool instantiated');
 
@@ -79,18 +89,21 @@ async function main() {
     const embeddingQueue = new Queue('embedding-queue', { connection: redisConnection });
     console.log('[InsightWorker] BullMQ queues initialized');
 
-    // 4. Instantiate the InsightEngine with its dependencies
-    const insightEngine = new InsightEngine(
-      strategicSynthesisTool,
+    // 5. Instantiate the InsightWorkflowOrchestrator with its dependencies
+    const insightOrchestrator = new InsightWorkflowOrchestrator(
+      foundationStageTool,
+      strategicStageTool,
+      ontologyStageTool,
       hybridRetrievalTool,
       configService,
       dbService,
       cardQueue,
       graphQueue,
-      embeddingQueue
+      embeddingQueue,
+      promptCacheService
     );
 
-    console.log('[InsightWorker] InsightEngine instantiated');
+    console.log('[InsightWorker] InsightWorkflowOrchestrator instantiated');
 
     // 5. Create and start the BullMQ worker
     const worker = new Worker<InsightJobData>(
@@ -98,7 +111,7 @@ async function main() {
       async (job) => {
         console.log(`[InsightWorker] Processing job ${job.id}: ${job.data.userId}`);
         try {
-          await insightEngine.processUserCycle(job);
+          await insightOrchestrator.executeUserCycle(job);
           console.log(`[InsightWorker] Completed job ${job.id}`);
         } catch (error) {
           // Check if this is a non-retryable error

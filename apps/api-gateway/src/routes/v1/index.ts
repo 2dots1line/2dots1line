@@ -27,7 +27,29 @@ export function createV1Routes(
   cosmosQuestAgent: CosmosQuestAgent
 ): IRouter {
   const v1Router: IRouter = Router();
-  const questController = new QuestController(undefined, cosmosQuestAgent);
+  // Create a mock notifier that uses HTTP fallback
+  const mockNotifier = {
+    sendQuestUpdate: async (executionId: string, data: any) => {
+      const notificationWorkerUrl = 'http://localhost:3002';
+      try {
+        const response = await fetch(`${notificationWorkerUrl}/internal/quest/update`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            executionId,
+            data
+          })
+        });
+        if (!response.ok) {
+          console.error(`[MockNotifier] HTTP response not ok: ${response.status}`);
+        }
+      } catch (error) {
+        console.error(`[MockNotifier] Failed to send quest update:`, error);
+      }
+    }
+  };
+  
+  const questController = new QuestController(mockNotifier, cosmosQuestAgent);
 
 // --- Health Check ---
 v1Router.get('/health', (req, res) => {
