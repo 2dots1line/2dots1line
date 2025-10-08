@@ -44,7 +44,7 @@ export class HybridRetrievalTool {
     this.db = databaseService;
     this.weaviate = databaseService.weaviate;
     this.neo4j = databaseService.neo4j;
-    this.parametersLoader = new HRTParametersLoader(databaseService);
+    this.parametersLoader = new HRTParametersLoader(databaseService, configService);
     
     // Initialize internal modules with loaded configurations
     this.initPromise = this.initializeInternalModules(configService);

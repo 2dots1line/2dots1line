@@ -50,11 +50,6 @@ export const FoundationStageOutputSchema = z.object({
       life_context: z.array(z.string()),
       hidden_connections: z.array(z.string())
     })
-  }),
-  template_requests: z.object({
-    derived_artifacts: z.array(z.string()),
-    proactive_prompts: z.array(z.string()),
-    growth_events: z.array(z.string())
   })
 });
 

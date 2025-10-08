@@ -138,8 +138,7 @@ export class InsightWorkflowOrchestrator {
       
       // Stage 1: Foundation (Critical - must succeed for strategic stage)
       console.log(`[InsightWorkflowOrchestrator] Stage 1: Foundation analysis for user ${userId}`);
-      const foundationResult = await this.executeFoundationStage(userId, cycleDates, cycleId);
-      results.foundation = foundationResult.foundation_results;
+      results.foundation = await this.executeFoundationStage(userId, cycleDates, cycleId);
       
       // ✅ Persist foundation results immediately
       await this.persistFoundationResults(userId, results.foundation, cycleId);
@@ -147,7 +146,7 @@ export class InsightWorkflowOrchestrator {
       
       // Stage 2: Strategic (Depends on Foundation only)
       console.log(`[InsightWorkflowOrchestrator] Stage 2: Strategic insights for user ${userId}`);
-      results.strategic = await this.executeStrategicStage(userId, results.foundation, foundationPrompt, cycleDates, cycleId);
+      results.strategic = await this.executeStrategicStage(userId, results.foundation, cycleDates, cycleId);
       await this.persistStageResults(cycleId, 'strategic', results.strategic);
       console.log(`[InsightWorkflowOrchestrator] Stage 2 completed for user ${userId}`);
       
@@ -291,7 +290,7 @@ export class InsightWorkflowOrchestrator {
   /**
    * Stage 3: Strategic Insights (Sequential) - PORTED FROM ORIGINAL INSIGHTENGINE
    */
-  private async executeStrategicStage(userId: string, foundationResults: any, foundationPrompt: string, cycleDates: CycleDates, cycleId: string): Promise<any> {
+  private async executeStrategicStage(userId: string, foundationResults: any, cycleDates: CycleDates, cycleId: string): Promise<any> {
     try {
       // Gather context for strategic stage
       const { strategicInput } = await this.gatherComprehensiveContext(userId, cycleId, cycleDates, cycleId);
@@ -306,8 +305,6 @@ export class InsightWorkflowOrchestrator {
         cycleStartDate: cycleDates.cycleStartDate.toISOString(),
         cycleEndDate: cycleDates.cycleEndDate.toISOString(),
         
-        // Foundation stage prompt (for KV caching optimization)
-        foundationPrompt: foundationPrompt,
         
         // Foundation results from Stage 1
         foundationResults: foundationResults.foundation_results,

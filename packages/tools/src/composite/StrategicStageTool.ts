@@ -23,8 +23,6 @@ export const StrategicStageInputSchema = z.object({
   cycleStartDate: z.string(),
   cycleEndDate: z.string(),
   
-  // Foundation stage prompt (for KV caching optimization)
-  foundationPrompt: z.string(),
   
   // Foundation results from Stage 1
   foundationResults: z.object({
@@ -292,10 +290,8 @@ export class StrategicStageTool {
     // Get template definitions for all available templates
     const templateDefinitions = this.getTemplateDefinitions();
     
-    // Build the follow-up prompt: Foundation Prompt + Foundation Response + Strategic Instructions
-    const masterPrompt = `${input.foundationPrompt}
-
-=== FOUNDATION STAGE RESPONSE ===
+    // Build the strategic prompt with foundation results and strategic instructions
+    const masterPrompt = `=== FOUNDATION STAGE RESULTS ===
 ${JSON.stringify(input.foundationResults, null, 2)}
 
 === STRATEGIC FOLLOW-UP INSTRUCTIONS ===

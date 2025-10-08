@@ -1061,6 +1061,11 @@ insight_worker_foundation_stage: |
   3. For memory unit operations: Copy the exact `entity_id` field from the **memory units** listed in the input data.
   4. If an entity isn't in the input data, don't include it in your recommendations.
   
+  **CRITICAL: YOU MUST INCLUDE ALL THREE SECTIONS:**
+  1. **memory_profile** - Comprehensive analysis
+  2. **opening** - Engaging artifact with title and content  
+  3. **key_phrases** - 7 categories with 3 phrases each (21 total phrases)
+
   **OUTPUT FORMAT:**
   Return ONLY the JSON object, no markers, no extra text.
 
@@ -1071,30 +1076,27 @@ insight_worker_foundation_stage: |
     "foundation_results": {
       "memory_profile": {
         "type": "memory_profile",
-        "content": "Comprehensive memory profile content that synthesizes {{user_name}}'s current state, growth patterns, and strategic insights...",
-        "source_concept_ids": ["<actual_concept_entity_id_1>", "<actual_concept_entity_id_2>"],
-        "source_memory_unit_ids": ["<actual_memory_unit_entity_id_1>", "<actual_memory_unit_entity_id_2>"]
+        "content": "Comprehensive memory profile content that synthesizes {{user_name}}'s current state, growth patterns, and strategic insights..."
       },
       "opening": {
         "type": "opening",
         "title": "Opening Artifact Title",
-        "content": "Engaging opening artifact content that sets the tone and provides immediate value...",
-        "source_concept_ids": ["<actual_concept_entity_id_1>", "<actual_concept_entity_id_2>"],
-        "source_memory_unit_ids": ["<actual_memory_unit_entity_id_1>", "<actual_memory_unit_entity_id_2>"]
-      }
+        "content": "Engaging opening artifact content that sets the tone and provides immediate value..."
       },
       "key_phrases": {
-      "values_and_goals": ["<phrase1>", "<phrase2>", "<phrase3>"],
-      "emotional_drivers": ["<phrase1>", "<phrase2>", "<phrase3>"],
-      "important_relationships": ["<phrase1>", "<phrase2>", "<phrase3>"],
-      "growth_patterns": ["<phrase1>", "<phrase2>", "<phrase3>"],
-      "knowledge_domains": ["<phrase1>", "<phrase2>", "<phrase3>"],
-      "life_context": ["<phrase1>", "<phrase2>", "<phrase3>"],
-      "hidden_connections": ["<phrase1>", "<phrase2>", "<phrase3>"],
-      "comprehensive_life_themes": ["<phrase1>", "<phrase2>", "<phrase3>"]
+        "values_and_goals": ["<phrase1>", "<phrase2>", "<phrase3>"],
+        "emotional_drivers": ["<phrase1>", "<phrase2>", "<phrase3>"],
+        "important_relationships": ["<phrase1>", "<phrase2>", "<phrase3>"],
+        "growth_patterns": ["<phrase1>", "<phrase2>", "<phrase3>"],
+        "knowledge_domains": ["<phrase1>", "<phrase2>", "<phrase3>"],
+        "life_context": ["<phrase1>", "<phrase2>", "<phrase3>"],
+        "hidden_connections": ["<phrase1>", "<phrase2>", "<phrase3>"]
+      }
     }
   }
   ```
+
+  **MANDATORY: The key_phrases section is REQUIRED and must contain all 7 categories with 3 phrases each.**
 
   **CRITICAL FORMATTING NOTES:**
   - **NEVER use "|" separator syntax** - always use a single specific value
