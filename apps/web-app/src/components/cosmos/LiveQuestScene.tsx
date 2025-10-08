@@ -16,6 +16,9 @@ const LiveQuestScene: React.FC = () => {
   const [question, setQuestion] = useState('What do you know about my skating experience?');
   const [isChatOpen, setIsChatOpen] = useState(true); // Open by default
   const [messages, setMessages] = useState<Array<{type: 'user' | 'agent' | 'system', content: string, timestamp: Date}>>([]);
+  const [streamingNarration, setStreamingNarration] = useState<string>('');
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [stageDirections, setStageDirections] = useState<any[]>([]);
   
   const authToken = typeof window !== 'undefined' ? localStorage.getItem('auth_token') || 'dev-token' : null;
   const userId = typeof window !== 'undefined' ? (localStorage.getItem('user_id') || 'dev-user-123') : null;
@@ -38,32 +41,58 @@ const LiveQuestScene: React.FC = () => {
   const startLiveQuest = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    console.log('🚀 LiveQuestScene: Starting quest with question:', question);
+    
     // Add user message to chat
     const userMessage = { type: 'user' as const, content: question, timestamp: new Date() };
     setMessages(prev => [...prev, userMessage]);
     setIsChatOpen(true);
     
-    const res = await fetch('http://localhost:3000/api/v1/quest/process', {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authToken || 'dev-token'}`
-      },
-      body: JSON.stringify({ 
-        userQuestion: question, 
-        conversationId: `quest-${Date.now()}`,
-        questType: 'exploration',
-        userId: userId || 'dev-user-123' 
-      })
-    });
-    const j = await res.json();
-    const execId = j?.data?.executionId;
-    if (execId) joinQuest(execId);
+    const startTime = Date.now();
+    console.log('⏱️ LiveQuestScene: Quest start time:', new Date(startTime).toISOString());
+    
+    try {
+      const res = await fetch('http://localhost:3000/api/v1/quest/process', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken || 'dev-token'}`
+        },
+        body: JSON.stringify({ 
+          userQuestion: question, 
+          conversationId: `quest-${Date.now()}`,
+          questType: 'exploration',
+          userId: userId || 'dev-user-123' 
+        })
+      });
+      
+      const responseTime = Date.now() - startTime;
+      console.log('📡 LiveQuestScene: API response time:', responseTime + 'ms');
+      
+      const j = await res.json();
+      console.log('📋 LiveQuestScene: API response:', j);
+      
+      const execId = j?.data?.executionId;
+      if (execId) {
+        console.log('🎯 LiveQuestScene: Quest execution ID:', execId);
+        joinQuest(execId);
+      } else {
+        console.error('❌ LiveQuestScene: No execution ID received');
+      }
+    } catch (error) {
+      console.error('❌ LiveQuestScene: Quest start error:', error);
+    }
   };
 
   // Update messages when quest state changes
   React.useEffect(() => {
+    // Log quest state changes for debugging
+    if (Object.keys(questState).length > 0) {
+      console.log('🔄 LiveQuestScene: Quest state update:', questState);
+    }
+    
     if (questState.key_phrases && questState.key_phrases.length > 0) {
+      console.log('🔍 LiveQuestScene: Key phrases received:', questState.key_phrases);
       const keyPhrasesText = questState.key_phrases.map((kp: any) => kp.phrase || kp).join(', ');
       const systemMessage = { 
         type: 'system' as const, 
@@ -73,15 +102,47 @@ const LiveQuestScene: React.FC = () => {
       setMessages(prev => [...prev, systemMessage]);
     }
     
-    if (questState.response) {
-      const agentMessage = { 
-        type: 'agent' as const, 
-        content: questState.response, 
-        timestamp: new Date() 
-      };
-      setMessages(prev => [...prev, agentMessage]);
+    // Handle streaming narration chunks
+    if (questState.narration_chunk) {
+      console.log('📝 LiveQuestScene: Narration chunk received:', questState.narration_chunk);
+      setIsStreaming(true);
+      setStreamingNarration(prev => prev + questState.narration_chunk);
     }
-  }, [questState.key_phrases, questState.response]);
+    
+    // Handle stage directions
+    if (questState.stage_direction) {
+      console.log('🎬 LiveQuestScene: Stage direction received:', questState.stage_direction);
+      setStageDirections(prev => [...prev, questState.stage_direction]);
+      
+      // Execute stage direction immediately
+      executeStageDirection(questState.stage_direction);
+    }
+    
+    // Handle final response (end of streaming)
+    if (questState.response) {
+      setIsStreaming(false);
+      if (streamingNarration) {
+        // Add the accumulated streaming narration as a message
+        const narrationMessage = { 
+          type: 'agent' as const, 
+          content: streamingNarration, 
+          timestamp: new Date() 
+        };
+        setMessages(prev => [...prev, narrationMessage]);
+        setStreamingNarration('');
+      }
+      
+      // Add the final response if it's different from narration
+      if (questState.response !== streamingNarration) {
+        const agentMessage = { 
+          type: 'agent' as const, 
+          content: questState.response, 
+          timestamp: new Date() 
+        };
+        setMessages(prev => [...prev, agentMessage]);
+      }
+    }
+  }, [questState.key_phrases, questState.narration_chunk, questState.response, streamingNarration]);
 
   // Process visualization data
   const viz = questState.visualization_stages;
@@ -167,6 +228,59 @@ const LiveQuestScene: React.FC = () => {
       console.warn('🎥 LiveQuestScene: Entity not found for focus:', entityId);
     }
   }, [nodes]);
+
+  // Execute stage directions from the quest agent
+  const executeStageDirection = useCallback((direction: any) => {
+    console.log('🎬 LiveQuestScene: Executing stage direction:', direction);
+    
+    switch (direction.action) {
+      case 'focus_entity':
+        if (direction.entity_id) {
+          focusCameraOnEntity(direction.entity_id);
+        }
+        break;
+      case 'highlight_entity':
+        if (direction.entity_id) {
+          // Dispatch highlight event
+          const event = new CustomEvent('entity-highlight', {
+            detail: {
+              entityId: direction.entity_id,
+              color: direction.color || '#00ff00',
+              duration: direction.duration || 3000
+            }
+          });
+          window.dispatchEvent(event);
+        }
+        break;
+      case 'reveal_entity':
+        if (direction.entity_id) {
+          // Dispatch reveal event
+          const event = new CustomEvent('entity-reveal', {
+            detail: {
+              entityId: direction.entity_id,
+              animation: direction.animation || 'fadeIn'
+            }
+          });
+          window.dispatchEvent(event);
+        }
+        break;
+      case 'camera_move':
+        if (direction.position && direction.target) {
+          // Dispatch camera move event
+          const event = new CustomEvent('camera-move', {
+            detail: {
+              position: direction.position,
+              target: direction.target,
+              duration: direction.duration || 2000
+            }
+          });
+          window.dispatchEvent(event);
+        }
+        break;
+      default:
+        console.log('🎬 LiveQuestScene: Unknown stage direction action:', direction.action);
+    }
+  }, [focusCameraOnEntity]);
 
   // Process edges from walkthrough connections
   const edges: any[] = [];
@@ -329,7 +443,30 @@ const LiveQuestScene: React.FC = () => {
                     </div>
                   ))}
                   
-                  {questState.isProcessing && (
+                  {/* Streaming Narration */}
+                  {isStreaming && streamingNarration && (
+                    <div className="flex justify-start">
+                      <div className="order-2">
+                        <GlassmorphicPanel
+                          variant="glass-panel"
+                          rounded="lg"
+                          padding="sm"
+                          className="bg-white/10"
+                        >
+                          <div className="text-sm leading-relaxed text-white/90">
+                            {streamingNarration}
+                            <span className="animate-pulse">|</span>
+                          </div>
+                        </GlassmorphicPanel>
+                      </div>
+                      <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center mt-1 bg-gradient-to-br from-white/30 to-white/10 order-1 mr-3">
+                        <div className="w-2 h-2 bg-white/70 rounded-full animate-pulse" />
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Processing State */}
+                  {questState.isProcessing && !isStreaming && (
                     <div className="flex justify-start">
                       <div className="order-2">
                         <GlassmorphicPanel

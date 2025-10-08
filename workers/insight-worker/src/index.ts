@@ -5,7 +5,7 @@
 
 import { ConfigService } from '@2dots1line/config-service';
 import { DatabaseService } from '@2dots1line/database';
-import { FoundationStageTool, StrategicStageTool, OntologyStageTool, HybridRetrievalTool } from '@2dots1line/tools';
+import { FoundationStageTool, StrategicStageTool, HybridRetrievalTool } from '@2dots1line/tools';
 import { environmentLoader, PromptCacheService } from '@2dots1line/core-utils';
 import { Worker, Queue } from 'bullmq';
 import { Redis } from 'ioredis';
@@ -40,8 +40,6 @@ async function main() {
     const strategicStageTool = new StrategicStageTool(configService, promptCacheService);
     console.log('[InsightWorker] StrategicStageTool instantiated');
 
-    const ontologyStageTool = new OntologyStageTool(configService, dbService, promptCacheService);
-    console.log('[InsightWorker] OntologyStageTool instantiated');
 
     // 4. Instantiate the HybridRetrievalTool
     const hybridRetrievalTool = new HybridRetrievalTool(dbService, configService);
@@ -93,7 +91,6 @@ async function main() {
     const insightOrchestrator = new InsightWorkflowOrchestrator(
       foundationStageTool,
       strategicStageTool,
-      ontologyStageTool,
       hybridRetrievalTool,
       configService,
       dbService,

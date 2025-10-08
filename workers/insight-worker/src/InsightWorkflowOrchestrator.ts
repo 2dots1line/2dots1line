@@ -38,11 +38,10 @@ import type {
 import { 
   FoundationStageTool, 
   StrategicStageTool, 
-  OntologyStageTool,
   HybridRetrievalTool, 
-  LLMChatTool 
+  LLMChatTool,
+  FoundationStageResult
 } from '@2dots1line/tools';
-import { ConceptMerger, ConceptArchiver, CommunityCreator } from '@2dots1line/ontology-core';
 import { ConfigService } from '@2dots1line/config-service';
 import { LLMRetryHandler, getEntityTypeMapping, RelationshipUtils, PromptCacheService } from '@2dots1line/core-utils';
 import { Job, Queue } from 'bullmq';
@@ -60,7 +59,6 @@ export interface CycleDates {
 
 export interface StageResults {
   foundation?: any;
-  ontology?: any; // Optional - handled by dedicated ontology worker
   strategic?: any;
   integration?: any;
 }
@@ -70,7 +68,6 @@ export interface CycleResult {
   status: 'completed' | 'failed' | 'partial';
   stages: {
     foundation: 'success' | 'failed' | 'pending';
-    ontology?: 'success' | 'failed' | 'pending'; // Optional - handled by dedicated ontology worker
     strategic: 'success' | 'failed' | 'pending';
     integration: 'success' | 'failed' | 'pending';
   };
@@ -92,15 +89,10 @@ export class InsightWorkflowOrchestrator {
   private growthEventRepository: GrowthEventRepository;
   private unifiedPersistenceService: UnifiedPersistenceService;
   
-  // Shared ontology components
-  private conceptMerger: ConceptMerger;
-  private conceptArchiver: ConceptArchiver;
-  private communityCreator: CommunityCreator;
 
   constructor(
     private foundationStageTool: FoundationStageTool,
     private strategicStageTool: StrategicStageTool,
-    private ontologyStageTool: OntologyStageTool,
     private hybridRetrievalTool: HybridRetrievalTool,
     private configService: ConfigService,
     private dbService: DatabaseService,
@@ -121,11 +113,6 @@ export class InsightWorkflowOrchestrator {
     this.communityRepository = new CommunityRepository(dbService);
     this.growthEventRepository = new GrowthEventRepository(dbService);
     this.unifiedPersistenceService = new UnifiedPersistenceService(dbService);
-    
-    // Initialize shared ontology components
-    this.conceptMerger = new ConceptMerger(this.conceptRepository, dbService, this.weaviateService);
-    this.conceptArchiver = new ConceptArchiver(this.conceptRepository, this.weaviateService);
-    this.communityCreator = new CommunityCreator(this.communityRepository, dbService);
   }
 
   async executeUserCycle(job: Job<InsightJobData>): Promise<CycleResult> {
@@ -151,18 +138,20 @@ export class InsightWorkflowOrchestrator {
       
       // Stage 1: Foundation (Critical - must succeed for strategic stage)
       console.log(`[InsightWorkflowOrchestrator] Stage 1: Foundation analysis for user ${userId}`);
-      results.foundation = await this.executeFoundationStage(userId, cycleDates, cycleId);
-      await this.persistStageResults(cycleId, 'foundation', results.foundation);
-      console.log(`[InsightWorkflowOrchestrator] Stage 1 completed for user ${userId}`);
+      const foundationResult = await this.executeFoundationStage(userId, cycleDates, cycleId);
+      results.foundation = foundationResult.results;
+      const foundationPrompt = foundationResult.prompt;
+      
+      // ✅ Persist foundation results immediately
+      await this.persistFoundationResults(userId, results.foundation, cycleId);
+      console.log(`[InsightWorkflowOrchestrator] Stage 1 completed and persisted for user ${userId}`);
       
       // Stage 2: Strategic (Depends on Foundation only)
       console.log(`[InsightWorkflowOrchestrator] Stage 2: Strategic insights for user ${userId}`);
-      results.strategic = await this.executeStrategicStage(userId, results.foundation, cycleDates, cycleId);
+      results.strategic = await this.executeStrategicStage(userId, results.foundation, foundationPrompt, cycleDates, cycleId);
       await this.persistStageResults(cycleId, 'strategic', results.strategic);
       console.log(`[InsightWorkflowOrchestrator] Stage 2 completed for user ${userId}`);
       
-      // Note: Ontology optimization is handled by dedicated Ontology Optimization Worker
-      // No coupling - ontology worker runs independently
       
       // Final integration with available results
       console.log(`[InsightWorkflowOrchestrator] Final integration for user ${userId}`);
@@ -227,7 +216,7 @@ export class InsightWorkflowOrchestrator {
   /**
    * Stage 2: Foundation Analysis
    */
-  private async executeFoundationStage(userId: string, cycleDates: CycleDates, cycleId: string): Promise<any> {
+  private async executeFoundationStage(userId: string, cycleDates: CycleDates, cycleId: string): Promise<FoundationStageResult> {
     try {
       // Gather comprehensive context
       const { strategicInput } = await this.gatherComprehensiveContext(userId, cycleId, cycleDates, cycleId);
@@ -303,7 +292,7 @@ export class InsightWorkflowOrchestrator {
   /**
    * Stage 3: Strategic Insights (Sequential) - PORTED FROM ORIGINAL INSIGHTENGINE
    */
-  private async executeStrategicStage(userId: string, foundationResults: any, cycleDates: CycleDates, cycleId: string): Promise<any> {
+  private async executeStrategicStage(userId: string, foundationResults: any, foundationPrompt: string, cycleDates: CycleDates, cycleId: string): Promise<any> {
     try {
       // Gather context for strategic stage
       const { strategicInput } = await this.gatherComprehensiveContext(userId, cycleId, cycleDates, cycleId);
@@ -318,9 +307,11 @@ export class InsightWorkflowOrchestrator {
         cycleStartDate: cycleDates.cycleStartDate.toISOString(),
         cycleEndDate: cycleDates.cycleEndDate.toISOString(),
         
+        // Foundation stage prompt (for KV caching optimization)
+        foundationPrompt: foundationPrompt,
+        
         // Foundation results from Stage 1
         foundationResults: foundationResults.foundation_results,
-        templateRequests: foundationResults.template_requests,
         
         // Current cycle data - STRUCTURED (matching original StrategicSynthesisTool)
         currentKnowledgeGraph: strategicInput.currentKnowledgeGraph,
@@ -659,10 +650,6 @@ export class InsightWorkflowOrchestrator {
       case 'strategic':
         await this.persistStrategicResults(userId, results, cycleId);
         break;
-      case 'ontology':
-        // Ontology results are persisted by the ontology worker itself
-        console.log(`[InsightWorkflowOrchestrator] Ontology results persisted by ontology worker`);
-        break;
       case 'integration':
         // Integration results are handled by the final integration step
         console.log(`[InsightWorkflowOrchestrator] Integration results handled by final integration step`);
@@ -932,7 +919,6 @@ export class InsightWorkflowOrchestrator {
     
     return {
       foundation: results.foundation,
-      ontology: results.ontology,
       strategic: results.strategic
     };
   }
@@ -955,7 +941,6 @@ export class InsightWorkflowOrchestrator {
   private getStageStatus(results: Partial<StageResults>): CycleResult['stages'] {
     return {
       foundation: results.foundation ? 'success' : 'failed',
-      ontology: results.ontology ? 'success' : 'failed',
       strategic: results.strategic ? 'success' : 'failed',
       integration: 'failed'
     };

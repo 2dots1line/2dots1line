@@ -328,7 +328,8 @@ export class OntologyStageTool {
           history: [], // No previous history for ontology analysis tasks
           userMessage: finalUserMessage, // Data only (potentially sampled)
           temperature: 0.4, // Lower temperature for consistent ontology decisions
-          maxTokens: maxOutputTokens // Set explicit token limit to prevent truncation
+          maxTokens: maxOutputTokens, // Set explicit token limit to prevent truncation
+          modelOverride: 'gemini-2.5-flash-lite' // Use Lite model for speed (same as key phrase extraction)
         }
       };
 
@@ -1107,7 +1108,7 @@ ${JSON.stringify(data.consolidated_knowledge_graph.concepts_needing_synthesis, n
         }
 
         // Only update if we have valid data - same logic as InsightEngine
-        await this.dbService.conceptRepository.update(concept.entity_id, {
+        await this.conceptRepository.update(concept.entity_id, {
           content: concept.synthesized_content
         });
         

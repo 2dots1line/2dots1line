@@ -23,6 +23,9 @@ export const StrategicStageInputSchema = z.object({
   cycleStartDate: z.string(),
   cycleEndDate: z.string(),
   
+  // Foundation stage prompt (for KV caching optimization)
+  foundationPrompt: z.string(),
+  
   // Foundation results from Stage 1
   foundationResults: z.object({
     memory_profile: z.object({
@@ -44,11 +47,6 @@ export const StrategicStageInputSchema = z.object({
       life_context: z.array(z.string()),
       hidden_connections: z.array(z.string())
     })
-  }),
-  templateRequests: z.object({
-    derived_artifacts: z.array(z.string()),
-    proactive_prompts: z.array(z.string()),
-    growth_events: z.array(z.string())
   }),
   
   // Current cycle data - STRUCTURED (matching original StrategicSynthesisTool)
@@ -153,6 +151,23 @@ export const StrategicStageOutputSchema = z.object({
 export type StrategicStageInput = z.infer<typeof StrategicStageInputSchema>;
 export type StrategicStageOutput = z.infer<typeof StrategicStageOutputSchema>;
 
+export interface PartialProcessingResult {
+  totalComponents: number;
+  successfulComponents: number;
+  failedComponents: number;
+  results: ComponentProcessingResult<any>[];
+  summary: string;
+}
+
+export interface ComponentProcessingResult<T> {
+  componentType: string;
+  componentIndex: number;
+  success: boolean;
+  data?: T;
+  error?: string;
+  validationErrors?: any[];
+}
+
 // Error classes
 export class StrategicStageError extends Error {
   constructor(message: string, public readonly originalError?: Error) {
@@ -189,6 +204,8 @@ export class StrategicStageTool {
   async execute(input: StrategicStageInput): Promise<StrategicStageOutput> {
     console.log(`[StrategicStageTool] Starting strategic insights generation for user ${input.userId}`);
     
+    let llmResult: any;
+    
     try {
       // Validate input
       const validatedInput = StrategicStageInputSchema.parse(input);
@@ -197,7 +214,7 @@ export class StrategicStageTool {
       const prompt = await this.buildStrategicPrompt(validatedInput);
       
       // Execute LLM call with retry logic
-      const llmResult = await this.retryHandler.executeWithRetry(
+      llmResult = await this.retryHandler.executeWithRetry(
         this.llmChatTool,
         { 
           payload: { 
@@ -224,11 +241,22 @@ export class StrategicStageTool {
     } catch (error) {
       console.error(`[StrategicStageTool] Strategic insights generation failed for user ${input.userId}:`, error);
       
+      // Try partial processing if validation fails
       if (error instanceof z.ZodError) {
-        throw new StrategicStageValidationError(
-          `Strategic stage validation failed: ${error.message}`,
-          error.errors
-        );
+        console.log(`[StrategicStageTool] Validation failed, attempting partial processing...`);
+        try {
+          const partialResult = await this.processWithPartialValidation(llmResult.result.text, input.userId);
+          console.log(`[StrategicStageTool] Partial processing result: ${partialResult.summary}`);
+          
+          // Return partial results
+          return partialResult as unknown as StrategicStageOutput;
+        } catch (partialError) {
+          console.error(`[StrategicStageTool] Partial processing also failed:`, partialError);
+          throw new StrategicStageValidationError(
+            `Strategic stage validation failed: ${error.message}`,
+            error.errors
+          );
+        }
       }
       
       throw new StrategicStageError(
@@ -252,31 +280,41 @@ export class StrategicStageTool {
   }
 
   /**
-   * Build strategic prompt with optimized multi-stage caching (follow-up message)
+   * Build strategic prompt as follow-up to foundation stage (for KV caching optimization)
    */
   private async buildStrategicPromptOptimized(input: StrategicStageInput): Promise<string> {
-    const user_name = input.userName || 'User';
+    console.log(`[StrategicStageTool] Building strategic follow-up prompt for user ${input.userId}`);
     
-    // Use new optimized caching strategy for Strategic stage (follow-up message)
-    const masterPrompt = await this.multiStageCacheManager!.getStrategicPrompt(
-      input.userId,
-      user_name,
-      input, // strategic context
-      input.foundationResults // foundation results as cached input
-    );
+    // Get strategic stage follow-up instructions from templates
+    const templates = this.configService.getAllTemplates();
+    const strategicFollowUpInstructions = templates.insight_worker_strategic_stage;
+    
+    // Get template definitions for all available templates
+    const templateDefinitions = this.getTemplateDefinitions();
+    
+    // Build the follow-up prompt: Foundation Prompt + Foundation Response + Strategic Instructions
+    const masterPrompt = `${input.foundationPrompt}
 
-    console.log(`[StrategicStageTool] Built strategic prompt with optimized caching (${masterPrompt.length} characters)`);
+=== FOUNDATION STAGE RESPONSE ===
+${JSON.stringify(input.foundationResults, null, 2)}
+
+=== STRATEGIC FOLLOW-UP INSTRUCTIONS ===
+${strategicFollowUpInstructions}
+
+${templateDefinitions}`;
+
+    console.log(`[StrategicStageTool] Built strategic follow-up prompt (${masterPrompt.length} characters)`);
     
     return masterPrompt;
   }
 
   /**
-   * Get template definitions for selected templates
+   * Get template definitions for all available templates
    */
-  private getTemplateDefinitions(templateRequests: any): string {
-    const derivedArtifactTemplates = this.getDerivedArtifactTemplateDefinitions(templateRequests.derived_artifacts);
-    const proactivePromptTemplates = this.getProactivePromptTemplateDefinitions(templateRequests.proactive_prompts);
-    const growthEventTemplates = this.getGrowthEventTemplateDefinitions(templateRequests.growth_events);
+  private getTemplateDefinitions(): string {
+    const derivedArtifactTemplates = this.getDerivedArtifactTemplateDefinitions();
+    const proactivePromptTemplates = this.getProactivePromptTemplateDefinitions();
+    const growthEventTemplates = this.getGrowthEventTemplateDefinitions();
     
     return `
 === TEMPLATE DEFINITIONS ===
@@ -289,7 +327,7 @@ ${growthEventTemplates}
 `;
   }
 
-  private getDerivedArtifactTemplateDefinitions(artifactTypes: string[]): string {
+  private getDerivedArtifactTemplateDefinitions(): string {
     const templateDefs: { [key: string]: string } = {
       'deeper_story': 'Cross-dimensional pattern synthesis with narrative flair and historical/literary parallels',
       'hidden_connection': 'Unexpected links between seemingly unrelated experiences, with compelling storytelling',
@@ -308,10 +346,10 @@ ${growthEventTemplates}
     };
 
     return `**DERIVED ARTIFACT TEMPLATES:**
-${artifactTypes.map(type => `- **${type}**: ${templateDefs[type] || 'Custom artifact type'}`).join('\n')}`;
+${Object.entries(templateDefs).map(([type, description]) => `- **${type}**: ${description}`).join('\n')}`;
   }
 
-  private getProactivePromptTemplateDefinitions(promptTypes: string[]): string {
+  private getProactivePromptTemplateDefinitions(): string {
     const templateDefs: { [key: string]: string } = {
       'pattern_exploration': 'Questions that help them discover hidden connections between different life areas',
       'values_articulation': 'Prompts to clarify and express core beliefs with personal relevance',
@@ -332,10 +370,10 @@ ${artifactTypes.map(type => `- **${type}**: ${templateDefs[type] || 'Custom arti
     };
 
     return `**PROACTIVE PROMPT TEMPLATES:**
-${promptTypes.map(type => `- **${type}**: ${templateDefs[type] || 'Custom prompt type'}`).join('\n')}`;
+${Object.entries(templateDefs).map(([type, description]) => `- **${type}**: ${description}`).join('\n')}`;
   }
 
-  private getGrowthEventTemplateDefinitions(eventTypes: string[]): string {
+  private getGrowthEventTemplateDefinitions(): string {
     const templateDefs: { [key: string]: string } = {
       'know_self': 'Insights about personal identity, values, and self-understanding',
       'act_self': 'Personal actions and behaviors that demonstrate growth',
@@ -346,7 +384,7 @@ ${promptTypes.map(type => `- **${type}**: ${templateDefs[type] || 'Custom prompt
     };
 
     return `**GROWTH EVENT TEMPLATES:**
-${eventTypes.map(type => `- **${type}**: ${templateDefs[type] || 'Custom growth event type'}`).join('\n')}`;
+${Object.entries(templateDefs).map(([type, description]) => `- **${type}**: ${description}`).join('\n')}`;
   }
 
   /**
@@ -371,8 +409,8 @@ ${eventTypes.map(type => `- **${type}**: ${templateDefs[type] || 'Custom growth 
     // Get strategic stage template
     const strategicTemplate = templates.insight_worker_strategic_stage;
     
-    // Get template definitions for selected templates
-    const templateDefinitions = this.getTemplateDefinitions(input.templateRequests);
+    // Get template definitions for all available templates
+    const templateDefinitions = this.getTemplateDefinitions();
     
     const masterPrompt = `${coreIdentity}
 
@@ -386,9 +424,6 @@ ${templateDefinitions}
 
 === FOUNDATION RESULTS ===
 ${JSON.stringify(input.foundationResults, null, 2)}
-
-=== TEMPLATE REQUESTS ===
-${JSON.stringify(input.templateRequests, null, 2)}
 
 === STRATEGIC CONTEXT ===
 ${JSON.stringify(input.strategicContext, null, 2)}
@@ -436,7 +471,6 @@ ${JSON.stringify(input.recentGrowthEvents, null, 2)}`;
         opening: input.foundationResults?.opening,
         key_phrases: input.foundationResults?.key_phrases
       },
-      template_requests: input.templateRequests,
       strategic_context: input.strategicContext || {}
     };
 
@@ -476,10 +510,6 @@ ${data.recent_conversations.conversations.map((conv: any, index: number) => `Con
 - Opening: ${data.foundation_results.opening?.content?.substring(0, 200)}...
 - Key Phrases: ${JSON.stringify(data.foundation_results.key_phrases, null, 2)}
 
-**3.6 Template Requests:**
-- Derived Artifacts: ${data.template_requests.derived_artifacts.join(', ')}
-- Proactive Prompts: ${data.template_requests.proactive_prompts.join(', ')}
-- Growth Events: ${data.template_requests.growth_events.join(', ')}
 
 **3.7 Strategic Context (HRT Retrieved):**
 - Retrieved Memory Units (${data.strategic_context.retrievedMemoryUnits?.length || 0}): ${data.strategic_context.retrievedMemoryUnits?.map((m: any) => `${m.title} (score: ${m.finalScore})`).join(', ') || 'None'}
@@ -553,6 +583,147 @@ ${data.recent_conversations.conversations.map((conv: any, index: number) => `Con
       console.error('[StrategicStageTool] JSON parsing failed:', error);
       console.error('[StrategicStageTool] Raw response:', response);
       throw new StrategicStageError(`Failed to parse LLM response as JSON: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  /**
+   * Process LLM response with partial processing - handle each component separately
+   * This ensures we make use of everything that's usable, even if some parts fail validation
+   */
+  async processWithPartialValidation(rawResponse: string, userId: string): Promise<PartialProcessingResult> {
+    console.log(`[StrategicStageTool] Starting partial processing for user ${userId}`);
+    
+    const results: ComponentProcessingResult<any>[] = [];
+    let totalComponents = 0;
+    let successfulComponents = 0;
+    let failedComponents = 0;
+
+    try {
+      // Parse the raw JSON response
+      const parsedResponse = JSON.parse(rawResponse);
+
+      // Process derived_artifacts
+      if (parsedResponse.derived_artifacts && Array.isArray(parsedResponse.derived_artifacts)) {
+        for (let i = 0; i < parsedResponse.derived_artifacts.length; i++) {
+          totalComponents++;
+          const result = await this.processComponent(
+            parsedResponse.derived_artifacts[i],
+            z.object({
+              type: z.string(),
+              title: z.string().optional(),
+              content: z.string(),
+              source_concept_ids: z.array(z.string()).nullable().optional().default([]),
+              source_memory_unit_ids: z.array(z.string()).nullable().optional().default([]),
+              confidence_score: z.number().min(0).max(1).optional(),
+              supporting_evidence: z.array(z.string()).optional(),
+              actionability: z.enum(['immediate', 'short_term', 'long_term', 'aspirational']).optional()
+            }),
+            'derived_artifact',
+            i
+          );
+          results.push(result);
+          if (result.success) successfulComponents++; else failedComponents++;
+        }
+      }
+
+      // Process proactive_prompts
+      if (parsedResponse.proactive_prompts && Array.isArray(parsedResponse.proactive_prompts)) {
+        for (let i = 0; i < parsedResponse.proactive_prompts.length; i++) {
+          totalComponents++;
+          const result = await this.processComponent(
+            parsedResponse.proactive_prompts[i],
+            z.object({
+              type: z.string(),
+              title: z.string().optional(),
+              content: z.string(),
+              context_explanation: z.string().optional(),
+              timing_suggestion: z.enum(['next_conversation', 'weekly_check_in', 'monthly_review', 'quarterly_planning']).optional(),
+              priority_level: z.number().min(1).max(10).optional()
+            }),
+            'proactive_prompt',
+            i
+          );
+          results.push(result);
+          if (result.success) successfulComponents++; else failedComponents++;
+        }
+      }
+
+      // Process growth_events
+      if (parsedResponse.growth_events && Array.isArray(parsedResponse.growth_events)) {
+        for (let i = 0; i < parsedResponse.growth_events.length; i++) {
+          totalComponents++;
+          const result = await this.processComponent(
+            parsedResponse.growth_events[i],
+            z.object({
+              type: z.enum(['know_self', 'act_self', 'show_self', 'know_world', 'act_world', 'show_world']),
+              title: z.string(),
+              delta_value: z.number().min(-5.0).max(5.0),
+              content: z.string(),
+              source_concept_ids: z.array(z.string()).nullable().optional().default([]),
+              source_memory_unit_ids: z.array(z.string()).nullable().optional().default([]),
+              confidence_score: z.number().min(0).max(1).optional(),
+              actionability: z.enum(['immediate', 'short_term', 'long_term', 'aspirational']).optional()
+            }),
+            'growth_event',
+            i
+          );
+          results.push(result);
+          if (result.success) successfulComponents++; else failedComponents++;
+        }
+      }
+
+      // Build partial results
+      const partialResults: any = {
+        derived_artifacts: results.filter(r => r.componentType === 'derived_artifact' && r.success).map(r => r.data),
+        proactive_prompts: results.filter(r => r.componentType === 'proactive_prompt' && r.success).map(r => r.data),
+        growth_events: results.filter(r => r.componentType === 'growth_event' && r.success).map(r => r.data)
+      };
+
+      const summary = `Processed ${totalComponents} components: ${successfulComponents} successful, ${failedComponents} failed`;
+
+      console.log(`[StrategicStageTool] Partial processing completed: ${summary}`);
+
+      return {
+        ...partialResults,
+        totalComponents,
+        successfulComponents,
+        failedComponents,
+        results,
+        summary
+      };
+
+    } catch (error) {
+      console.error(`[StrategicStageTool] Partial processing failed:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Process a single component with validation
+   */
+  private async processComponent<T>(
+    data: any,
+    schema: z.ZodSchema<T>,
+    componentType: string,
+    componentIndex: number
+  ): Promise<ComponentProcessingResult<T>> {
+    try {
+      const validatedData = schema.parse(data);
+      return {
+        componentType,
+        componentIndex,
+        success: true,
+        data: validatedData
+      };
+    } catch (error) {
+      console.error(`[StrategicStageTool] Component ${componentType} validation failed:`, error);
+      return {
+        componentType,
+        componentIndex,
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown validation error',
+        validationErrors: error instanceof z.ZodError ? error.errors : undefined
+      };
     }
   }
 

@@ -18,6 +18,9 @@ interface QuestState {
   starfieldOpacity: number;
   vignetteOpacity: number;
   revealingNodeIds: string[];
+  // V11.0: Real-time streaming support
+  narration_chunk: string;
+  stage_direction: any;
 }
 
 export const useQuestConnection = (authToken: string | null, userId: string | null) => {
@@ -38,6 +41,9 @@ export const useQuestConnection = (authToken: string | null, userId: string | nu
     starfieldOpacity: 1.0,
     vignetteOpacity: 0,
     revealingNodeIds: [],
+    // V11.0: Real-time streaming support
+    narration_chunk: '',
+    stage_direction: null,
   });
 
   const socketRef = useRef<Socket | null>(null);
