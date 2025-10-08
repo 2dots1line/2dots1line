@@ -47,7 +47,7 @@ export class EnvironmentModelConfigService {
   /**
    * Get model for specific use case, prioritizing environment variables
    */
-  public getModelForUseCase(useCase: 'chat' | 'vision' | 'embedding' | 'key_phrase'): string {
+  public getModelForUseCase(useCase: 'chat' | 'vision' | 'embedding' | 'key_phrase' | 'ontology'): string {
     // Ensure environment is loaded
     environmentLoader.load();
 
@@ -64,23 +64,16 @@ export class EnvironmentModelConfigService {
       this.modelConfigService = new ModelConfigService(currentProvider);
     }
 
-    // Fallback to JSON configuration
-    try {
-      const jsonModel = this.modelConfigService.getModelForUseCase(useCase);
-      console.log(`🔧 EnvironmentModelConfigService: Using JSON config for ${useCase}: ${jsonModel}`);
-      return jsonModel;
-    } catch (error) {
-      // If JSON config fails, use hardcoded fallback
-      const fallbackModel = this.getHardcodedFallback(useCase);
-      console.log(`⚠️ EnvironmentModelConfigService: JSON config failed for ${useCase}, using hardcoded fallback: ${fallbackModel}`);
-      return fallbackModel;
-    }
+    // Fallback to hardcoded fallback (avoiding recursive call)
+    const fallbackModel = this.getHardcodedFallback(useCase);
+    console.log(`🔧 EnvironmentModelConfigService: Using hardcoded fallback for ${useCase}: ${fallbackModel}`);
+    return fallbackModel;
   }
 
   /**
    * Get model from environment variables
    */
-  private getModelFromEnvironment(useCase: 'chat' | 'vision' | 'embedding' | 'key_phrase'): string | null {
+  private getModelFromEnvironment(useCase: 'chat' | 'vision' | 'embedding' | 'key_phrase' | 'ontology'): string | null {
     const envKey = `LLM_${useCase.toUpperCase()}_MODEL`;
     const model = environmentLoader.get(envKey);
     
@@ -113,7 +106,7 @@ export class EnvironmentModelConfigService {
   /**
    * Hardcoded fallback models (last resort)
    */
-  private getHardcodedFallback(useCase: 'chat' | 'vision' | 'embedding' | 'key_phrase'): string {
+  private getHardcodedFallback(useCase: 'chat' | 'vision' | 'embedding' | 'key_phrase' | 'ontology'): string {
     const provider = this.getProvider();
     
     if (provider === 'openai') {
@@ -121,7 +114,8 @@ export class EnvironmentModelConfigService {
         chat: 'gpt-4o-mini',
         vision: 'gpt-4o',
         embedding: 'text-embedding-3-small',
-        key_phrase: 'gpt-4o-mini'
+        key_phrase: 'gpt-4o-mini',
+        ontology: 'gpt-4o-mini'
       };
       return openaiFallbacks[useCase];
     } else {
@@ -129,7 +123,8 @@ export class EnvironmentModelConfigService {
         chat: 'gemini-2.5-flash',
         vision: 'gemini-2.5-flash',
         embedding: 'text-embedding-004',
-        key_phrase: 'gemini-2.5-flash'
+        key_phrase: 'gemini-2.5-flash',
+        ontology: 'gemini-2.5-flash-lite'
       };
       return geminiFallbacks[useCase];
     }
@@ -167,6 +162,7 @@ export class EnvironmentModelConfigService {
     console.log(`LLM_CHAT_MODEL: ${environmentLoader.get('LLM_CHAT_MODEL') || 'NOT SET'}`);
     console.log(`LLM_VISION_MODEL: ${environmentLoader.get('LLM_VISION_MODEL') || 'NOT SET'}`);
     console.log(`LLM_EMBEDDING_MODEL: ${environmentLoader.get('LLM_EMBEDDING_MODEL') || 'NOT SET'}`);
+    console.log(`LLM_ONTOLOGY_MODEL: ${environmentLoader.get('LLM_ONTOLOGY_MODEL') || 'NOT SET'}`);
     console.log(`LLM_FALLBACK_MODEL: ${environmentLoader.get('LLM_FALLBACK_MODEL') || 'NOT SET'}`);
     
     console.log('==========================================\n');

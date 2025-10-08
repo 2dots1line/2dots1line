@@ -13,7 +13,7 @@
  */
 
 import { z } from 'zod';
-import { ConfigService } from '@2dots1line/config-service';
+import { ConfigService, EnvironmentModelConfigService } from '@2dots1line/config-service';
 import type { TToolInput, TToolOutput } from '@2dots1line/shared-types';
 import { LLMChatTool, type LLMChatInput } from '../ai/LLMChatTool';
 import { LLMRetryHandler, PromptCacheService, RelationshipUtils, MultiStagePromptCacheManager } from '@2dots1line/core-utils';
@@ -316,22 +316,22 @@ export class OntologyStageTool {
         console.log(`[OntologyStageTool] After sampling - User: ${finalUserMessage.length} chars (est. ${Math.ceil(finalUserMessage.length / 4)} tokens)`);
       }
       
-      // Prepare LLM input
-      const llmInput: LLMChatInput = {
-        payload: {
-          userId: input.userId,
-          sessionId: `ontology-optimization-${input.workerJobId}`,
-          workerType: input.workerType || 'ontology-optimization-worker',
-          workerJobId: input.workerJobId,
-          sourceEntityId: input.workerJobId,
-          systemPrompt: systemPrompt, // Instructions only
-          history: [], // No previous history for ontology analysis tasks
-          userMessage: finalUserMessage, // Data only (potentially sampled)
-          temperature: 0.4, // Lower temperature for consistent ontology decisions
-          maxTokens: maxOutputTokens, // Set explicit token limit to prevent truncation
-          modelOverride: 'gemini-2.5-flash-lite' // Use Lite model for speed (same as key phrase extraction)
-        }
-      };
+        // Prepare LLM input
+        const llmInput: LLMChatInput = {
+          payload: {
+            userId: input.userId,
+            sessionId: `ontology-optimization-${input.workerJobId}`,
+            workerType: input.workerType || 'ontology-optimization-worker',
+            workerJobId: input.workerJobId,
+            sourceEntityId: input.workerJobId,
+            systemPrompt: systemPrompt, // Instructions only
+            history: [], // No previous history for ontology analysis tasks
+            userMessage: finalUserMessage, // Data only (potentially sampled)
+            temperature: 0.4, // Lower temperature for consistent ontology decisions
+            maxTokens: maxOutputTokens, // Set explicit token limit to prevent truncation
+            modelOverride: EnvironmentModelConfigService.getInstance().getModelForUseCase('ontology') // Use ontology-specific model
+          }
+        };
 
       // Enhanced LLM call with retry logic - same pattern as InsightEngine
       const llmResult = await LLMRetryHandler.executeWithRetry(

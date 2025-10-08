@@ -40,7 +40,7 @@ import {
   StrategicStageTool, 
   HybridRetrievalTool, 
   LLMChatTool,
-  FoundationStageResult
+  FoundationStageOutput
 } from '@2dots1line/tools';
 import { ConfigService } from '@2dots1line/config-service';
 import { LLMRetryHandler, getEntityTypeMapping, RelationshipUtils, PromptCacheService } from '@2dots1line/core-utils';
@@ -139,8 +139,7 @@ export class InsightWorkflowOrchestrator {
       // Stage 1: Foundation (Critical - must succeed for strategic stage)
       console.log(`[InsightWorkflowOrchestrator] Stage 1: Foundation analysis for user ${userId}`);
       const foundationResult = await this.executeFoundationStage(userId, cycleDates, cycleId);
-      results.foundation = foundationResult.results;
-      const foundationPrompt = foundationResult.prompt;
+      results.foundation = foundationResult.foundation_results;
       
       // ✅ Persist foundation results immediately
       await this.persistFoundationResults(userId, results.foundation, cycleId);
@@ -216,7 +215,7 @@ export class InsightWorkflowOrchestrator {
   /**
    * Stage 2: Foundation Analysis
    */
-  private async executeFoundationStage(userId: string, cycleDates: CycleDates, cycleId: string): Promise<FoundationStageResult> {
+  private async executeFoundationStage(userId: string, cycleDates: CycleDates, cycleId: string): Promise<FoundationStageOutput> {
     try {
       // Gather comprehensive context
       const { strategicInput } = await this.gatherComprehensiveContext(userId, cycleId, cycleDates, cycleId);

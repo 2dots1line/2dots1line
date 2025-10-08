@@ -3,4 +3,5 @@ export * from './HolisticAnalysisTool';
 export * from './StrategicSynthesisTool';
 export * from './FoundationStageTool';
 export * from './StrategicStageTool';
-export * from './OntologyStageTool'; 
+// Note: OntologyStageTool exports are excluded to avoid naming conflicts with StrategicStageTool
+export { OntologyStageTool, OntologyStageInputSchema, OntologyStageOutputSchema } from './OntologyStageTool'; 
