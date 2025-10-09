@@ -63,7 +63,7 @@ export class ConversationController {
    * Sets/resets the Redis timeout key for conversation timeout mechanism
    * As per V9.5 specification: conversation-timeout-worker listens for key expiration
    */
-  private async setConversationTimeout(conversationId: string): Promise<void> {
+  private async setConversationTimeout(userId: string, conversationId: string): Promise<void> {
     if (!this.redis) {
       console.warn('⚠️ Redis client not available - conversation timeout not set');
       return;
@@ -669,7 +669,7 @@ export class ConversationController {
       const conversationId = conversation.conversation_id;
       
       // Set/reset conversation timeout for background processing trigger
-      await this.setConversationTimeout(conversationId);
+      await this.setConversationTimeout(userId, conversationId);
       
       // RESTORED: Media handling logic from deleted agent.controller.ts
       console.log(`📁 Processing file upload: ${file.originalname} (${file.mimetype})`);
@@ -859,7 +859,7 @@ export class ConversationController {
       }
       
       // Set/reset conversation timeout for background processing trigger
-      await this.setConversationTimeout(conversationId);
+      await this.setConversationTimeout(userId, conversationId);
       
       // STEP 1: Save the user's message to the database
       await this.conversationRepository.addMessage({
@@ -912,7 +912,7 @@ export class ConversationController {
       console.log(`✅ Conversation record created: ${conversationId} in session ${session.session_id}`);
       
       // Set/reset conversation timeout for background processing trigger
-      await this.setConversationTimeout(conversationId);
+      await this.setConversationTimeout(userId, conversationId);
       
       // Process initial message through DialogueAgent
       const result = await this.dialogueAgent.processTurn({
