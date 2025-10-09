@@ -5,8 +5,8 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3
 class CosmosService {
   async getGraphProjection(): Promise<TApiResponse<UserGraphProjection>> {
     try {
-      // Use dev token for development
-      const token = localStorage.getItem('auth_token') || 'dev-token';
+      // Use actual user token
+      const token = localStorage.getItem('auth_token');
 
       const response = await fetch(`${API_BASE_URL}/api/v1/graph-projection/latest`, {
         headers: {

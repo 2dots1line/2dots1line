@@ -1,5 +1,11 @@
 import { DatabaseService, UserRepository } from '@2dots1line/database';
 import type { users as User } from '@2dots1line/database';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
+import { environmentLoader } from '@2dots1line/core-utils';
+
+const NODE_ENV = process.env.NODE_ENV || 'development';
+const JWT_SECRET = environmentLoader.get('JWT_SECRET') || 'your-super-secret-jwt-key-change-in-production';
 
 export interface AuthResult {
   success: boolean;
@@ -51,7 +57,7 @@ export class AuthService {
       return {
         success: true,
         user,
-        token: this.generateToken(user), // Simple token generation
+        token: this.generateToken(user), // Now generates proper JWT
         message: 'Authentication successful'
       };
     } catch (error) {
@@ -78,17 +84,23 @@ export class AuthService {
         };
       }
 
+      // Hash password if provided
+      let hashedPassword: string | undefined = undefined;
+      if (userData.password) {
+        hashedPassword = await bcrypt.hash(userData.password, 10);
+      }
+
       // Create new user
       const newUser = await this.userRepository.create({
         email: userData.email,
         name: userData.name,
-        // TODO: Hash password when password auth is implemented
+        hashed_password: hashedPassword,
       });
 
       return {
         success: true,
         user: newUser,
-        token: this.generateToken(newUser),
+        token: this.generateToken(newUser), // Now generates proper JWT
         message: 'Registration successful'
       };
     } catch (error) {
@@ -105,12 +117,26 @@ export class AuthService {
    */
   async validateToken(token: string): Promise<User | null> {
     try {
-      // Simple token validation - extract user ID
-      // TODO: Implement proper JWT validation in production
-      const userId = this.extractUserIdFromToken(token);
-      if (!userId) return null;
+      // Development mode - allow special dev token
+      if (NODE_ENV === 'development' && token === 'dev-token') {
+        return await this.userRepository.findById('dev-user-123');
+      }
 
-      return await this.userRepository.findById(userId);
+      // Check if it's a legacy custom token format
+      if (token.startsWith('token_')) {
+        const userId = this.extractUserIdFromLegacyToken(token);
+        if (!userId) return null;
+        return await this.userRepository.findById(userId);
+      }
+
+      // Try JWT token verification
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET) as any;
+        return await this.userRepository.findById(decoded.userId);
+      } catch (jwtError) {
+        console.error('JWT validation failed:', jwtError);
+        return null;
+      }
     } catch (error) {
       console.error('Token validation error:', error);
       return null;
@@ -118,18 +144,23 @@ export class AuthService {
   }
 
   /**
-   * Generate a simple token (replace with JWT in production)
+   * Generate a proper JWT token
    */
   private generateToken(user: User): string {
-    // Simple token format: "token_<userId>_<timestamp>"
-    // TODO: Replace with proper JWT implementation
-    return `token_${user.user_id}_${Date.now()}`;
+    const payload = {
+      userId: user.user_id,
+      email: user.email,
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24 hours
+    };
+
+    return jwt.sign(payload, JWT_SECRET);
   }
 
   /**
-   * Extract user ID from token
+   * Extract user ID from legacy token format (for backward compatibility)
    */
-  private extractUserIdFromToken(token: string): string | null {
+  private extractUserIdFromLegacyToken(token: string): string | null {
     try {
       const parts = token.split('_');
       if (parts.length >= 2 && parts[0] === 'token') {
@@ -140,4 +171,4 @@ export class AuthService {
       return null;
     }
   }
-} 
+}

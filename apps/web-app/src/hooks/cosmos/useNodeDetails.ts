@@ -47,12 +47,8 @@ export const useNodeDetails = (node: any): UseNodeDetailsReturn => {
     setError(null);
 
     try {
-      // For development, use dev-token if no auth token is available
-      let token = localStorage.getItem('auth_token');
-      if (!token && process.env.NODE_ENV === 'development') {
-        token = 'dev-token';
-        console.log('🔧 useNodeDetails: Using development token');
-      }
+      // Use actual user token
+      const token = localStorage.getItem('auth_token');
       
       if (!token) {
         throw new Error('User not authenticated');

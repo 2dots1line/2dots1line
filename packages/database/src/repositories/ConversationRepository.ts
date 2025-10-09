@@ -258,7 +258,9 @@ export class ConversationRepository {
    * Used by PromptBuilder to get proactive_greeting for new conversation
    */
   async getMostRecentProcessedConversationWithContext(userId: string): Promise<conversations | null> {
-    return this.db.prisma.conversations.findFirst({
+    console.log(`🔍 ConversationRepository.getMostRecentProcessedConversationWithContext - Querying for userId: ${userId}`);
+    
+    const result = await this.db.prisma.conversations.findFirst({
       where: {
         user_id: userId,
         status: 'processed',
@@ -267,12 +269,23 @@ export class ConversationRepository {
       orderBy: { updated_at: 'desc' },
       select: {
         conversation_id: true,
+        user_id: true, // Include user_id in select to verify
         proactive_greeting: true,
         forward_looking_context: true,
         updated_at: true,
         title: true
       }
     });
+    
+    console.log(`🔍 ConversationRepository.getMostRecentProcessedConversationWithContext - Result:`, {
+      found: !!result,
+      conversationId: result?.conversation_id,
+      userId: result?.user_id,
+      hasProactiveGreeting: !!result?.proactive_greeting,
+      hasForwardLookingContext: !!result?.forward_looking_context
+    });
+    
+    return result;
   }
 
   // NEW METHOD: Find active conversation in a session

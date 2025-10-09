@@ -101,16 +101,10 @@ class CardService {
       'Content-Type': 'application/json'
     };
     
-    // In development, use dev-token for testing
-    const isDevelopment = process.env.NODE_ENV === 'development' || (typeof window !== 'undefined' && window.location.hostname === 'localhost');
-    
-    if (isDevelopment) {
-      headers['Authorization'] = 'Bearer dev-token';
-    } else {
-      const token = localStorage.getItem('auth_token');
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
+    // Always use the actual user's token from localStorage
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
     
     return headers;

@@ -23,6 +23,7 @@ import './ChatModal.css';
 import { chatService, type ChatMessage } from '../../services/chatService';
 import { userService } from '../../services/userService';
 import { useChatStore } from '../../stores/ChatStore';
+import { useUserStore } from '../../stores/UserStore';
 
 
 interface ChatModalProps {
@@ -37,6 +38,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
   const [currentAttachment, setCurrentAttachment] = useState<File | null>(null);
   const [currentDecision, setCurrentDecision] = useState<'respond_directly' | 'query_memory' | null>(null);
 
+  const { user } = useUserStore();
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -124,8 +126,23 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
     if (isOpen && !isInitialized) {
       const initializeChat = async () => {
         try {
-          // Get user ID from localStorage or use a default for development
-          const userId = localStorage.getItem('user_id') || 'dev-user-123';
+          // Get user ID from the authenticated user store
+          const userId = user?.user_id;
+          
+          if (!userId) {
+            console.error('No authenticated user found for proactive greeting');
+            // Fallback to default greeting
+            const defaultGreeting = 'Hello! I\'m here to help you explore your thoughts and experiences. What would you like to talk about today?';
+            const fallbackMessage: ChatMessage = {
+              id: '1',
+              type: 'bot',
+              content: defaultGreeting,
+              timestamp: new Date()
+            };
+            setMessages([fallbackMessage]);
+            setInitialized(true);
+            return;
+          }
           
           // Fetch proactive greeting
           const proactiveGreeting = await userService.getProactiveGreeting(userId);
@@ -160,7 +177,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose }) => {
       
       initializeChat();
     }
-  }, [isOpen, isInitialized, setMessages, setInitialized]);
+  }, [isOpen, isInitialized, user, setMessages, setInitialized]);
 
   // Refresh session history when modal opens to ensure up-to-date information - NON-BLOCKING
   useEffect(() => {

@@ -180,6 +180,9 @@ export const useUserStore = create<UserState>()(
         // Remove axios header
         delete axios.defaults.headers.common['Authorization'];
         
+        // Clear the persisted state from localStorage
+        localStorage.removeItem('user-storage');
+        
         set({
           user: null,
           isAuthenticated: false,
@@ -224,8 +227,11 @@ export const useUserStore = create<UserState>()(
           // Development mode: automatically set up dev authentication
           if (process.env.NODE_ENV === 'development') {
             const token = localStorage.getItem('auth_token');
+            const persistedState = localStorage.getItem('user-storage');
             
-            if (!token) {
+            // Only auto-setup dev auth if there's no token AND no persisted state
+            // This prevents auto-login after explicit logout
+            if (!token && !persistedState) {
               console.log('UserStore.initializeAuth - Development mode: setting up dev token');
               
               // Set up development token and user
@@ -258,10 +264,13 @@ export const useUserStore = create<UserState>()(
               console.log('UserStore.initializeAuth - Development authentication set up');
               console.log('UserStore.initializeAuth - Initialization complete');
               return;
-            } else {
+            } else if (token) {
               // Token exists, set up axios header
               axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
               console.log('UserStore.initializeAuth - Set axios header for existing token');
+            } else {
+              // No token and no persisted state - user explicitly logged out
+              console.log('UserStore.initializeAuth - No token or persisted state, staying logged out');
             }
           }
           

@@ -22,8 +22,8 @@ const LiveQuestScene: React.FC = () => {
   const [isStreaming, setIsStreaming] = useState(false);
   const [stageDirections, setStageDirections] = useState<any[]>([]);
   
-  const authToken = typeof window !== 'undefined' ? localStorage.getItem('auth_token') || 'dev-token' : null;
-  const userId = typeof window !== 'undefined' ? (localStorage.getItem('user_id') || 'dev-user-123') : null;
+  const authToken = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+  const userId = typeof window !== 'undefined' ? localStorage.getItem('user_id') : null;
   const { questState, joinQuest } = useQuestConnection(authToken, userId);
   
   // Cosmos store for node selection and basic edge controls
@@ -54,7 +54,7 @@ const LiveQuestScene: React.FC = () => {
 
   // Use key phrases as virtual entities for similarity search
   const expandWithKeyPhrases = useCallback(async (phrases: string[]) => {
-    console.log('🔍 LiveQuestScene: Expanding with key phrases:', phrases, 'similarity:', similarityThreshold, 'hops:', graphHops);
+    console.log('🔍 LiveQuestScene: Expanding with key phrases:', phrases, 'similarity:', similarityThreshold, 'hops:', graphHops, 'questId:', currentQuestId);
     
     try {
       const config: EntityLookupConfig = {
@@ -146,7 +146,7 @@ const LiveQuestScene: React.FC = () => {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken || 'dev-token'}`
+          'Authorization': `Bearer ${authToken}`
         },
         body: JSON.stringify({ 
           userQuestion: question, 

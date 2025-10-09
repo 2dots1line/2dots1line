@@ -34,15 +34,19 @@ export interface GraphProjection {
  */
 export const clearEmbeddingCache = async (userId: string = 'dev-user', questId?: string): Promise<void> => {
   try {
-    const response = await fetch('http://localhost:3001/api/v1/embedding/cache', {
+    // Build query parameters
+    const params = new URLSearchParams({
+      userId: userId
+    });
+    if (questId) {
+      params.append('questId', questId);
+    }
+    
+    const response = await fetch(`http://localhost:3001/api/v1/embedding/cache?${params.toString()}`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        userId: userId,
-        questId: questId
-      })
+      }
     });
 
     if (!response.ok) {

@@ -86,9 +86,10 @@ export const useBackgroundVideoStore = create<BackgroundVideoState>()(
                set({ isLoading: true, error: null });
 
                try {
+                 const token = localStorage.getItem('auth_token');
                  const response = await fetch(`/api/v1/media/search?q=${encodeURIComponent(query)}&type=${type}`, {
                    headers: {
-                     'Authorization': 'Bearer dev-token'
+                     'Authorization': `Bearer ${token}`
                    }
                  });
           
@@ -107,9 +108,10 @@ export const useBackgroundVideoStore = create<BackgroundVideoState>()(
 
                    getRecommendedMedia: async (view: ViewType) => {
                try {
+                 const token = localStorage.getItem('auth_token');
                  const response = await fetch(`/api/v1/media/recommended?view=${view}`, {
                    headers: {
-                     'Authorization': 'Bearer dev-token'
+                     'Authorization': `Bearer ${token}`
                    }
                  });
           

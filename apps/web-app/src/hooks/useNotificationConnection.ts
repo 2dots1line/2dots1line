@@ -33,7 +33,7 @@ export const useNotificationConnection = () => {
         }
 
         // Get token for authentication
-        const token = (typeof window !== 'undefined' && localStorage.getItem('auth_token')) || 'dev-token';
+        const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
         const NOTIFICATION_SERVICE_URL = process.env.NEXT_PUBLIC_NOTIFICATION_SERVICE_URL || 'http://localhost:3002';
         
         console.log('[Socket.IO] Connecting to:', NOTIFICATION_SERVICE_URL);

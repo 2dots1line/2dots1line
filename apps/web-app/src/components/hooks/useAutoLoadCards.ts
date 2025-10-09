@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { useCardStore } from '../../stores/CardStore';
 import { useUserStore } from '../../stores/UserStore';
@@ -10,21 +10,29 @@ import { useUserStore } from '../../stores/UserStore';
 export const useAutoLoadCards = () => {
   const { isAuthenticated, hasHydrated } = useUserStore();
   const { cards, isLoading, initializeSortedLoader } = useCardStore();
+  const hasInitialized = useRef(false);
 
   useEffect(() => {
     console.log('useAutoLoadCards - State check:', {
       isAuthenticated,
       hasHydrated,
       cardsLength: cards.length,
-      isLoading
+      isLoading,
+      hasInitialized: hasInitialized.current
     });
 
-    // Load cards when user is authenticated and hydrated, but only if no cards are loaded
-    if (isAuthenticated && hasHydrated && cards.length === 0 && !isLoading) {
+    // Load cards when user is authenticated and hydrated, but only if no cards are loaded and we haven't initialized yet
+    if (isAuthenticated && hasHydrated && cards.length === 0 && !isLoading && !hasInitialized.current) {
       console.log('useAutoLoadCards - Loading cards for authenticated user');
+      hasInitialized.current = true;
       initializeSortedLoader('newest');
     }
-  }, [isAuthenticated, hasHydrated, cards.length, isLoading, initializeSortedLoader]);
+
+    // Reset initialization flag when user logs out
+    if (!isAuthenticated) {
+      hasInitialized.current = false;
+    }
+  }, [isAuthenticated, hasHydrated, cards.length, isLoading]);
 
   return {
     isLoading,

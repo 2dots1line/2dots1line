@@ -230,7 +230,7 @@ export class LLMBasedOptimizer implements OptimizationStrategy {
     });
 
     // Get concepts needing synthesis
-    const conceptsNeedingSynthesis = concepts.filter(concept => 
+    const conceptsNeedingSynthesis = concepts.filter((concept: { content: string | null }) => 
       concept.content && concept.content.length > 0
     );
 
