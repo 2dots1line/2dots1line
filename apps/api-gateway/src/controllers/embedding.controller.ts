@@ -20,7 +20,7 @@ export class EmbeddingController {
    */
   async generateEmbedding(req: Request, res: Response): Promise<void> {
     try {
-      const { text, userId = 'system' } = req.body;
+      const { text, userId = 'system', questId } = req.body;
 
       if (!text || typeof text !== 'string') {
         res.status(400).json({
@@ -33,9 +33,9 @@ export class EmbeddingController {
         return;
       }
 
-      console.log(`🔍 EmbeddingController: Generating embedding for text (${text.length} chars)`);
+      console.log(`🔍 EmbeddingController: Generating embedding for text (${text.length} chars, user: ${userId}, quest: ${questId || 'none'})`);
       
-      const vector = await this.sharedEmbeddingService.getEmbedding(text, userId);
+      const vector = await this.sharedEmbeddingService.getEmbedding(text, userId, questId);
       
       res.json({
         success: true,
@@ -43,6 +43,7 @@ export class EmbeddingController {
           vector,
           text,
           userId,
+          questId,
           dimensions: vector.length
         }
       });
@@ -66,7 +67,7 @@ export class EmbeddingController {
    */
   async generateBatchEmbeddings(req: Request, res: Response): Promise<void> {
     try {
-      const { texts, userId = 'system' } = req.body;
+      const { texts, userId = 'system', questId } = req.body;
 
       if (!Array.isArray(texts) || texts.length === 0) {
         res.status(400).json({
@@ -79,9 +80,9 @@ export class EmbeddingController {
         return;
       }
 
-      console.log(`🔍 EmbeddingController: Generating batch embeddings for ${texts.length} texts`);
+      console.log(`🔍 EmbeddingController: Generating batch embeddings for ${texts.length} texts (user: ${userId}, quest: ${questId || 'none'})`);
       
-      const embeddings = await this.sharedEmbeddingService.getEmbeddings(texts, userId);
+      const embeddings = await this.sharedEmbeddingService.getEmbeddings(texts, userId, questId);
       
       // Convert Map to object for JSON response
       const embeddingsObject: Record<string, number[]> = {};
@@ -94,6 +95,7 @@ export class EmbeddingController {
         data: {
           embeddings: embeddingsObject,
           userId,
+          questId,
           count: embeddings.size
         }
       });
@@ -117,13 +119,14 @@ export class EmbeddingController {
    */
   async clearCache(req: Request, res: Response): Promise<void> {
     try {
-      const { phrase, userId = 'system' } = req.query;
+      const { phrase, userId = 'system', questId } = req.query;
 
-      console.log(`🔍 EmbeddingController: Clearing cache for user "${userId}"${phrase ? ` and phrase "${phrase}"` : ''}`);
+      console.log(`🔍 EmbeddingController: Clearing cache for user "${userId}"${phrase ? ` and phrase "${phrase}"` : ''}${questId ? ` and quest "${questId}"` : ''}`);
       
       await this.sharedEmbeddingService.clearCache(
         phrase as string | undefined, 
-        userId as string
+        userId as string,
+        questId as string | undefined
       );
       
       res.json({

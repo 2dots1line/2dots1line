@@ -50,6 +50,7 @@ const LiveQuestScene: React.FC = () => {
   // Store key phrases and expanded graph data
   const [keyPhrases, setKeyPhrases] = useState<string[]>([]);
   const [expandedGraphData, setExpandedGraphData] = useState<any>({ nodes: [], edges: [] });
+  const [currentQuestId, setCurrentQuestId] = useState<string | null>(null);
 
   // Use key phrases as virtual entities for similarity search
   const expandWithKeyPhrases = useCallback(async (phrases: string[]) => {
@@ -62,7 +63,7 @@ const LiveQuestScene: React.FC = () => {
         enableGraphHops: true
       };
 
-      const result = await performKeyPhraseLookup(phrases, config);
+      const result = await performKeyPhraseLookup(phrases, config, userId || 'dev-user-123', currentQuestId || undefined);
       
       if (result.nodes.length === 0) {
         const emptyGraphData = createGraphProjection([], [], {
@@ -97,7 +98,7 @@ const LiveQuestScene: React.FC = () => {
     } catch (error) {
       console.error('🔍 LiveQuestScene: Key phrase expansion failed:', error);
     }
-  }, [similarityThreshold, graphHops]);
+  }, [similarityThreshold, graphHops, currentQuestId]);
 
   // Set edges and labels to be on by default when key phrases arrive
   useEffect(() => {
@@ -164,6 +165,7 @@ const LiveQuestScene: React.FC = () => {
       const execId = j?.data?.executionId;
       if (execId) {
         console.log('🎯 LiveQuestScene: Quest execution ID:', execId);
+        setCurrentQuestId(execId); // Store the quest ID for embedding isolation
         joinQuest(execId);
       } else {
         console.error('❌ LiveQuestScene: No execution ID received');

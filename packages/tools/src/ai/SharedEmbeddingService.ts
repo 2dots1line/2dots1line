@@ -28,18 +28,18 @@ export class SharedEmbeddingService {
    * Get or generate embedding for a text phrase
    * Checks cache first, generates if not found or expired
    */
-  async getEmbedding(phrase: string, userId: string = 'system'): Promise<number[]> {
+  async getEmbedding(phrase: string, userId: string = 'system', questId?: string): Promise<number[]> {
     try {
       // Check cache first
-      const cacheKey = this.getEmbeddingCacheKey(phrase, userId);
+      const cacheKey = this.getEmbeddingCacheKey(phrase, userId, questId);
       const cached = await this.db.kvGet<EmbeddingCacheEntry>(cacheKey);
       
       if (cached && this.isCacheValid(cached)) {
-        console.log(`🔍 SharedEmbeddingService: Cache hit for phrase "${phrase}"`);
+        console.log(`🔍 SharedEmbeddingService: Cache hit for phrase "${phrase}" (user: ${userId}, quest: ${questId || 'none'})`);
         return cached.vector;
       }
 
-      console.log(`🔍 SharedEmbeddingService: Generating new embedding for phrase "${phrase}"`);
+      console.log(`🔍 SharedEmbeddingService: Generating new embedding for phrase "${phrase}" (user: ${userId}, quest: ${questId || 'none'})`);
       
       // Generate new embedding
       const result = await this.embeddingTool.execute({
@@ -61,7 +61,7 @@ export class SharedEmbeddingService {
       };
 
       await this.db.kvSet(cacheKey, cacheEntry, this.cacheTtlSeconds);
-      console.log(`🔍 SharedEmbeddingService: Cached embedding for phrase "${phrase}" (${result.result.vector.length} dimensions)`);
+      console.log(`🔍 SharedEmbeddingService: Cached embedding for phrase "${phrase}" (${result.result.vector.length} dimensions, user: ${userId}, quest: ${questId || 'none'})`);
 
       return result.result.vector;
 
@@ -74,13 +74,13 @@ export class SharedEmbeddingService {
   /**
    * Get embeddings for multiple phrases in parallel
    */
-  async getEmbeddings(phrases: string[], userId: string = 'system'): Promise<Map<string, number[]>> {
+  async getEmbeddings(phrases: string[], userId: string = 'system', questId?: string): Promise<Map<string, number[]>> {
     const embeddings = new Map<string, number[]>();
     
     // Process in parallel for better performance
     const promises = phrases.map(async (phrase) => {
       try {
-        const vector = await this.getEmbedding(phrase, userId);
+        const vector = await this.getEmbedding(phrase, userId, questId);
         embeddings.set(phrase, vector);
       } catch (error) {
         console.error(`Failed to get embedding for phrase "${phrase}":`, error);
@@ -95,10 +95,11 @@ export class SharedEmbeddingService {
   /**
    * Generate cache key for a phrase
    */
-  private getEmbeddingCacheKey(phrase: string, userId: string): string {
+  private getEmbeddingCacheKey(phrase: string, userId: string, questId?: string): string {
     // Normalize phrase for consistent caching
     const normalizedPhrase = phrase.toLowerCase().trim();
-    return `shared_embedding:${userId}:${normalizedPhrase}`;
+    const questSuffix = questId ? `:${questId}` : '';
+    return `shared_embedding:${userId}${questSuffix}:${normalizedPhrase}`;
   }
 
   /**
@@ -110,18 +111,19 @@ export class SharedEmbeddingService {
   }
 
   /**
-   * Clear cache for a specific phrase or all phrases for a user
+   * Clear cache for a specific phrase or all phrases for a user/quest
    */
-  async clearCache(phrase?: string, userId: string = 'system'): Promise<void> {
+  async clearCache(phrase?: string, userId: string = 'system', questId?: string): Promise<void> {
     if (phrase) {
-      const cacheKey = this.getEmbeddingCacheKey(phrase, userId);
+      const cacheKey = this.getEmbeddingCacheKey(phrase, userId, questId);
       await this.db.kvDel(cacheKey);
-      console.log(`🔍 SharedEmbeddingService: Cleared cache for phrase "${phrase}"`);
+      console.log(`🔍 SharedEmbeddingService: Cleared cache for phrase "${phrase}" (user: ${userId}, quest: ${questId || 'none'})`);
     } else {
-      // Clear all embeddings for user (this is more expensive)
-      const pattern = `shared_embedding:${userId}:*`;
+      // Clear all embeddings for user/quest (this is more expensive)
+      const questSuffix = questId ? `:${questId}` : '';
+      const pattern = `shared_embedding:${userId}${questSuffix}:*`;
       await this.db.kvDel(pattern);
-      console.log(`🔍 SharedEmbeddingService: Cleared all embeddings for user "${userId}"`);
+      console.log(`🔍 SharedEmbeddingService: Cleared all embeddings for user "${userId}" quest "${questId || 'all'}"`);
     }
   }
 }
