@@ -6,6 +6,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { hrtParametersService } from '../services/hrtParametersService';
+import { useUserStore } from './UserStore';
 
 export interface HRTParameters {
   // Vector Search Parameters (Weaviate)
@@ -181,7 +182,11 @@ export const useHRTParametersStore = create<HRTParametersState>()(
       saveParameters: async () => {
         try {
           const { parameters } = get();
-          const userId = 'dev-user-123'; // TODO: Get from auth context
+          const userId = useUserStore.getState().user?.user_id;
+          
+          if (!userId) {
+            throw new Error('No authenticated user found for saving HRT parameters');
+          }
           
           // Validate parameters before saving
           const validation = hrtParametersService.validateParameters(parameters);
@@ -207,7 +212,14 @@ export const useHRTParametersStore = create<HRTParametersState>()(
       
       loadParameters: async () => {
         try {
-          const userId = 'dev-user-123'; // TODO: Get from auth context
+          const userId = useUserStore.getState().user?.user_id;
+          
+          if (!userId) {
+            console.warn('No authenticated user found for loading HRT parameters, using defaults');
+            set({ parameters: defaultParameters, isModified: false });
+            return;
+          }
+          
           const response = await hrtParametersService.loadParameters(userId);
           
           if (response.success) {

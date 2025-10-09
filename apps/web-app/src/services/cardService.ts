@@ -7,6 +7,24 @@ import { CardStatus, CardType, DisplayCard } from '@2dots1line/shared-types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
 
+// Helper function to get authenticated user ID
+const getAuthenticatedUserId = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  
+  // Try to get from localStorage first (from UserStore persistence)
+  const userStorage = localStorage.getItem('user-storage');
+  if (userStorage) {
+    try {
+      const parsed = JSON.parse(userStorage);
+      return parsed.state?.user?.user_id || null;
+    } catch (error) {
+      console.warn('Failed to parse user storage:', error);
+    }
+  }
+  
+  return null;
+};
+
 export interface GetCardsRequest {
   user_id?: string;
   type?: string;
@@ -155,7 +173,7 @@ class CardService {
         return {
           // Map API fields to TCard interface
           card_id: apiCard.id,
-          user_id: 'dev-user-123', // Default for development
+          user_id: getAuthenticatedUserId() || 'unknown-user',
           type: apiCard.type,
           source_entity_id: apiCard.source_entity_id || apiCard.id,
           source_entity_type: apiCard.source_entity_type || apiCard.type,
@@ -385,7 +403,7 @@ class CardService {
       // Transform the API response to match frontend expectations
       const transformedCard = data.data ? {
         card_id: data.data.id,
-        user_id: 'dev-user-123',
+        user_id: getAuthenticatedUserId() || 'unknown-user',
         type: data.data.type,
         source_entity_id: data.data.source_entity_id || data.data.id,
         source_entity_type: data.data.source_entity_type || data.data.type,
@@ -529,7 +547,7 @@ class CardService {
         return {
           // Map API fields to TCard interface
           card_id: apiCard.id,
-          user_id: 'dev-user-123', // Default for development
+          user_id: getAuthenticatedUserId() || 'unknown-user',
           type: apiCard.type,
           source_entity_id: apiCard.source_entity_id || apiCard.id,
           source_entity_type: apiCard.source_entity_type || apiCard.type,

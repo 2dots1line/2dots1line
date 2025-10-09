@@ -70,6 +70,16 @@ export const useUserStore = create<UserState>()(
             // Set axios header immediately
             axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
             
+            // Clear chat data to prevent data leakage between users
+            try {
+              // Dynamically import to avoid circular dependency
+              import('./ChatStore').then(({ useChatStore }) => {
+                useChatStore.getState().clearUserData();
+              });
+            } catch (error) {
+              console.warn('Failed to clear chat data on login:', error);
+            }
+            
             // Update state - this should trigger persist middleware
             const newState = {
               user,
@@ -182,6 +192,16 @@ export const useUserStore = create<UserState>()(
         
         // Clear the persisted state from localStorage
         localStorage.removeItem('user-storage');
+        
+        // Clear chat data to prevent data leakage between users
+        try {
+          // Dynamically import to avoid circular dependency
+          import('./ChatStore').then(({ useChatStore }) => {
+            useChatStore.getState().clearUserData();
+          });
+        } catch (error) {
+          console.warn('Failed to clear chat data on logout:', error);
+        }
         
         set({
           user: null,

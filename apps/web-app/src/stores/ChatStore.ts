@@ -52,6 +52,7 @@ interface ChatState {
   startNewChat: () => void;
   loadSession: (sessionId: string) => void;
   resetChat: () => void;
+  clearUserData: () => void;
 }
 
 export const useChatStore = create<ChatState>()(
@@ -222,6 +223,21 @@ export const useChatStore = create<ChatState>()(
           showNewChatButton: false
         });
       },
+      
+      // Clear chat data when user changes (to prevent data leakage)
+      clearUserData: () => {
+        set({
+          currentConversationId: null,
+          currentSessionId: null,
+          messages: [],
+          isLoading: false,
+          isInitialized: false,
+          sessionHistory: [],
+          isHistoryLoading: false,
+          showHistoryModal: false,
+          showNewChatButton: false
+        });
+      },
     }),
     {
       name: 'chat-storage',
@@ -234,6 +250,32 @@ export const useChatStore = create<ChatState>()(
         sessionHistory: state.sessionHistory,
         showNewChatButton: state.showNewChatButton,
       }),
+      // Make storage user-scoped to prevent data leakage between users
+      getStorage: () => {
+        if (typeof window === 'undefined') return localStorage;
+        
+        // Get current user ID from UserStore
+        const userStorage = localStorage.getItem('user-storage');
+        let userId = 'anonymous';
+        
+        if (userStorage) {
+          try {
+            const parsed = JSON.parse(userStorage);
+            userId = parsed.state?.user?.user_id || 'anonymous';
+          } catch (error) {
+            console.warn('Failed to parse user storage for chat storage key:', error);
+          }
+        }
+        
+        // Create user-scoped storage key
+        const userScopedKey = `chat-storage-${userId}`;
+        
+        return {
+          getItem: (key: string) => localStorage.getItem(userScopedKey),
+          setItem: (key: string, value: string) => localStorage.setItem(userScopedKey, value),
+          removeItem: (key: string) => localStorage.removeItem(userScopedKey),
+        };
+      },
     }
   )
 );

@@ -2,6 +2,7 @@ import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { Graph3D } from './Graph3D';
 import { useQuestConnection } from '../../hooks/useQuestConnection';
 import { useCosmosStore } from '../../stores/CosmosStore';
+import { useUserStore } from '../../stores/UserStore';
 import CosmosError from '../modal/CosmosError';
 import CosmosLoading from '../modal/CosmosLoading';
 import CosmosNodeModal from '../modal/CosmosNodeModal';
@@ -22,9 +23,10 @@ const LiveQuestScene: React.FC = () => {
   const [isStreaming, setIsStreaming] = useState(false);
   const [stageDirections, setStageDirections] = useState<any[]>([]);
   
+  const { user } = useUserStore();
   const authToken = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-  const userId = typeof window !== 'undefined' ? localStorage.getItem('user_id') : null;
-  const { questState, joinQuest } = useQuestConnection(authToken, userId);
+  const userId = user?.user_id;
+  const { questState, joinQuest } = useQuestConnection(authToken, userId || null);
   
   // Cosmos store for node selection and basic edge controls
   const {
@@ -63,7 +65,12 @@ const LiveQuestScene: React.FC = () => {
         enableGraphHops: true
       };
 
-      const result = await performKeyPhraseLookup(phrases, config, userId || 'dev-user-123', currentQuestId || undefined);
+      if (!userId) {
+        console.error('No authenticated user found for key phrase lookup');
+        return;
+      }
+      
+      const result = await performKeyPhraseLookup(phrases, config, userId, currentQuestId || undefined);
       
       if (result.nodes.length === 0) {
         const emptyGraphData = createGraphProjection([], [], {
@@ -152,7 +159,7 @@ const LiveQuestScene: React.FC = () => {
           userQuestion: question, 
           conversationId: `quest-${Date.now()}`,
           questType: 'exploration',
-          userId: userId || 'dev-user-123' 
+          userId: userId 
         })
       });
       
