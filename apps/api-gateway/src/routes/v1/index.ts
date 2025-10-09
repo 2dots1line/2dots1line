@@ -10,6 +10,7 @@ import { UserController } from '../../controllers/user.controller';
 import { GraphController } from '../../controllers/graph.controller';
 import { MediaController } from '../../controllers/media.controller';
 import { HRTParametersController } from '../../controllers/hrtParameters.controller';
+import { EmbeddingController } from '../../controllers/embedding.controller';
 import { createAgentRoutes } from './agent.routes';
 import { createQuestRoutes } from './quest.routes';
 import { QuestController } from '../../controllers/quest.controller';
@@ -24,6 +25,7 @@ export function createV1Routes(
   graphController: GraphController,
   mediaController: MediaController,
   hrtParametersController: HRTParametersController,
+  embeddingController: EmbeddingController,
   cosmosQuestAgent: CosmosQuestAgent
 ): IRouter {
   const v1Router: IRouter = Router();
@@ -146,6 +148,11 @@ v1Router.get('/media/photos/:id', mediaController.getPhotoDetails.bind(mediaCont
 v1Router.post('/hrt/parameters', authMiddleware, hrtParametersController.saveParameters);
 v1Router.get('/hrt/parameters/:userId', authMiddleware, hrtParametersController.loadParameters);
 v1Router.post('/hrt/parameters/:userId/reset', authMiddleware, hrtParametersController.resetParameters);
+
+// --- Embedding Routes (Authenticated) ---
+v1Router.post('/embedding/generate', authMiddleware, embeddingController.generateEmbedding.bind(embeddingController));
+v1Router.post('/embedding/batch', authMiddleware, embeddingController.generateBatchEmbeddings.bind(embeddingController));
+v1Router.delete('/embedding/cache', authMiddleware, embeddingController.clearCache.bind(embeddingController));
 
 // Agent routes
 v1Router.use('/agent', createAgentRoutes(conversationController));

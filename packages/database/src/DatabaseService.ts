@@ -6,6 +6,7 @@ import { prisma } from './prisma-client';
 import { environmentLoader } from '@2dots1line/core-utils';
 import { LLMInteractionRepository } from './repositories/LLMInteractionRepository';
 import { CommunityRepository } from './repositories/CommunityRepository';
+import { ConnectionPoolMonitor } from './services/ConnectionPoolMonitor';
 
 /**
  * V9.7 DatabaseService with EnvironmentLoader Integration
@@ -24,6 +25,7 @@ export class DatabaseService {
   public readonly redis: Redis;
   public readonly llmInteractionRepository: LLMInteractionRepository;
   public readonly communityRepository: CommunityRepository;
+  public readonly connectionPoolMonitor: ConnectionPoolMonitor;
 
   private static instance: DatabaseService;
 
@@ -44,14 +46,21 @@ export class DatabaseService {
     
     this.neo4j = neo4jDriver(neo4jUri, neo4jAuth.basic(neo4jUser, neo4jPassword));
 
-    // 3. Initialize Weaviate Client
+    // 3. Initialize Weaviate Client with Connection Pooling
     const weaviateUrl = environmentLoader.get('WEAVIATE_URL') || `${environmentLoader.get('WEAVIATE_SCHEME_DOCKER') || 'http'}://${environmentLoader.get('WEAVIATE_HOST_DOCKER') || 'localhost:8080'}`;
     const weaviateScheme = weaviateUrl.startsWith('https') ? 'https' : 'http';
     const weaviateHost = weaviateUrl.replace(/^https?:\/\//, '');
     
+    // Enhanced Weaviate client configuration with connection pooling
     this.weaviate = weaviate.client({
       scheme: weaviateScheme as 'http' | 'https',
       host: weaviateHost,
+      // Connection pooling and timeout configuration
+      headers: {
+        'User-Agent': '2dots1line-hrt/1.0'
+      }
+      // Note: Weaviate client doesn't support timeout/retry config directly
+      // Timeout protection is handled at the application level in HRT
     });
 
     // 4. Initialize Redis Client with Connection Pooling
@@ -92,12 +101,15 @@ export class DatabaseService {
     this.llmInteractionRepository = new LLMInteractionRepository(this);
     this.communityRepository = new CommunityRepository(this);
 
+    // 6. Initialize Connection Pool Monitor
+    this.connectionPoolMonitor = new ConnectionPoolMonitor(this);
+
     console.log('DatabaseService Redis configured:', 
       redisUrl || `${environmentLoader.get('REDIS_HOST') || 'localhost'}:${environmentLoader.get('REDIS_PORT') || '6379'}`,
       `(NODE_ENV: ${environmentLoader.get('NODE_ENV') || 'development'})`
     );
 
-    console.log('DatabaseService initialized with all clients and repositories.');
+    console.log('DatabaseService initialized with all clients, repositories, and connection pool monitoring.');
   }
 
   /**
@@ -208,8 +220,32 @@ export class DatabaseService {
     }
   }
 
+  /**
+   * Get connection pool metrics and health status
+   */
+  getConnectionPoolMetrics() {
+    return this.connectionPoolMonitor.getMetrics();
+  }
+
+  /**
+   * Get connection pool health status
+   */
+  getConnectionPoolHealth() {
+    return this.connectionPoolMonitor.getHealthStatus();
+  }
+
+  /**
+   * Log connection pool metrics
+   */
+  logConnectionPoolMetrics() {
+    this.connectionPoolMonitor.logMetrics();
+  }
+
   // Method to gracefully close all connections
   public async closeConnections(): Promise<void> {
+    // Log final connection pool metrics
+    this.logConnectionPoolMetrics();
+    
     await this.prisma.$disconnect();
     await this.neo4j.close();
     // Redis client in ioredis handles connection closing automatically or with .quit()

@@ -91,7 +91,9 @@
     "max_total_execution_time_ms": 20000,
     "max_candidates_evaluated": 300,
     "max_final_results": 50,
-    "enable_early_termination": true
+    "enable_early_termination": true,
+    "enable_parallel_processing": true,
+    "max_concurrent_phrases": 3
   },
   "error_handling": {
     "enable_graceful_degradation": true,

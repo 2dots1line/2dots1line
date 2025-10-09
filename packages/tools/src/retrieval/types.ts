@@ -29,6 +29,7 @@ export interface HRTUserParameters {
   performance: {
     maxRetrievalTimeMs: number;
     enableParallelProcessing: boolean;
+    maxConcurrentPhrases: number;
     cacheResults: boolean;
   };
   qualityFilters: {

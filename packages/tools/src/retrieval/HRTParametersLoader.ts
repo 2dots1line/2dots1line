@@ -52,7 +52,8 @@ export class HRTParametersLoader {
         },
         performance: {
           maxRetrievalTimeMs: hrtConfig?.performance_limits?.max_total_execution_time_ms || 5000,
-          enableParallelProcessing: true,
+          enableParallelProcessing: hrtConfig?.performance_limits?.enable_parallel_processing ?? true,
+          maxConcurrentPhrases: hrtConfig?.performance_limits?.max_concurrent_phrases || 3,
           cacheResults: hrtConfig?.caching?.enable_result_caching || true,
         },
         qualityFilters: {
@@ -174,6 +175,7 @@ export class HRTParametersLoader {
       performance: {
         maxRetrievalTimeMs: 5000,
         enableParallelProcessing: true,
+        maxConcurrentPhrases: 3,
         cacheResults: true,
       },
       qualityFilters: {

@@ -101,9 +101,9 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
   // Smaller sizing formula: base size 1.0 + normalized importance * 1.0
   let baseSize = Math.max(1.0 + normalizedImportance * 1.0, 0.8); // Minimum size of 0.8
   
-  // Make search results much larger and more prominent
+  // Make search results slightly larger and more prominent
   if (isSearchResult) {
-    baseSize = Math.max(baseSize * 2, 6.0); // At least 12.0 for search results
+    baseSize = Math.max(baseSize * 1.3, 1.5); // Only 30% larger, max 1.5x for readability
     console.log('🌟 NodeMesh: Search result detected, using bright star texture and size:', baseSize);
   }
   
@@ -167,7 +167,7 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
       transparent: true,
       blending: THREE.AdditiveBlending,
       color: getStarColor,
-      opacity: 1.0 // Increased from 0.8 to 1.0 for less transparency
+      opacity: 0.6 // Reduced opacity to prevent overexposure
     });
   }, [starTexture, baseSize, getStarColor]);
 
@@ -210,14 +210,14 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
         />
       </mesh>
       
-      {/* Add subtle glow effect for important nodes */}
-      {importance > 7 && (
-        <mesh scale={[baseSize * 1.2, baseSize * 1.2, baseSize * 1.2]}>
+      {/* Add very subtle glow effect for important nodes */}
+      {importance > 8 && (
+        <mesh scale={[baseSize * 1.1, baseSize * 1.1, baseSize * 1.1]}>
           <sphereGeometry args={[1, 8, 8]} />
           <meshBasicMaterial 
             color={getStarColor}
             transparent={true}
-            opacity={0.3}
+            opacity={0.1} // Much more subtle glow
             side={THREE.BackSide}
           />
         </mesh>

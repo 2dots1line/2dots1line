@@ -10,6 +10,8 @@ import CosmosError from '../../../components/modal/CosmosError';
 import CosmosLoading from '../../../components/modal/CosmosLoading';
 import CosmosNodeModal from '../../../components/modal/CosmosNodeModal';
 import { NodeLabelControls } from '../../../components/cosmos/NodeLabelControls';
+import { LookupControls } from '../../../components/cosmos/LookupControls';
+import { performKeyPhraseLookup, createGraphProjection, LookupConfig as EntityLookupConfig } from '../../../utils/entityLookup';
 
 interface EntityLookupState {
   entityId: string;
@@ -21,7 +23,7 @@ interface EntityLookupState {
   totalEntities: number;
 }
 
-interface LookupConfig {
+interface LocalLookupConfig {
   semanticSimilarLimit: number;
   graphHops: number;
   similarityThreshold: number;
@@ -52,7 +54,7 @@ const CosmosLookupScene: React.FC = () => {
   });
 
   // Lookup configuration
-  const [lookupConfig, setLookupConfig] = useState<LookupConfig>({
+  const [lookupConfig, setLookupConfig] = useState<LocalLookupConfig>({
     semanticSimilarLimit: 20,
     graphHops: 1,
     similarityThreshold: 0.7,
@@ -717,57 +719,18 @@ const CosmosLookupScene: React.FC = () => {
             <div className="border-t border-white/20 pt-3">
               <h4 className="text-sm font-medium text-white/80 mb-2">Configuration</h4>
               
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div>
-                  <label className="block text-white/60 mb-1">Semantic Similar Limit</label>
-                  <input
-                    type="number"
-                    value={lookupConfig.semanticSimilarLimit}
-                    onChange={(e) => setLookupConfig(prev => ({ ...prev, semanticSimilarLimit: parseInt(e.target.value) || 20 }))}
-                    className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-xs"
-                    min="1"
-                    max="100"
-                  />
-                </div>
-                
-                
-                <div>
-                  <label className="block text-white/60 mb-1">Graph Hops</label>
-                  <input
-                    type="number"
-                    value={lookupConfig.graphHops}
-                    onChange={(e) => setLookupConfig(prev => ({ ...prev, graphHops: parseInt(e.target.value) || 1 }))}
-                    className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-xs"
-                    min="1"
-                    max="3"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-white/60 mb-1">Similarity Threshold</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={lookupConfig.similarityThreshold}
-                    onChange={(e) => setLookupConfig(prev => ({ ...prev, similarityThreshold: parseFloat(e.target.value) || 0.7 }))}
-                    className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-xs"
-                    min="0.1"
-                    max="1.0"
-                  />
-                </div>
-              </div>
-              
-              <div className="mt-2">
-                <label className="flex items-center space-x-2 text-white/70 text-xs">
-                  <input
-                    type="checkbox"
-                    checked={lookupConfig.enableGraphHops}
-                    onChange={(e) => setLookupConfig(prev => ({ ...prev, enableGraphHops: e.target.checked }))}
-                    className="rounded"
-                  />
-                  <span>Enable Graph Hops (Neo4j)</span>
-                </label>
-              </div>
+              <LookupControls
+                similarityThreshold={lookupConfig.similarityThreshold}
+                onSimilarityChange={(value) => setLookupConfig((prev: LocalLookupConfig) => ({ ...prev, similarityThreshold: value }))}
+                graphHops={lookupConfig.graphHops}
+                onGraphHopsChange={(value) => setLookupConfig((prev: LocalLookupConfig) => ({ ...prev, graphHops: value }))}
+                enableGraphHops={lookupConfig.enableGraphHops}
+                onEnableGraphHopsChange={(enabled) => setLookupConfig((prev: LocalLookupConfig) => ({ ...prev, enableGraphHops: enabled }))}
+                semanticSimilarLimit={lookupConfig.semanticSimilarLimit}
+                onSemanticSimilarLimitChange={(value) => setLookupConfig((prev: LocalLookupConfig) => ({ ...prev, semanticSimilarLimit: value }))}
+                showAdvanced={true}
+                className="mb-3"
+              />
             </div>
 
             <div className="flex space-x-2">

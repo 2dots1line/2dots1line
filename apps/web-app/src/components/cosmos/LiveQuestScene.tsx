@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { Graph3D } from './Graph3D';
 import { useQuestConnection } from '../../hooks/useQuestConnection';
 import { useCosmosStore } from '../../stores/CosmosStore';
@@ -11,6 +11,8 @@ import { LookupCameraController } from './LookupCameraController';
 import { HUDContainer } from '../hud/HUDContainer';
 import { GlassmorphicPanel, GlassButton } from '@2dots1line/ui-components';
 import { Send, Loader2, MessageSquare, X, Plus } from 'lucide-react';
+import { performKeyPhraseLookup, createGraphProjection, LookupConfig as EntityLookupConfig } from '../../utils/entityLookup';
+import { MinimalistLookupControls } from './LookupControls';
 
 const LiveQuestScene: React.FC = () => {
   const [question, setQuestion] = useState('What do you know about my skating experience?');
@@ -30,13 +32,100 @@ const LiveQuestScene: React.FC = () => {
     setSelectedNode,
     showEdges,
     setShowEdges,
-    graphData
+    graphData,
+    setGraphData,
+    showNodeLabels,
+    setShowNodeLabels
   } = useCosmosStore();
 
   // Local edge control state
   const [edgeOpacity, setEdgeOpacity] = useState(0.5);
   const [edgeWidth, setEdgeWidth] = useState(1.0);
   const [animatedEdges, setAnimatedEdges] = useState(true);
+
+  // Add minimalist lookup controls
+  const [similarityThreshold, setSimilarityThreshold] = useState(0.7);
+  const [graphHops, setGraphHops] = useState(2); // Default to 2 hops
+  
+  // Store key phrases and expanded graph data
+  const [keyPhrases, setKeyPhrases] = useState<string[]>([]);
+  const [expandedGraphData, setExpandedGraphData] = useState<any>({ nodes: [], edges: [] });
+
+  // Use key phrases as virtual entities for similarity search
+  const expandWithKeyPhrases = useCallback(async (phrases: string[]) => {
+    console.log('🔍 LiveQuestScene: Expanding with key phrases:', phrases, 'similarity:', similarityThreshold, 'hops:', graphHops);
+    
+    try {
+      const config: EntityLookupConfig = {
+        graphHops,
+        similarityThreshold,
+        enableGraphHops: true
+      };
+
+      const result = await performKeyPhraseLookup(phrases, config);
+      
+      if (result.nodes.length === 0) {
+        const emptyGraphData = createGraphProjection([], [], {
+          dimension_reduction_algorithm: 'key_phrase_expansion',
+          semantic_similarity_threshold: similarityThreshold,
+          graph_hops: graphHops,
+          key_phrases: phrases
+        }, 10); // Use same position scale as CosmosScene
+        setExpandedGraphData(emptyGraphData);
+        setGraphData(emptyGraphData);
+        return;
+      }
+
+      // Create graph projection with position scaling to match CosmosScene style
+      const newGraphData = createGraphProjection(result.nodes, result.edges, {
+        dimension_reduction_algorithm: 'key_phrase_expansion',
+        semantic_similarity_threshold: similarityThreshold,
+        graph_hops: graphHops,
+        key_phrases: phrases
+      }, 10); // Use same position scale as CosmosScene
+      
+      setExpandedGraphData(newGraphData);
+      // Update the cosmos store so the counts are live
+      setGraphData(newGraphData);
+      
+      console.log('🔍 LiveQuestScene: Expanded graph:', {
+        keyPhrases: phrases.length,
+        totalNodes: result.nodes.length,
+        totalEdges: result.edges.length
+      });
+      
+    } catch (error) {
+      console.error('🔍 LiveQuestScene: Key phrase expansion failed:', error);
+    }
+  }, [similarityThreshold, graphHops]);
+
+  // Set edges and labels to be on by default when key phrases arrive
+  useEffect(() => {
+    if (questState.key_phrases && questState.key_phrases.length > 0) {
+      console.log('🔍 LiveQuestScene: Quest state key phrases:', questState.key_phrases);
+      setShowEdges(true); // Force edges to be on for key phrase exploration
+      setShowNodeLabels(true); // Force labels to be on for quest results readability
+    }
+  }, [questState.key_phrases, setShowEdges, setShowNodeLabels]);
+
+  // Extract key phrases when they arrive and trigger expansion
+  useEffect(() => {
+    if (questState.key_phrases && questState.key_phrases.length > 0) {
+      const phrases = questState.key_phrases.map((kp: any) => kp.phrase || kp);
+      console.log('🔍 LiveQuestScene: Key phrases extracted:', phrases);
+      setKeyPhrases(phrases);
+      
+      // Auto-expand with current settings
+      expandWithKeyPhrases(phrases);
+    }
+  }, [questState.key_phrases, expandWithKeyPhrases]);
+
+  // Re-expand when controls change
+  useEffect(() => {
+    if (keyPhrases.length > 0) {
+      expandWithKeyPhrases(keyPhrases);
+    }
+  }, [similarityThreshold, graphHops, keyPhrases, expandWithKeyPhrases]);
 
   const startLiveQuest = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -146,7 +235,7 @@ const LiveQuestScene: React.FC = () => {
 
   // Process visualization data
   const viz = questState.visualization_stages;
-  const POSITION_SCALE = 10;
+  const POSITION_SCALE = 50; // Much larger scale to create sense of distance like CosmosScene
   
   // Map entity types from CosmosQuestAgent format to API format
   const mapEntityType = (entityType: string): string => {
@@ -547,19 +636,30 @@ const LiveQuestScene: React.FC = () => {
       )}
 
 
-      {/* 3D Visualization */}
+      {/* Minimalist Controls - Top Right */}
+      {keyPhrases.length > 0 && (
+        <MinimalistLookupControls
+          similarityThreshold={similarityThreshold}
+          onSimilarityChange={setSimilarityThreshold}
+          graphHops={graphHops}
+          onGraphHopsChange={setGraphHops}
+          className="absolute top-4 right-20 z-10"
+        />
+      )}
+
+      {/* 3D Visualization with expanded data */}
       <Graph3D
-        graphData={questGraphData}
+        graphData={graphData} // Use cosmos store data for live counts
         onNodeClick={(node) => setSelectedNode(node)}
-        showEdges={showEdges}
+        showEdges={showEdges} // Use cosmos store edge state
         edgeOpacity={edgeOpacity}
         edgeWidth={edgeWidth}
         animatedEdges={animatedEdges}
         modalOpen={!!selectedNode}
-        isSearchResult={true}
         customCameraPosition={[center.x + 200, center.y + 200, center.z - 150]}
         customCameraTarget={center}
         customTargetDistance={80}
+        enableNodeRotation={false} // Disable node cluster rotation for better interaction
         customCameraController={LookupCameraController}
       />
       

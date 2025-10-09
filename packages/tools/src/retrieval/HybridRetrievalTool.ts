@@ -9,6 +9,7 @@ import { WeaviateClient } from 'weaviate-ts-client';
 // import { Driver as Neo4jDriver } from 'neo4j-driver'; // Commented out due to missing dependency
 import { CypherBuilder, EntityScorer, HydrationAdapter } from './internal';
 import { TextEmbeddingTool } from '../ai/TextEmbeddingTool';
+import { getSharedEmbeddingService } from '../ai/SharedEmbeddingService';
 import { HRTParametersLoader } from './HRTParametersLoader';
 import type { IExecutableTool, TTextEmbeddingInputPayload, TTextEmbeddingResult } from '@2dots1line/shared-types';
 import { 
@@ -34,6 +35,7 @@ export class HybridRetrievalTool {
   private entityScorer: EntityScorer | null = null;
   private hydrationAdapter: HydrationAdapter | null = null;
   private embeddingTool!: IExecutableTool<TTextEmbeddingInputPayload, TTextEmbeddingResult>;
+  private sharedEmbeddingService: any;
   private parametersLoader: HRTParametersLoader;
   private cachingEnabled: boolean = false;
   private cacheTtlSeconds: number = 300;
@@ -98,8 +100,9 @@ export class HybridRetrievalTool {
       
       this.hydrationAdapter = new HydrationAdapter(this.db);
       
-      // Initialize embedding tool for semantic search
+      // Initialize embedding tool and shared service for semantic search
       this.embeddingTool = TextEmbeddingTool;
+      this.sharedEmbeddingService = getSharedEmbeddingService(this.db);
       // Caching flags
       if (hrtConfig?.caching) {
         this.cachingEnabled = !!hrtConfig.caching.enable_result_caching;
@@ -234,138 +237,28 @@ export class HybridRetrievalTool {
     }
   }
 
-  // Stage 2: Semantic Grounding (Weaviate)
+  // Stage 2: Semantic Grounding (Weaviate) - Enhanced with Parallel Processing
   private async semanticGrounding(phrases: string[], userId: string, context: HRTExecutionContext, userParameters: HRTUserParameters): Promise<SeedEntity[]> {
     const stageStart = Date.now();
     
     try {
-      console.log(`[HRT ${context.requestId}] Stage 2: Semantic grounding with Weaviate using nearVector`);
+      console.log(`[HRT ${context.requestId}] Stage 2: Semantic grounding with Weaviate using nearVector (parallel processing enabled)`);
       
       if (!this.embeddingTool) {
         throw new Error('Embedding tool not initialized');
       }
       
-      const seedEntities: SeedEntity[] = [];
+      // Check if parallel processing is enabled
+      const enableParallel = userParameters.performance?.enableParallelProcessing ?? true;
+      const maxConcurrentPhrases = userParameters.performance?.maxConcurrentPhrases ?? 3;
       
-      for (const phrase of phrases) {
-        try {
-          console.log(`[HRT ${context.requestId}] Generating embedding for phrase: "${phrase}"`);
-          // Micro-cache per phrase → seeds
-          if (this.cachingEnabled) {
-            const phraseKey = this.composeSeedsCacheKey(userId, phrase);
-            const cachedSeeds = await this.db.kvGet<SeedEntity[]>(phraseKey);
-            if (cachedSeeds && cachedSeeds.length > 0) {
-              console.log(`[HRT ${context.requestId}] Seeds cache hit for phrase '${phrase}'`);
-              seedEntities.push(...cachedSeeds);
-              continue;
-            }
-          }
-          
-          // Generate embedding for the search phrase
-          const embeddingResult = await this.embeddingTool.execute({
-            payload: {
-              text_to_embed: phrase
-              // model_id will be determined by the TextEmbeddingTool from config
-            }
-          });
-          
-          if (!embeddingResult.result?.vector) {
-            console.warn(`[HRT ${context.requestId}] Failed to generate embedding for phrase "${phrase}"`);
-            continue;
-          }
-          
-          const searchVector = embeddingResult.result.vector;
-          console.log(`[HRT ${context.requestId}] Generated ${searchVector.length}-dimensional vector for phrase "${phrase}"`);
-          
-          // Use nearVector search instead of withNearText
-          // For memory units, we don't filter by status since they don't have status in PostgreSQL
-          // For concepts, we filter by status: 'active' or null to include existing concepts
-          const whereClause = {
-            operator: 'And' as const,
-            operands: [
-              {
-                operator: 'Equal' as const,
-                path: ['user_id'],
-                valueString: userId
-              },
-              {
-                operator: 'Or' as const,
-                operands: [
-                  {
-                    operator: 'Equal' as const,
-                    path: ['entity_type'],
-                    valueString: 'MemoryUnit'
-                  },
-                  {
-                    operator: 'And' as const,
-                    operands: [
-                      {
-                        operator: 'Equal' as const,
-                        path: ['entity_type'],
-                        valueString: 'Concept'
-                      },
-                        {
-                          operator: 'Equal' as const,
-                          path: ['status'],
-                          valueString: 'active'
-                        }
-                    ]
-                  }
-                ]
-              }
-            ]
-          };
-
-          const result = await this.weaviate
-            .graphql
-            .get()
-            .withClassName('UserKnowledgeItem')
-            .withFields('entity_id entity_type content _additional { distance }')
-            .withWhere(whereClause)
-            .withNearVector({ vector: searchVector })
-            .withLimit(userParameters.weaviate.resultsPerPhrase)
-            .do();
-          
-          if (result?.data?.Get?.UserKnowledgeItem) {
-            for (const item of result.data.Get.UserKnowledgeItem) {
-              // Validate that we have valid data before creating seed entity
-              if (item.entity_id && item.entity_type) {
-                const distance = item._additional?.distance || 1.0;
-                const similarity = 1.0 - distance;
-                
-                if (similarity > 0.1) {
-                  // Weaviate already filters by status='active', so all results are active
-                  seedEntities.push({
-                    id: item.entity_id,
-                    type: item.entity_type,
-                    weaviateScore: similarity
-                  });
-                }
-              } else {
-                console.warn(`[HRT ${context.requestId}] Skipping item with null entity_id or entity_type:`, item);
-              }
-            }
-          }
-          // Write phrase seeds cache
-          if (this.cachingEnabled) {
-            const phraseKey = this.composeSeedsCacheKey(userId, phrase);
-            const toCache = seedEntities.filter(s => !!s);
-            await this.db.kvSet(phraseKey, toCache, this.cacheTtlSeconds);
-          }
-        } catch (phraseError) {
-          console.warn(`[HRT ${context.requestId}] Weaviate search failed for phrase "${phrase}":`, phraseError);
-        }
+      console.log(`[HRT ${context.requestId}] Processing ${phrases.length} phrases (parallel: ${enableParallel}, max concurrent: ${maxConcurrentPhrases})`);
+      
+      if (enableParallel && phrases.length > 1) {
+        return await this.semanticGroundingParallel(phrases, userId, context, userParameters, maxConcurrentPhrases);
+      } else {
+        return await this.semanticGroundingSequential(phrases, userId, context, userParameters);
       }
-      
-      const uniqueSeeds = this.deduplicateEntities(seedEntities);
-      
-      context.timings.weaviateLatency = Date.now() - stageStart;
-      context.stageResults.semanticGrounding = {
-        success: true,
-        seedEntitiesFound: uniqueSeeds.length
-      };
-      
-      return uniqueSeeds;
       
     } catch (error) {
       context.timings.weaviateLatency = Date.now() - stageStart;
@@ -374,6 +267,192 @@ export class HybridRetrievalTool {
         error: error instanceof Error ? error : new Error(String(error)),
         impact: 'degraded'
       });
+      return [];
+    }
+  }
+
+  /**
+   * Parallel semantic grounding implementation
+   */
+  private async semanticGroundingParallel(phrases: string[], userId: string, context: HRTExecutionContext, userParameters: HRTUserParameters, maxConcurrent: number): Promise<SeedEntity[]> {
+    const seedEntities: SeedEntity[] = [];
+    
+    // Process phrases in batches to respect concurrency limits
+    for (let i = 0; i < phrases.length; i += maxConcurrent) {
+      const batch = phrases.slice(i, i + maxConcurrent);
+      console.log(`[HRT ${context.requestId}] Processing batch ${Math.floor(i / maxConcurrent) + 1}/${Math.ceil(phrases.length / maxConcurrent)} (${batch.length} phrases)`);
+      
+      // Process batch in parallel
+      const batchPromises = batch.map(phrase => 
+        this.processPhraseSemanticGrounding(phrase, userId, context, userParameters)
+      );
+      
+      const batchResults = await Promise.allSettled(batchPromises);
+      
+      // Collect successful results
+      for (const result of batchResults) {
+        if (result.status === 'fulfilled' && result.value) {
+          seedEntities.push(...result.value);
+        }
+      }
+    }
+    
+    const uniqueSeeds = this.deduplicateEntities(seedEntities);
+    
+    context.timings.weaviateLatency = Date.now() - context.startTime;
+    context.stageResults.semanticGrounding = {
+      success: true,
+      seedEntitiesFound: uniqueSeeds.length
+    };
+    
+    console.log(`[HRT ${context.requestId}] Parallel semantic grounding completed: ${uniqueSeeds.length} unique seed entities found`);
+    return uniqueSeeds;
+  }
+
+  /**
+   * Sequential semantic grounding implementation (fallback)
+   */
+  private async semanticGroundingSequential(phrases: string[], userId: string, context: HRTExecutionContext, userParameters: HRTUserParameters): Promise<SeedEntity[]> {
+    const seedEntities: SeedEntity[] = [];
+    
+    for (const phrase of phrases) {
+      const phraseResults = await this.processPhraseSemanticGrounding(phrase, userId, context, userParameters);
+      if (phraseResults) {
+        seedEntities.push(...phraseResults);
+      }
+    }
+    
+    const uniqueSeeds = this.deduplicateEntities(seedEntities);
+    
+    context.timings.weaviateLatency = Date.now() - context.startTime;
+    context.stageResults.semanticGrounding = {
+      success: true,
+      seedEntitiesFound: uniqueSeeds.length
+    };
+    
+    return uniqueSeeds;
+  }
+
+  /**
+   * Process a single phrase for semantic grounding
+   */
+  private async processPhraseSemanticGrounding(phrase: string, userId: string, context: HRTExecutionContext, userParameters: HRTUserParameters): Promise<SeedEntity[]> {
+    try {
+      console.log(`[HRT ${context.requestId}] Processing phrase: "${phrase}"`);
+      
+      // Check cache first
+      if (this.cachingEnabled) {
+        const phraseKey = this.composeSeedsCacheKey(userId, phrase);
+        const cachedSeeds = await this.db.kvGet<SeedEntity[]>(phraseKey);
+        if (cachedSeeds && cachedSeeds.length > 0) {
+          console.log(`[HRT ${context.requestId}] Seeds cache hit for phrase '${phrase}'`);
+          return cachedSeeds;
+        }
+      }
+      
+      // Get embedding from shared service (cached or generated)
+      const searchVector = await this.sharedEmbeddingService.getEmbedding(phrase, userId);
+      console.log(`[HRT ${context.requestId}] Generated ${searchVector.length}-dimensional vector for phrase "${phrase}"`);
+      
+      // Perform Weaviate search with timeout protection
+      const whereClause = {
+        operator: 'And' as const,
+        operands: [
+          {
+            operator: 'Equal' as const,
+            path: ['user_id'],
+            valueString: userId
+          },
+          {
+            operator: 'Or' as const,
+            operands: [
+              {
+                operator: 'Equal' as const,
+                path: ['entity_type'],
+                valueString: 'MemoryUnit'
+              },
+              {
+                operator: 'And' as const,
+                operands: [
+                  {
+                    operator: 'Equal' as const,
+                    path: ['entity_type'],
+                    valueString: 'Concept'
+                  },
+                  {
+                    operator: 'Equal' as const,
+                    path: ['status'],
+                    valueString: 'active'
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      };
+
+      // Add timeout protection for Weaviate search
+      const searchStartTime = Date.now();
+      const searchPromise = this.weaviate
+        .graphql
+        .get()
+        .withClassName('UserKnowledgeItem')
+        .withFields('entity_id entity_type content _additional { distance }')
+        .withWhere(whereClause)
+        .withNearVector({ vector: searchVector })
+        .withLimit(userParameters.weaviate.resultsPerPhrase)
+        .do();
+
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error(`Weaviate search timeout for phrase "${phrase}"`)), userParameters.weaviate.timeoutMs)
+      );
+
+      let result: any;
+      let searchSuccess = true;
+      let searchError: Error | undefined;
+
+      try {
+        result = await Promise.race([searchPromise, timeoutPromise]) as any;
+      } catch (error) {
+        searchSuccess = false;
+        searchError = error instanceof Error ? error : new Error(String(error));
+        throw error;
+      } finally {
+        // Record metrics for connection pool monitoring
+        const responseTime = Date.now() - searchStartTime;
+        this.db.connectionPoolMonitor.recordWeaviateRequest(responseTime, searchSuccess, searchError);
+      }
+      
+      const phraseSeeds: SeedEntity[] = [];
+      
+      if (result?.data?.Get?.UserKnowledgeItem) {
+        for (const item of result.data.Get.UserKnowledgeItem) {
+          if (item.entity_id && item.entity_type) {
+            const distance = item._additional?.distance || 1.0;
+            const similarity = 1.0 - distance;
+            
+            if (similarity > userParameters.weaviate.similarityThreshold) {
+              phraseSeeds.push({
+                id: item.entity_id,
+                type: item.entity_type,
+                weaviateScore: similarity
+              });
+            }
+          }
+        }
+      }
+      
+      // Cache the results
+      if (this.cachingEnabled && phraseSeeds.length > 0) {
+        const phraseKey = this.composeSeedsCacheKey(userId, phrase);
+        await this.db.kvSet(phraseKey, phraseSeeds, this.cacheTtlSeconds);
+      }
+      
+      console.log(`[HRT ${context.requestId}] Found ${phraseSeeds.length} seed entities for phrase "${phrase}"`);
+      return phraseSeeds;
+      
+    } catch (error) {
+      console.warn(`[HRT ${context.requestId}] Weaviate search failed for phrase "${phrase}":`, error);
       return [];
     }
   }
