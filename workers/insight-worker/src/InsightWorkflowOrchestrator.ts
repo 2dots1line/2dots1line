@@ -37,6 +37,7 @@ import type {
 } from '@2dots1line/database';
 import { 
   FoundationStageTool, 
+  FoundationStageResult,
   StrategicStageTool, 
   HybridRetrievalTool, 
   LLMChatTool,
@@ -69,7 +70,6 @@ export interface CycleResult {
   stages: {
     foundation: 'success' | 'failed' | 'pending';
     strategic: 'success' | 'failed' | 'pending';
-    integration: 'success' | 'failed' | 'pending';
   };
   results?: any;
   error?: string;
@@ -138,23 +138,18 @@ export class InsightWorkflowOrchestrator {
       
       // Stage 1: Foundation (Critical - must succeed for strategic stage)
       console.log(`[InsightWorkflowOrchestrator] Stage 1: Foundation analysis for user ${userId}`);
-      results.foundation = await this.executeFoundationStage(userId, cycleDates, cycleId);
+      const foundationResult = await this.executeFoundationStage(userId, cycleDates, cycleId);
+      results.foundation = foundationResult.results.foundation_results;
       
       // ✅ Persist foundation results immediately
-      await this.persistFoundationResults(userId, results.foundation, cycleId);
+      await this.persistFoundationResults(userId, foundationResult.results, cycleId);
       console.log(`[InsightWorkflowOrchestrator] Stage 1 completed and persisted for user ${userId}`);
       
-      // Stage 2: Strategic (Depends on Foundation only)
+      // Stage 2: Strategic (Depends on Foundation only) - Pass foundation prompt for KV caching
       console.log(`[InsightWorkflowOrchestrator] Stage 2: Strategic insights for user ${userId}`);
-      results.strategic = await this.executeStrategicStage(userId, results.foundation, cycleDates, cycleId);
+      results.strategic = await this.executeStrategicStage(userId, foundationResult.results, foundationResult.prompt, cycleDates, cycleId);
       await this.persistStageResults(cycleId, 'strategic', results.strategic);
       console.log(`[InsightWorkflowOrchestrator] Stage 2 completed for user ${userId}`);
-      
-      
-      // Final integration with available results
-      console.log(`[InsightWorkflowOrchestrator] Final integration for user ${userId}`);
-      const finalResult = await this.integrateResults(userId, results, cycleId);
-      await this.persistStageResults(cycleId, 'integration', finalResult);
       
       // Update cycle record with completion data - PORTED FROM ORIGINAL INSIGHTENGINE
       const processingDuration = Date.now() - startTime;
@@ -176,10 +171,9 @@ export class InsightWorkflowOrchestrator {
             status: 'completed',
             stages: {
               foundation: 'success',
-              strategic: 'success',
-              integration: 'success'
+              strategic: 'success'
             },
-            results: finalResult
+            results: results
           };
       
     } catch (error) {
@@ -214,7 +208,7 @@ export class InsightWorkflowOrchestrator {
   /**
    * Stage 2: Foundation Analysis
    */
-  private async executeFoundationStage(userId: string, cycleDates: CycleDates, cycleId: string): Promise<FoundationStageOutput> {
+  private async executeFoundationStage(userId: string, cycleDates: CycleDates, cycleId: string): Promise<FoundationStageResult> {
     try {
       // Gather comprehensive context
       const { strategicInput } = await this.gatherComprehensiveContext(userId, cycleId, cycleDates, cycleId);
@@ -290,7 +284,7 @@ export class InsightWorkflowOrchestrator {
   /**
    * Stage 3: Strategic Insights (Sequential) - PORTED FROM ORIGINAL INSIGHTENGINE
    */
-  private async executeStrategicStage(userId: string, foundationResults: any, cycleDates: CycleDates, cycleId: string): Promise<any> {
+  private async executeStrategicStage(userId: string, foundationResults: any, foundationPrompt: string, cycleDates: CycleDates, cycleId: string): Promise<any> {
     try {
       // Gather context for strategic stage
       const { strategicInput } = await this.gatherComprehensiveContext(userId, cycleId, cycleDates, cycleId);
@@ -305,6 +299,8 @@ export class InsightWorkflowOrchestrator {
         cycleStartDate: cycleDates.cycleStartDate.toISOString(),
         cycleEndDate: cycleDates.cycleEndDate.toISOString(),
         
+        // Foundation prompt from Stage 1 (for KV caching optimization)
+        foundationPrompt: foundationPrompt,
         
         // Foundation results from Stage 1
         foundationResults: foundationResults.foundation_results,
@@ -670,6 +666,30 @@ export class InsightWorkflowOrchestrator {
         console.log(`[InsightWorkflowOrchestrator] ✅ Updated memory profile for user ${userId}`);
       }
 
+      // Persist memory profile as derived artifact
+      if (foundationResults.foundation_results.memory_profile) {
+        const memoryProfileData = {
+          entity_id: randomUUID(),
+          user_id: userId,
+          title: "The way I see you",
+          content: foundationResults.foundation_results.memory_profile.content,
+          type: 'memory_profile',
+          status: 'active',
+          cycle_id: cycleId,
+          source_concept_ids: foundationResults.foundation_results.memory_profile.source_concept_ids || [],
+          source_memory_unit_ids: foundationResults.foundation_results.memory_profile.source_memory_unit_ids || [],
+          metadata: {},
+          created_at: new Date(),
+          updated_at: undefined
+        } as StandardizedEntity;
+
+        await this.unifiedPersistenceService.persistBatch([{
+          type: 'DerivedArtifact' as EntityType,
+          data: memoryProfileData
+        }]);
+        console.log(`[InsightWorkflowOrchestrator] ✅ Created memory profile artifact: ${memoryProfileData.entity_id}`);
+      }
+
       // Persist opening artifact
       if (foundationResults.foundation_results.opening) {
         const openingData = {
@@ -680,8 +700,8 @@ export class InsightWorkflowOrchestrator {
           type: 'opening',
           status: 'active',
           cycle_id: cycleId,
-          source_concept_ids: [],
-          source_memory_unit_ids: [],
+          source_concept_ids: foundationResults.foundation_results.opening.source_concept_ids || [],
+          source_memory_unit_ids: foundationResults.foundation_results.opening.source_memory_unit_ids || [],
           metadata: {},
           created_at: new Date(),
           updated_at: undefined
@@ -897,27 +917,6 @@ export class InsightWorkflowOrchestrator {
     // Implementation would schedule a retry job
   }
 
-  /**
-   * Integrate all results
-   */
-  private async integrateResults(userId: string, results: Partial<StageResults>, cycleId: string): Promise<any> {
-    console.log(`[InsightWorkflowOrchestrator] Integrating results for user ${userId}`);
-    
-    // Persist foundation results
-    if (results.foundation) {
-      await this.persistFoundationResults(userId, results.foundation, cycleId);
-    }
-    
-    // Persist strategic results
-    if (results.strategic) {
-      await this.persistStrategicResults(userId, results.strategic, cycleId);
-    }
-    
-    return {
-      foundation: results.foundation,
-      strategic: results.strategic
-    };
-  }
 
 
   /**
@@ -937,8 +936,7 @@ export class InsightWorkflowOrchestrator {
   private getStageStatus(results: Partial<StageResults>): CycleResult['stages'] {
     return {
       foundation: results.foundation ? 'success' : 'failed',
-      strategic: results.strategic ? 'success' : 'failed',
-      integration: 'failed'
+      strategic: results.strategic ? 'success' : 'failed'
     };
   }
 }

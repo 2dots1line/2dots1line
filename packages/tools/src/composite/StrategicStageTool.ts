@@ -24,6 +24,9 @@ export const StrategicStageInputSchema = z.object({
   cycleEndDate: z.string(),
   
   
+  // Foundation prompt from Stage 1 (for KV caching optimization)
+  foundationPrompt: z.string(),
+  
   // Foundation results from Stage 1
   foundationResults: z.object({
     memory_profile: z.object({
@@ -283,15 +286,26 @@ export class StrategicStageTool {
   private async buildStrategicPromptOptimized(input: StrategicStageInput): Promise<string> {
     console.log(`[StrategicStageTool] Building strategic follow-up prompt for user ${input.userId}`);
     
-    // Get strategic stage follow-up instructions from templates
+    // Use MultiStagePromptCacheManager for optimized caching
+    if (this.multiStageCacheManager) {
+      return this.multiStageCacheManager.getStrategicPrompt(
+        input.userId,
+        input.userName || 'User',
+        input, // strategic context
+        input.foundationResults,
+        input.foundationPrompt // Pass foundation prompt for KV caching
+      );
+    }
+    
+    // Fallback: Build prompt manually with foundation prompt reuse for KV caching
     const templates = this.configService.getAllTemplates();
     const strategicFollowUpInstructions = templates.insight_worker_strategic_stage;
-    
-    // Get template definitions for all available templates
     const templateDefinitions = this.getTemplateDefinitions();
     
-    // Build the strategic prompt with foundation results and strategic instructions
-    const masterPrompt = `=== FOUNDATION STAGE RESULTS ===
+    // Build the strategic prompt: Foundation Prompt + Foundation Results + Strategic Instructions
+    const masterPrompt = `${input.foundationPrompt}
+
+=== FOUNDATION STAGE RESPONSE ===
 ${JSON.stringify(input.foundationResults, null, 2)}
 
 === STRATEGIC FOLLOW-UP INSTRUCTIONS ===
@@ -299,7 +313,39 @@ ${strategicFollowUpInstructions}
 
 ${templateDefinitions}`;
 
-    console.log(`[StrategicStageTool] Built strategic follow-up prompt (${masterPrompt.length} characters)`);
+    console.log(`[StrategicStageTool] Built strategic follow-up prompt with KV caching optimization (${masterPrompt.length} characters)`);
+    
+    return masterPrompt;
+  }
+
+  /**
+   * Build strategic prompt with legacy caching (fallback)
+   */
+  private async buildStrategicPromptLegacy(input: StrategicStageInput): Promise<string> {
+    console.log(`[StrategicStageTool] Building strategic prompt with legacy caching for user ${input.userId}`);
+    
+    // Load prompt templates from config
+    const templates = this.configService.getAllTemplates();
+    
+    // Build the strategic prompt with foundation prompt reuse for KV caching
+    const user_name = input.userName || 'User';
+    
+    // Get strategic stage template
+    const strategicTemplate = templates.insight_worker_strategic_stage;
+    const templateDefinitions = this.getTemplateDefinitions();
+    
+    // Build the strategic prompt: Foundation Prompt + Foundation Results + Strategic Instructions
+    const masterPrompt = `${input.foundationPrompt}
+
+=== FOUNDATION STAGE RESPONSE ===
+${JSON.stringify(input.foundationResults, null, 2)}
+
+=== STRATEGIC FOLLOW-UP INSTRUCTIONS ===
+${strategicTemplate}
+
+${templateDefinitions}`;
+
+    console.log(`[StrategicStageTool] Built strategic prompt with legacy caching (${masterPrompt.length} characters)`);
     
     return masterPrompt;
   }
@@ -383,59 +429,6 @@ ${Object.entries(templateDefs).map(([type, description]) => `- **${type}**: ${de
 ${Object.entries(templateDefs).map(([type, description]) => `- **${type}**: ${description}`).join('\n')}`;
   }
 
-  /**
-   * Build strategic prompt with legacy caching (fallback)
-   */
-  private async buildStrategicPromptLegacy(input: StrategicStageInput): Promise<string> {
-    // Load prompt templates from config
-    const templates = this.configService.getAllTemplates();
-    
-    // Build the strategic prompt with caching
-    const user_name = input.userName || 'User';
-    
-    // Cache the core identity section (95% hit rate)
-    const coreIdentity = await this.getCachedSection('core_identity', input.userId, user_name, templates.insight_worker_core_identity);
-    
-    // Cache the operational config section (70% hit rate)
-    const operationalConfig = await this.getCachedSection('operational_config', input.userId, user_name, templates.insight_worker_operational_config);
-    
-    // Build dynamic context with foundation results
-    const dynamicContext = this.buildDynamicContext(input);
-    
-    // Get strategic stage template
-    const strategicTemplate = templates.insight_worker_strategic_stage;
-    
-    // Get template definitions for all available templates
-    const templateDefinitions = this.getTemplateDefinitions();
-    
-    const masterPrompt = `${coreIdentity}
-
-${operationalConfig}
-
-${dynamicContext}
-
-${strategicTemplate}
-
-${templateDefinitions}
-
-=== FOUNDATION RESULTS ===
-${JSON.stringify(input.foundationResults, null, 2)}
-
-=== STRATEGIC CONTEXT ===
-${JSON.stringify(input.strategicContext, null, 2)}
-
-=== PREVIOUS KEY PHRASES ===
-${JSON.stringify(input.previousKeyPhrases, null, 2)}
-
-=== CURRENT KNOWLEDGE GRAPH ===
-${JSON.stringify(input.currentKnowledgeGraph, null, 2)}
-
-=== RECENT GROWTH EVENTS ===
-${JSON.stringify(input.recentGrowthEvents, null, 2)}`;
-
-    console.log(`[StrategicStageTool] Built strategic prompt with legacy caching (${masterPrompt.length} characters)`);
-    return masterPrompt;
-  }
 
   /**
    * Build dynamic context section with RICH CONTEXT (matching original StrategicSynthesisTool)

@@ -324,7 +324,7 @@ export class DashboardService {
   private createPromptSection(sectionType: string, prompts: any[]): DashboardSectionData {
     const items = prompts.map(prompt => ({
       id: prompt.entity_id,
-      title: prompt.metadata?.title || 'Prompt',
+      title: prompt.title || prompt.metadata?.title || 'Prompt',
       content: prompt.content,
       confidence: prompt.metadata?.priority_level ? prompt.metadata.priority_level / 10 : undefined,
       actionability: prompt.metadata?.timing_suggestion,

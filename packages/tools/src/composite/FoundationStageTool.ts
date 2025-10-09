@@ -56,6 +56,12 @@ export const FoundationStageOutputSchema = z.object({
 export type FoundationStageInput = z.infer<typeof FoundationStageInputSchema>;
 export type FoundationStageOutput = z.infer<typeof FoundationStageOutputSchema>;
 
+// Enhanced return type that includes both results and prompt for KV caching
+export interface FoundationStageResult {
+  results: FoundationStageOutput;
+  prompt: string;
+}
+
 // Error classes
 export class FoundationStageError extends Error {
   constructor(message: string, public readonly originalError?: Error) {
@@ -89,7 +95,7 @@ export class FoundationStageTool {
     }
   }
 
-  async execute(input: FoundationStageInput): Promise<FoundationStageOutput> {
+  async execute(input: FoundationStageInput): Promise<FoundationStageResult> {
     console.log(`[FoundationStageTool] Starting foundation analysis for user ${input.userId}`);
     
     try {
@@ -127,7 +133,10 @@ export class FoundationStageTool {
       const validatedOutput = FoundationStageOutputSchema.parse(parsedOutput);
       
       console.log(`[FoundationStageTool] Foundation analysis completed for user ${input.userId}`);
-      return validatedOutput;
+      return {
+        results: validatedOutput,
+        prompt: prompt
+      };
       
     } catch (error) {
       console.error(`[FoundationStageTool] Foundation analysis failed for user ${input.userId}:`, error);

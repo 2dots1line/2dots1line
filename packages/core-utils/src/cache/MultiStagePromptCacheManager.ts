@@ -124,14 +124,33 @@ ${foundation.stageTemplate}`;
   }
 
   /**
-   * Get Strategic Stage prompt (follow-up) with maximum cache hit rate
+   * Get Strategic Stage prompt (follow-up) with maximum cache hit rate and KV caching optimization
    */
-  async getStrategicPrompt(userId: string, userName: string, context: any, foundationResults: any): Promise<string> {
+  async getStrategicPrompt(userId: string, userName: string, context: any, foundationResults: any, foundationPrompt?: string): Promise<string> {
     const templates = this.configService.getAllTemplates();
     
-    // Reuse Foundation's shared sections (100% cache hit rate)
-    const shared = await this.getSharedSections(userId, userName, templates);
+    // If foundation prompt is provided, use it for KV caching optimization
+    if (foundationPrompt) {
+      console.log(`[MultiStagePromptCacheManager] Using foundation prompt for KV caching optimization`);
+      
+      // Get strategic stage template and template definitions
+      const strategicTemplate = templates.insight_worker_strategic_stage;
+      const templateDefinitions = this.getTemplateDefinitions();
+      
+      // Build strategic prompt: Foundation Prompt + Foundation Results + Strategic Instructions
+      return `${foundationPrompt}
+
+=== FOUNDATION STAGE RESPONSE ===
+${JSON.stringify(foundationResults, null, 2)}
+
+=== STRATEGIC FOLLOW-UP INSTRUCTIONS ===
+${strategicTemplate}
+
+${templateDefinitions}`;
+    }
     
+    // Fallback: Use shared sections approach (100% cache hit rate)
+    const shared = await this.getSharedSections(userId, userName, templates);
     const strategic = await this.getStrategicStageSections(userId, userName, context, templates);
 
     // Format foundation results as cached input
@@ -395,5 +414,41 @@ No ontology context available.`;
       totalHits: 0,
       totalRequests: 0
     };
+  }
+
+  /**
+   * Get template definitions for all available templates
+   */
+  private getTemplateDefinitions(): string {
+    // This is a simplified version - in practice, this would be more comprehensive
+    return `
+=== TEMPLATE DEFINITIONS ===
+
+**Derived Artifact Templates:**
+- opening: Engaging opening artifact
+- deeper_story: Deeper narrative exploration
+- hidden_connection: Revealing hidden connections
+- values_articulation: Core values expression
+- growth_moment: Personal growth insights
+- know_self: Self-awareness development
+- future_vision: Future-oriented thinking
+
+**Proactive Prompt Templates:**
+- reflection: Deep reflection prompts
+- exploration: Exploratory questions
+- challenge: Growth challenges
+- connection: Relationship building
+- creativity: Creative expression
+- planning: Strategic planning
+- celebration: Achievement recognition
+
+**Growth Event Templates:**
+- breakthrough: Major breakthrough moments
+- learning: Learning experiences
+- challenge_overcome: Overcoming challenges
+- relationship: Relationship developments
+- achievement: Personal achievements
+- insight: New insights gained
+- transformation: Personal transformation`;
   }
 }
