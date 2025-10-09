@@ -150,8 +150,11 @@ export class ConversationTimeoutWorker {
    * Note: This method is only called for conversation timeout keys (already filtered)
    */
   private async handleKeyExpiration(expiredKey: string): Promise<void> {
-    const conversationId = expiredKey.replace(REDIS_CONVERSATION_TIMEOUT_PREFIX, '');
-    console.log(`⏰ Conversation timeout detected for: ${conversationId}`);
+    // Extract conversationId from user-scoped key: conversation:timeout:userId:conversationId
+    const keyWithoutPrefix = expiredKey.replace(REDIS_CONVERSATION_TIMEOUT_PREFIX, '');
+    const parts = keyWithoutPrefix.split(':');
+    const conversationId = parts[parts.length - 1]; // Last part is conversationId
+    console.log(`⏰ Conversation timeout detected for: ${conversationId} (from key: ${expiredKey})`);
 
     try {
       await this.processConversationTimeout(conversationId);
@@ -241,7 +244,12 @@ export class ConversationTimeoutWorker {
   public async getActiveTimeouts(): Promise<string[]> {
     try {
       const keys = await this.redis.keys(`${REDIS_CONVERSATION_TIMEOUT_PREFIX}*`);
-      return keys.map(key => key.replace(REDIS_CONVERSATION_TIMEOUT_PREFIX, ''));
+      return keys.map(key => {
+        // Extract conversationId from user-scoped key: conversation:timeout:userId:conversationId
+        const keyWithoutPrefix = key.replace(REDIS_CONVERSATION_TIMEOUT_PREFIX, '');
+        const parts = keyWithoutPrefix.split(':');
+        return parts[parts.length - 1]; // Last part is conversationId
+      });
     } catch (error) {
       console.error('❌ Failed to get active timeouts:', error);
       return [];

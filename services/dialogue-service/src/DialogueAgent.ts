@@ -117,8 +117,8 @@ export class DialogueAgent {
     
     // Immediately persist the next turn's context to Redis
     try {
-      await this.redis.set(`turn_context:${input.conversationId}`, JSON.stringify(turn_context_package), 'EX', 600); // 10 min TTL
-      console.log(`✅ DialogueAgent - Turn context saved to Redis for ${input.conversationId}`);
+      await this.redis.set(`turn_context:${input.userId}:${input.conversationId}`, JSON.stringify(turn_context_package), 'EX', 600); // 10 min TTL
+      console.log(`✅ DialogueAgent - Turn context saved to Redis for user ${input.userId}, conversation ${input.conversationId}`);
     } catch (error) {
       console.error(`❌ DialogueAgent - Failed to save turn context to Redis:`, error);
       // Continue processing - Redis failure shouldn't block response
@@ -272,8 +272,8 @@ export class DialogueAgent {
     
     // Immediately persist the next turn's context to Redis
     try {
-      await this.redis.set(`turn_context:${input.conversationId}`, JSON.stringify(turn_context_package), 'EX', 600); // 10 min TTL
-      console.log(`✅ DialogueAgent - Turn context saved to Redis for ${input.conversationId}`);
+      await this.redis.set(`turn_context:${input.userId}:${input.conversationId}`, JSON.stringify(turn_context_package), 'EX', 600); // 10 min TTL
+      console.log(`✅ DialogueAgent - Turn context saved to Redis for user ${input.userId}, conversation ${input.conversationId}`);
     } catch (error) {
       console.error(`❌ DialogueAgent - Failed to save turn context to Redis:`, error);
       // Continue processing - Redis failure shouldn't block response

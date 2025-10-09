@@ -72,11 +72,11 @@ export class ConversationController {
     try {
       // Load timeout from config as per V11.0 architecture
       const timeoutSeconds = this.getConversationTimeout();
-      const redisKey = `${REDIS_CONVERSATION_TIMEOUT_PREFIX}${conversationId}`;
+      const redisKey = `${REDIS_CONVERSATION_TIMEOUT_PREFIX}${userId}:${conversationId}`;
       
       // Set/reset the timeout key - when this expires, conversation-timeout-worker triggers ingestion
       await this.redis.set(redisKey, conversationId, 'EX', timeoutSeconds);
-      console.log(`🕐 Set conversation timeout for ${conversationId} (${timeoutSeconds}s)`);
+      console.log(`🕐 Set conversation timeout for user ${userId}, conversation ${conversationId} (${timeoutSeconds}s)`);
     } catch (error) {
       console.error('❌ Failed to set conversation timeout:', error);
     }
@@ -259,7 +259,7 @@ export class ConversationController {
       });
 
       // Set/Reset the Redis heartbeat for the timeout worker
-      const heartbeatKey = `${REDIS_CONVERSATION_TIMEOUT_PREFIX}${actualConversationId}`;
+      const heartbeatKey = `${REDIS_CONVERSATION_TIMEOUT_PREFIX}${userId}:${actualConversationId}`;
       const timeoutSeconds = this.getConversationTimeout();
       await this.redis.set(heartbeatKey, 'active', 'EX', timeoutSeconds);
 
@@ -990,7 +990,7 @@ export class ConversationController {
       });
 
       // Clear the Redis timeout key since conversation is explicitly ended
-      const heartbeatKey = `${REDIS_CONVERSATION_TIMEOUT_PREFIX}${conversationId}`;
+      const heartbeatKey = `${REDIS_CONVERSATION_TIMEOUT_PREFIX}${userId}:${conversationId}`;
       await this.redis.del(heartbeatKey);
 
       console.log(`✅ Conversation ${conversationId} explicitly ended by user ${userId}`);

@@ -60,7 +60,7 @@ export class PromptBuilder {
       this.userRepository.findUserByIdWithContext(userId),
       this.conversationRepository.getMostRecentMessages(conversationId, 10),
       this.conversationRepository.getRecentImportantConversationSummaries(userId),
-      this.redisClient.get(`turn_context:${conversationId}`),
+      this.redisClient.get(`turn_context:${userId}:${conversationId}`),
       this.getSessionContext(userId, conversationId),
       this.conversationRepository.getMostRecentProcessedConversationWithContext(userId)
     ]);

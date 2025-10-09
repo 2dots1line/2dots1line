@@ -199,8 +199,8 @@ export class MaintenanceWorker {
     console.log('[MaintenanceWorker] Starting Redis cleanup...');
     let staleKeysFound = 0;
     
-    // Scan for turn context keys without TTL
-    const turnContextStream = this.dbService.redis.scanStream({ match: 'turn_context:*' });
+    // Scan for turn context keys without TTL (now user-scoped)
+    const turnContextStream = this.dbService.redis.scanStream({ match: 'turn_context:*:*' });
     for await (const keys of turnContextStream) {
       for (const key of keys) {
         const ttl = await this.dbService.redis.ttl(key);
