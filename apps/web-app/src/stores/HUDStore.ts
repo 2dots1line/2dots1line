@@ -40,7 +40,7 @@ interface HUDState {
   setCosmosChatSize: (size: 'medium' | 'mini') => void;
 }
 
-const DEFAULT_POSITION = { x: 20, y: 120 }; // 20px from right, 120px from top
+const DEFAULT_POSITION = { x: 20, y: 0 }; // 20px from left, 0px from top (will be adjusted to right side in component)
 
 export const useHUDStore = create<HUDState>()(
   persist(

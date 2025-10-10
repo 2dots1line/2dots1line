@@ -1,18 +1,20 @@
 'use client';
 
-import { GlassmorphicPanel, GlassButton, DragHandle, MinimizeToggle } from '@2dots1line/ui-components';
+import { GlassmorphicPanel, GlassButton, MinimizeToggle } from '@2dots1line/ui-components';
 import { 
   BarChart3, 
   MessageCircle, 
   CreditCard, 
   Network, 
-  Settings
+  Settings,
+  LogOut
 } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 
 import { useHUDStore, ViewType } from '../../stores/HUDStore';
 import { useCardStore } from '../../stores/CardStore';
+import { useUserStore } from '../../stores/UserStore';
 
 interface HUDContainerProps {
   onViewSelect?: (view: ViewType) => void;
@@ -47,6 +49,8 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
     updatePosition,
     setIsNavigatingFromCosmos,
   } = useHUDStore();
+  
+  const { logout } = useUserStore();
 
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const hudRef = useRef<HTMLDivElement>(null);
@@ -71,7 +75,7 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isDragging) return;
     
-    const newX = Math.max(0, Math.min(window.innerWidth - 320, e.clientX - dragOffset.x));
+    const newX = Math.max(0, Math.min(window.innerWidth - 128, e.clientX - dragOffset.x));
     const newY = Math.max(0, Math.min(window.innerHeight - 400, e.clientY - dragOffset.y));
     
     updatePosition({ x: newX, y: newY });
@@ -149,10 +153,8 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
   return (
     <div
       ref={hudRef}
-      className={`fixed z-50 transition-all duration-300 ease-in-out ${className}`}
+      className={`fixed top-4 right-4 z-50 transition-all duration-300 ease-in-out ${className}`}
       style={{
-        right: `${position.x}px`,
-        top: `${position.y}px`,
         // Fixed positioning: Only slide the main panel, not the entire container
         transform: 'translateX(0)', // Container stays in place
       }}
@@ -162,7 +164,7 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
         className="relative transition-transform duration-300 ease-in-out"
         style={{
           // Only slide the panel itself, leaving room for the toggle
-          transform: isExpanded ? 'translateX(0)' : 'translateX(240px)', // Slide panel out completely
+          transform: isExpanded ? 'translateX(0)' : 'translateX(128px)', // Slide panel out completely
         }}
       >
         <GlassmorphicPanel
@@ -170,20 +172,19 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
           rounded="xl"
           padding="sm"
           className={`
-            w-64 transition-all duration-300 ease-in-out
+            w-32 transition-all duration-300 ease-in-out
             ${isDragging ? 'scale-105 shadow-2xl' : 'scale-100'}
             ${isExpanded ? 'opacity-100' : 'opacity-0 pointer-events-none'}
           `}
         >
-          {/* Drag Handle */}
-          <DragHandle
+          {/* Invisible Drag Handle */}
+          <div
             onMouseDown={handleMouseDown}
-            className="mb-3 cursor-move"
+            className="cursor-move"
+            style={{ height: '4px' }}
           >
-            <div className="flex items-center justify-center py-2">
-              <span className="text-xs text-white/70 font-medium">Navigation HUD</span>
-            </div>
-          </DragHandle>
+            {/* Completely invisible drag area */}
+          </div>
 
           {/* Navigation Buttons - All views are now equal peers */}
           <div className="space-y-2">
@@ -210,6 +211,21 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
                 </GlassButton>
               );
             })}
+          </div>
+          
+          {/* Logout Button - Separated at bottom */}
+          <div className="mt-4 pt-3 border-t border-white/20">
+            <GlassButton
+              onClick={logout}
+              className="w-full justify-start text-left transition-all duration-200 text-white/80 hover:text-white hover:bg-white/20"
+            >
+              <LogOut 
+                size={18} 
+                className="mr-3 stroke-current opacity-90" 
+                strokeWidth={1.5}
+              />
+              <span className="font-medium">Log out</span>
+            </GlassButton>
           </div>
         </GlassmorphicPanel>
       </div>

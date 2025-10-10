@@ -540,42 +540,21 @@ function HomePage() {
 
       {/* Main Content - Layer 2 (top) */}
       <main className="relative z-10 flex flex-col items-center justify-center min-h-screen p-4">
-        {/* Top-right Navigation */}
-        <nav className="absolute top-0 right-0 p-4 sm:p-6 md:p-8">
-          <div className="flex items-center gap-4">
-            {isAuthenticated ? (
-              <>
-                {/* User Greeting */}
-                <GlassmorphicPanel
-                  variant="glass-panel"
-                  rounded="lg"
-                  padding="sm"
-                  className="text-sm text-onSurface"
-                >
-                  Welcome, {user?.name || user?.email?.split('@')[0] || 'User'}
-                  {cardsLoaded && (
-                    <span className="ml-2 text-xs opacity-75">({totalCards} cards)</span>
-                  )}
-                </GlassmorphicPanel>
-                {/* Logout Button */}
-                <GlassButton onClick={handleLogout} className="text-onBackground font-brand">
-                  Log out
-                </GlassButton>
-              </>
-            ) : (
-              <>
-                {/* Login Button */}
-                <GlassButton onClick={openLoginModal} className="text-onBackground font-brand">
-                  Log in
-                </GlassButton>
-                {/* Signup Button */}
-                <GlassButton onClick={openSignupModal} className="text-onBackground font-brand">
-                  Sign up
-                </GlassButton>
-              </>
-            )}
-          </div>
-        </nav>
+        {/* Top-right Navigation - Only show login/signup on landing page */}
+        {!isAuthenticated && (
+          <nav className="absolute top-0 right-0 p-4 sm:p-6 md:p-8">
+            <div className="flex items-center gap-4">
+              {/* Login Button */}
+              <GlassButton onClick={openLoginModal} className="text-onBackground font-brand">
+                Log in
+              </GlassButton>
+              {/* Signup Button */}
+              <GlassButton onClick={openSignupModal} className="text-onBackground font-brand">
+                Sign up
+              </GlassButton>
+            </div>
+          </nav>
+        )}
 
         {/* Centered Welcome Panel - Only shown when not authenticated */}
         {!isAuthenticated && (
