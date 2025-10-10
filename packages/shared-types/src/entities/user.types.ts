@@ -182,4 +182,14 @@ export interface AugmentedMemoryContext {
 export interface SummarizedConversation {
   conversation_summary: string;
   conversation_importance_score: number;
+}
+
+/**
+ * View Context for dialogue agent awareness of current UI view
+ */
+export interface ViewContext {
+  /** Current view the user is interacting from */
+  currentView: 'chat' | 'cards' | 'cosmos' | 'dashboard';
+  /** Optional description of the current view context */
+  viewDescription?: string;
 } 

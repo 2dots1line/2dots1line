@@ -23,6 +23,10 @@ const messageSchema = z.object({
   conversation_id: z.string().optional(),
   message_id: z.string().optional(),
   session_id: z.string().optional(),
+  viewContext: z.object({
+    currentView: z.enum(['chat', 'cards', 'cosmos', 'dashboard']),
+    viewDescription: z.string().optional()
+  }).optional(),
   context: z.object({
     trigger_background_processing: z.boolean().optional()
   }).optional()
@@ -114,7 +118,7 @@ export class ConversationController {
         return;
       }
 
-      const { message, message_id, conversation_id, session_id } = messageSchema.parse(req.body);
+      const { message, message_id, conversation_id, session_id, viewContext } = messageSchema.parse(req.body);
       
       console.log(`🌊 ConversationController.postMessageStream - Starting streaming conversation for user ${userId}`);
       console.log(`🌊 ConversationController.postMessageStream - Received message_id: ${message_id}`);
@@ -278,6 +282,10 @@ export class ConversationController {
         userId,
         conversationId: actualConversationId,
         currentMessageText: message,
+        viewContext: viewContext ? {
+          currentView: viewContext.currentView,
+          viewDescription: viewContext.viewDescription
+        } : undefined,
         onChunk: (chunk: string) => {
           // Send each chunk to the client
           res.write(`data: ${JSON.stringify({ 

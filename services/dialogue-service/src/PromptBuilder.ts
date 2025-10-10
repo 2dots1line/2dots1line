@@ -5,7 +5,8 @@ import { getEntityTypeMapping, PromptCacheService } from '@2dots1line/core-utils
 // Use any type for now since Prisma types are complex
 type conversation_messages = any;
 import { 
-  AugmentedMemoryContext
+  AugmentedMemoryContext,
+  ViewContext
 } from '@2dots1line/shared-types';
 import { Redis } from 'ioredis';
 import * as Mustache from 'mustache';
@@ -18,7 +19,9 @@ export interface PromptBuildInput {
   finalInputText: string;
   augmentedMemoryContext?: AugmentedMemoryContext;
   isNewConversation: boolean; // V11.0: Flag from controller instead of complex logic
+  viewContext?: ViewContext; // V11.0: Current view context (chat | cards | cosmos)
 }
+
 
 export interface PromptBuildOutput {
   systemPrompt: string;    // Background context (identity, memory profile, etc.)
@@ -80,7 +83,10 @@ export class PromptBuilder {
    * READ-ONLY: No side effects, no database writes
    */
   public async buildPrompt(input: PromptBuildInput): Promise<PromptBuildOutput> {
-    const { userId, conversationId, finalInputText, augmentedMemoryContext, isNewConversation } = input;
+    const { userId, conversationId, finalInputText, augmentedMemoryContext, isNewConversation, viewContext } = input;
+    
+    // Default to chat view if no view context is provided
+    const effectiveViewContext = viewContext || { currentView: 'chat' as const };
     
     console.log('\n🔧 PromptBuilder.buildPrompt - Starting V11.0 prompt assembly...');
     console.log('📋 PromptBuilder - Input:', { 
@@ -88,7 +94,8 @@ export class PromptBuilder {
       conversationId, 
       finalInputText: finalInputText.substring(0, 100) + '...',
       hasAugmentedContext: !!augmentedMemoryContext,
-      isNewConversation
+      isNewConversation,
+      viewContext: effectiveViewContext.currentView
     });
 
     // --- STEP 1: FETCH ALL DYNAMIC DATA IN PARALLEL (READ-ONLY) ---
@@ -132,7 +139,8 @@ export class PromptBuilder {
       conversation_summaries: this.formatComponentContent('conversation_summaries', recentSummaries),
       session_context: sessionContext.length > 0 ? this.formatComponentContent('session_context', sessionContext) : null,
       current_conversation_history: this.formatComponentContent('current_conversation_history', conversationHistory),
-      augmented_memory_context: this.formatComponentContent('augmented_memory_context', augmentedMemoryContext)
+      augmented_memory_context: this.formatComponentContent('augmented_memory_context', augmentedMemoryContext),
+      view_context: this.formatViewContext(effectiveViewContext, user.name || 'User')
     };
     const section3 = await this.getCachedDynamicContext(userId, conversationId, section3Data, dynamicContextTpl);
     
@@ -459,5 +467,53 @@ This context comes from the most recently processed conversation in your current
 ${contextText}
 
 ---`;
+  }
+
+  /**
+   * NEW METHOD: Format view context component
+   */
+  private formatViewContext(viewContext: ViewContext, userName: string): string {
+    const templates = this.configService.getAllTemplates();
+    const template = templates.view_context_template;
+    
+    if (!template) {
+      // Fallback if template not found
+      return `**Current View:** ${viewContext.currentView}\n**View Description:** ${viewContext.viewDescription || this.getDefaultViewDescription(viewContext.currentView)}`;
+    }
+
+    try {
+      const viewData = {
+        current_view: viewContext.currentView,
+        view_description: viewContext.viewDescription || this.getDefaultViewDescription(viewContext.currentView),
+        user_name: userName,
+        is_chat_view: viewContext.currentView === 'chat',
+        is_cards_view: viewContext.currentView === 'cards',
+        is_cosmos_view: viewContext.currentView === 'cosmos',
+        is_dashboard_view: viewContext.currentView === 'dashboard'
+      };
+      
+      return Mustache.render(template, viewData);
+    } catch (error) {
+      console.error('Error rendering view_context_template:', error);
+      return `**Current View:** ${viewContext.currentView}\n**View Description:** ${viewContext.viewDescription || this.getDefaultViewDescription(viewContext.currentView)}`;
+    }
+  }
+
+  /**
+   * Helper method to get default view descriptions
+   */
+  private getDefaultViewDescription(view: string): string {
+    switch (view) {
+      case 'chat':
+        return 'Main conversational interface for open-ended dialogue and personal growth';
+      case 'cards':
+        return 'Knowledge graph exploration interface with card-based interactions';
+      case 'cosmos':
+        return '3D immersive memory visualization and exploration interface';
+      case 'dashboard':
+        return 'Overview interface for high-level insights and strategic knowledge graph exploration';
+      default:
+        return 'Unknown interface context';
+    }
   }
 } 

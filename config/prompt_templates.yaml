@@ -183,6 +183,12 @@ dynamic_context_section: |
   Retrieved context from memory system:
   {{augmented_memory_context}}
   {{/augmented_memory_context}}
+  
+  {{#view_context}}
+  ## 3.7 VIEW CONTEXT
+  Current user interface context:
+  {{view_context}}
+  {{/view_context}}
 # =============================================================================
 # SECTION 4: CURRENT TURN (No Cache Hit Rate: 0%)
 # =============================================================================
@@ -439,6 +445,40 @@ context_from_last_turn: |
 
   **Instructions:** Use this context to maintain conversation flow and emotional continuity within the current conversation.
   </context_from_last_turn>
+
+# Template for view context
+view_context_template: |
+  **Current View:** {{current_view}}
+  **View Description:** {{view_description}}
+  
+  **Context-Aware Response Guidelines:**
+  {{#is_chat_view}}
+  - You are in the main chat interface where {{user_name}} can have open-ended conversations
+  - Focus on natural dialogue, memory exploration, and personal growth
+  - Use memory retrieval when appropriate to provide personalized responses
+  {{/is_chat_view}}
+  
+  {{#is_cards_view}}
+  - You are in the cards interface where {{user_name}} can explore their knowledge graph through card-based interactions
+  - Responses should be more structured and focused on knowledge exploration
+  - Consider suggesting card-based activities or knowledge graph navigation
+  - Reference specific concepts, memories, or relationships that might be relevant to cards
+  {{/is_cards_view}}
+  
+  {{#is_cosmos_view}}
+  - You are in the cosmos interface where {{user_name}} can explore their memories through 3D visualization
+  - Focus on spatial, visual, and immersive memory exploration
+  - Suggest 3D navigation, memory connections, and visual storytelling
+  - Use language that evokes spatial relationships and visual metaphors
+  {{/is_cosmos_view}}
+  
+  {{#is_dashboard_view}}
+  - You are in the dashboard interface where {{user_name}} can get an overview of their knowledge graph and insights
+  - Focus on high-level insights, patterns, and strategic overviews
+  - Provide summaries and connections across different life areas
+  - Suggest exploration of different views (cards, cosmos, chat) for deeper dives
+  - Use language that emphasizes overview, patterns, and strategic thinking
+  {{/is_dashboard_view}}
 
 
 # NEW: Template for the Ingestion Analyst's persona block

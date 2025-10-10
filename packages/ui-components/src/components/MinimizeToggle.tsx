@@ -39,10 +39,10 @@ const MinimizeToggle: React.FC<MinimizeToggleProps> = ({
           className={cn(
             'w-4 h-4 flex items-center justify-center',
             'transition-transform duration-300 ease-in-out',
-            isExpanded ? 'rotate-0' : 'rotate-180'
+            isExpanded ? 'rotate-180' : 'rotate-0'
           )}
         >
-          {/* Minimal arrow icon */}
+          {/* Arrow icon - points left when expanded (to minimize), right when collapsed (to expand) */}
           <svg
             width="12"
             height="12"

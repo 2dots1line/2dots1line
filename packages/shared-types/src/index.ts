@@ -121,7 +121,8 @@ export type {
   NextConversationContextPackage,
   TurnContextPackage,
   AugmentedMemoryContext,
-  SummarizedConversation
+  SummarizedConversation,
+  ViewContext
 } from './entities/user.types';
 
 export type {

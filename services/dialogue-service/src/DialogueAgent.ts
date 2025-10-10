@@ -85,6 +85,10 @@ export class DialogueAgent {
       url?: string;
       content?: string;
     }>;
+    viewContext?: {
+      currentView: 'chat' | 'cards' | 'cosmos' | 'dashboard';
+      viewDescription?: string;
+    };
     onChunk?: (chunk: string) => void;
   }): Promise<{
     response_text: string;
@@ -110,7 +114,12 @@ export class DialogueAgent {
     const { processedText: finalInputText, visionAnalysis, documentAnalysis } = await this.processInput(input.currentMessageText, input.currentMessageMedia);
 
     // --- PHASE II: SINGLE SYNTHESIS LLM CALL WITH STREAMING ---
-    const llmResponse = await this.performSingleSynthesisCallStreaming({ ...input, finalInputText }, undefined, 'first', input.onChunk);
+    const llmResponse = await this.performSingleSynthesisCallStreaming({ 
+      userId: input.userId, 
+      conversationId: input.conversationId, 
+      finalInputText, 
+      viewContext: input.viewContext 
+    }, undefined, 'first', input.onChunk);
 
     // --- PHASE III: CONDITIONAL ORCHESTRATION & FINAL RESPONSE ---
     const { response_plan, turn_context_package, ui_actions } = llmResponse;
@@ -188,7 +197,12 @@ export class DialogueAgent {
 
       // B. Make the second, context-aware LLM call with streaming
       console.log(`[${executionId}] 🤖 Making second LLM call with augmented memory context`);
-      const finalLlmResponse = await this.performSingleSynthesisCallStreaming({ ...input, finalInputText }, augmentedContext, 'second', input.onChunk);
+      const finalLlmResponse = await this.performSingleSynthesisCallStreaming({ 
+        userId: input.userId, 
+        conversationId: input.conversationId, 
+        finalInputText, 
+        viewContext: input.viewContext 
+      }, augmentedContext, 'second', input.onChunk);
       
       console.log(`[${executionId}] Retrieval complete. Generating final response.`);
       
@@ -588,7 +602,8 @@ export class DialogueAgent {
       conversationId: input.conversationId,
       finalInputText: input.finalInputText,
       augmentedMemoryContext,
-      isNewConversation // V11.0: Pass flag to PromptBuilder
+      isNewConversation, // V11.0: Pass flag to PromptBuilder
+      viewContext: (input as any).viewContext // V11.0: Pass view context to PromptBuilder
     };
 
     const promptOutput = await this.promptBuilder.buildPrompt(promptBuildInput);
@@ -656,7 +671,15 @@ export class DialogueAgent {
    * Streaming version of performSingleSynthesisCall for real-time response delivery.
    */
   private async performSingleSynthesisCallStreaming(
-    input: { userId: string; conversationId: string; finalInputText: string },
+    input: { 
+      userId: string; 
+      conversationId: string; 
+      finalInputText: string; 
+      viewContext?: { 
+        currentView: 'chat' | 'cards' | 'cosmos' | 'dashboard'; 
+        viewDescription?: string 
+      } 
+    },
     augmentedMemoryContext?: AugmentedMemoryContext,
     callType: 'first' | 'second' = 'first',
     onChunk?: (chunk: string) => void
@@ -685,7 +708,8 @@ export class DialogueAgent {
       conversationId: input.conversationId,
       finalInputText: input.finalInputText,
       augmentedMemoryContext,
-      isNewConversation
+      isNewConversation,
+      viewContext: (input as any).viewContext // V11.0: Pass view context to PromptBuilder
     };
 
     const promptOutput = await this.promptBuilder.buildPrompt(promptBuildInput);

@@ -26,6 +26,8 @@ import { chatService, type ChatMessage } from '../../services/chatService';
 import { userService } from '../../services/userService';
 import { useChatStore } from '../../stores/ChatStore';
 import { useUserStore } from '../../stores/UserStore';
+import { useHUDStore } from '../../stores/HUDStore';
+import { usePathname } from 'next/navigation';
 
 export type ChatSize = 'full' | 'medium' | 'mini';
 
@@ -55,6 +57,30 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   console.log('ChatInterface render:', { size, isExpanded, onSizeChange: !!onSizeChange });
 
   const { user } = useUserStore();
+  const { activeView } = useHUDStore();
+  const pathname = usePathname();
+  
+  // Determine current view based on route and HUD store state
+  const getCurrentView = (): 'chat' | 'cards' | 'cosmos' | 'dashboard' | null => {
+    if (pathname === '/cosmos') {
+      return 'cosmos';
+    }
+    // Only return views that are supported by the view context
+    if (activeView === 'chat' || activeView === 'cards' || activeView === 'cosmos' || activeView === 'dashboard') {
+      return activeView;
+    }
+    return null;
+  };
+  
+  const currentView = getCurrentView();
+  
+  // Debug logging for view context
+  console.log('ChatInterface - View context:', { 
+    pathname, 
+    activeView, 
+    currentView,
+    computedView: currentView 
+  });
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -119,10 +145,19 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    if (size !== 'mini') {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Always scroll to latest message for all sizes when messages change
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // Auto-scroll when mini chat expands to show latest messages
+  useEffect(() => {
+    if (size === 'mini' && isExpanded) {
+      // Small delay to ensure the messages area is rendered
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
     }
-  }, [messages, size]);
+  }, [size, isExpanded]);
 
   // Initialize chat with proactive greeting when opened
   useEffect(() => {
@@ -199,6 +234,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       return;
     }
     
+    // Auto-expand mini chat when sending a message
+    if (size === 'mini' && !isExpanded) {
+      setIsExpanded(true);
+    }
+    
     setLoading(true);
     setCurrentDecision(null);
     
@@ -245,6 +285,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
           {
             message: messageContent,
             conversation_id: currentConversationId || undefined,
+            viewContext: currentView ? {
+              currentView: currentView as 'chat' | 'cards' | 'cosmos' | 'dashboard',
+              viewDescription: undefined // Let the backend use default descriptions
+            } : undefined,
             context: {
               session_id: currentSessionId || undefined,
               trigger_background_processing: true

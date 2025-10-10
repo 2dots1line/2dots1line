@@ -21,6 +21,10 @@ export interface SendMessageRequest {
   message: string;
   conversation_id?: string;
   source_card_id?: string;
+  viewContext?: {
+    currentView: 'chat' | 'cards' | 'cosmos' | 'dashboard';
+    viewDescription?: string;
+  };
   context?: {
     session_id?: string;
     trigger_background_processing?: boolean;
