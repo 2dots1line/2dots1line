@@ -13,21 +13,18 @@ import type { TToolInput, TToolOutput } from '@2dots1line/shared-types';
 import { LLMChatTool, type LLMChatInput } from '../ai/LLMChatTool';
 import { LLMRetryHandler, PromptCacheService, MultiStagePromptCacheManager } from '@2dots1line/core-utils';
 
-// Input validation schema - ENHANCED to match original StrategicSynthesisTool
+// Input validation schema - SIMPLIFIED for true follow-up behavior
 export const StrategicStageInputSchema = z.object({
-  // Core identification
+  // Core identification (minimal - user context is in foundationPrompt)
   userId: z.string(),
-  userName: z.string(),
-  userMemoryProfile: z.string().optional(),
   cycleId: z.string(),
   cycleStartDate: z.string(),
   cycleEndDate: z.string(),
   
-  
-  // Foundation prompt from Stage 1 (for KV caching optimization)
+  // Foundation prompt from Stage 1 (contains ALL user context)
   foundationPrompt: z.string(),
   
-  // Foundation results from Stage 1
+  // Foundation results from Stage 1 (LLM's response)
   foundationResults: z.object({
     memory_profile: z.object({
       type: z.literal('memory_profile'),
@@ -48,73 +45,7 @@ export const StrategicStageInputSchema = z.object({
       life_context: z.array(z.string()),
       hidden_connections: z.array(z.string())
     })
-  }),
-  
-  // Current cycle data - STRUCTURED (matching original StrategicSynthesisTool)
-  currentKnowledgeGraph: z.object({
-    conversations: z.array(z.object({
-      content: z.string().optional()
-    })),
-    memoryUnits: z.array(z.object({
-      id: z.string(),
-      content: z.string()
-    })),
-    concepts: z.array(z.object({
-      id: z.string(),
-      title: z.string(),
-      content: z.string()
-    })),
-    conceptsNeedingSynthesis: z.array(z.object({
-      id: z.string(),
-      title: z.string(),
-      content: z.string()
-    }))
-  }),
-  
-  // Growth events (recent cycle activity)
-  recentGrowthEvents: z.array(z.object({
-    id: z.string(),
-    content: z.string()
-  })),
-  
-  // HRT-retrieved strategic context (historical data) - CRITICAL FOR RICH CONTENT
-  strategicContext: z.object({
-    retrievedMemoryUnits: z.array(z.object({
-      id: z.string(),
-      title: z.string(),
-      content: z.string(),
-      finalScore: z.number()
-    })).optional(),
-    retrievedConcepts: z.array(z.object({
-      id: z.string(),
-      title: z.string(),
-      content: z.string(),
-      finalScore: z.number()
-    })).optional(),
-    retrievedArtifacts: z.array(z.object({
-      id: z.string(),
-      title: z.string(),
-      content: z.string(),
-      type: z.string(),
-      finalScore: z.number()
-    })).optional(),
-    retrievalSummary: z.string().optional()
-  }).optional(),
-  
-  // Previous cycle continuity
-  previousKeyPhrases: z.array(z.object({
-    category: z.string(),
-    phrases: z.array(z.string())
-  })).optional(),
-  
-  // System metadata
-  workerType: z.string().optional(),
-  workerJobId: z.string().optional(),
-  
-  // Legacy fields for backward compatibility
-  analysisContext: z.string().optional(),
-  consolidatedKnowledgeGraph: z.string().optional(),
-  recentConversations: z.string().optional()
+  })
 });
 
 // Output validation schema
@@ -281,7 +212,7 @@ export class StrategicStageTool {
   }
 
   /**
-   * Build strategic prompt as follow-up to foundation stage (for KV caching optimization)
+   * Build strategic prompt as TRUE FOLLOW-UP to foundation stage (no context rebuilding)
    */
   private async buildStrategicPromptOptimized(input: StrategicStageInput): Promise<string> {
     console.log(`[StrategicStageTool] Building strategic follow-up prompt for user ${input.userId}`);
@@ -290,8 +221,8 @@ export class StrategicStageTool {
     if (this.multiStageCacheManager) {
       return this.multiStageCacheManager.getStrategicPrompt(
         input.userId,
-        input.userName || 'User',
-        input, // strategic context
+        'User', // userName not needed - it's in foundationPrompt
+        null, // No context needed - it's in foundationPrompt
         input.foundationResults,
         input.foundationPrompt // Pass foundation prompt for KV caching
       );
@@ -303,6 +234,7 @@ export class StrategicStageTool {
     const templateDefinitions = this.getTemplateDefinitions();
     
     // Build the strategic prompt: Foundation Prompt + Foundation Results + Strategic Instructions
+    // No need to rebuild user context - it's already in the foundation prompt
     const masterPrompt = `${input.foundationPrompt}
 
 === FOUNDATION STAGE RESPONSE ===
@@ -318,6 +250,7 @@ ${templateDefinitions}`;
     return masterPrompt;
   }
 
+
   /**
    * Build strategic prompt with legacy caching (fallback)
    */
@@ -328,7 +261,7 @@ ${templateDefinitions}`;
     const templates = this.configService.getAllTemplates();
     
     // Build the strategic prompt with foundation prompt reuse for KV caching
-    const user_name = input.userName || 'User';
+    // No need for user_name - it's already in the foundation prompt
     
     // Get strategic stage template
     const strategicTemplate = templates.insight_worker_strategic_stage;
@@ -430,82 +363,7 @@ ${Object.entries(templateDefs).map(([type, description]) => `- **${type}**: ${de
   }
 
 
-  /**
-   * Build dynamic context section with RICH CONTEXT (matching original StrategicSynthesisTool)
-   */
-  private buildDynamicContext(input: StrategicStageInput): string {
-    // Build dynamic context data (matching original StrategicSynthesisTool structure)
-    const dynamicContextData = {
-      analysis_context: {
-        user_name: input.userName,
-        cycle_id: input.cycleId,
-        analysis_timestamp: new Date().toISOString(),
-        cycle_period: `${input.cycleStartDate} to ${input.cycleEndDate}`
-      },
-      user_memory_profile: {
-        memory_profile: input.userMemoryProfile || 'No memory profile available'
-      },
-      consolidated_knowledge_graph: {
-        concepts: input.currentKnowledgeGraph?.concepts || [],
-        memory_units: input.currentKnowledgeGraph?.memoryUnits || [],
-        concepts_needing_synthesis: input.currentKnowledgeGraph?.conceptsNeedingSynthesis || [],
-        recent_growth_events: input.recentGrowthEvents || [],
-        previous_key_phrases: input.previousKeyPhrases || []
-      },
-      recent_conversations: {
-        conversations: input.currentKnowledgeGraph?.conversations || []
-      },
-      foundation_results: {
-        memory_profile: input.foundationResults?.memory_profile,
-        opening: input.foundationResults?.opening,
-        key_phrases: input.foundationResults?.key_phrases
-      },
-      strategic_context: input.strategicContext || {}
-    };
-
-    // Process dynamic context template (matching original StrategicSynthesisTool)
-    const dynamicContextProcessed = this.buildDynamicContextSimple(dynamicContextData);
-
-    return dynamicContextProcessed;
-  }
-
-  /**
-   * Build dynamic context simple (matching original StrategicSynthesisTool)
-   */
-  private buildDynamicContextSimple(data: any): string {
-    return `=== SECTION 3: DYNAMIC CONTEXT ===
-
-**3.1 Analysis Context:**
-- User: ${data.analysis_context.user_name}
-- Cycle ID: ${data.analysis_context.cycle_id}
-- Analysis Timestamp: ${data.analysis_context.analysis_timestamp}
-- Cycle Period: ${data.analysis_context.cycle_period}
-
-**3.2 User Memory Profile:**
-${data.user_memory_profile.memory_profile}
-
-**3.3 Consolidated Knowledge Graph:**
-- Concepts (${data.consolidated_knowledge_graph.concepts.length}): ${data.consolidated_knowledge_graph.concepts.map((c: any) => c.title).join(', ')}
-- Memory Units (${data.consolidated_knowledge_graph.memory_units.length}): ${data.consolidated_knowledge_graph.memory_units.map((m: any) => m.id).join(', ')}
-- Concepts Needing Synthesis (${data.consolidated_knowledge_graph.concepts_needing_synthesis.length}): ${data.consolidated_knowledge_graph.concepts_needing_synthesis.map((c: any) => c.title).join(', ')}
-- Recent Growth Events (${data.consolidated_knowledge_graph.recent_growth_events.length}): ${data.consolidated_knowledge_graph.recent_growth_events.map((e: any) => e.id).join(', ')}
-- Previous Key Phrases: ${data.consolidated_knowledge_graph.previous_key_phrases.map((kp: any) => `${kp.category}: [${kp.phrases.join(', ')}]`).join('; ')}
-
-**3.4 Recent Conversations:**
-${data.recent_conversations.conversations.map((conv: any, index: number) => `Conversation ${index + 1}: ${conv.content?.substring(0, 200)}...`).join('\n\n')}
-
-**3.5 Foundation Results:**
-- Memory Profile: ${data.foundation_results.memory_profile?.content?.substring(0, 300)}...
-- Opening: ${data.foundation_results.opening?.content?.substring(0, 200)}...
-- Key Phrases: ${JSON.stringify(data.foundation_results.key_phrases, null, 2)}
-
-
-**3.7 Strategic Context (HRT Retrieved):**
-- Retrieved Memory Units (${data.strategic_context.retrievedMemoryUnits?.length || 0}): ${data.strategic_context.retrievedMemoryUnits?.map((m: any) => `${m.title} (score: ${m.finalScore})`).join(', ') || 'None'}
-- Retrieved Concepts (${data.strategic_context.retrievedConcepts?.length || 0}): ${data.strategic_context.retrievedConcepts?.map((c: any) => `${c.title} (score: ${c.finalScore})`).join(', ') || 'None'}
-- Retrieved Artifacts (${data.strategic_context.retrievedArtifacts?.length || 0}): ${data.strategic_context.retrievedArtifacts?.map((a: any) => `${a.title} (${a.type}, score: ${a.finalScore})`).join(', ') || 'None'}
-- Retrieval Summary: ${data.strategic_context.retrievalSummary || 'No summary available'}`;
-  }
+  // Note: buildDynamicContext methods removed - Strategic Stage now reuses Foundation prompt context
 
   /**
    * Get cached section or build and cache it

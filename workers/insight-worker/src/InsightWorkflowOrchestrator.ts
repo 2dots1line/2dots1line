@@ -213,18 +213,30 @@ export class InsightWorkflowOrchestrator {
       // Gather comprehensive context
       const { strategicInput } = await this.gatherComprehensiveContext(userId, cycleId, cycleDates, cycleId);
       
-      // Execute foundation stage
+      // Build context strings for FoundationStageTool (keep for backward compatibility)
+      const analysisContext = this.buildAnalysisContextString(strategicInput);
+      const consolidatedKnowledgeGraph = this.buildKnowledgeGraphString(strategicInput);
+      const recentConversations = this.buildConversationsString(strategicInput);
+      
+      // Execute foundation stage with both structured data and strings
       const foundationResult = await this.foundationStageTool.execute({
         userId,
         userName: strategicInput.userName,
         cycleId,
         userMemoryProfile: strategicInput.userMemoryProfile,
-        analysisContext: strategicInput.analysisContext,
-        consolidatedKnowledgeGraph: strategicInput.consolidatedKnowledgeGraph,
-        recentConversations: strategicInput.recentConversations,
+        analysisContext: analysisContext,
+        consolidatedKnowledgeGraph: consolidatedKnowledgeGraph,
+        recentConversations: recentConversations,
         cycleDates: {
           cycleStartDate: cycleDates.cycleStartDate.toISOString(),
           cycleEndDate: cycleDates.cycleEndDate.toISOString()
+        },
+        // Pass the rich structured data directly
+        structuredContext: {
+          currentKnowledgeGraph: strategicInput.currentKnowledgeGraph,
+          recentGrowthEvents: strategicInput.recentGrowthEvents,
+          strategicContext: strategicInput.strategicContext,
+          previousKeyPhrases: strategicInput.previousKeyPhrases
         }
       });
       
@@ -286,45 +298,20 @@ export class InsightWorkflowOrchestrator {
    */
   private async executeStrategicStage(userId: string, foundationResults: any, foundationPrompt: string, cycleDates: CycleDates, cycleId: string): Promise<any> {
     try {
-      // Gather context for strategic stage
-      const { strategicInput } = await this.gatherComprehensiveContext(userId, cycleId, cycleDates, cycleId);
-      
-      // Execute strategic stage with RICH CONTEXT (matching original StrategicSynthesisTool)
+      // Execute strategic stage as TRUE FOLLOW-UP to Foundation Stage
+      // No need to gather context again - reuse Foundation prompt which already contains user context
       const strategicResult = await this.strategicStageTool.execute({
-        // Core identification
+        // Core identification (minimal - user context is already in foundationPrompt)
         userId,
-        userName: strategicInput.userName,
-        userMemoryProfile: strategicInput.userMemoryProfile,
         cycleId: cycleId,
         cycleStartDate: cycleDates.cycleStartDate.toISOString(),
         cycleEndDate: cycleDates.cycleEndDate.toISOString(),
         
-        // Foundation prompt from Stage 1 (for KV caching optimization)
+        // Foundation prompt from Stage 1 (contains ALL user context - this is the key!)
         foundationPrompt: foundationPrompt,
         
-        // Foundation results from Stage 1
-        foundationResults: foundationResults.foundation_results,
-        
-        // Current cycle data - STRUCTURED (matching original StrategicSynthesisTool)
-        currentKnowledgeGraph: strategicInput.currentKnowledgeGraph,
-        
-        // Growth events (recent cycle activity)
-        recentGrowthEvents: strategicInput.recentGrowthEvents,
-        
-        // HRT-retrieved strategic context (historical data) - CRITICAL FOR RICH CONTENT
-        strategicContext: strategicInput.strategicContext,
-        
-        // Previous cycle continuity
-        previousKeyPhrases: strategicInput.previousKeyPhrases,
-        
-        // System metadata
-        workerType: strategicInput.workerType,
-        workerJobId: strategicInput.workerJobId,
-        
-        // Legacy fields for backward compatibility
-        analysisContext: strategicInput.analysisContext,
-        consolidatedKnowledgeGraph: strategicInput.consolidatedKnowledgeGraph,
-        recentConversations: strategicInput.recentConversations
+        // Foundation results from Stage 1 (LLM's response)
+        foundationResults: foundationResults.foundation_results
       });
       
       // ENHANCED: Validate LLM response quality - PORTED FROM ORIGINAL INSIGHTENGINE
@@ -459,6 +446,68 @@ export class InsightWorkflowOrchestrator {
     };
 
     return { strategicInput };
+  }
+
+  /**
+   * Build analysis context string for FoundationStageTool
+   */
+  private buildAnalysisContextString(strategicInput: any): string {
+    const user_name = strategicInput.userName || 'User';
+    
+    return `**ANALYSIS CONTEXT:**
+User: ${user_name}
+Cycle ID: ${strategicInput.cycleId}
+Analysis Timestamp: ${new Date().toISOString()}
+Cycle Period: ${strategicInput.cycleStartDate} to ${strategicInput.cycleEndDate}
+
+**USER MEMORY PROFILE:**
+${strategicInput.userMemoryProfile || 'No memory profile available'}`;
+  }
+
+  /**
+   * Build knowledge graph string for FoundationStageTool
+   */
+  private buildKnowledgeGraphString(strategicInput: any): string {
+    const sections = [];
+    
+    // Memory units
+    if (strategicInput.currentKnowledgeGraph.memoryUnits.length > 0) {
+      sections.push(`**USER MEMORY UNITS:**
+${strategicInput.currentKnowledgeGraph.memoryUnits.map((mem: any) => `- ${mem.id}: ${mem.content}`).join('\n')}`);
+    }
+    
+    // Concepts
+    if (strategicInput.currentKnowledgeGraph.concepts.length > 0) {
+      sections.push(`**USER CONCEPTS:**
+${strategicInput.currentKnowledgeGraph.concepts.map((concept: any) => `- ${concept.title}: ${concept.content}`).join('\n')}`);
+    }
+    
+    // Growth events
+    if (strategicInput.recentGrowthEvents.length > 0) {
+      sections.push(`**RECENT GROWTH EVENTS:**
+${strategicInput.recentGrowthEvents.map((event: any) => `- ${event.id}: ${event.content}`).join('\n')}`);
+    }
+    
+    // Strategic context
+    if (strategicInput.strategicContext?.retrievalSummary) {
+      sections.push(`**STRATEGIC CONTEXT (HRT RETRIEVED):**
+${strategicInput.strategicContext.retrievalSummary}`);
+    }
+    
+    return sections.join('\n\n');
+  }
+
+  /**
+   * Build conversations string for FoundationStageTool
+   */
+  private buildConversationsString(strategicInput: any): string {
+    if (strategicInput.currentKnowledgeGraph.conversations.length > 0) {
+      return `**RELEVANT CONTEXT FROM USER'S PAST:**
+${strategicInput.currentKnowledgeGraph.conversations.map((conv: any) => conv.content || 'No content available').join('\n\n')}`;
+    } else {
+      return `**RELEVANT CONTEXT FROM USER'S PAST:**
+No memories provided.`;
+    }
   }
 
   /**

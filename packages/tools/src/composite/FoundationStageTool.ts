@@ -25,7 +25,32 @@ export const FoundationStageInputSchema = z.object({
   cycleDates: z.object({
     cycleStartDate: z.string(),
     cycleEndDate: z.string()
-  })
+  }),
+  structuredContext: z.object({
+    currentKnowledgeGraph: z.object({
+      conversations: z.array(z.object({
+        content: z.string()
+      })),
+      memoryUnits: z.array(z.object({
+        id: z.string(),
+        content: z.string()
+      })),
+      concepts: z.array(z.object({
+        title: z.string(),
+        content: z.string()
+      })),
+      conceptsNeedingSynthesis: z.array(z.any()).optional()
+    }),
+    recentGrowthEvents: z.array(z.object({
+      id: z.string(),
+      content: z.string()
+    })),
+    strategicContext: z.any().optional(),
+    previousKeyPhrases: z.array(z.object({
+      category: z.string(),
+      phrases: z.array(z.string())
+    })).optional()
+  }).optional()
 });
 
 // Output validation schema
@@ -174,11 +199,52 @@ export class FoundationStageTool {
   private async buildFoundationPromptOptimized(input: FoundationStageInput): Promise<string> {
     const user_name = input.userName || 'User';
     
+    // Use structured context if available, otherwise parse from strings
+    let context: any;
+    
+    if (input.structuredContext) {
+      // Use the rich structured data directly
+      context = {
+        userName: input.userName,
+        cycleId: input.cycleId,
+        cycleStartDate: input.cycleDates.cycleStartDate,
+        cycleEndDate: input.cycleDates.cycleEndDate,
+        userMemoryProfile: input.userMemoryProfile ? JSON.stringify(input.userMemoryProfile) : 'No memory profile available',
+        currentKnowledgeGraph: input.structuredContext.currentKnowledgeGraph,
+        recentGrowthEvents: input.structuredContext.recentGrowthEvents,
+        strategicContext: input.structuredContext.strategicContext,
+        previousKeyPhrases: input.structuredContext.previousKeyPhrases,
+        // Include the raw strings for fallback
+        analysisContext: input.analysisContext,
+        consolidatedKnowledgeGraph: input.consolidatedKnowledgeGraph,
+        recentConversations: input.recentConversations
+      };
+    } else {
+      // Fallback: Parse the structured data from the input strings back into objects
+      context = {
+        userName: input.userName,
+        cycleId: input.cycleId,
+        cycleStartDate: input.cycleDates.cycleStartDate,
+        cycleEndDate: input.cycleDates.cycleEndDate,
+        userMemoryProfile: input.userMemoryProfile ? JSON.stringify(input.userMemoryProfile) : 'No memory profile available',
+        currentKnowledgeGraph: {
+          concepts: this.parseConceptsFromString(input.consolidatedKnowledgeGraph || ''),
+          memoryUnits: this.parseMemoryUnitsFromString(input.consolidatedKnowledgeGraph || ''),
+          conversations: input.recentConversations ? [{ content: input.recentConversations }] : []
+        },
+        recentGrowthEvents: this.parseGrowthEventsFromString(input.consolidatedKnowledgeGraph || ''),
+        // Include the raw strings for fallback
+        analysisContext: input.analysisContext,
+        consolidatedKnowledgeGraph: input.consolidatedKnowledgeGraph,
+        recentConversations: input.recentConversations
+      };
+    }
+    
     // Use new optimized caching strategy for Foundation stage
     const masterPrompt = await this.multiStageCacheManager!.getFoundationPrompt(
       input.userId,
       user_name,
-      input // foundation context
+      context // Pass the rich structured context
     );
 
     console.log(`[FoundationStageTool] Built foundation prompt with optimized caching (${masterPrompt.length} characters)`);
@@ -221,26 +287,106 @@ ${foundationTemplate}`;
   }
 
   /**
+   * Parse concepts from knowledge graph string
+   */
+  private parseConceptsFromString(knowledgeGraphString: string): any[] {
+    const concepts: any[] = [];
+    
+    // Look for concepts section in the string
+    const conceptsMatch = knowledgeGraphString.match(/\*\*USER CONCEPTS:\*\*\s*([\s\S]*?)(?=\*\*|$)/);
+    if (conceptsMatch) {
+      const conceptsText = conceptsMatch[1];
+      const conceptLines = conceptsText.split('\n').filter(line => line.trim().startsWith('- '));
+      
+      conceptLines.forEach(line => {
+        const match = line.match(/^- (.+?): (.+)$/);
+        if (match) {
+          concepts.push({
+            title: match[1].trim(),
+            content: match[2].trim()
+          });
+        }
+      });
+    }
+    
+    return concepts;
+  }
+
+  /**
+   * Parse memory units from knowledge graph string
+   */
+  private parseMemoryUnitsFromString(knowledgeGraphString: string): any[] {
+    const memoryUnits: any[] = [];
+    
+    // Look for memory units section in the string
+    const memoryUnitsMatch = knowledgeGraphString.match(/\*\*USER MEMORY UNITS:\*\*\s*([\s\S]*?)(?=\*\*|$)/);
+    if (memoryUnitsMatch) {
+      const memoryUnitsText = memoryUnitsMatch[1];
+      const memoryUnitLines = memoryUnitsText.split('\n').filter(line => line.trim().startsWith('- '));
+      
+      memoryUnitLines.forEach(line => {
+        const match = line.match(/^- (.+?): (.+)$/);
+        if (match) {
+          memoryUnits.push({
+            id: match[1].trim(),
+            content: match[2].trim()
+          });
+        }
+      });
+    }
+    
+    return memoryUnits;
+  }
+
+  /**
+   * Parse growth events from knowledge graph string
+   */
+  private parseGrowthEventsFromString(knowledgeGraphString: string): any[] {
+    const growthEvents: any[] = [];
+    
+    // Look for growth events section in the string
+    const growthEventsMatch = knowledgeGraphString.match(/\*\*RECENT GROWTH EVENTS:\*\*\s*([\s\S]*?)(?=\*\*|$)/);
+    if (growthEventsMatch) {
+      const growthEventsText = growthEventsMatch[1];
+      const growthEventLines = growthEventsText.split('\n').filter(line => line.trim().startsWith('- '));
+      
+      growthEventLines.forEach(line => {
+        const match = line.match(/^- (.+?): (.+)$/);
+        if (match) {
+          growthEvents.push({
+            id: match[1].trim(),
+            content: match[2].trim()
+          });
+        }
+      });
+    }
+    
+    return growthEvents;
+  }
+
+  /**
    * Build dynamic context section
    */
   private buildDynamicContext(input: FoundationStageInput): string {
     return `=== SECTION 3: DYNAMIC CONTEXT ===
 
 **3.1 Analysis Context:**
-${input.analysisContext}
+- User: ${input.userName || 'User'}
+- Cycle ID: ${input.cycleId}
+- Analysis Timestamp: ${new Date().toISOString()}
+- Cycle Period: ${input.cycleDates.cycleStartDate} to ${input.cycleDates.cycleEndDate}
 
 **3.2 User Memory Profile:**
 ${input.userMemoryProfile ? JSON.stringify(input.userMemoryProfile, null, 2) : 'No existing memory profile'}
 
 **3.3 Consolidated Knowledge Graph:**
-${input.consolidatedKnowledgeGraph}
+${input.consolidatedKnowledgeGraph || 'No knowledge graph available'}
 
 **3.4 Recent Conversations:**
 ${input.recentConversations || 'No recent conversations'}
 
-**3.5 Cycle Information:**
-- Cycle Start: ${input.cycleDates.cycleStartDate}
-- Cycle End: ${input.cycleDates.cycleEndDate}`;
+**3.5 Analysis Context:**
+${input.analysisContext || 'No analysis context available'}`;
   }
 
   /**

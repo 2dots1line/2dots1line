@@ -109,18 +109,13 @@ export class MultiStagePromptCacheManager {
   async getFoundationPrompt(userId: string, userName: string, context: any): Promise<string> {
     const templates = this.configService.getAllTemplates();
     
-    const [shared, foundation] = await Promise.all([
-      this.getSharedSections(userId, userName, templates),
-      this.getFoundationStageSections(userId, userName, context, templates)
-    ]);
-
-    return `${shared.coreIdentity}
-
-${shared.operationalConfig}
-
-${foundation.dynamicContext}
-
-${foundation.stageTemplate}`;
+    // Get the actual foundation stage template from YAML
+    const foundationTemplate = templates.insight_worker_foundation_stage;
+    
+    // Build the complete prompt by replacing placeholders in the actual template
+    const completePrompt = this.buildCompleteFoundationPrompt(foundationTemplate, context, userName);
+    
+    return completePrompt;
   }
 
   /**
@@ -136,6 +131,10 @@ ${foundation.stageTemplate}`;
       // Get strategic stage template and template definitions
       const strategicTemplate = templates.insight_worker_strategic_stage;
       const templateDefinitions = this.getTemplateDefinitions();
+      
+      // For true follow-up behavior, we don't need to replace placeholders in strategic template
+      // because the user context is already in the foundation prompt
+      // Just use the strategic template as-is (it may have {{user_name}} but that's fine for follow-up)
       
       // Build strategic prompt: Foundation Prompt + Foundation Results + Strategic Instructions
       return `${foundationPrompt}
@@ -189,12 +188,16 @@ ${strategic.stageTemplate}`;
     context: any, 
     templates: any
   ): Promise<StagePromptSections> {
-    const [stageTemplate, dynamicContext] = await Promise.all([
-      this.getCachedSection('foundation_stage', userId, userName, templates.insight_worker_foundation_stage),
-      this.getCachedDynamicContext('foundation_dynamic_context', userId, context, this.buildFoundationDynamicContext)
-    ]);
-
-    return { stageTemplate, dynamicContext };
+    // Get the actual foundation stage template from YAML
+    const foundationTemplate = templates.insight_worker_foundation_stage;
+    
+    // Build the complete prompt by replacing placeholders in the actual template
+    const completePrompt = this.buildCompleteFoundationPrompt(foundationTemplate, context, userName);
+    
+    return { 
+      stageTemplate: completePrompt, 
+      dynamicContext: '' // Dynamic context is now embedded in the complete prompt
+    };
   }
 
   /**
@@ -206,12 +209,16 @@ ${strategic.stageTemplate}`;
     context: any, 
     templates: any
   ): Promise<StagePromptSections> {
-    const [stageTemplate, dynamicContext] = await Promise.all([
-      this.getCachedSection('strategic_stage', userId, userName, templates.insight_worker_strategic_stage),
-      this.getCachedDynamicContext('strategic_dynamic_context', userId, context, this.buildStrategicDynamicContext)
-    ]);
-
-    return { stageTemplate, dynamicContext };
+    // Get the actual strategic stage template from YAML
+    const strategicTemplate = templates.insight_worker_strategic_stage;
+    
+    // Build the complete prompt by replacing placeholders in the actual template
+    const completePrompt = this.buildCompleteStrategicPrompt(strategicTemplate, context, userName);
+    
+    return { 
+      stageTemplate: completePrompt, 
+      dynamicContext: '' // Dynamic context is now embedded in the complete prompt
+    };
   }
 
   /**
@@ -282,7 +289,80 @@ ${strategic.stageTemplate}`;
   }
 
   /**
-   * Build Foundation Stage dynamic context with template placeholders
+   * Build complete foundation prompt by replacing placeholders in the actual YAML template
+   */
+  private buildCompleteFoundationPrompt(template: string, context: any, userName: string): string {
+    // Debug logging to understand what context we're receiving
+    console.log(`[MultiStagePromptCacheManager] Building foundation prompt with context:`, {
+      userName,
+      cycleId: context.cycleId,
+      cycleStartDate: context.cycleStartDate,
+      cycleEndDate: context.cycleEndDate,
+      conceptCount: context.currentKnowledgeGraph?.concepts?.length || 0,
+      memoryUnitCount: context.currentKnowledgeGraph?.memoryUnits?.length || 0,
+      growthEventCount: context.recentGrowthEvents?.length || 0,
+      conversationCount: context.currentKnowledgeGraph?.conversations?.length || 0
+    });
+    
+    // Replace all placeholders in the actual YAML template with real user data
+    const processedTemplate = template
+      .replace(/\{\{user_name\}\}/g, userName || 'User')
+      .replace(/\{\{cycle_id\}\}/g, context.cycleId || 'Unknown')
+      .replace(/\{\{timestamp\}\}/g, new Date().toISOString())
+      .replace(/\{\{cycle_start_date\}\}/g, context.cycleStartDate || 'Unknown')
+      .replace(/\{\{cycle_end_date\}\}/g, context.cycleEndDate || 'Unknown')
+      .replace(/\{\{user_memory_profile\}\}/g, context.userMemoryProfile || 'No memory profile available')
+      .replace(/\{\{concept_count\}\}/g, (context.currentKnowledgeGraph?.concepts?.length || 0).toString())
+      .replace(/\{\{concept_titles\}\}/g, context.currentKnowledgeGraph?.concepts?.map((c: any) => c.title).join(', ') || 'None')
+      .replace(/\{\{memory_unit_count\}\}/g, (context.currentKnowledgeGraph?.memoryUnits?.length || 0).toString())
+      .replace(/\{\{memory_unit_ids\}\}/g, context.currentKnowledgeGraph?.memoryUnits?.map((m: any) => m.id).join(', ') || 'None')
+      .replace(/\{\{growth_event_count\}\}/g, (context.recentGrowthEvents?.length || 0).toString())
+      .replace(/\{\{growth_event_ids\}\}/g, context.recentGrowthEvents?.map((e: any) => e.id).join(', ') || 'None')
+      .replace(/\{\{recent_conversations\}\}/g, this.formatConversationsForTemplate(context.currentKnowledgeGraph?.conversations || []));
+    
+    console.log(`[MultiStagePromptCacheManager] Processed template length: ${processedTemplate.length} characters`);
+    
+    return processedTemplate;
+  }
+
+  /**
+   * Format conversations for the template
+   */
+  private formatConversationsForTemplate(conversations: any[]): string {
+    if (!conversations || conversations.length === 0) {
+      return 'No recent conversations';
+    }
+    
+    return conversations.map((conv: any, index: number) => {
+      const content = conv.content || 'No content available';
+      const truncated = content.length > 200 ? content.substring(0, 200) + '...' : content;
+      return `Conversation ${index + 1}: ${truncated}`;
+    }).join('\n\n');
+  }
+
+  /**
+   * Build complete strategic prompt by replacing placeholders in the actual YAML template
+   */
+  private buildCompleteStrategicPrompt(template: string, context: any, userName: string): string {
+    // Replace all placeholders in the actual YAML template with real user data
+    return template
+      .replace(/\{\{user_name\}\}/g, userName || 'User')
+      .replace(/\{\{cycle_id\}\}/g, context.cycleId || 'Unknown')
+      .replace(/\{\{timestamp\}\}/g, new Date().toISOString())
+      .replace(/\{\{cycle_start_date\}\}/g, context.cycleStartDate || 'Unknown')
+      .replace(/\{\{cycle_end_date\}\}/g, context.cycleEndDate || 'Unknown')
+      .replace(/\{\{user_memory_profile\}\}/g, context.userMemoryProfile || 'No memory profile available')
+      .replace(/\{\{concept_count\}\}/g, (context.currentKnowledgeGraph?.concepts?.length || 0).toString())
+      .replace(/\{\{concept_titles\}\}/g, context.currentKnowledgeGraph?.concepts?.map((c: any) => c.title).join(', ') || 'None')
+      .replace(/\{\{memory_unit_count\}\}/g, (context.currentKnowledgeGraph?.memoryUnits?.length || 0).toString())
+      .replace(/\{\{memory_unit_ids\}\}/g, context.currentKnowledgeGraph?.memoryUnits?.map((m: any) => m.id).join(', ') || 'None')
+      .replace(/\{\{growth_event_count\}\}/g, (context.recentGrowthEvents?.length || 0).toString())
+      .replace(/\{\{growth_event_ids\}\}/g, context.recentGrowthEvents?.map((e: any) => e.id).join(', ') || 'None')
+      .replace(/\{\{recent_conversations\}\}/g, this.formatConversationsForTemplate(context.currentKnowledgeGraph?.conversations || []));
+  }
+
+  /**
+   * Build Foundation Stage dynamic context with template placeholders (LEGACY - kept for backward compatibility)
    */
   private buildFoundationDynamicContext(context: any): string {
     // Use template placeholders for better caching
@@ -305,7 +385,7 @@ ${strategic.stageTemplate}`;
 **3.4 Recent Conversations:**
 {{recent_conversations}}`;
 
-    // Replace placeholders with actual values
+    // Replace placeholders with actual values from the context
     return template
       .replace(/\{\{user_name\}\}/g, context.userName || 'User')
       .replace(/\{\{cycle_id\}\}/g, context.cycleId || 'Unknown')
