@@ -676,9 +676,17 @@ export class CardRepository {
           content,
           importance_score,
           entity_created_at,
-          entity_updated_at
+          entity_updated_at,
+          -- Add priority scoring for title matches
+          CASE 
+            WHEN title ILIKE $2 THEN 1  -- Title matches get highest priority
+            WHEN content ILIKE $2 THEN 2  -- Content matches get lower priority
+            ELSE 3
+          END as match_priority
         FROM matching_entities
-        ORDER BY ${this.buildSearchOrderBy(filters.sortBy, filters.sortOrder)}
+        ORDER BY 
+          match_priority ASC,  -- Title matches first, then content matches
+          ${this.buildSearchOrderBy(filters.sortBy, filters.sortOrder)}
         LIMIT $3 OFFSET ${offset}
       `;
 
