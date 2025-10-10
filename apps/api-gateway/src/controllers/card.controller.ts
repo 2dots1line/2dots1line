@@ -313,4 +313,74 @@ export class CardController {
       } as TApiResponse<any>);
     }
   };
+
+  /**
+   * GET /api/v1/cards/search
+   * Search cards by title or content across all entity types
+   */
+  public searchCards = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authorization required'
+          }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      const { q: query, limit, offset, sort_by, sort_order, type } = req.query;
+
+      if (!query || typeof query !== 'string' || query.trim().length === 0) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'BAD_REQUEST',
+            message: 'Search query (q) is required'
+          }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      // Parse query parameters
+      const filters = {
+        cardType: type as 'memory_unit' | 'concept' | 'derived_artifact' | undefined,
+        limit: limit ? parseInt(limit as string) : 100,
+        offset: offset ? parseInt(offset as string) : 0,
+        sortBy: sort_by as 'created_at' | 'updated_at' | 'importance_score' | 'growth_activity' | undefined,
+        sortOrder: sort_order as 'asc' | 'desc' | undefined
+      };
+
+      // Call the CardService search method
+      const serviceResponse = await this.cardService.searchCards({
+        userId,
+        query: query.trim(),
+        filters
+      });
+
+      // Transform the response to match frontend expectations
+      res.status(200).json({
+        success: true,
+        data: {
+          cards: serviceResponse.cards,
+          total_count: serviceResponse.total,
+          has_more: serviceResponse.hasMore,
+          summary: serviceResponse.summary
+        }
+      } as TApiResponse<any>);
+
+    } catch (error: any) {
+      console.error('Card controller search error:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'SEARCH_FAILED',
+          message: 'Failed to search cards'
+        }
+      } as TApiResponse<any>);
+    }
+  };
 }

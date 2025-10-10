@@ -90,6 +90,7 @@ v1Router.get('/sessions/:sessionId', authMiddleware, conversationController.getS
 
 // --- Card Routes (Authenticated) ---
 v1Router.get('/cards', authMiddleware, cardController.getCards);
+v1Router.get('/cards/search', authMiddleware, cardController.searchCards);
 v1Router.get('/cards/ids', authMiddleware, cardController.getAllCardIds);
 v1Router.post('/cards/by-ids', authMiddleware, cardController.getCardsByIds);
 v1Router.get('/cards/by-source/:entityId', authMiddleware, cardController.getCardBySourceEntity);

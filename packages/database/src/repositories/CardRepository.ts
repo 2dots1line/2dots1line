@@ -57,6 +57,7 @@ export interface CardFilters {
   offset?: number;
   sortBy?: 'created_at' | 'updated_at' | 'importance_score' | 'growth_activity';
   sortOrder?: 'asc' | 'desc';
+  searchQuery?: string; // Add search query to filters
 }
 
 export interface CardResultWithMeta {
@@ -456,6 +457,353 @@ export class CardRepository {
   }
 
   /**
+   * Search cards by title or content across all entity types
+   * Returns user's active entities whose title or content contains the search query
+   * where the card status is 'active_canvas'
+   */
+  async searchCards(userId: string, query: string, filters: CardFilters = {}): Promise<CardResultWithMeta> {
+    if (!query || query.trim().length === 0) {
+      return { cards: [], total: 0, hasMore: false };
+    }
+
+    const searchPattern = `%${query.trim()}%`;
+    const limit = filters.limit || 100;
+    const offset = filters.offset || 0;
+
+    try {
+      // Search across all entity types using raw SQL for better performance
+      const searchQuery = `
+        WITH matching_entities AS (
+          -- Search concepts
+          SELECT 
+            c.card_id,
+            c.user_id,
+            c.type,
+            c.source_entity_id,
+            c.source_entity_type,
+            c.status as card_status,
+            c.created_at,
+            c.updated_at,
+            c.background_image_url,
+            c.display_order,
+            c.is_selected,
+            c.custom_title,
+            c.custom_content,
+            ent.title,
+            ent.content,
+            ent.importance_score,
+            ent.created_at as entity_created_at,
+            ent.updated_at as entity_updated_at
+          FROM cards c
+          INNER JOIN concepts ent ON c.source_entity_id = ent.entity_id
+          WHERE c.user_id = $1 
+            AND c.status = 'active_canvas'
+            AND ent.user_id = $1
+            AND ent.status = 'active'
+            AND (ent.title ILIKE $2 OR ent.content ILIKE $2)
+            ${filters.cardType ? "AND c.type = $4" : ""}
+          
+          UNION ALL
+          
+          -- Search memory units
+          SELECT 
+            c.card_id,
+            c.user_id,
+            c.type,
+            c.source_entity_id,
+            c.source_entity_type,
+            c.status as card_status,
+            c.created_at,
+            c.updated_at,
+            c.background_image_url,
+            c.display_order,
+            c.is_selected,
+            c.custom_title,
+            c.custom_content,
+            ent.title,
+            ent.content,
+            ent.importance_score,
+            ent.created_at as entity_created_at,
+            ent.updated_at as entity_updated_at
+          FROM cards c
+          INNER JOIN memory_units ent ON c.source_entity_id = ent.entity_id
+          WHERE c.user_id = $1 
+            AND c.status = 'active_canvas'
+            AND ent.user_id = $1
+            AND ent.status = 'active'
+            AND (ent.title ILIKE $2 OR ent.content ILIKE $2)
+            ${filters.cardType ? "AND c.type = $4" : ""}
+          
+          UNION ALL
+          
+          -- Search derived artifacts
+          SELECT 
+            c.card_id,
+            c.user_id,
+            c.type,
+            c.source_entity_id,
+            c.source_entity_type,
+            c.status as card_status,
+            c.created_at,
+            c.updated_at,
+            c.background_image_url,
+            c.display_order,
+            c.is_selected,
+            c.custom_title,
+            c.custom_content,
+            ent.title,
+            ent.content,
+            NULL as importance_score,
+            ent.created_at as entity_created_at,
+            ent.updated_at as entity_updated_at
+          FROM cards c
+          INNER JOIN derived_artifacts ent ON c.source_entity_id = ent.entity_id
+          WHERE c.user_id = $1 
+            AND c.status = 'active_canvas'
+            AND ent.user_id = $1
+            AND ent.status = 'active'
+            AND (ent.title ILIKE $2 OR ent.content ILIKE $2)
+            ${filters.cardType ? "AND c.type = $4" : ""}
+          
+          UNION ALL
+          
+          -- Search proactive prompts
+          SELECT 
+            c.card_id,
+            c.user_id,
+            c.type,
+            c.source_entity_id,
+            c.source_entity_type,
+            c.status as card_status,
+            c.created_at,
+            c.updated_at,
+            c.background_image_url,
+            c.display_order,
+            c.is_selected,
+            c.custom_title,
+            c.custom_content,
+            ent.title,
+            ent.content,
+            NULL as importance_score,
+            ent.created_at as entity_created_at,
+            ent.updated_at as entity_updated_at
+          FROM cards c
+          INNER JOIN proactive_prompts ent ON c.source_entity_id = ent.entity_id
+          WHERE c.user_id = $1 
+            AND c.status = 'active_canvas'
+            AND ent.user_id = $1
+            AND ent.status = 'active'
+            AND (ent.title ILIKE $2 OR ent.content ILIKE $2)
+            ${filters.cardType ? "AND c.type = $4" : ""}
+          
+          UNION ALL
+          
+          -- Search communities
+          SELECT 
+            c.card_id,
+            c.user_id,
+            c.type,
+            c.source_entity_id,
+            c.source_entity_type,
+            c.status as card_status,
+            c.created_at,
+            c.updated_at,
+            c.background_image_url,
+            c.display_order,
+            c.is_selected,
+            c.custom_title,
+            c.custom_content,
+            ent.title,
+            ent.content,
+            NULL as importance_score,
+            ent.created_at as entity_created_at,
+            ent.updated_at as entity_updated_at
+          FROM cards c
+          INNER JOIN communities ent ON c.source_entity_id = ent.entity_id
+          WHERE c.user_id = $1 
+            AND c.status = 'active_canvas'
+            AND ent.user_id = $1
+            AND ent.status = 'active'
+            AND (ent.title ILIKE $2 OR ent.content ILIKE $2)
+            ${filters.cardType ? "AND c.type = $4" : ""}
+          
+          UNION ALL
+          
+          -- Search growth events
+          SELECT 
+            c.card_id,
+            c.user_id,
+            c.type,
+            c.source_entity_id,
+            c.source_entity_type,
+            c.status as card_status,
+            c.created_at,
+            c.updated_at,
+            c.background_image_url,
+            c.display_order,
+            c.is_selected,
+            c.custom_title,
+            c.custom_content,
+            ent.title,
+            ent.content,
+            NULL as importance_score,
+            ent.created_at as entity_created_at,
+            ent.updated_at as entity_updated_at
+          FROM cards c
+          INNER JOIN growth_events ent ON c.source_entity_id = ent.entity_id
+          WHERE c.user_id = $1 
+            AND c.status = 'active_canvas'
+            AND ent.user_id = $1
+            AND ent.status = 'active'
+            AND (ent.title ILIKE $2 OR ent.content ILIKE $2)
+            ${filters.cardType ? "AND c.type = $4" : ""}
+        )
+        SELECT 
+          card_id,
+          user_id,
+          type,
+          source_entity_id,
+          source_entity_type,
+          card_status,
+          created_at,
+          updated_at,
+          background_image_url,
+          display_order,
+          is_selected,
+          custom_title,
+          custom_content,
+          title,
+          content,
+          importance_score,
+          entity_created_at,
+          entity_updated_at
+        FROM matching_entities
+        ORDER BY ${this.buildSearchOrderBy(filters.sortBy, filters.sortOrder)}
+        LIMIT $3 OFFSET ${offset}
+      `;
+
+      // Prepare parameters
+      const params = [userId, searchPattern, limit];
+      if (filters.cardType) {
+        params.push(filters.cardType);
+      }
+
+      // Execute search query
+      const searchResults = await this.db.prisma.$queryRawUnsafe(searchQuery, ...params);
+
+      // Get total count for pagination
+      const countQuery = `
+        WITH matching_entities AS (
+          -- Same UNION ALL query as above but without LIMIT/OFFSET
+          SELECT c.card_id
+          FROM cards c
+          INNER JOIN concepts ent ON c.source_entity_id = ent.entity_id
+          WHERE c.user_id = $1 
+            AND c.status = 'active_canvas'
+            AND ent.user_id = $1
+            AND ent.status = 'active'
+            AND (ent.title ILIKE $2 OR ent.content ILIKE $2)
+            ${filters.cardType ? "AND c.type = $4" : ""}
+          
+          UNION ALL
+          
+          SELECT c.card_id
+          FROM cards c
+          INNER JOIN memory_units ent ON c.source_entity_id = ent.entity_id
+          WHERE c.user_id = $1 
+            AND c.status = 'active_canvas'
+            AND ent.user_id = $1
+            AND ent.status = 'active'
+            AND (ent.title ILIKE $2 OR ent.content ILIKE $2)
+            ${filters.cardType ? "AND c.type = $4" : ""}
+          
+          UNION ALL
+          
+          SELECT c.card_id
+          FROM cards c
+          INNER JOIN derived_artifacts ent ON c.source_entity_id = ent.entity_id
+          WHERE c.user_id = $1 
+            AND c.status = 'active_canvas'
+            AND ent.user_id = $1
+            AND ent.status = 'active'
+            AND (ent.title ILIKE $2 OR ent.content ILIKE $2)
+            ${filters.cardType ? "AND c.type = $4" : ""}
+          
+          UNION ALL
+          
+          SELECT c.card_id
+          FROM cards c
+          INNER JOIN proactive_prompts ent ON c.source_entity_id = ent.entity_id
+          WHERE c.user_id = $1 
+            AND c.status = 'active_canvas'
+            AND ent.user_id = $1
+            AND ent.status = 'active'
+            AND (ent.title ILIKE $2 OR ent.content ILIKE $2)
+            ${filters.cardType ? "AND c.type = $4" : ""}
+          
+          UNION ALL
+          
+          SELECT c.card_id
+          FROM cards c
+          INNER JOIN communities ent ON c.source_entity_id = ent.entity_id
+          WHERE c.user_id = $1 
+            AND c.status = 'active_canvas'
+            AND ent.user_id = $1
+            AND ent.status = 'active'
+            AND (ent.title ILIKE $2 OR ent.content ILIKE $2)
+            ${filters.cardType ? "AND c.type = $4" : ""}
+          
+          UNION ALL
+          
+          SELECT c.card_id
+          FROM cards c
+          INNER JOIN growth_events ent ON c.source_entity_id = ent.entity_id
+          WHERE c.user_id = $1 
+            AND c.status = 'active_canvas'
+            AND ent.user_id = $1
+            AND ent.status = 'active'
+            AND (ent.title ILIKE $2 OR ent.content ILIKE $2)
+            ${filters.cardType ? "AND c.type = $4" : ""}
+        )
+        SELECT COUNT(*) as total
+        FROM matching_entities
+      `;
+
+      const countResult = await this.db.prisma.$queryRawUnsafe(countQuery, ...params);
+      const total = parseInt((countResult as any)[0].total);
+
+      // Transform results to CardData format
+      const cardData: CardData[] = (searchResults as any[]).map((row: any) => ({
+        id: row.card_id,
+        type: row.type as any,
+        title: row.title || '',
+        content: row.content || '',
+        evolutionState: 'active', // Default since we're filtering for active entities
+        importanceScore: row.importance_score || 0,
+        createdAt: new Date(row.entity_created_at),
+        updatedAt: new Date(row.entity_updated_at),
+        source_entity_id: row.source_entity_id,
+        source_entity_type: row.source_entity_type,
+        background_image_url: row.background_image_url,
+        display_order: row.display_order,
+        is_selected: row.is_selected,
+        custom_title: row.custom_title,
+        custom_content: row.custom_content,
+      }));
+
+      return {
+        cards: cardData,
+        total,
+        hasMore: offset + cardData.length < total,
+      };
+
+    } catch (error) {
+      console.error('[CardRepository] Search error:', error);
+      throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
    * Get detailed card information
    */
   async getCardDetails(cardId: string, userId: string): Promise<CardData | null> {
@@ -573,6 +921,26 @@ export class CardRepository {
         return { updated_at: sortOrder };
       default:
         return { created_at: sortOrder };
+    }
+  }
+
+  /**
+   * Build order by clause for search SQL queries
+   */
+  private buildSearchOrderBy(sortBy?: string, sortOrder?: string): string {
+    const order = sortOrder === 'asc' ? 'ASC' : 'DESC';
+    
+    switch (sortBy) {
+      case 'updated_at':
+        return `entity_updated_at ${order}`;
+      case 'importance_score':
+        return `importance_score ${order} NULLS LAST`;
+      case 'growth_activity':
+        // Note: This would need proper implementation with growth data
+        return `entity_created_at ${order}`;
+      case 'created_at':
+      default:
+        return `entity_created_at ${order}`;
     }
   }
 }

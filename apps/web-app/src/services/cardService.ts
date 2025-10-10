@@ -377,7 +377,41 @@ class CardService {
         throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
       }
 
-      return data;
+      // Transform the API response to match frontend TCard expectations
+      const transformedCards = (data.data?.cards || []).map((apiCard: any) => {
+        return {
+          // Map API fields to TCard interface
+          card_id: apiCard.id,
+          user_id: getAuthenticatedUserId() || 'unknown-user',
+          type: apiCard.type,
+          source_entity_id: apiCard.source_entity_id || apiCard.id,
+          source_entity_type: apiCard.source_entity_type || apiCard.type,
+          status: 'active_canvas', // Default status
+          is_favorited: false, // Default
+          is_synced: true,
+          created_at: new Date(apiCard.createdAt),
+          updated_at: new Date(apiCard.updatedAt),
+          background_image_url: apiCard.background_image_url || null,
+          display_order: apiCard.display_order || null,
+          is_selected: apiCard.is_selected || false,
+          custom_title: apiCard.custom_title || null,
+          custom_content: apiCard.custom_content || null,
+          // DisplayCard extensions
+          title: apiCard.title || 'Untitled',
+          subtitle: apiCard.content || `${apiCard.type} entity`,
+          content: apiCard.content || '',
+          entity_type: apiCard.source_entity_type || apiCard.type,
+          entity_id: apiCard.source_entity_id || apiCard.id,
+        };
+      });
+
+      return {
+        success: data.success,
+        cards: transformedCards,
+        total_count: data.data?.total_count || 0,
+        has_more: data.data?.has_more || false,
+        error: data.error
+      };
     } catch (error) {
       console.error('Error searching cards:', error);
       throw error;

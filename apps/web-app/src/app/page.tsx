@@ -50,7 +50,7 @@ function HomePage() {
   const [hasCoverFirst, setHasCoverFirst] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState('');
   // NEW: view mode
-  const [viewMode, setViewMode] = useState<'infinite' | 'sorted'>('infinite');
+  const [viewMode, setViewMode] = useState<'infinite' | 'sorted'>('sorted');
   // Removed anchor pixel state and ref
   const [anchorPixel, setAnchorPixel] = useState<{ x: number; y: number } | null>(null);
   const anchorElRef = useRef<HTMLSpanElement>(null);
@@ -665,7 +665,7 @@ function HomePage() {
                           onClick={() => setViewMode('infinite')}
                           className="ml-2 text-onBackground font-brand"
                         >
-                          Back to Infinite View
+                          Go to Infinite View
                         </GlassButton>
                       )}
                     </div>

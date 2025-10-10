@@ -16,11 +16,11 @@ const MinimizeToggle: React.FC<MinimizeToggleProps> = ({
   return (
     <div
       className={cn(
-        // Base positioning and sizing - Made wider for better visibility
-        'absolute top-0 right-0 w-10 h-16',
-        // Glassmorphism - Enhanced for better visibility
+        // Base positioning and sizing - Minimal toggle button
+        'absolute top-0 right-0 w-8 h-8',
+        // Glassmorphism - Minimal styling
         'bg-white/20 backdrop-blur-md border border-white/30',
-        'rounded-l-xl cursor-pointer select-none',
+        'rounded-full cursor-pointer select-none',
         // Improved visibility logic - More prominent when minimized
         isExpanded ? 'opacity-90' : 'opacity-80 hover:opacity-100',
         // Hover effects - Enhanced
@@ -37,15 +37,15 @@ const MinimizeToggle: React.FC<MinimizeToggleProps> = ({
       <div className="flex items-center justify-center h-full">
         <div
           className={cn(
-            'w-5 h-5 flex items-center justify-center',
+            'w-4 h-4 flex items-center justify-center',
             'transition-transform duration-300 ease-in-out',
             isExpanded ? 'rotate-0' : 'rotate-180'
           )}
         >
-          {/* Enhanced arrow icon for better visibility */}
+          {/* Minimal arrow icon */}
           <svg
-            width="14"
-            height="14"
+            width="12"
+            height="12"
             viewBox="0 0 14 14"
             fill="none"
             className="text-white/90"

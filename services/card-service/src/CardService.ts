@@ -117,6 +117,45 @@ export class CardService {
   }
 
   /**
+   * Search cards by title or content across all entity types
+   * Returns user's active entities whose title or content contains the search query
+   * where the card status is 'active_canvas'
+   */
+  async searchCards(request: { userId: string; query: string; filters?: any }): Promise<GetCardsResponse> {
+    const { userId, query, filters = {} } = request;
+
+    try {
+      // Call the CardRepository search method
+      const repoResult = await this.cardRepository.searchCards(userId, query, {
+        cardType: filters.cardType,
+        limit: filters.limit || 100,
+        offset: filters.offset || 0,
+        sortBy: this.mapSortField(filters.sortBy),
+        sortOrder: filters.sortOrder || 'desc'
+      });
+
+      // Transform repository data to API format
+      const cards: Card[] = await Promise.all(
+        repoResult.cards.map(async (cardData: CardData) => this.transformCardData(cardData))
+      );
+
+      // Generate summary statistics
+      const summary = this.generateCardsSummary(cards);
+
+      return {
+        cards,
+        total: repoResult.total,
+        hasMore: repoResult.hasMore,
+        summary
+      };
+
+    } catch (error) {
+      console.error('Error in CardService.searchCards:', error);
+      throw new Error(`Failed to search cards: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
    * Get detailed information for a specific card with per-entity growth data
    * Implements Directive 2: Fetches from mv_entity_growth_progress for card-specific scores
    */

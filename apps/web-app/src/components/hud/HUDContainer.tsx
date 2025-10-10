@@ -10,7 +10,7 @@ import {
   LogOut
 } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 
 import { useHUDStore, ViewType } from '../../stores/HUDStore';
 import { useCardStore } from '../../stores/CardStore';
@@ -40,70 +40,20 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
   const {
     isExpanded,
     activeView,
-    isDragging,
-    position,
     isNavigatingFromCosmos,
     toggleHUD,
     setActiveView,
-    setIsDragging,
-    updatePosition,
     setIsNavigatingFromCosmos,
   } = useHUDStore();
   
   const { logout } = useUserStore();
 
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const hudRef = useRef<HTMLDivElement>(null);
+  // Drag functionality removed - using minimize toggle instead
 
 
-  // Handle mouse down for dragging
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (!hudRef.current) return;
-    
-    const rect = hudRef.current.getBoundingClientRect();
-    setDragOffset({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-    });
-    setIsDragging(true);
-    
-    // Prevent text selection during drag
-    e.preventDefault();
-  }, [setIsDragging]);
 
-  // Handle mouse move for dragging
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDragging) return;
-    
-    const newX = Math.max(0, Math.min(window.innerWidth - 128, e.clientX - dragOffset.x));
-    const newY = Math.max(0, Math.min(window.innerHeight - 400, e.clientY - dragOffset.y));
-    
-    updatePosition({ x: newX, y: newY });
-  }, [isDragging, dragOffset, updatePosition]);
 
-  // Handle mouse up to stop dragging
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false);
-  }, [setIsDragging]);
 
-  // Add/remove global mouse event listeners
-  useEffect(() => {
-    if (isDragging) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      document.body.style.userSelect = 'none'; // Prevent text selection
-    } else {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-      document.body.style.userSelect = '';
-    }
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-      document.body.style.userSelect = '';
-    };
-  }, [isDragging, handleMouseMove, handleMouseUp]);
 
   // Handle view button click
   const handleButtonClick = (viewId: ViewType) => {
@@ -152,12 +102,7 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
 
   return (
     <div
-      ref={hudRef}
       className={`fixed top-4 right-4 z-50 transition-all duration-300 ease-in-out ${className}`}
-      style={{
-        // Fixed positioning: Only slide the main panel, not the entire container
-        transform: 'translateX(0)', // Container stays in place
-      }}
     >
       {/* Main HUD Panel - This slides in/out */}
       <div 
@@ -173,21 +118,31 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
           padding="sm"
           className={`
             w-32 transition-all duration-300 ease-in-out
-            ${isDragging ? 'scale-105 shadow-2xl' : 'scale-100'}
             ${isExpanded ? 'opacity-100' : 'opacity-0 pointer-events-none'}
           `}
         >
-          {/* Invisible Drag Handle */}
-          <div
-            onMouseDown={handleMouseDown}
-            className="cursor-move"
-            style={{ height: '4px' }}
-          >
-            {/* Completely invisible drag area */}
-          </div>
+          {/* Drag handle removed - using minimize toggle instead */}
+
+          {/* Minimized Navigation Button - Shows when collapsed */}
+          {!isExpanded && (
+            <div className="mb-2">
+              <GlassButton
+                onClick={toggleHUD}
+                className="w-full justify-start text-left transition-all duration-200 text-white/80 hover:text-white hover:bg-white/20"
+              >
+                <Network 
+                  size={18} 
+                  className="mr-3 stroke-current opacity-90" 
+                  strokeWidth={1.5}
+                />
+                <span className="font-medium">Navigation</span>
+              </GlassButton>
+            </div>
+          )}
 
           {/* Navigation Buttons - All views are now equal peers */}
-          <div className="space-y-2">
+          {isExpanded && (
+            <div className="space-y-2">
             {HUD_BUTTONS.map((button) => {
               const IconComponent = button.icon;
               return (
@@ -211,9 +166,11 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
                 </GlassButton>
               );
             })}
-          </div>
+            </div>
+          )}
           
-          {/* Logout Button - Separated at bottom */}
+          {/* Logout Button - Separated at bottom - Only show when expanded */}
+          {isExpanded && (
           <div className="mt-4 pt-3 border-t border-white/20">
             <GlassButton
               onClick={logout}
@@ -227,6 +184,7 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
               <span className="font-medium">Log out</span>
             </GlassButton>
           </div>
+          )}
         </GlassmorphicPanel>
       </div>
 
