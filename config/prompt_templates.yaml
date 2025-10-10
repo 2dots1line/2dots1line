@@ -451,6 +451,20 @@ view_context_template: |
   **Current View:** {{current_view}}
   **View Description:** {{view_description}}
   
+  {{#has_view_instructions}}
+  **View-Specific Instructions:**
+  {{#specific_instructions}}
+  - {{.}}
+  {{/specific_instructions}}
+  
+  **Suggested Actions for This View:**
+  {{#suggested_actions}}
+  - {{.}}
+  {{/suggested_actions}}
+  
+  **Response Style:** {{response_style}}
+  {{/has_view_instructions}}
+  
   **Context-Aware Response Guidelines:**
   {{#is_chat_view}}
   - You are in the main chat interface where {{user_name}} can have open-ended conversations

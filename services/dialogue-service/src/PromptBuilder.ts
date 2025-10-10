@@ -11,6 +11,8 @@ import {
 import { Redis } from 'ioredis';
 import * as Mustache from 'mustache';
 import { SessionRepository } from '@2dots1line/database';
+import * as fs from 'fs';
+import * as path from 'path';
 
 
 export interface PromptBuildInput {
@@ -470,15 +472,38 @@ ${contextText}
   }
 
   /**
-   * NEW METHOD: Format view context component
+   * NEW METHOD: Load view-specific instructions from configuration
+   */
+  private loadViewSpecificInstructions(view: string): any {
+    try {
+      const configPath = path.join(process.cwd(), 'config', 'view_specific_instructions.json');
+      const configData = fs.readFileSync(configPath, 'utf8');
+      const viewConfigs = JSON.parse(configData);
+      
+      return viewConfigs[view] || null;
+    } catch (error) {
+      console.error('Error loading view-specific instructions:', error);
+      return null;
+    }
+  }
+
+  /**
+   * NEW METHOD: Format view context component with dynamic instructions
    */
   private formatViewContext(viewContext: ViewContext, userName: string): string {
     const templates = this.configService.getAllTemplates();
     const template = templates.view_context_template;
     
+    // Load view-specific instructions
+    const viewInstructions = this.loadViewSpecificInstructions(viewContext.currentView);
+    
     if (!template) {
       // Fallback if template not found
-      return `**Current View:** ${viewContext.currentView}\n**View Description:** ${viewContext.viewDescription || this.getDefaultViewDescription(viewContext.currentView)}`;
+      const fallback = `**Current View:** ${viewContext.currentView}\n**View Description:** ${viewContext.viewDescription || this.getDefaultViewDescription(viewContext.currentView)}`;
+      if (viewInstructions) {
+        return fallback + `\n\n**View-Specific Instructions:**\n${viewInstructions.specific_instructions.map((inst: string) => `- ${inst}`).join('\n')}`;
+      }
+      return fallback;
     }
 
     try {
@@ -489,13 +514,23 @@ ${contextText}
         is_chat_view: viewContext.currentView === 'chat',
         is_cards_view: viewContext.currentView === 'cards',
         is_cosmos_view: viewContext.currentView === 'cosmos',
-        is_dashboard_view: viewContext.currentView === 'dashboard'
+        is_dashboard_view: viewContext.currentView === 'dashboard',
+        // Add view-specific instructions data
+        view_instructions: viewInstructions,
+        has_view_instructions: !!viewInstructions,
+        specific_instructions: viewInstructions?.specific_instructions || [],
+        suggested_actions: viewInstructions?.suggested_actions || [],
+        response_style: viewInstructions?.response_style || 'conversational'
       };
       
       return Mustache.render(template, viewData);
     } catch (error) {
       console.error('Error rendering view_context_template:', error);
-      return `**Current View:** ${viewContext.currentView}\n**View Description:** ${viewContext.viewDescription || this.getDefaultViewDescription(viewContext.currentView)}`;
+      const fallback = `**Current View:** ${viewContext.currentView}\n**View Description:** ${viewContext.viewDescription || this.getDefaultViewDescription(viewContext.currentView)}`;
+      if (viewInstructions) {
+        return fallback + `\n\n**View-Specific Instructions:**\n${viewInstructions.specific_instructions.map((inst: string) => `- ${inst}`).join('\n')}`;
+      }
+      return fallback;
     }
   }
 

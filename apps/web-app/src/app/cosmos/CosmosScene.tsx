@@ -9,6 +9,7 @@ import CosmosError from '../../components/modal/CosmosError';
 import CosmosLoading from '../../components/modal/CosmosLoading';
 import CosmosNodeModal from '../../components/modal/CosmosNodeModal';
 import { NodeLabelControls } from '../../components/cosmos/NodeLabelControls';
+import SeedEntitiesDisplay from '../../components/cosmos/SeedEntitiesDisplay';
 
 const CosmosScene: React.FC = () => {
   const {
@@ -31,6 +32,10 @@ const CosmosScene: React.FC = () => {
   // Background loading state
   const [isBackgroundLoading, setIsBackgroundLoading] = useState(false);
   const [backgroundLoadError, setBackgroundLoadError] = useState<string | null>(null);
+  
+  // HRT seed entities state
+  const [seedEntityIds, setSeedEntityIds] = useState<string[]>([]);
+  const [seedEntities, setSeedEntities] = useState<any[]>([]);
 
   // Background loading handlers
   const handleBackgroundLoadStart = useCallback(() => {
@@ -55,6 +60,10 @@ const CosmosScene: React.FC = () => {
     const fetchGraphData = async () => {
       try {
         setLoading(true);
+        // Clear previous seed entities when loading new graph data
+        setSeedEntityIds([]);
+        setSeedEntities([]);
+        
         const response = await cosmosService.getGraphProjection();
         if (response.success) {
           setGraphData(response.data);
@@ -78,6 +87,10 @@ const CosmosScene: React.FC = () => {
       console.log('🌌 CosmosScene: Coordinates updated, refreshing graph data', customEvent.detail);
       try {
         setLoading(true);
+        // Clear previous seed entities when refreshing graph data
+        setSeedEntityIds([]);
+        setSeedEntities([]);
+        
         const response = await cosmosService.getGraphProjection();
         if (response.success) {
           setGraphData(response.data);
@@ -100,6 +113,30 @@ const CosmosScene: React.FC = () => {
       window.removeEventListener('cosmos-coordinates-updated', handleCoordinatesUpdated);
     };
   }, [setGraphData, setLoading]);
+
+  // Listen for HRT seed entity IDs
+  useEffect(() => {
+    const handleHRTSeedEntities = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const { seedEntityIds: newSeedEntityIds } = customEvent.detail || {};
+      
+      if (newSeedEntityIds && Array.isArray(newSeedEntityIds)) {
+        setSeedEntityIds(newSeedEntityIds);
+        
+        // Find corresponding entities from graph data
+        const foundEntities = graphData.nodes?.filter(node => 
+          newSeedEntityIds.includes(node.id)
+        ) || [];
+        setSeedEntities(foundEntities);
+      }
+    };
+
+    window.addEventListener('hrt-seed-entities', handleHRTSeedEntities);
+
+    return () => {
+      window.removeEventListener('hrt-seed-entities', handleHRTSeedEntities);
+    };
+  }, [graphData.nodes]);
 
   if (isLoading) {
     return <CosmosLoading />;
@@ -279,6 +316,15 @@ const CosmosScene: React.FC = () => {
       
       <CosmosInfoPanel />
       {selectedNode && <CosmosNodeModal node={selectedNode} onClose={() => setSelectedNode(null)} />}
+      
+      {/* HRT Seed Entities Display */}
+      <SeedEntitiesDisplay
+        seedEntityIds={seedEntityIds}
+        entities={seedEntities}
+        onEntityClick={(entityId) => {
+          // TODO: Focus camera on entity or show entity details
+        }}
+      />
       
       {/* Background Loading Overlay */}
       {isBackgroundLoading && (

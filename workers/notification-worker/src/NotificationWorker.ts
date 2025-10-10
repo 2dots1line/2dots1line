@@ -88,6 +88,7 @@ export class NotificationWorker {
     );
 
     this.setupEventHandlers();
+    this.setupRedisSubscriber();
   }
 
   /**
@@ -211,6 +212,51 @@ export class NotificationWorker {
 
     this.worker.on('active', (job) => {
       console.log(`[NotificationWorker] 🔄 Job ${job.id} started processing`);
+    });
+  }
+
+  /**
+   * Set up Redis subscriber for HRT seed entities
+   */
+  private setupRedisSubscriber(): void {
+    // Create a separate Redis connection for pub/sub
+    const subscriber = this.redis.duplicate();
+    
+    subscriber.on('connect', () => {
+      console.log('[NotificationWorker] Redis subscriber connected');
+    });
+
+    subscriber.on('error', (error) => {
+      console.error('[NotificationWorker] Redis subscriber error:', error);
+    });
+
+    // Subscribe to HRT seed entities channel
+    subscriber.subscribe('hrt_seed_entities', (err, count) => {
+      if (err) {
+        console.error('[NotificationWorker] Failed to subscribe to hrt_seed_entities:', err);
+      } else {
+        console.log(`[NotificationWorker] Subscribed to hrt_seed_entities channel (${count} total subscriptions)`);
+      }
+    });
+
+    // Handle messages from Redis pub/sub
+    subscriber.on('message', (channel, message) => {
+      if (channel === 'hrt_seed_entities') {
+        try {
+          const data = JSON.parse(message);
+          console.log('[NotificationWorker] Received HRT seed entities:', data);
+          
+          // Forward to Socket.IO
+          if (this.io && data.userId) {
+            this.io.to(`user:${data.userId}`).emit('hrt_seed_entities', data);
+            console.log(`[NotificationWorker] Forwarded HRT seed entities to user ${data.userId}`);
+          } else {
+            console.warn('[NotificationWorker] Cannot forward HRT seed entities - missing Socket.IO or userId');
+          }
+        } catch (error) {
+          console.error('[NotificationWorker] Failed to parse HRT seed entities message:', error);
+        }
+      }
     });
   }
 

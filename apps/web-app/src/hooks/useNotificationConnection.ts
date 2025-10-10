@@ -65,6 +65,20 @@ export const useNotificationConnection = () => {
           try {
             console.log('[Socket.IO] 📨 Event received:', data);
             
+    // Handle HRT seed entities
+    if (data.seedEntityIds) {
+      // Dispatch custom event to cosmos scene
+      const event = new CustomEvent('hrt-seed-entities', {
+        detail: {
+          seedEntityIds: data.seedEntityIds,
+          userId: data.userId,
+          timestamp: data.timestamp
+        }
+      });
+      window.dispatchEvent(event);
+      return;
+    }
+            
             // Handle consolidated updates from notification worker
             if (data.newCards !== undefined || data.graphUpdates !== undefined || data.insights !== undefined) {
               // This is a consolidated update
@@ -145,7 +159,7 @@ export const useNotificationConnection = () => {
         };
 
         // Listen to all notification events
-        ['notification', 'new_star', 'new_card', 'graph_updated', 'new_card_available', 'graph_projection_updated', 'consolidated_update'].forEach((eventName) => {
+        ['notification', 'new_star', 'new_card', 'graph_updated', 'new_card_available', 'graph_projection_updated', 'consolidated_update', 'hrt_seed_entities'].forEach((eventName) => {
           console.log('[Socket.IO] Adding listener for event:', eventName);
           socket.on(eventName, handleNotification);
         });

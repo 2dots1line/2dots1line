@@ -3,52 +3,55 @@ description:
 globs: 
 alwaysApply: true
 ---
-**2dots1line V9.5 - Cursor Project Rules & Guidelines**
+**2dots1line V11.0 - Cursor Project Rules & Guidelines**
 
 ### **I. General Principles & Communication**
 
-1.  **Primary Source of Truth:** All development **MUST** adhere to the set of V9.5 specification documents located in `/DevLog/V9.5/` . In case of conflict, the spec documents supersede any previous instructions.
+1.  **Primary Source of Truth:** The definitive sources of truth are:
+    *   **Database Schemas:** `packages/database/prisma/schema.prisma` and `packages/database/schemas/` for actual data models
+    *   **Live Codebase:** Always query the actual monorepo codebase to understand true dependencies and logic flow
+    *   **Live Databases:** Use `scripts/GUIDES/DATA_CONSISTENCY_CHECK_GUIDE.md` to query actual database state when in doubt
+    *   **V11.0 Specifications:** `/DevLog/V11.0/` documents provide architectural guidance but may be outdated
 2.  **Clarity in Prompts:** When requesting code generation, provide clear prompts including:
     *   The full file path(s) to be modified (from monorepo root).
-    *   The specific V9.5 spec document and section detailing the requirement (e.g., "`2.1_V9.6_DialogueAgent...` Section 2").
     *   Expected inputs and outputs for functions/components.
+    *   Reference to actual schema files or existing code patterns when applicable.
 3.  **Incremental Commits:** Make small, logical commits with clear messages referencing the relevant task ID (e.g., `feat(W2-T3): Implement DialogueAgent retrieval sub-workflow`).
-4.  **Clarify Ambiguity:** If a prompt is ambiguous or conflicts with the V9.6 specifications, you **MUST** state the conflict and ask for clarification before proceeding.
+4.  **Clarify Ambiguity:** If a prompt is ambiguous or conflicts with actual codebase patterns, you **MUST** query the codebase first, then state the conflict and ask for clarification before proceeding.
 5.  **Adherence to Linters & Formatters:** All generated code **MUST** pass the project's configured ESLint and Prettier checks before being considered complete.
 6.  **Mandatory Testing:** All new functionality **MUST** be accompanied by relevant tests (unit, integration, or API tests). Human engineers will guide the creation of E2E tests.
 7.  **Documentation:** When implementing or changing a module, update its corresponding `README.md` or add clear JSDoc/TSDoc comments for public APIs and complex logic.
+8.  **Thorough Code Review:** When asked to do thorough code review, follow through completely instead of abandoning the task once potential issues are found. Provide comprehensive analysis and actionable recommendations.
 
 ### **II. Code Style & Monorepo Architecture**
 
-8.  **Monorepo Structure:** Strictly adhere to the directory structure defined in `5.1_V9.5_Monorepo_and_Deployment.md`.
+9.  **Monorepo Structure:** Current directory structure:
     *   `apps/`: User-facing frontends and the API Gateway.
     *   `services/`: Real-time backend services.
     *   `workers/`: Asynchronous background job processors.
     *   `packages/`: Shared libraries and tools.
     *   `config/`: Centralized, non-code configuration.
-9.  **TypeScript First:** All new code **MUST** use TypeScript with strict type checking enabled. Utilize types from `packages/shared-types/` to ensure consistency.
-10. **Modularity & Reusability:**
+    *   `py-services/`: Python services (e.g., dimension-reducer).
+10. **TypeScript First:** All new code **MUST** use TypeScript with strict type checking enabled. Utilize types from `packages/shared-types/` to ensure consistency.
+11. **Modularity & Reusability:**
     *   Frontend: Reusable React components belong in `packages/ui-components/`.
     *   Backend: Reusable utility functions belong in `packages/core-utils/`.
     *   Tools: Reusable, specialized tools belong in `packages/tools/`.
-11. **Dependency Hierarchy:** Respect the dependency direction: `packages` -> `services`/`workers` -> `apps`. **Circular dependencies between packages are forbidden.**
-12. **Naming Conventions:** Use `PascalCase` for classes, types, and interfaces. Use `camelCase` for functions, methods, and variables. Use named exports over default exports.
+12. **Dependency Hierarchy:** Respect the dependency direction: `packages` -> `services`/`workers` -> `apps`. **Circular dependencies between packages are forbidden.**
+13. **Naming Conventions:** Use `PascalCase` for classes, types, and interfaces. Use `camelCase` for functions, methods, and variables. Use named exports over default exports.
 
 ### **III. Backend Specific Rules**
 
-13. **Agent & Worker Design:**
-    *   Each agent/worker (`DialogueAgent`, `IngestionAnalyst`, etc.) **MUST** have a single, clearly defined responsibility as outlined in its respective V9.6 specification document.
-    *   Workers (`IngestionAnalyst`, `InsightEngine`, etc.) **MUST** be implemented as stateless processors that consume jobs from a BullMQ queue.
-14. **Configuration Management:**
+14. **Agent & Worker Design:**
+    *   Each agent/worker **MUST** have a single, clearly defined responsibility. Query the actual codebase to understand current implementations.
+    *   Workers **MUST** be implemented as stateless processors that consume jobs from a BullMQ queue.
+15. **Configuration Management:**
     *   **NEVER** hardcode values. All configuration (API keys, URLs, business logic rules) **MUST** be loaded from the `/config/` directory via the `ConfigService` or from environment variables.
-15. **Tooling Architecture:**
-    *   Adhere to the "Configurable Composite Tool" architecture defined in `4.1_V9.5_Tooling_Architecture_and_Registry.md`.
-    *   `IngestionAnalyst` and `InsightEngine` **MUST** use composite tools (`HolisticAnalysisTool`, `StrategicSynthesisTool`) built by the `ToolRegistry`.
-    *   `DialogueAgent` **MUST** use directly injected atomic and specialized tools (`LLMChatTool`, `HybridRetrievalTool`).
 16. **Database Interactions:**
     *   All direct database interactions **MUST** be encapsulated within dedicated Repository classes in `packages/database/src/repositories/`. Agents and services **MUST NOT** contain raw Prisma/Cypher queries.
     *   All PostgreSQL schema changes **MUST** be made via Prisma migrations.
     *   All Neo4j queries **MUST** be parameterized to prevent injection vulnerabilities.
+    *   **Database Consistency:** Use `scripts/GUIDES/DATA_CONSISTENCY_CHECK_GUIDE.md` to verify data consistency across PostgreSQL, Neo4j, and Weaviate.
 17. **API Endpoint Design (in `apps/api-gateway`):**
     *   Controllers **MUST** be thin. They are responsible for request/response handling, validation, and calling the appropriate backend service.
     *   All API routes **MUST** be versioned under `/api/v1/`.
@@ -67,12 +70,25 @@ alwaysApply: true
 22. **Styling:** Use Tailwind CSS utility classes and design tokens defined in the project's theme configuration. Avoid custom CSS-in-JS or inline styles where possible.
 23. **API Calls:** Use TanStack Query (React Query) for all server state management (fetching, caching, mutation).
 
-### **V. AI Task Execution & Completion**
+### **V. Infrastructure & Process Management**
 
-24. **Confirm Scope:** Before starting, confirm your understanding of the task and its relation to the V9.6 specifications.
-25. **State File Paths:** When creating or modifying files, always state the full, correct path from the monorepo root as defined in `5.1_V9.5_Monorepo_and_Deployment.md`.
-26. **Code Blocks:** Present all generated code in clear, well-formatted markdown code blocks with the language specified (e.g., ```typescript).
-27. **Verification:** After generating code, explicitly state how you have tested it (e.g., "I have written a unit test for this function and confirmed it passes") or what manual steps a human should take to verify it.
-28. **State Assumptions:** If you must make an assumption due to an ambiguity, state it clearly (e.g., "Assuming the `userId` is available on the request object as `req.user.id`...").
+24. **PM2 Process Management:**
+    *   All API gateway and workers are managed via PM2 using `ecosystem.config.js`.
+    *   **CRITICAL:** When using `pm2 logs` commands, ensure they don't hang by using specific process names or timeouts.
+    *   Use `pm2 logs <process-name> --lines 50` for bounded log output.
+25. **Docker Services:**
+    *   All databases (PostgreSQL, Neo4j, Weaviate), Redis, and Python services run in Docker via `docker-compose.dev.yml`.
+    *   Use container names: `postgres-2d1l`, `neo4j-2d1l`, `weaviate-2d1l`, `redis-2d1l`, `dimension-reducer`.
+26. **Development Authentication:**
+    *   Use `dev-user-123` and `dev-token` for development authentication when testing features that require authentication.
+
+### **VI. AI Task Execution & Completion**
+
+27. **Confirm Scope:** Before starting, confirm your understanding of the task and query the actual codebase to understand current patterns.
+28. **State File Paths:** When creating or modifying files, always state the full, correct path from the monorepo root.
+29. **Code Blocks:** Present all generated code in clear, well-formatted markdown code blocks with the language specified (e.g., ```typescript).
+30. **Verification:** After generating code, explicitly state how you have tested it (e.g., "I have written a unit test for this function and confirmed it passes") or what manual steps a human should take to verify it.
+31. **State Assumptions:** If you must make an assumption due to an ambiguity, state it clearly (e.g., "Assuming the `userId` is available on the request object as `req.user.id`...").
+32. **Database Verification:** When working with data, use the data consistency check guide to verify actual database state.
 
 PLEASE NOTE: WE EXCLUSIVELY USE pnpm to build and NOT npm.

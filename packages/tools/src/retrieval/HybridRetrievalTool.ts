@@ -180,6 +180,24 @@ export class HybridRetrievalTool {
       // Stage 2: Semantic Grounding (Weaviate)
       const seedEntities = await this.semanticGrounding(processedPhrases, input.userId, context, userParameters);
       
+      // NEW: Send seed entity IDs immediately after Stage 2 via Socket.IO
+      if (seedEntities.length > 0) {
+        const seedEntityIds = seedEntities.map(e => e.id);
+        console.log(`[HRT ${context.requestId}] Found ${seedEntityIds.length} seed entities:`, seedEntityIds);
+        
+        // Send seed entity IDs to frontend via Socket.IO
+        try {
+          await this.db.redis.publish('hrt_seed_entities', JSON.stringify({
+            userId: input.userId,
+            seedEntityIds: seedEntityIds,
+            timestamp: Date.now()
+          }));
+          console.log(`[HRT ${context.requestId}] Sent seed entity IDs to frontend via Redis pub/sub`);
+        } catch (error) {
+          console.error(`[HRT ${context.requestId}] Failed to send seed entity IDs:`, error);
+        }
+      }
+      
       // Stage 3: Graph Traversal (Neo4j) - USES CypherBuilder
       const candidateEntities = await this.graphTraversal(seedEntities, input.userId, input.retrievalScenario || 'neighborhood', context, userParameters);
       

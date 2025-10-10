@@ -161,6 +161,8 @@ export interface ExtendedAugmentedMemoryContext {
     scoringWeights: any;
   };
   unmatched_key_phrases?: string[];
+  // NEW: Seed entity IDs for cosmos view
+  seedEntityIds?: string[];
   errors?: Array<{
     stage: string;
     error: string;
