@@ -98,13 +98,21 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
   // Normalize importance from 1-10 scale to 0-1 scale for better visual balance
   const normalizedImportance = Math.min(importance / 10, 1.0);
   
-  // Smaller sizing formula: base size 1.0 + normalized importance * 1.0
-  let baseSize = Math.max(1.0 + normalizedImportance * 1.0, 0.8); // Minimum size of 0.8
+  // Base sizing formula: keep original small size for regular CosmosScene
+  let baseSize = Math.max(1.0 + normalizedImportance * 1.0, 0.8); // Original: minimum size of 0.8
   
-  // Make search results slightly larger and more prominent
+  // Make search results and quest entities larger and more prominent
   if (isSearchResult) {
-    baseSize = Math.max(baseSize * 1.3, 1.5); // Only 30% larger, max 1.5x for readability
-    console.log('🌟 NodeMesh: Search result detected, using bright star texture and size:', baseSize);
+    // For quest/search results: use much larger size
+    baseSize = Math.max(3.0 + normalizedImportance * 2.0, 4.0); // 3.0-5.0 range, minimum 4.0
+    console.log('🌟 NodeMesh: Quest/search entity detected:', {
+      nodeId: node.id,
+      title: node.title,
+      importance,
+      normalizedImportance,
+      baseSize,
+      isSearchResult
+    });
   }
   
   // Celestial body color scheme based on entity type

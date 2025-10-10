@@ -6,14 +6,13 @@ import { useUserStore } from '../../stores/UserStore';
 import CosmosError from '../modal/CosmosError';
 import CosmosLoading from '../modal/CosmosLoading';
 import CosmosNodeModal from '../modal/CosmosNodeModal';
-import CosmosInfoPanel from '../modal/CosmosInfoPanel';
+import QuestInfoPanel from '../modal/QuestInfoPanel';
 import { NodeLabelControls } from './NodeLabelControls';
 import { LookupCameraController } from './LookupCameraController';
 import { HUDContainer } from '../hud/HUDContainer';
 import { GlassmorphicPanel, GlassButton } from '@2dots1line/ui-components';
 import { Send, Loader2, MessageSquare, X, Plus } from 'lucide-react';
-import { performKeyPhraseLookup, createGraphProjection, LookupConfig as EntityLookupConfig } from '../../utils/entityLookup';
-import { MinimalistLookupControls } from './LookupControls';
+// Removed entity lookup imports to keep quest visualization clean
 
 const LiveQuestScene: React.FC = () => {
   const [question, setQuestion] = useState('What do you know about my skating experience?');
@@ -45,100 +44,42 @@ const LiveQuestScene: React.FC = () => {
   const [edgeWidth, setEdgeWidth] = useState(1.0);
   const [animatedEdges, setAnimatedEdges] = useState(true);
 
-  // Add minimalist lookup controls
-  const [similarityThreshold, setSimilarityThreshold] = useState(0.7);
-  const [graphHops, setGraphHops] = useState(2); // Default to 2 hops
-  
-  // Store key phrases and expanded graph data
-  const [keyPhrases, setKeyPhrases] = useState<string[]>([]);
-  const [expandedGraphData, setExpandedGraphData] = useState<any>({ nodes: [], edges: [] });
+  // Store current quest ID for reference
   const [currentQuestId, setCurrentQuestId] = useState<string | null>(null);
+  
+  // Track which messages have been added to prevent duplicates
+  const [addedMessages, setAddedMessages] = useState<Set<string>>(new Set());
 
-  // Use key phrases as virtual entities for similarity search
-  const expandWithKeyPhrases = useCallback(async (phrases: string[]) => {
-    console.log('🔍 LiveQuestScene: Expanding with key phrases:', phrases, 'similarity:', similarityThreshold, 'hops:', graphHops, 'questId:', currentQuestId);
-    
-    try {
-      const config: EntityLookupConfig = {
-        graphHops,
-        similarityThreshold,
-        enableGraphHops: true
-      };
+  // Removed expandWithKeyPhrases function - using quest visualization instead
 
-      if (!userId) {
-        console.error('No authenticated user found for key phrase lookup');
-        return;
-      }
-      
-      const result = await performKeyPhraseLookup(phrases, config, userId, currentQuestId || undefined);
-      
-      if (result.nodes.length === 0) {
-        const emptyGraphData = createGraphProjection([], [], {
-          dimension_reduction_algorithm: 'key_phrase_expansion',
-          semantic_similarity_threshold: similarityThreshold,
-          graph_hops: graphHops,
-          key_phrases: phrases
-        }, 10); // Use same position scale as CosmosScene
-        setExpandedGraphData(emptyGraphData);
-        setGraphData(emptyGraphData);
-        return;
-      }
-
-      // Create graph projection with position scaling to match CosmosScene style
-      const newGraphData = createGraphProjection(result.nodes, result.edges, {
-        dimension_reduction_algorithm: 'key_phrase_expansion',
-        semantic_similarity_threshold: similarityThreshold,
-        graph_hops: graphHops,
-        key_phrases: phrases
-      }, 10); // Use same position scale as CosmosScene
-      
-      setExpandedGraphData(newGraphData);
-      // Update the cosmos store so the counts are live
-      setGraphData(newGraphData);
-      
-      console.log('🔍 LiveQuestScene: Expanded graph:', {
-        keyPhrases: phrases.length,
-        totalNodes: result.nodes.length,
-        totalEdges: result.edges.length
-      });
-      
-    } catch (error) {
-      console.error('🔍 LiveQuestScene: Key phrase expansion failed:', error);
-    }
-  }, [similarityThreshold, graphHops, currentQuestId]);
-
-  // Set edges and labels to be on by default when key phrases arrive
+  // Set edges and labels to be on by default when quest entities arrive
   useEffect(() => {
-    if (questState.key_phrases && questState.key_phrases.length > 0) {
-      console.log('🔍 LiveQuestScene: Quest state key phrases:', questState.key_phrases);
-      setShowEdges(true); // Force edges to be on for key phrase exploration
+    if (questState.retrieved_entities && questState.retrieved_entities.length > 0) {
+      console.log('🔍 LiveQuestScene: Retrieved entities received immediately:', questState.retrieved_entities);
+      setShowEdges(true); // Force edges to be on for quest visualization
+      setShowNodeLabels(true); // Force labels to be on for quest results readability
+    } else if (questState.visualization_stages && (
+      questState.visualization_stages.stage1.length > 0 ||
+      questState.visualization_stages.stage2.length > 0 ||
+      questState.visualization_stages.stage3.length > 0
+    )) {
+      console.log('🔍 LiveQuestScene: Quest visualization stages received:', questState.visualization_stages);
+      setShowEdges(true); // Force edges to be on for quest visualization
       setShowNodeLabels(true); // Force labels to be on for quest results readability
     }
-  }, [questState.key_phrases, setShowEdges, setShowNodeLabels]);
-
-  // Extract key phrases when they arrive and trigger expansion
-  useEffect(() => {
-    if (questState.key_phrases && questState.key_phrases.length > 0) {
-      const phrases = questState.key_phrases.map((kp: any) => kp.phrase || kp);
-      console.log('🔍 LiveQuestScene: Key phrases extracted:', phrases);
-      setKeyPhrases(phrases);
-      
-      // Auto-expand with current settings
-      expandWithKeyPhrases(phrases);
-    }
-  }, [questState.key_phrases, expandWithKeyPhrases]);
-
-  // Re-expand when controls change
-  useEffect(() => {
-    if (keyPhrases.length > 0) {
-      expandWithKeyPhrases(keyPhrases);
-    }
-  }, [similarityThreshold, graphHops, keyPhrases, expandWithKeyPhrases]);
+  }, [questState.retrieved_entities, questState.visualization_stages, setShowEdges, setShowNodeLabels]);
 
   const startLiveQuest = async (e: React.FormEvent) => {
     e.preventDefault();
     
     console.log('🚀 LiveQuestScene: Starting quest with question:', question);
+    
+    // Clear previous quest state
+    setMessages([]);
+    setStreamingNarration('');
+    setIsStreaming(false);
+    setStageDirections([]);
+    setAddedMessages(new Set()); // Clear message tracking
     
     // Add user message to chat
     const userMessage = { type: 'user' as const, content: question, timestamp: new Date() };
@@ -190,14 +131,35 @@ const LiveQuestScene: React.FC = () => {
     }
     
     if (questState.key_phrases && questState.key_phrases.length > 0) {
-      console.log('🔍 LiveQuestScene: Key phrases received:', questState.key_phrases);
-      const keyPhrasesText = questState.key_phrases.map((kp: any) => kp.phrase || kp).join(', ');
-      const systemMessage = { 
-        type: 'system' as const, 
-        content: `🔍 Key phrases extracted: ${keyPhrasesText}`, 
-        timestamp: new Date() 
-      };
-      setMessages(prev => [...prev, systemMessage]);
+      const messageKey = `key_phrases_${questState.key_phrases.map((kp: any) => kp.phrase || kp).join('_')}`;
+      
+      if (!addedMessages.has(messageKey)) {
+        console.log('🔍 LiveQuestScene: Key phrases received:', questState.key_phrases);
+        const keyPhrasesText = questState.key_phrases.map((kp: any) => kp.phrase || kp).join(', ');
+        const systemMessage = { 
+          type: 'system' as const, 
+          content: `🔍 Key phrases extracted: ${keyPhrasesText}`, 
+          timestamp: new Date() 
+        };
+        setMessages(prev => [...prev, systemMessage]);
+        setAddedMessages(prev => new Set([...prev, messageKey]));
+      }
+    }
+    
+    if (questState.retrieved_entities && questState.retrieved_entities.length > 0) {
+      const messageKey = `retrieved_entities_${questState.retrieved_entities.length}`;
+      
+      if (!addedMessages.has(messageKey)) {
+        console.log('🚀 LiveQuestScene: Retrieved entities received immediately:', questState.retrieved_entities);
+        const entityCount = questState.retrieved_entities.length;
+        const systemMessage = { 
+          type: 'system' as const, 
+          content: `🚀 Found ${entityCount} relevant entities instantly!`, 
+          timestamp: new Date() 
+        };
+        setMessages(prev => [...prev, systemMessage]);
+        setAddedMessages(prev => new Set([...prev, messageKey]));
+      }
     }
     
     // Handle streaming narration chunks
@@ -242,8 +204,9 @@ const LiveQuestScene: React.FC = () => {
     }
   }, [questState.key_phrases, questState.narration_chunk, questState.response, streamingNarration]);
 
-  // Process visualization data
+  // Process visualization data - prioritize immediate entities from HRT
   const viz = questState.visualization_stages;
+  const immediateEntities = questState.retrieved_entities || [];
   const POSITION_SCALE = 50; // Much larger scale to create sense of distance like CosmosScene
   
   // Map entity types from CosmosQuestAgent format to API format
@@ -257,16 +220,26 @@ const LiveQuestScene: React.FC = () => {
   };
 
   // Process nodes with proper labels and properties (like CosmosLookupScene)
-  const nodes = [
+  // Use immediate entities if available, otherwise fall back to visualization stages
+  const allEntities = immediateEntities.length > 0 ? immediateEntities : [
     ...viz.stage1,
     ...viz.stage2,
     ...viz.stage3,
-  ].map((e: any, index: number) => {
+  ];
+  
+  const nodes = allEntities.map((e: any, index: number) => {
     const x = e.position[0] * POSITION_SCALE;
     const y = e.position[1] * POSITION_SCALE;
     const z = e.position[2] * POSITION_SCALE;
     
     const apiEntityType = mapEntityType(e.entityType);
+    
+    // Debug logging for importance scores
+    console.log(`🔍 LiveQuestScene: Entity ${index + 1}:`, {
+      title: e.title,
+      entityType: e.entityType,
+      importanceScore: e.importance_score || e.relevanceScore
+    });
     
     return {
       id: e.entityId,
@@ -293,10 +266,12 @@ const LiveQuestScene: React.FC = () => {
         title: e.title || e.entityId,
         type: apiEntityType, // Use mapped type
         content: e.content || '',
-        importance: e.relevanceScore || 1,
+        importance_score: e.importance_score || e.relevanceScore || 5, // Use actual importance_score from database
         createdAt: new Date().toISOString(),
         lastUpdated: new Date().toISOString()
-      }
+      },
+      // Also add importance at root level for NodeMesh
+      importance: e.importance_score || e.relevanceScore || 5 // Use actual importance_score from database
     };
   });
 
@@ -468,8 +443,11 @@ const LiveQuestScene: React.FC = () => {
         }
       }} />
       
-      {/* Bottom Left: Cosmos Stats - Exact same as CosmosScene */}
-      <CosmosInfoPanel />
+      {/* Bottom Left: Quest Stats - Shows actual quest entity counts */}
+      <QuestInfoPanel 
+        nodeCount={questGraphData.nodes.length} 
+        edgeCount={questGraphData.edges.length} 
+      />
 
       {/* Quest Chat Modal - Bottom positioned, 50% wider, 1/3 height, no header */}
       {isChatOpen && (
@@ -645,26 +623,18 @@ const LiveQuestScene: React.FC = () => {
       )}
 
 
-      {/* Minimalist Controls - Top Right */}
-      {keyPhrases.length > 0 && (
-        <MinimalistLookupControls
-          similarityThreshold={similarityThreshold}
-          onSimilarityChange={setSimilarityThreshold}
-          graphHops={graphHops}
-          onGraphHopsChange={setGraphHops}
-          className="absolute top-4 right-20 z-10"
-        />
-      )}
+      {/* Removed MinimalistLookupControls - using quest visualization instead */}
 
-      {/* 3D Visualization with expanded data */}
+      {/* 3D Visualization with quest data */}
       <Graph3D
-        graphData={graphData} // Use cosmos store data for live counts
+        graphData={questGraphData} // Use quest visualization data
         onNodeClick={(node) => setSelectedNode(node)}
         showEdges={showEdges} // Use cosmos store edge state
         edgeOpacity={edgeOpacity}
         edgeWidth={edgeWidth}
         animatedEdges={animatedEdges}
         modalOpen={!!selectedNode}
+        isSearchResult={true} // Enable bright star textures and larger sizes for quest results
         customCameraPosition={[center.x + 200, center.y + 200, center.z - 150]}
         customCameraTarget={center}
         customTargetDistance={80}

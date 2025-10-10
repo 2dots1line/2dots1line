@@ -5,6 +5,7 @@ interface QuestState {
   isProcessing: boolean;
   execution_id: string | null;
   key_phrases: any[];
+  retrieved_entities: any[]; // Immediate entities from HRT
   visualization_stages: { stage1: any[]; stage2: any[]; stage3: any[] };
   walkthrough_script: any[];
   response: string;
@@ -28,6 +29,7 @@ export const useQuestConnection = (authToken: string | null, userId: string | nu
     isProcessing: false,
     execution_id: null,
     key_phrases: [],
+    retrieved_entities: [], // Immediate entities from HRT
     visualization_stages: { stage1: [], stage2: [], stage3: [] },
     walkthrough_script: [],
     response: '',
@@ -61,6 +63,9 @@ export const useQuestConnection = (authToken: string | null, userId: string | nu
       switch (data.type) {
         case 'key_phrases':
           setQuestState((prev) => ({ ...prev, key_phrases: data.capsules }));
+          break;
+        case 'retrieved_entities':
+          setQuestState((prev) => ({ ...prev, retrieved_entities: data.entities }));
           break;
         case 'visualization_stage_1':
           setQuestState((prev) => ({

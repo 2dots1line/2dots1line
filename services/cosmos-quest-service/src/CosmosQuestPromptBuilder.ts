@@ -157,7 +157,13 @@ export class CosmosQuestPromptBuilder {
 
     console.log('\n📝 CosmosQuestPromptBuilder - FINAL RESPONSE SYSTEM PROMPT (CONSOLIDATED):');
     console.log('='.repeat(50));
-    console.log(systemPrompt.substring(0, 300) + '...');
+    console.log('🔍 DEBUG - Template Variables:');
+    console.log('- hasAugmentedContext:', !!templateVars.augmented_memory_context);
+    console.log('- augmented_memory_context length:', templateVars.augmented_memory_context?.length || 0);
+    console.log('- visualization_data length:', templateVars.visualization_data?.length || 0);
+    console.log('- user_question:', templateVars.user_question);
+    console.log('='.repeat(50));
+    console.log(systemPrompt.substring(0, 500) + '...');
     console.log('='.repeat(50));
 
     return {
@@ -224,6 +230,15 @@ export class CosmosQuestPromptBuilder {
    * Format augmented memory context
    */
   private formatAugmentedMemoryContext(context: ExtendedAugmentedMemoryContext): string {
+    console.log('🔍 DEBUG - formatAugmentedMemoryContext called with:', {
+      hasRetrievedMemoryUnits: !!(context.retrievedMemoryUnits && context.retrievedMemoryUnits.length > 0),
+      hasRetrievedConcepts: !!(context.retrievedConcepts && context.retrievedConcepts.length > 0),
+      hasRetrievedArtifacts: !!(context.retrievedArtifacts && context.retrievedArtifacts.length > 0),
+      memoryUnitsCount: context.retrievedMemoryUnits?.length || 0,
+      conceptsCount: context.retrievedConcepts?.length || 0,
+      artifactsCount: context.retrievedArtifacts?.length || 0
+    });
+    
     let formatted = '';
     
     if (context.retrievedMemoryUnits && context.retrievedMemoryUnits.length > 0) {

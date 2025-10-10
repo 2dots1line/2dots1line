@@ -95,6 +95,16 @@ export class CosmosQuestAgent {
       console.log(`[${executionId}] 📊 Phase 2: Retrieving memory with key phrases:`, keyPhrases);
       const augmentedContext = await this.retrieveMemory(keyPhrases, input.userId, executionId);
       
+      // Send retrieved entities immediately after HRT completion
+      console.log(`[${executionId}] 🚀 Sending retrieved entities immediately after HRT completion`);
+      const immediateEntities = this.createImmediateEntities(augmentedContext, executionId);
+      onUpdate('retrieved_entities', { 
+        entities: immediateEntities,
+        memoryUnits: augmentedContext.retrievedMemoryUnits?.length || 0,
+        concepts: augmentedContext.retrievedConcepts?.length || 0,
+        artifacts: augmentedContext.retrievedArtifacts?.length || 0
+      });
+      
       // --- PHASE III: PROGRESSIVE VISUALIZATION GENERATION ---
       console.log(`[${executionId}] 🎨 Phase 3: Generating progressive visualization`);
       const visualization = await this.generateProgressiveVisualization(augmentedContext, executionId);
@@ -362,6 +372,80 @@ export class CosmosQuestAgent {
   }
 
   /**
+   * Create immediate entities from HRT results for instant display
+   */
+  private createImmediateEntities(augmentedContext: ExtendedAugmentedMemoryContext, executionId: string): VisualizationEntity[] {
+    console.log(`[${executionId}] 🚀 Creating immediate entities from HRT results`);
+    
+    const entities: VisualizationEntity[] = [];
+    
+    // Add memory units
+    if (augmentedContext.retrievedMemoryUnits) {
+      augmentedContext.retrievedMemoryUnits.forEach((unit, index) => {
+        entities.push({
+          entityId: unit.entity_id,
+          entityType: 'MemoryUnit',
+          position: [
+            (Math.random() - 0.5) * 20,
+            (Math.random() - 0.5) * 20,
+            (Math.random() - 0.5) * 20
+          ],
+          starTexture: 'bright_star',
+          title: unit.title || `Memory ${index + 1}`,
+          relevanceScore: unit.importance_score || 8,
+          connectionType: undefined,
+          connectedTo: undefined
+        });
+      });
+    }
+    
+    // Add concepts
+    if (augmentedContext.retrievedConcepts) {
+      augmentedContext.retrievedConcepts.forEach((concept, index) => {
+        entities.push({
+          entityId: concept.entity_id,
+          entityType: 'Concept',
+          position: [
+            (Math.random() - 0.5) * 20,
+            (Math.random() - 0.5) * 20,
+            (Math.random() - 0.5) * 20
+          ],
+          starTexture: 'medium_star',
+          title: concept.title || `Concept ${index + 1}`,
+          relevanceScore: concept.importance_score || 7,
+          connectionType: undefined,
+          connectedTo: undefined
+        });
+      });
+    }
+    
+    // Add artifacts
+    if (augmentedContext.retrievedArtifacts) {
+      augmentedContext.retrievedArtifacts.forEach((artifact, index) => {
+        entities.push({
+          entityId: artifact.entity_id,
+          entityType: 'Artifact',
+          position: [
+            (Math.random() - 0.5) * 20,
+            (Math.random() - 0.5) * 20,
+            (Math.random() - 0.5) * 20
+          ],
+          starTexture: 'dim_star',
+          title: artifact.title || `Artifact ${index + 1}`,
+          relevanceScore: artifact.importance_score || 6,
+          connectionType: undefined,
+          connectedTo: undefined
+        });
+      });
+    }
+    
+    console.log(`[${executionId}] ✅ Created ${entities.length} immediate entities for instant display`);
+    console.log(`[${executionId}] 📊 Entity relevance scores:`, entities.map(e => ({ title: e.title, relevanceScore: e.relevanceScore })));
+    return entities;
+  }
+
+
+  /**
    * Generate progressive visualization stages
    */
   private async generateProgressiveVisualization(augmentedContext: ExtendedAugmentedMemoryContext, executionId: string): Promise<{
@@ -404,7 +488,7 @@ export class CosmosQuestAgent {
         allEntities.push({
           entity: unit,
           type: 'MemoryUnit',
-          relevanceScore: unit.importance_score || 0.8
+          relevanceScore: unit.importance_score || 8
         });
       });
     }
@@ -477,7 +561,7 @@ export class CosmosQuestAgent {
         allEntities.push({
           entity: unit,
           type: 'MemoryUnit',
-          relevanceScore: unit.importance_score || 0.8
+          relevanceScore: unit.importance_score || 8
         });
       });
     }
@@ -551,7 +635,7 @@ export class CosmosQuestAgent {
         allEntities.push({
           entity: unit,
           type: 'MemoryUnit',
-          relevanceScore: unit.importance_score || 0.8
+          relevanceScore: unit.importance_score || 8
         });
       });
     }
@@ -990,18 +1074,18 @@ export class CosmosQuestAgent {
   private getDefaultHRTParameters(): any {
     return {
       weaviate: {
-        resultsPerPhrase: 3,
+        resultsPerPhrase: 5,
         similarityThreshold: 0.1,
         timeoutMs: 5000,
       },
       neo4j: {
         maxResultLimit: 100,
         maxGraphHops: 3,
-        maxSeedEntities: 10,
+        maxSeedEntities: 20,
         queryTimeoutMs: 10000,
       },
       scoring: {
-        topNCandidatesForHydration: 10,
+        topNCandidatesForHydration: 50,
         recencyDecayRate: 0.1,
         diversityThreshold: 0.3,
       },
