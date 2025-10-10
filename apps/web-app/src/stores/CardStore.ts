@@ -65,11 +65,17 @@ export const useCardStore = create<CardState>()(
       initializeRandomLoader: async () => {
         console.log('CardStore.initializeRandomLoader - Starting initialization');
         
-        // Check if we already have cards loaded - if so, don't reinitialize
+        // Check if we already have cards loaded and a loader exists - if so, don't reinitialize
         const state = get();
         if (state.cards.length > 0 && state.randomLoader) {
           console.log('CardStore.initializeRandomLoader - Cards already loaded, skipping initialization');
           return;
+        }
+        
+        // If we have no cards but a loader exists, clear it to allow reinitialization
+        if (state.cards.length === 0 && state.randomLoader) {
+          console.log('CardStore.initializeRandomLoader - No cards but loader exists, clearing loader to allow reinitialization');
+          set({ randomLoader: null });
         }
         
         // Cancel any existing request
@@ -127,11 +133,17 @@ export const useCardStore = create<CardState>()(
       initializeSortedLoader: async (sortKey: 'newest' | 'oldest' | 'title_asc' | 'title_desc' = 'newest') => {
         console.log('CardStore.initializeSortedLoader - Starting initialization with sort:', sortKey);
         
-        // Check if we already have cards loaded - if so, don't reinitialize
+        // Check if we already have cards loaded and a loader exists - if so, don't reinitialize
         const state = get();
         if (state.cards.length > 0 && state.sortedLoader) {
           console.log('CardStore.initializeSortedLoader - Cards already loaded, skipping initialization');
           return;
+        }
+        
+        // If we have no cards but a loader exists, clear it to allow reinitialization
+        if (state.cards.length === 0 && state.sortedLoader) {
+          console.log('CardStore.initializeSortedLoader - No cards but loader exists, clearing loader to allow reinitialization');
+          set({ sortedLoader: null });
         }
         
         // Cancel any existing request

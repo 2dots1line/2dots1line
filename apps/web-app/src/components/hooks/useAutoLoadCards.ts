@@ -9,7 +9,7 @@ import { useUserStore } from '../../stores/UserStore';
  */
 export const useAutoLoadCards = () => {
   const { isAuthenticated, hasHydrated } = useUserStore();
-  const { cards, isLoading, initializeSortedLoader } = useCardStore();
+  const { cards, isLoading, initializeSortedLoader, error } = useCardStore();
   const hasInitialized = useRef(false);
 
   useEffect(() => {
@@ -18,7 +18,8 @@ export const useAutoLoadCards = () => {
       hasHydrated,
       cardsLength: cards.length,
       isLoading,
-      hasInitialized: hasInitialized.current
+      hasInitialized: hasInitialized.current,
+      hasError: !!error
     });
 
     // Load cards when user is authenticated and hydrated, but only if no cards are loaded and we haven't initialized yet
@@ -28,11 +29,11 @@ export const useAutoLoadCards = () => {
       initializeSortedLoader('newest');
     }
 
-    // Reset initialization flag when user logs out
-    if (!isAuthenticated) {
+    // Reset initialization flag when user logs out or when there's an error (to allow retry)
+    if (!isAuthenticated || error) {
       hasInitialized.current = false;
     }
-  }, [isAuthenticated, hasHydrated, cards.length, isLoading]);
+  }, [isAuthenticated, hasHydrated, cards.length, isLoading, error, initializeSortedLoader]);
 
   return {
     isLoading,

@@ -1,8 +1,10 @@
+import { environmentLoader } from '@2dots1line/core-utils';
 import { DatabaseService, UserRepository } from '@2dots1line/database';
 import type { users as User } from '@2dots1line/database';
-import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-import { environmentLoader } from '@2dots1line/core-utils';
+import jwt from 'jsonwebtoken';
+
+import { UserService } from './UserService';
 
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const JWT_SECRET = environmentLoader.get('JWT_SECRET') || 'your-super-secret-jwt-key-change-in-production';
@@ -31,9 +33,11 @@ export interface RegisterData {
  */
 export class AuthService {
   private userRepository: UserRepository;
+  private userService: UserService;
 
   constructor(databaseService: DatabaseService) {
     this.userRepository = new UserRepository(databaseService);
+    this.userService = new UserService(databaseService);
   }
 
   /**
@@ -90,12 +94,20 @@ export class AuthService {
         hashedPassword = await bcrypt.hash(userData.password, 10);
       }
 
-      // Create new user
-      const newUser = await this.userRepository.create({
+      // Create new user with automatic concept creation and onboarding
+      const newUser = await this.userService.createUser({
         email: userData.email,
         name: userData.name,
-        hashed_password: hashedPassword,
+        preferences: undefined,
+        profileImageUrl: undefined
       });
+
+      // Update the user with hashed password if provided
+      if (hashedPassword) {
+        await this.userRepository.update(newUser.user_id, {
+          hashed_password: hashedPassword
+        });
+      }
 
       return {
         success: true,

@@ -31,6 +31,7 @@ export interface UpdateUserData {
   key_phrases?: any;
   last_cycle_started_at?: Date;
   concepts_created_in_cycle?: number;
+  hashed_password?: string;
 }
 
 export class UserRepository {

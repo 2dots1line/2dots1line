@@ -1,4 +1,7 @@
-import { DatabaseService, UserRepository, ConceptRepository, ConversationRepository } from '@2dots1line/database';
+import { environmentLoader } from '@2dots1line/core-utils';
+import { DatabaseService, UserRepository, ConceptRepository } from '@2dots1line/database';
+import { Redis } from 'ioredis';
+import { Queue } from 'bullmq';
 
 // Use any type for now since Prisma types are complex
 type User = any;
@@ -10,10 +13,32 @@ type User = any;
 export class UserService {
   private userRepository: UserRepository;
   private databaseService: DatabaseService;
+  private redisConnection: Redis;
+  private embeddingQueue: Queue;
+  private cardQueue: Queue;
+  private graphQueue: Queue;
 
   constructor(databaseService: DatabaseService) {
     this.userRepository = new UserRepository(databaseService);
     this.databaseService = databaseService;
+    
+    // Initialize Redis connection for queue operations
+    const redisUrl = environmentLoader.get('REDIS_URL');
+    if (redisUrl) {
+      this.redisConnection = new Redis(redisUrl, {
+        maxRetriesPerRequest: 3,
+        enableReadyCheck: false,
+        connectTimeout: 10000, // 10 seconds timeout for connection
+        lazyConnect: true, // Don't connect immediately
+      });
+      
+      // Initialize BullMQ queues (same as IngestionAnalyst)
+      this.embeddingQueue = new Queue('embedding-queue', { connection: this.redisConnection });
+      this.cardQueue = new Queue('card-queue', { connection: this.redisConnection });
+      this.graphQueue = new Queue('graph-queue', { connection: this.redisConnection });
+    } else {
+      throw new Error('REDIS_URL environment variable is required for UserService');
+    }
   }
 
   /**
@@ -56,6 +81,7 @@ export class UserService {
 
   /**
    * V11.1.1 NEW: Create a User concept for the user in their knowledge graph
+   * Includes full workflow: concept creation, embedding, card creation, and graph projection
    */
   private async createUserConcept(userId: string, userName: string): Promise<void> {
     try {
@@ -70,11 +96,54 @@ export class UserService {
         importance_score: 10 // High importance since user is central to their own knowledge graph
       };
 
-      const userConcept = await conceptRepo.create(userConceptData);
-      console.log(`[UserService] ✅ Created User concept for ${userName}: ${userConcept.entity_id}`);
+      // Check if Neo4j is available
+      if (!this.databaseService.neo4j) {
+        console.warn(`[UserService] Neo4j client not available, creating user concept in PostgreSQL only`);
+        const userConcept = await conceptRepo.create(userConceptData);
+        console.log(`[UserService] ✅ Created User concept in PostgreSQL only: ${userConcept.entity_id}`);
+        await this.triggerUserConceptWorkflow(userId, userConcept.entity_id, userName);
+        return;
+      }
 
-      // V11.1.1 ENHANCEMENT: Trigger onboarding ingestion with proactive prompts
-      await this.triggerOnboardingIngestion(userId, userName);
+      // Create in PostgreSQL and Neo4j in transaction (mimicking IngestionAnalyst.createEntityWithNeo4j)
+      const neo4jSession = this.databaseService.neo4j.session();
+      const neo4jTransaction = neo4jSession.beginTransaction();
+
+      try {
+        // Step 1: Create entity in PostgreSQL
+        const userConcept = await conceptRepo.create(userConceptData);
+        console.log(`[UserService] ✅ Created User concept in PostgreSQL: ${userConcept.entity_id}`);
+
+        // Step 2: Create Neo4j node with standardized properties (V11.0 schema compliance)
+        const neo4jProperties = {
+          entity_id: userConcept.entity_id,
+          user_id: userId,
+          entity_type: 'Concept',
+          title: userConcept.title,
+          content: userConcept.content,
+          importance_score: userConcept.importance_score,
+          created_at: new Date().toISOString(),
+          source: 'UserService',
+          type: userConcept.type,
+          status: userConcept.status || 'active'
+        };
+
+        // Step 3: Create Neo4j node in transaction
+        await this.createNeo4jNodeInTransaction(neo4jTransaction, 'Concept', neo4jProperties);
+        
+        // Step 4: Commit transaction
+        await neo4jTransaction.commit();
+        console.log(`[UserService] ✅ Created User concept in Neo4j: ${userConcept.entity_id}`);
+
+        // Step 5: Trigger downstream workflows
+        await this.triggerUserConceptWorkflow(userId, userConcept.entity_id, userName);
+
+      } catch (error) {
+        await neo4jTransaction.rollback();
+        throw error;
+      } finally {
+        await neo4jSession.close();
+      }
 
     } catch (error) {
       console.error(`[UserService] ❌ Error creating User concept for ${userName}:`, error);
@@ -83,80 +152,57 @@ export class UserService {
   }
 
   /**
-   * V11.1.1 NEW: Trigger onboarding ingestion with structured proactive prompts
+   * Create Neo4j node in transaction (copied from IngestionAnalyst)
    */
-  private async triggerOnboardingIngestion(userId: string, userName: string): Promise<void> {
+  private async createNeo4jNodeInTransaction(transaction: any, label: string, properties: any): Promise<void> {
+    const cypher = `CREATE (n:${label} $props)`;
+    await transaction.run(cypher, { props: properties });
+  }
+
+  /**
+   * V11.1.1 NEW: Trigger full workflow for user concept (embedding, card, graph)
+   * Mimics IngestionAnalyst.publishEvents() pattern
+   */
+  private async triggerUserConceptWorkflow(userId: string, conceptId: string, userName: string): Promise<void> {
     try {
-      // Create an onboarding conversation with proactive prompts
-      const conversationRepo = new ConversationRepository(this.databaseService);
-      
-      const onboardingConversation = await conversationRepo.create({
-        user_id: userId,
-        title: `Welcome ${userName} - Let's get to know you`,
-        metadata: {
-          type: 'onboarding',
-          userName: userName,
-          onboardingStep: 'initial'
-        }
+      console.log(`[UserService] 🚀 Publishing user concept ${conceptId} to downstream workers`);
+
+      const textContent = `The user (${userName}) in this knowledge graph - the central person whose experiences, interests, and growth are being tracked.`;
+      const newEntities = [{ id: conceptId, type: 'Concept' }];
+
+      // Step 1: Publish embedding job (same as IngestionAnalyst)
+      await this.embeddingQueue.add('create_embedding', {
+        entityId: conceptId,
+        entityType: 'Concept',
+        textContent,
+        userId
       });
+      console.log(`[UserService] ✅ Queued embedding job for user concept ${conceptId}`);
 
-      // Add onboarding messages with proactive prompts using Prisma directly
-      const onboardingMessages = [
-        {
-          conversation_id: onboardingConversation.id,
-          role: 'assistant',
-          content: `Welcome to 2dots1line, ${userName}! I'm excited to get to know you and help you track your personal growth journey. Let's start with a few questions to understand what matters most to you.`
-        },
-        {
-          conversation_id: onboardingConversation.id,
-          role: 'assistant',
-          content: `What are you most passionate about learning or exploring right now? This could be anything from a new skill, a personal interest, or something you're curious about.`
-        },
-        {
-          conversation_id: onboardingConversation.id,
-          role: 'assistant',
-          content: `What's one area of your life where you'd like to see growth or improvement? This could be personal, professional, creative, or anything else that's important to you.`
-        },
-        {
-          conversation_id: onboardingConversation.id,
-          role: 'assistant',
-          content: `What activities or experiences bring you the most joy and fulfillment? I'd love to understand what makes you feel most alive and engaged.`
-        }
-      ];
+      // Step 2: Publish new_entities_created event (same as IngestionAnalyst)
+      const eventPayload = {
+        type: 'new_entities_created',
+        userId,
+        entities: newEntities,
+        source: 'UserService'
+      };
 
-      for (const message of onboardingMessages) {
-        await this.databaseService.prisma.conversation_messages.create({
-          data: {
-            ...message,
-            message_id: crypto.randomUUID(),
-            type: message.role
-          }
-        });
-      }
+      // Publish to card queue (cards can be created immediately)
+      await this.cardQueue.add('new_entities_created', eventPayload);
+      console.log(`[UserService] ✅ Published new_entities_created event to card-queue`);
 
-      // Mark conversation as ended so it can be ingested
-      await conversationRepo.update(onboardingConversation.id, {
-        ended_at: new Date(),
-        status: 'completed'
-      });
+      // Publish to graph queue (graph projection will wait for embeddings)
+      await this.graphQueue.add('new_entities_created', eventPayload);
+      console.log(`[UserService] ✅ Published new_entities_created event to graph-queue`);
 
-      // Trigger ingestion job using existing Redis instance
-      const ingestionQueue = this.databaseService.redis.duplicate();
-      
-      await ingestionQueue.lpush('ingestion-queue', JSON.stringify({
-        type: 'conversation_ingestion',
-        conversationId: onboardingConversation.id,
-        userId: userId,
-        source: 'user_registration'
-      }));
-
-      console.log(`[UserService] ✅ Triggered onboarding ingestion for ${userName} with conversation ${onboardingConversation.id}`);
+      console.log(`[UserService] 🎉 User concept ${conceptId} published to all downstream workers`);
 
     } catch (error) {
-      console.error(`[UserService] ❌ Error triggering onboarding ingestion for ${userName}:`, error);
-      // Don't fail user creation if onboarding fails
+      console.error(`[UserService] ❌ Error publishing user concept ${conceptId}:`, error);
+      // Don't fail user creation if workflow fails
     }
   }
+
 
   /**
    * Update user profile
@@ -187,5 +233,14 @@ export class UserService {
   async userExists(userId: string): Promise<boolean> {
     const user = await this.userRepository.findById(userId);
     return user !== null;
+  }
+
+  /**
+   * Cleanup Redis connection
+   */
+  async cleanup(): Promise<void> {
+    if (this.redisConnection) {
+      await this.redisConnection.quit();
+    }
   }
 } 
