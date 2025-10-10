@@ -297,8 +297,15 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
             },
           });
           
-          // Enhanced system prompt for deterministic JSON output
-          const enhancedSystemPrompt = `You are a machine that only returns and replies with valid, iterable RFC8259 compliant JSON in your responses.
+          // Enhanced system prompt for deterministic JSON output (only for non-specialized tools)
+          let enhancedSystemPrompt: string;
+          
+          if ((input.payload as any).skipGenericFormatting) {
+            // For specialized tools like KeyPhraseExtractionTool, use the prompt as-is
+            enhancedSystemPrompt = input.payload.systemPrompt;
+          } else {
+            // For general tools, add generic JSON formatting
+            enhancedSystemPrompt = `You are a machine that only returns and replies with valid, iterable RFC8259 compliant JSON in your responses.
 
 CRITICAL JSON REQUIREMENTS:
 - Return ONLY the JSON object
@@ -313,8 +320,16 @@ CRITICAL DECISION RULE:
 - If no memory context is provided → Use "decision": "query_memory" or "respond_directly" based on context
 
 ${input.payload.systemPrompt}`;
+          }
           
-          currentMessage = `${enhancedSystemPrompt}\n\nRELEVANT CONTEXT FROM USER'S PAST:\n${input.payload.memoryContextBlock || 'No memories provided.'}\n\nCURRENT MESSAGE: ${input.payload.userMessage}`;
+          // Build message based on tool type
+          if ((input.payload as any).skipGenericFormatting) {
+            // For specialized tools, use the system prompt as-is (it's already consolidated)
+            currentMessage = enhancedSystemPrompt;
+          } else {
+            // For general tools, add context sections
+            currentMessage = `${enhancedSystemPrompt}\n\nRELEVANT CONTEXT FROM USER'S PAST:\n${input.payload.memoryContextBlock || 'No memories provided.'}\n\nCURRENT MESSAGE: ${input.payload.userMessage}`;
+          }
           
           let text = '';
           let response: any;

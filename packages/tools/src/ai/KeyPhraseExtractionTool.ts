@@ -6,6 +6,8 @@
 
 import { IExecutableTool, KeyPhraseInput, KeyPhraseResult, TToolInput, TToolOutput, IToolManifest } from '@2dots1line/shared-types';
 import { LLMChatTool } from './LLMChatTool';
+import { ConfigService } from '@2dots1line/config-service';
+const Mustache = require('mustache');
 
 // Tool manifest for registry discovery
 const manifest: IToolManifest<KeyPhraseInput, KeyPhraseResult> = {
@@ -49,11 +51,13 @@ const manifest: IToolManifest<KeyPhraseInput, KeyPhraseResult> = {
 export class KeyPhraseExtractionTool implements IExecutableTool<KeyPhraseInput, KeyPhraseResult> {
   manifest = manifest;
   private llmChatTool: any;
+  private configService: ConfigService;
   private initialized = false;
 
-  constructor() {
+  constructor(configService?: ConfigService) {
     // Initialize LLMChatTool instance
     this.llmChatTool = LLMChatTool; // Use the exported instance
+    this.configService = configService || new ConfigService();
   }
 
   async execute(input: TToolInput<KeyPhraseInput>): Promise<TToolOutput<KeyPhraseResult>> {
@@ -67,14 +71,13 @@ export class KeyPhraseExtractionTool implements IExecutableTool<KeyPhraseInput, 
 
       console.log(`🔍 KeyPhraseExtractionTool: Extracting key phrases from text (${input.payload.text.length} chars)`);
       
-      // Build optimized prompt for key phrase extraction
-      const systemPrompt = this.buildSystemPrompt(input.payload);
-      const userPrompt = this.buildUserPrompt(input.payload);
+      // Build prompt using template system
+      const consolidatedPrompt = this.buildConsolidatedPrompt(input.payload);
       
       // Get the optimized key phrase model (hardcoded for now)
       const keyPhraseModel = 'gemini-2.5-flash-lite';
       
-      // Prepare LLM input
+      // Prepare LLM input with consolidated prompt
       const llmInput = {
         payload: {
           userId: input.payload.context?.userId || 'system',
@@ -84,14 +87,16 @@ export class KeyPhraseExtractionTool implements IExecutableTool<KeyPhraseInput, 
           conversationId: input.payload.context?.conversationId || 'none',
           messageId: `msg-${Date.now()}`,
           sourceEntityId: input.payload.context?.conversationId || 'none',
-          systemPrompt,
-          userMessage: userPrompt,
+          systemPrompt: consolidatedPrompt,
+          userMessage: '', // Empty user message since everything is in system prompt
           history: [],
           temperature: input.payload.options?.temperature || 0.3,
           maxTokens: 1000, // Key phrases don't need much output
           modelOverride: keyPhraseModel,
           enableStreaming: input.payload.options?.streaming || false,
-          onChunk: input.payload.options?.onChunk
+          onChunk: input.payload.options?.onChunk,
+          // V11.0: Flag to skip generic JSON formatting in LLMChatTool
+          skipGenericFormatting: true
         },
         request_id: `keyphrase-${Date.now()}`
       };
@@ -144,81 +149,32 @@ export class KeyPhraseExtractionTool implements IExecutableTool<KeyPhraseInput, 
     }
   }
 
-  private buildSystemPrompt(input: KeyPhraseInput): string {
+  /**
+   * Build consolidated prompt using template system
+   * V11.0: Uses template from prompt_templates.yaml for consistency
+   */
+  private buildConsolidatedPrompt(input: KeyPhraseInput): string {
     const maxPhrases = input.options?.maxPhrases || 7;
-    const agentType = input.context?.agentType || 'general';
     
-    let agentSpecificGuidance = '';
-    switch (agentType) {
-      case 'quest':
-        agentSpecificGuidance = `
-QUEST-SPECIFIC GUIDANCE:
-- Focus on concepts that will guide 3D memory visualization
-- Include temporal, emotional, and relationship contexts
-- Think like a memory explorer for immersive experiences
-- Consider what memories, people, places, or experiences might be relevant`;
-        break;
-      case 'dialogue':
-        agentSpecificGuidance = `
-DIALOGUE-SPECIFIC GUIDANCE:
-- Focus on concepts that will help retrieve relevant conversation context
-- Include entities, topics, and conversational themes
-- Consider what previous conversations or memories might be relevant
-- Think like a conversational assistant`;
-        break;
-      default:
-        agentSpecificGuidance = `
-GENERAL GUIDANCE:
-- Extract the most important concepts and entities
-- Include both literal and implied meanings
-- Consider context and relationships`;
+    // Get template from config service
+    const template = this.configService.getTemplate('keyphrase_extraction');
+    
+    if (!template) {
+      throw new Error('KeyPhraseExtractionTool Error: keyphrase_extraction template not found');
     }
-
-    return `=== KEY PHRASE EXTRACTION TOOL ===
-
-You are a specialized AI assistant designed to extract meaningful key phrases from user input for memory retrieval and context understanding.
-
-CORE PURPOSE:
-- Extract ${maxPhrases} key phrases that will guide memory retrieval and context understanding
-- Consider both literal words and implied concepts based on user intent
-- Generate phrases that will find relevant memories, concepts, and artifacts
-- Think like a context-aware assistant, not just a keyword extractor
-
-KEY PHRASE EXTRACTION GUIDELINES:
-1. **Literal Extraction**: Include important nouns, verbs, and concepts from the user's input
-2. **Intent-Based Expansion**: Add related concepts that the user likely means but didn't explicitly state
-3. **Context Awareness**: Consider what memories, people, places, or experiences might be relevant
-4. **Temporal Context**: Include time-related concepts if the input implies past/present/future
-5. **Emotional Context**: Include emotional or thematic concepts that might connect to memories
-6. **Relationship Context**: Include relationship or social concepts that might be relevant
-
-${agentSpecificGuidance}
-
-EXAMPLES:
-- "Tell me about my skating memories" → ["skating", "ice skating", "winter sports", "childhood activities", "family memories", "sports"]
-- "What do I remember about my trip to Japan?" → ["Japan", "travel", "vacation", "Japanese culture", "trip memories", "international travel"]
-- "Show me memories about my daughter" → ["daughter", "family", "children", "parenting", "family memories", "relationships"]
-
-RESPONSE FORMAT:
-Return a JSON object with this exact structure:
-{
-  "key_phrases": ["phrase1", "phrase2", "phrase3", "phrase4", "phrase5", "phrase6", "phrase7"]
-}
-
-IMPORTANT:
-- Return exactly ${maxPhrases} phrases
-- Use simple, clear phrases (1-3 words each)
-- Avoid overly specific or complex phrases
-- Focus on concepts that will help with memory retrieval
-- Return valid JSON only, no additional text`;
-  }
-
-  private buildUserPrompt(input: KeyPhraseInput): string {
-    return `Extract key phrases from this text:
-
-"${input.text}"
-
-Please provide ${input.options?.maxPhrases || 7} key phrases that will help with memory retrieval and context understanding.`;
+    
+    // Prepare template variables
+    const templateVars = {
+      max_phrases: maxPhrases,
+      user_text: input.text
+    };
+    
+    // Render template using Mustache
+    const consolidatedPrompt = Mustache.render(template, templateVars);
+    
+    console.log(`🔧 KeyPhraseExtractionTool: Built consolidated prompt (${consolidatedPrompt.length} chars)`);
+    
+    return consolidatedPrompt;
   }
 
   private parseKeyPhrases(responseText: string): string[] {

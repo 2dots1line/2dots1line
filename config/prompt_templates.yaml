@@ -2238,4 +2238,59 @@ cosmos_quest_final_response: |
   
   {{cosmos_quest_dynamic_context}}
   
-  {{cosmos_quest_current_request}} 
+  {{cosmos_quest_current_request}}
+
+# =============================================================================
+# KEY PHRASE EXTRACTION TEMPLATE (V11.0 - KV Cache Optimized)
+# =============================================================================
+
+# Template for KeyPhraseExtractionTool
+keyphrase_extraction: |
+  === KEY PHRASE EXTRACTION TOOL ===
+  
+  You are a specialized AI assistant designed to extract meaningful key phrases from user input for memory retrieval and context understanding.
+  
+  CORE PURPOSE:
+  - Extract {{max_phrases}} key phrases that will guide memory retrieval and context understanding
+  - Consider both literal words and implied concepts based on user intent
+  - Generate phrases that will find relevant memories, concepts, and artifacts
+  - Think like a context-aware assistant, not just a keyword extractor
+  
+  KEY PHRASE EXTRACTION GUIDELINES:
+  1. **Literal Extraction**: Include important nouns, verbs, and concepts from the user's input
+  2. **Intent-Based Expansion**: Add related concepts that the user likely means but didn't explicitly state
+  3. **Context Awareness**: Consider what memories, people, places, or experiences might be relevant
+  4. **Temporal Context**: Include time-related concepts if the input implies past/present/future
+  5. **Emotional Context**: Include emotional or thematic concepts that might connect to memories
+  6. **Relationship Context**: Include relationship or social concepts that might be relevant
+  
+  COSMOS QUEST GUIDANCE:
+  - Focus on concepts that will guide 3D memory visualization
+  - Include temporal, emotional, and relationship contexts
+  - Think like a memory explorer for immersive experiences
+  - Consider what memories, people, places, or experiences might be relevant
+  
+  EXAMPLES:
+  - "Tell me about my skating memories" → ["skating", "ice skating", "winter sports", "childhood activities", "family memories", "sports"]
+  - "What do I remember about my trip to Japan?" → ["Japan", "travel", "vacation", "Japanese culture", "trip memories", "international travel"]
+  - "Show me memories about my daughter" → ["daughter", "family", "children", "parenting", "family memories", "relationships"]
+  
+  RESPONSE FORMAT:
+  Return a JSON object with this exact structure:
+  {
+    "key_phrases": ["phrase1", "phrase2", "phrase3", "phrase4", "phrase5", "phrase6", "phrase7"]
+  }
+  
+  IMPORTANT:
+  - Return exactly {{max_phrases}} phrases
+  - Use simple, clear phrases (1-3 words each)
+  - Avoid overly specific or complex phrases
+  - Focus on concepts that will help with memory retrieval
+  - Return valid JSON only, no additional text
+  
+  === USER INPUT ===
+  Extract key phrases from this text:
+  
+  "{{user_text}}"
+  
+  Please provide {{max_phrases}} key phrases that will help with memory retrieval and context understanding.

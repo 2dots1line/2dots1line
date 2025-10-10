@@ -199,6 +199,8 @@ export interface LLMChatInputPayload {
     maxTokens?: number;
     topP?: number;
   };
+  /** V11.0: Skip generic JSON formatting for specialized tools */
+  skipGenericFormatting?: boolean;
 }
 
 /**

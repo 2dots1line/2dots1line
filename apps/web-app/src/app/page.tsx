@@ -11,6 +11,7 @@ import LoginModal from '../components/modal/LoginModal';
 import { ModalContainer } from '../components/modal/ModalContainer';
 import SignupModal from '../components/modal/SignupModal';
 import { DynamicBackground } from '../components/DynamicBackground';
+import { MediumChat, MiniChat } from '../components/chat';
 import { useCardStore } from '../stores/CardStore';
 import { useHUDStore } from '../stores/HUDStore';
 import { useUserStore } from '../stores/UserStore';
@@ -22,7 +23,15 @@ function HomePage() {
   const [isSignupModalOpen, setIsSignupModalOpen] = useState(false);
 
   const { user, isAuthenticated, logout, initializeAuth, hasHydrated } = useUserStore();
-  const { setActiveView, activeView, setCardDetailModalOpen, isNavigatingFromCosmos } = useHUDStore();
+  const { 
+    setActiveView, 
+    activeView, 
+    setCardDetailModalOpen, 
+    isNavigatingFromCosmos,
+    cardsChatOpen,
+    cardsChatSize,
+    setCardsChatSize
+  } = useHUDStore();
   const { 
     cards, 
     isLoading, 
@@ -606,7 +615,7 @@ function HomePage() {
           ) : (
             <>
               {/* Manual-only toolbar for Cards view */}
-              <div className="fixed z-40 top-20 left-4">
+              <div className="fixed z-40 top-4 left-4">
                 <GlassmorphicPanel variant="glass-panel" rounded="lg" padding="sm">
                   <div className="flex items-center gap-3">
                     {/* removed: <span ref={anchorElRef} style={{ display: 'inline-block', width: 0, height: 0 }} /> */}
@@ -723,6 +732,25 @@ function HomePage() {
                 </div>
               )}
             </>
+          )}
+
+          {/* Chat Components for Cards View */}
+          {isAuthenticated && activeView === 'cards' && cardsChatOpen && (
+            <div className="fixed inset-0 z-[1010] pointer-events-none">
+              {cardsChatSize === 'medium' ? (
+                <MediumChat 
+                  isOpen={cardsChatOpen}
+                  onSizeChange={setCardsChatSize}
+                  className="pointer-events-auto"
+                />
+              ) : (
+                <MiniChat 
+                  isOpen={cardsChatOpen}
+                  onSizeChange={setCardsChatSize}
+                  className="pointer-events-auto"
+                />
+              )}
+            </div>
           )}
         </>
       )}

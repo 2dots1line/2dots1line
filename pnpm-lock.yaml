@@ -650,9 +650,15 @@ importers:
       '@google/generative-ai':
         specifier: ^0.21.0
         version: 0.21.0
+      '@types/mustache':
+        specifier: ^4.2.6
+        version: 4.2.6
       mammoth:
         specifier: ^1.9.1
         version: 1.11.0
+      mustache:
+        specifier: ^4.2.0
+        version: 4.2.0
       neo4j-driver:
         specifier: ^5.15.0
         version: 5.28.2
@@ -3750,7 +3756,6 @@ packages:
 
   /@types/mustache@4.2.6:
     resolution: {integrity: sha512-t+8/QWTAhOFlrF1IVZqKnMRJi84EgkIK5Kh0p2JV4OLywUvCwJPFxbJAl7XAow7DVIHsF+xW9f1MVzg0L6Szjw==}
-    dev: true
 
   /@types/node-cron@3.0.11:
     resolution: {integrity: sha512-0ikrnug3/IyneSHqCBeslAhlK2aBfYek1fGo4bP4QnZPmiqSGRK+Oy7ZMisLWkesffJvQ1cqAcBnJC+8+nxIAg==}

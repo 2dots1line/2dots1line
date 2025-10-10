@@ -14,7 +14,7 @@ import { PexelsSearchModal } from './PexelsSearchModal';
 import { HRTControlPanel } from '../settings/HRTControlPanel';
 
 import { EnhancedCardModal } from './EnhancedCardModal';
-import ChatModal from './ChatModal';
+import { ChatModal } from '../chat';
 import DashboardModal from './DashboardModal';
 import { ConversationHistoryModal } from './ConversationHistoryModal';
 

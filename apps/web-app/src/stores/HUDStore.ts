@@ -16,6 +16,12 @@ interface HUDState {
   // Card detail modal (overlays on cards view)
   cardDetailModalOpen: boolean;
   
+  // Chat states for different views
+  cardsChatOpen: boolean;
+  cosmosChatOpen: boolean;
+  cardsChatSize: 'medium' | 'mini';
+  cosmosChatSize: 'medium' | 'mini';
+  
   // Actions
   toggleHUD: () => void;
   expandHUD: () => void;
@@ -26,6 +32,12 @@ interface HUDState {
   resetPosition: () => void;
   setCardDetailModalOpen: (open: boolean) => void;
   setIsNavigatingFromCosmos: (navigating: boolean) => void;
+  
+  // Chat actions
+  setCardsChatOpen: (open: boolean) => void;
+  setCosmosChatOpen: (open: boolean) => void;
+  setCardsChatSize: (size: 'medium' | 'mini') => void;
+  setCosmosChatSize: (size: 'medium' | 'mini') => void;
 }
 
 const DEFAULT_POSITION = { x: 20, y: 120 }; // 20px from right, 120px from top
@@ -40,6 +52,12 @@ export const useHUDStore = create<HUDState>()(
       position: DEFAULT_POSITION,
       isNavigatingFromCosmos: false,
       cardDetailModalOpen: false,
+      
+      // Chat states - mini chat always open by default in cards/cosmos
+      cardsChatOpen: true,
+      cosmosChatOpen: true,
+      cardsChatSize: 'mini',
+      cosmosChatSize: 'mini',
 
       // Actions
       toggleHUD: () => {
@@ -81,6 +99,23 @@ export const useHUDStore = create<HUDState>()(
 
       setIsNavigatingFromCosmos: (navigating: boolean) => {
         set({ isNavigatingFromCosmos: navigating });
+      },
+
+      // Chat actions
+      setCardsChatOpen: (open: boolean) => {
+        set({ cardsChatOpen: open });
+      },
+
+      setCosmosChatOpen: (open: boolean) => {
+        set({ cosmosChatOpen: open });
+      },
+
+      setCardsChatSize: (size: 'medium' | 'mini') => {
+        set({ cardsChatSize: size });
+      },
+
+      setCosmosChatSize: (size: 'medium' | 'mini') => {
+        set({ cosmosChatSize: size });
       },
     }),
     {

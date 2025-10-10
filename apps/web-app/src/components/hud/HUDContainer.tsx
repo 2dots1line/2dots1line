@@ -220,6 +220,8 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
         onToggle={toggleHUD}
         className="absolute top-0 right-0 z-50" // Positioned relative to container, stays put
       />
+
+      {/* Chat Toggle removed - mini chat now always visible by default */}
     </div>
   );
 }; 
