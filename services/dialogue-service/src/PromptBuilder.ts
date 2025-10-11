@@ -571,7 +571,17 @@ ${contextText}
         user_name: userName,
         // Add available features data
         available_features: viewConfig?.available_features || [],
-        has_available_features: viewConfig?.available_features?.length > 0
+        has_available_features: viewConfig?.available_features?.length > 0,
+        
+        // NEW: Add engagement-aware instructions
+        has_engagement_aware_instructions: !!viewConfig?.engagement_aware_instructions,
+        engagement_aware_general: viewConfig?.engagement_aware_instructions?.general || '',
+        suggestion_examples: viewConfig?.engagement_aware_instructions?.suggestions 
+          ? Object.entries(viewConfig.engagement_aware_instructions.suggestions).map(([key, value]) => ({
+              action_type: key.replace(/_/g, ' '),
+              suggestion_template: value
+            }))
+          : []
       };
       
       return Mustache.render(template, viewData);

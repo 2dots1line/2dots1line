@@ -3,6 +3,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Graph3D } from '../../components/cosmos/Graph3D';
 import { useCosmosStore } from '../../stores/CosmosStore';
+import { useChatStore } from '../../stores/ChatStore';
+import { useHUDStore } from '../../stores/HUDStore';
 import { cosmosService } from '../../services/cosmosService';
 import CosmosInfoPanel from '../../components/modal/CosmosInfoPanel';
 import CosmosError from '../../components/modal/CosmosError';
@@ -12,6 +14,7 @@ import { NodeLabelControls } from '../../components/cosmos/NodeLabelControls';
 import SeedEntitiesDisplay from '../../components/cosmos/SeedEntitiesDisplay';
 import { useEntitySelection } from '../../hooks/useEntitySelection';
 import { LookupCameraController } from '../../components/cosmos/LookupCameraController';
+import type { ChatMessage } from '../../services/chatService';
 
 const CosmosScene: React.FC = () => {
   const {
@@ -24,6 +27,8 @@ const CosmosScene: React.FC = () => {
     setError,
     setSelectedNode,
   } = useCosmosStore();
+  
+  const { addMessage } = useChatStore();
 
   // Edge control state - using defaults
   const { showEdges } = useCosmosStore();
@@ -86,6 +91,33 @@ const CosmosScene: React.FC = () => {
 
     fetchGraphData();
   }, [setGraphData, setLoading, setError]);
+
+  // Check for main content on mount and when loading completes
+  useEffect(() => {
+    const contentData = sessionStorage.getItem('cosmosMainContent');
+    
+    // Wait for scene to be fully loaded before displaying main content
+    if (contentData && !isLoading && graphData) {
+      const { content, timestamp } = JSON.parse(contentData);
+      
+      console.log('🌌 CosmosScene: Scene loaded, displaying main content:', content.substring(0, 50) + '...');
+      
+      // Add main content as bot message
+      const mainMessage: ChatMessage = {
+        id: `cosmos-content-${timestamp}`,
+        type: 'bot',
+        content: content,
+        timestamp: new Date(timestamp)
+      };
+      addMessage(mainMessage);
+      
+      // Chat stays in mini mode - user can expand if they want
+      // No auto-expand to keep Cosmos view unobstructed
+      
+      // Clear from storage
+      sessionStorage.removeItem('cosmosMainContent');
+    }
+  }, [isLoading, graphData, addMessage]);
 
   // Listen for coordinates_updated notifications and refresh Cosmos data
   useEffect(() => {

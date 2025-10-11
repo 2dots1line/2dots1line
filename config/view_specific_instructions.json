@@ -7,6 +7,12 @@
       "conversation_analysis",
       "cross_view_navigation"
     ],
+    "engagement_aware_instructions": {
+      "general": "When user asks cosmos-appropriate questions, suggest switching to Cosmos view. Phrase as question with two button options.",
+      "suggestions": {
+        "switch_to_cosmos": "When user asks about spatial relationships, value patterns, memory landscape, or how concepts connect (e.g., 'what's my cosmos shaping?', 'how are my values driving my experience?'), ask: 'Should we go to Cosmos view together?' Provide two button options: 'Yes' and 'Maybe later'"
+      }
+    },
     "feature_triggers": {
       "memory_exploration": {
         "pattern": "repeated_memory_references",

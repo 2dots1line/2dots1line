@@ -818,7 +818,43 @@ export class DialogueAgent {
       console.log('DialogueAgent - Extracted JSON:', jsonText.substring(0, 100) + '...');
       
       // Parse the JSON directly
-      return JSON.parse(jsonText);
+      const parsed = JSON.parse(jsonText);
+      
+      // Map ui_action_hints to ui_actions with two-button pattern for frontend compatibility
+      if (parsed.ui_action_hints && Array.isArray(parsed.ui_action_hints)) {
+        parsed.ui_actions = parsed.ui_action_hints.map((hint: any) => ({
+          action: hint.action,
+          question: hint.question || '',
+          buttons: hint.buttons || [
+            {label: 'Yes', value: 'confirm'},
+            {label: 'Maybe later', value: 'dismiss'}
+          ],
+          payload: {
+            target: hint.target,
+            scenarios: hint.scenarios || {
+              on_confirm: {
+                transition_message: hint.proactiveGreeting || 'Let\'s go!',
+                main_content: hint.proactiveGreeting || ''
+              },
+              on_dismiss: {
+                content: 'No problem!'
+              }
+            },
+            priority: hint.priority || 'medium'
+          }
+        }));
+        
+        // Log view switch suggestions for monitoring
+        const viewSwitchHints = parsed.ui_action_hints.filter((h: any) => h.action === 'switch_view');
+        if (viewSwitchHints.length > 0) {
+          console.log('🔀 DialogueAgent - View switch suggestion generated:', viewSwitchHints);
+        }
+      } else if (!parsed.ui_actions) {
+        // Ensure ui_actions array always exists for frontend
+        parsed.ui_actions = [];
+      }
+      
+      return parsed;
       
     } catch (e) {
       console.error('DialogueAgent - JSON parsing error:', e);

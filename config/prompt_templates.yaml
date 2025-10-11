@@ -132,8 +132,52 @@ operational_config_section: |
       "emotional_tone_to_adopt": "Supportive and curious",
       "flags_for_ingestion": ["important_insight", "growth_moment"]
     },
-    "direct_response_text": "Your response text here"
+    "ui_action_hints": [
+      {
+        "action": "switch_view",
+        "question": "Exact question from your response (e.g., 'Should we go to Cosmos view together?')",
+        "buttons": [
+          {"label": "Yes", "value": "confirm"},
+          {"label": "Maybe later", "value": "dismiss"}
+        ],
+        "target": "cosmos",
+        "scenarios": {
+          "on_confirm": {
+            "transition_message": "Great! Let's go explore your cosmos together...",
+            "main_content": "Looking at your cosmos, I can see three major clusters forming around your work on 2dots1line, your parenting philosophy with Vivian, and your creative process..."
+          },
+          "on_dismiss": {
+            "content": "No problem! To answer your question about how your cosmos is shaping: you're currently building three interconnected themes..."
+          }
+        }
+      }
+    ],
+    "direct_response_text": "Your response text here (include the question naturally)"
   }
+  
+  **UI Action Hints Guidelines:**
+  - Generate ui_action_hints array ONLY when genuinely helpful (usually empty)
+  - For view switches: Generate TWO complete response scenarios in a single turn:
+  
+  **on_confirm (user clicks "Yes"):**
+    - transition_message: Brief enthusiastic acknowledgment (10-20 words)
+      Examples: "Great! Let's go explore your cosmos together..."
+                "Perfect! I'll walk you through what I see..."
+                "Wonderful! Let me show you how it's taking shape..."
+    - main_content: Substantive content to show once scene loads (50-200 words)
+      NO greeting phrases like "Nice to see you again" 
+      Jump straight into what you want to show them
+      Reference earlier discussion naturally in the content
+  
+  **on_dismiss (user clicks "Maybe later"):**
+    - content: Gracefully acknowledge choice and answer original question (30-100 words)
+      Example: "No problem! To answer your question..."
+      Provide substantive answer in current view
+      Keep conversation flowing naturally
+  
+  - Currently supported: switch_view only (more actions will be added later)
+  - Both scenarios should feel natural and contextually aware
+  - This eliminates need for additional LLM calls when buttons are clicked
   
   **CRITICAL DECISION RULES (FINAL OVERRIDE - THESE RULES ARE ABSOLUTE):**
   - **RULE #1**: If `augmented_memory_context` is provided → ALWAYS use "decision": "respond_directly" (OVERRIDES ALL OTHER RULES)
@@ -152,8 +196,9 @@ operational_config_section: |
   6. **ESCAPE_QUOTES**: Properly escape any quotes within direct_response_text using \"
   7. **STRUCTURE_ORDER**: Maintain this exact order:
      - thought_process (first)
-     - response_plan (second, without direct_response_text)
+     - response_plan (second)
      - turn_context_package (third)
+     - ui_action_hints (fourth, optional - empty array [] if no suggestions)
      - direct_response_text (last - final field)
 
   AVOID FORMULAIC PATTERNS:
@@ -208,7 +253,14 @@ dynamic_context_section: |
   Recent user interactions and engagement patterns:
   {{engagement_context}}
   
-  **Note:** The user's recent interactions can inform your response. If they've been exploring specific entities or switching between views, you can reference this and offer relevant guidance. You can also suggest UI actions like opening cards, focusing on entities, starting guided tours, or switching views based on their engagement patterns.
+  **Guidelines for Using Engagement Context:**
+  - Use patterns to understand user's focus, but don't force connections
+  - When suggesting view switches, phrase as questions with two button options: "Yes" and "Maybe later"
+  - Suggest actions ONLY when genuinely helpful (max 1-2 per response)
+  - Don't reference engagement explicitly ("I see you clicked...") - inform understanding naturally
+  - Serve user's actual question first, not showcasing capabilities
+  
+  **Available Actions**: switch_view (more action types will be added in future)
   {{/engagement_context}}
 # =============================================================================
 # SECTION 4: CURRENT TURN (No Cache Hit Rate: 0%)
@@ -478,6 +530,16 @@ view_context_template: |
   - {{.}}
   {{/available_features}}
   {{/has_available_features}}
+  
+  {{#has_engagement_aware_instructions}}
+  **Context-Aware Suggestions:**
+  {{engagement_aware_general}}
+  
+  **Available Actions:**
+  {{#suggestion_examples}}
+  - **{{action_type}}**: {{suggestion_template}}
+  {{/suggestion_examples}}
+  {{/has_engagement_aware_instructions}}
 
 
 # NEW: Template for the Ingestion Analyst's persona block

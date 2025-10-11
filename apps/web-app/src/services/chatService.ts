@@ -7,6 +7,29 @@ import { EngagementContext } from '@2dots1line/shared-types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
 
+export interface UiAction {
+  action: 'switch_view' | 'start_cosmos_quest' | 'open_card' | 'focus_entity';
+  question: string;
+  buttons: Array<{
+    label: string;
+    value: 'confirm' | 'dismiss';
+  }>;
+  payload: {
+    target: string;
+    scenarios: {
+      on_confirm: {
+        transition_message: string;
+        main_content: string;
+      };
+      on_dismiss: {
+        content: string;
+      };
+    };
+    priority?: string;
+    metadata?: any;
+  };
+}
+
 export interface ChatMessage {
   id: string;
   type: 'user' | 'bot';
@@ -17,6 +40,7 @@ export interface ChatMessage {
     file: File;
     type: 'image' | 'document';
   };
+  ui_actions?: UiAction[];
 }
 
 export interface SendMessageRequest {
@@ -47,6 +71,7 @@ export interface SendMessageResponse {
     processing_time_ms?: number;
     source_card_id?: string;
   };
+  ui_actions?: UiAction[]; // NEW: UI action suggestions from backend
   file_info?: {
     filename: string;
     size: number;
@@ -227,7 +252,8 @@ class ChatService {
                       response_text: data.response_text || '', // Use the response text from backend
                       message_id: data.message_id,
                       timestamp: data.timestamp,
-                      metadata: data.metadata
+                      metadata: data.metadata,
+                      ui_actions: data.ui_actions // Pass ui_actions to frontend
                     });
                     break;
                     

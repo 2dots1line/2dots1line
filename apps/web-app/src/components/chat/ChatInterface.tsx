@@ -21,8 +21,9 @@ import {
   Minimize2
 } from 'lucide-react';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 
-import { chatService, type ChatMessage } from '../../services/chatService';
+import { chatService, type ChatMessage, type UiAction } from '../../services/chatService';
 import { userService } from '../../services/userService';
 import { useChatStore } from '../../stores/ChatStore';
 import { useUserStore } from '../../stores/UserStore';
@@ -61,6 +62,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const { user } = useUserStore();
   const { activeView } = useHUDStore();
   const pathname = usePathname();
+  const router = useRouter();
   
   // Determine current view based on route and HUD store state
   const getCurrentView = (): 'chat' | 'cards' | 'cosmos' | 'dashboard' | null => {
@@ -242,10 +244,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     }
   }, [message, isOpen, autoResizeTextarea]);
 
-  if (!isOpen) return null;
-
   // Helper function to get appropriate placeholder text based on decision
-  const getPlaceholderText = (decision: 'respond_directly' | 'query_memory' | null): string => {
+  // Must be defined before early return
+  const getPlaceholderText = useCallback((decision: 'respond_directly' | 'query_memory' | null): string => {
     switch (decision) {
       case 'query_memory':
         return 'recollecting memory...';
@@ -254,7 +255,108 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       default:
         return 'thinking...';
     }
-  };
+  }, []);
+
+  /**
+   * Handle UI action button click (e.g., "Yes" for view switch)
+   * IMPORTANT: Must be defined before early return to maintain hook order
+   */
+  const handleActionClick = useCallback((action: UiAction, buttonValue: 'confirm' | 'dismiss') => {
+    if (buttonValue === 'dismiss') {
+      // Scenario B: User clicked "Maybe later"
+      console.log('🔘 ChatInterface: User dismissed action suggestion');
+      
+      const dismissScenario = action.payload.scenarios.on_dismiss;
+      
+      // Add agent's pre-computed fallback response
+      const botMessage: ChatMessage = {
+        id: `bot-${Date.now()}`,
+        type: 'bot',
+        content: dismissScenario.content,
+        timestamp: new Date()
+      };
+      addMessage(botMessage);
+      
+      // Track dismissal
+      trackEvent({
+        type: 'click',
+        target: 'action_dismiss',
+        targetType: 'button',
+        view: currentView || 'chat',
+        metadata: {
+          action: action.action,
+          target: action.payload.target
+        }
+      });
+      
+      // Stay in current view - no navigation
+      return;
+    }
+    
+    if (buttonValue === 'confirm') {
+      // Scenario A: User clicked "Yes"
+      console.log('🔘 ChatInterface: User confirmed action:', action);
+      
+      const confirmScenario = action.payload.scenarios.on_confirm;
+      
+      // 1. Add transition message immediately
+      const transitionMessage: ChatMessage = {
+        id: `transition-${Date.now()}`,
+        type: 'bot',
+        content: confirmScenario.transition_message,
+        timestamp: new Date()
+      };
+      addMessage(transitionMessage);
+      
+      // 2. Track confirmation
+      trackEvent({
+        type: 'click',
+        target: 'action_confirm',
+        targetType: 'button',
+        view: currentView || 'chat',
+        metadata: {
+          action: action.action,
+          target: action.payload.target,
+          question: action.question
+        }
+      });
+      
+      // Execute action based on type
+      if (action.action === 'switch_view') {
+        // 3. Collapse to mini size (if not already mini)
+        if (size !== 'mini' && onSizeChange) {
+          console.log('🔘 ChatInterface: Collapsing to mini before view switch');
+          onSizeChange('mini');
+        }
+        
+        // 4. Store main content for display after scene loads
+        sessionStorage.setItem('cosmosMainContent', JSON.stringify({
+          content: confirmScenario.main_content,
+          timestamp: Date.now()
+        }));
+        
+        // 5. Small delay to let size transition animate, then switch view
+        setTimeout(() => {
+          const targetView = action.payload.target.toLowerCase();
+          console.log('🔘 ChatInterface: Switching to view:', targetView);
+          router.push(`/${targetView}`);
+        }, 300); // 300ms for smooth CSS transition
+        
+      } else if (action.action === 'start_cosmos_quest') {
+        // TODO: Implement cosmos quest trigger
+        console.log('🎬 ChatInterface: Starting cosmos quest:', action.payload);
+      } else if (action.action === 'open_card') {
+        // TODO: Implement card opening
+        console.log('🗂️ ChatInterface: Opening card:', action.payload);
+      } else if (action.action === 'focus_entity') {
+        // TODO: Implement entity focus
+        console.log('🎯 ChatInterface: Focusing entity:', action.payload);
+      }
+    }
+  }, [router, trackEvent, currentView, addMessage, size, onSizeChange]);
+
+  // Early return after all hooks are defined
+  if (!isOpen) return null;
 
   const handleSendMessage = async () => {
     if ((!message.trim() && !currentAttachment) || isLoading) {
@@ -367,6 +469,16 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
           },
           (response: any) => {
             finalResponse = response;
+            
+            // If response has ui_actions, attach them to the bot message
+            if (response.ui_actions && response.ui_actions.length > 0) {
+              console.log('🎬 ChatInterface: Received ui_actions:', response.ui_actions);
+              updateMessage(botMessageId, {
+                content: accumulatedResponse || getPlaceholderText(currentDecision),
+                timestamp: new Date(),
+                ui_actions: response.ui_actions
+              });
+            }
           },
           (error: Error) => {
             updateMessage(botMessageId, {
@@ -493,6 +605,33 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 : 'text-white/90'
             }`}
           />
+        )}
+        
+        {/* Inline action buttons */}
+        {msg.ui_actions && msg.ui_actions.length > 0 && (
+          <div className="inline-flex items-center gap-2 ml-2">
+            {msg.ui_actions.map((action, index) => (
+              <span key={index} className="inline-flex items-center gap-2">
+                {action.buttons.map((button, btnIndex) => (
+                  <button
+                    key={btnIndex}
+                    onClick={() => handleActionClick(action, button.value)}
+                    className={`inline-flex items-center px-4 py-1.5 rounded-full
+                               backdrop-blur-sm border text-sm font-medium
+                               transition-all duration-200 ease-in-out
+                               hover:scale-105 active:scale-95
+                               ${button.value === 'confirm' 
+                                 ? 'bg-green-500/10 border-green-400/30 text-green-400 hover:shadow-[0_0_12px_rgba(74,222,128,0.4)]'
+                                 : 'bg-gray-500/10 border-gray-400/30 text-gray-400 hover:shadow-[0_0_12px_rgba(156,163,175,0.4)]'
+                               }`}
+                    aria-label={`${button.label}: ${action.question}`}
+                  >
+                    {button.label}
+                  </button>
+                ))}
+              </span>
+            ))}
+          </div>
         )}
         
         {size !== 'mini' && (
