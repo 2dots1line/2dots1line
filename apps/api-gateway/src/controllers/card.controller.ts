@@ -69,6 +69,63 @@ export class CardController {
   };
 
   /**
+   * POST /api/v1/cards
+   * Create a new card entry for an entity (freeze node into card state)
+   */
+  public createCard = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authorization required'
+          }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      const { source_entity_id, source_entity_type, status, type } = req.body;
+
+      if (!source_entity_id || !source_entity_type) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'BAD_REQUEST',
+            message: 'source_entity_id and source_entity_type are required'
+          }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      // Create card via service
+      const result = await this.cardService.createCard({
+        userId,
+        source_entity_id,
+        source_entity_type,
+        status,
+        type
+      });
+
+      res.status(201).json({
+        success: true,
+        data: result
+      } as TApiResponse<any>);
+
+    } catch (error: any) {
+      console.error('Card controller error:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: error.message || 'Failed to create card'
+        }
+      } as TApiResponse<any>);
+    }
+  };
+
+  /**
    * GET /api/v1/cards/:cardId/related
    * Get related cards for a given card based on Neo4j relationships
    */

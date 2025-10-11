@@ -89,6 +89,7 @@ v1Router.get('/sessions/:sessionId', authMiddleware, conversationController.getS
 
 
 // --- Card Routes (Authenticated) ---
+v1Router.post('/cards', authMiddleware, cardController.createCard);
 v1Router.get('/cards', authMiddleware, cardController.getCards);
 v1Router.get('/cards/search', authMiddleware, cardController.searchCards);
 v1Router.get('/cards/ids', authMiddleware, cardController.getAllCardIds);
@@ -132,6 +133,9 @@ v1Router.post('/cosmos/query', authMiddleware, graphController.processCosmosQuer
 
 // --- Simple Entity Lookup (Authenticated) --- V11.0: Direct entity lookup by ID
 v1Router.get('/entities/:entityId', authMiddleware, graphController.getEntityById.bind(graphController));
+
+// --- Related Entities Lookup (Authenticated) --- V11.0: Get Neo4j-linked entities
+v1Router.get('/entities/:entityId/related', authMiddleware, graphController.getRelatedEntities.bind(graphController));
 
 // --- Neo4j Query (Authenticated) --- V11.0: Direct Neo4j graph traversal
 v1Router.post('/neo4j/query', authMiddleware, graphController.executeNeo4jQuery.bind(graphController));

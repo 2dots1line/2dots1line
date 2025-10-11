@@ -385,6 +385,38 @@ export class CardService {
   }
 
   /**
+   * Create a new card entry for an entity
+   * Used when freezing a node (water) into a card (ice)
+   */
+  async createCard(data: {
+    userId: string;
+    source_entity_id: string;
+    source_entity_type: string;
+    status?: string;
+    type?: string;
+  }): Promise<{ card_id: string; success: boolean }> {
+    try {
+      const cardData = {
+        user_id: data.userId,
+        source_entity_id: data.source_entity_id,
+        source_entity_type: data.source_entity_type,
+        type: data.type || data.source_entity_type,
+        status: data.status || 'active_canvas',
+      };
+
+      const newCard = await this.cardRepository.create(cardData);
+      
+      return {
+        card_id: newCard.card_id,
+        success: true
+      };
+    } catch (error) {
+      console.error('Error creating card:', error);
+      throw new Error(`Failed to create card: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
    * Get related cards based on Neo4j relationships
    */
   async getRelatedCards(cardId: string, limit: number = 10): Promise<Card[]> {

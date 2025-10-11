@@ -8,7 +8,7 @@ import { cosmosService } from '../../../services/cosmosService';
 import CosmosInfoPanel from '../../../components/modal/CosmosInfoPanel';
 import CosmosError from '../../../components/modal/CosmosError';
 import CosmosLoading from '../../../components/modal/CosmosLoading';
-import CosmosNodeModal from '../../../components/modal/CosmosNodeModal';
+import { EntityDetailModal } from '../../../components/modal/EntityDetailModal';
 import { NodeLabelControls } from '../../../components/cosmos/NodeLabelControls';
 import { LookupControls } from '../../../components/cosmos/LookupControls';
 import { performKeyPhraseLookup, createGraphProjection, LookupConfig as EntityLookupConfig } from '../../../utils/entityLookup';
@@ -881,7 +881,7 @@ const CosmosLookupScene: React.FC = () => {
       <NodeLabelControls />
       
       <CosmosInfoPanel />
-      {selectedNode && <CosmosNodeModal node={selectedNode} onClose={() => setSelectedNode(null)} />}
+      {selectedNode && <EntityDetailModal entity={selectedNode} isOpen={!!selectedNode} onClose={() => setSelectedNode(null)} />}
       
       {/* Background Loading Overlay */}
       {isBackgroundLoading && (

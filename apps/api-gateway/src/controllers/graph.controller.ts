@@ -496,13 +496,38 @@ export class GraphController {
       return null;
     }
 
-    // All entities now use standardized field names
-    return await model.findFirst({
+    // Fetch entity data
+    const entityData = await model.findFirst({
       where: {
         entity_id: entityId,
         user_id: userId
       }
     });
+
+    if (!entityData) {
+      return null;
+    }
+
+    // Also fetch associated card data if exists (for background_image_url)
+    const cardData = await prisma.cards.findFirst({
+      where: {
+        source_entity_id: entityId,
+        user_id: userId
+      },
+      select: {
+        card_id: true,
+        background_image_url: true,
+        status: true
+      }
+    });
+
+    // Merge card data into entity data
+    return {
+      ...entityData,
+      card_id: cardData?.card_id,
+      background_image_url: cardData?.background_image_url,
+      card_status: cardData?.status
+    };
   }
 
   /**
@@ -1151,6 +1176,82 @@ export class GraphController {
           message: error instanceof Error ? error.message : 'Unknown Neo4j error occurred'
         }
       });
+    }
+  };
+
+  /**
+   * GET /api/v1/entities/:entityId/related
+   * V11.0: Get related entities via Neo4j relationships
+   */
+  public getRelatedEntities = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { entityId } = req.params;
+      const { entityType } = req.query;
+      const userId = req.user?.id;
+      
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authorization required'
+          }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      if (!entityId || !entityType) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'BAD_REQUEST',
+            message: 'Entity ID and entity type are required'
+          }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      // Query Neo4j for relationships where this entity is source or target
+      const cypher = `
+        MATCH (source {entity_id: $entityId, user_id: $userId})-[r]-(target)
+        WHERE target.user_id = $userId
+        RETURN DISTINCT
+          target.entity_id AS entity_id,
+          target.title AS title,
+          target.entity_type AS entity_type,
+          type(r) AS relationship_type
+        LIMIT 20
+      `;
+
+      const records = await this.neo4jService.executeCustomQuery(cypher, {
+        entityId,
+        userId
+      });
+
+      // Transform records to related entities array
+      const relatedEntities = records.map((record: any) => ({
+        entity_id: record.get('entity_id'),
+        title: record.get('title') || 'Untitled',
+        entity_type: record.get('entity_type'),
+        relationship_type: record.get('relationship_type')
+      }));
+
+      res.status(200).json({
+        success: true,
+        data: relatedEntities,
+        message: 'Related entities retrieved successfully'
+      } as TApiResponse<any>);
+
+    } catch (error: any) {
+      console.error(`[GraphController] Error getting related entities:`, error);
+      
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to retrieve related entities'
+        }
+      } as TApiResponse<any>);
     }
   };
 } 

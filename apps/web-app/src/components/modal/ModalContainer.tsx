@@ -13,7 +13,7 @@ import { useNotificationStore } from '../../stores/NotificationStore';
 import { PexelsSearchModal } from './PexelsSearchModal';
 import { HRTControlPanel } from '../settings/HRTControlPanel';
 
-import { EnhancedCardModal } from './EnhancedCardModal';
+import { EntityDetailModal } from './EntityDetailModal';
 import { ChatModal } from '../chat';
 import DashboardModal from './DashboardModal';
 import { ConversationHistoryModal } from './ConversationHistoryModal';
@@ -333,8 +333,8 @@ export const ModalContainer: React.FC<ModalContainerProps> = ({
       
       {/* Card Detail Modal - Can overlay on cards view */}
       {selectedCard && (
-        <EnhancedCardModal
-          card={selectedCard}
+        <EntityDetailModal
+          entity={selectedCard}
           isOpen={cardDetailModalOpen}
           onClose={handleCardModalClose}
         />

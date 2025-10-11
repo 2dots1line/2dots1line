@@ -9,7 +9,7 @@ import { cosmosService } from '../../services/cosmosService';
 import CosmosInfoPanel from '../../components/modal/CosmosInfoPanel';
 import CosmosError from '../../components/modal/CosmosError';
 import CosmosLoading from '../../components/modal/CosmosLoading';
-import CosmosNodeModal from '../../components/modal/CosmosNodeModal';
+import { EntityDetailModal } from '../../components/modal/EntityDetailModal';
 import { NodeLabelControls } from '../../components/cosmos/NodeLabelControls';
 import SeedEntitiesDisplay from '../../components/cosmos/SeedEntitiesDisplay';
 import { useEntitySelection } from '../../hooks/useEntitySelection';
@@ -362,7 +362,7 @@ const CosmosScene: React.FC = () => {
       <NodeLabelControls />
       
       <CosmosInfoPanel />
-      {selectedNode && <CosmosNodeModal node={selectedNode} onClose={() => setSelectedNode(null)} />}
+      {selectedNode && <EntityDetailModal entity={selectedNode} isOpen={!!selectedNode} onClose={() => setSelectedNode(null)} />}
       
       {/* HRT Seed Entities Display */}
       <SeedEntitiesDisplay

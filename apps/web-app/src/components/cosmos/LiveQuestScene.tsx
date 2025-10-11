@@ -5,7 +5,7 @@ import { useCosmosStore } from '../../stores/CosmosStore';
 import { useUserStore } from '../../stores/UserStore';
 import CosmosError from '../modal/CosmosError';
 import CosmosLoading from '../modal/CosmosLoading';
-import CosmosNodeModal from '../modal/CosmosNodeModal';
+import { EntityDetailModal } from '../modal/EntityDetailModal';
 import QuestInfoPanel from '../modal/QuestInfoPanel';
 import { NodeLabelControls } from './NodeLabelControls';
 import { LookupCameraController } from './LookupCameraController';
@@ -643,7 +643,7 @@ const LiveQuestScene: React.FC = () => {
       />
       
       {/* Node Modal */}
-      {selectedNode && <CosmosNodeModal node={selectedNode} onClose={() => setSelectedNode(null)} />}
+      {selectedNode && <EntityDetailModal entity={selectedNode} isOpen={!!selectedNode} onClose={() => setSelectedNode(null)} />}
     </div>
   );
 };
