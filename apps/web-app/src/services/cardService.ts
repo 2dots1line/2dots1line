@@ -34,6 +34,7 @@ export interface GetCardsRequest {
   favorited?: boolean;
   sortBy?: 'created_at' | 'title';
   sortOrder?: 'asc' | 'desc';
+  coverFirst?: boolean;
 }
 
 export interface GetCardsResponse {
@@ -144,6 +145,7 @@ class CardService {
       if (request.favorited !== undefined) params.append('favorited', request.favorited.toString());
       if (request.sortBy) params.append('sort_by', request.sortBy);
       if (request.sortOrder) params.append('sort_order', request.sortOrder);
+      if (request.coverFirst !== undefined) params.append('cover_first', request.coverFirst.toString());
 
       const headers = this.getAuthHeaders();
       console.log('cardService.getCards - Making request to:', `${API_BASE_URL}/api/v1/cards?${params}`);

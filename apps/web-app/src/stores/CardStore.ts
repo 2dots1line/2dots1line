@@ -39,7 +39,7 @@ interface CardState {
   
   // Actions
   initializeRandomLoader: () => Promise<void>;
-  initializeSortedLoader: (sortKey?: 'newest' | 'oldest' | 'title_asc' | 'title_desc') => Promise<void>;
+  initializeSortedLoader: (sortKey?: 'newest' | 'oldest' | 'title_asc' | 'title_desc', coverFirst?: boolean) => Promise<void>;
   loadMoreRandomCards: () => Promise<DisplayCard[]>;
   loadMoreSortedCards: () => Promise<DisplayCard[]>;
   setSelectedCard: (card: DisplayCard | null) => void;
@@ -130,8 +130,8 @@ export const useCardStore = create<CardState>()(
       },
 
       // Initialize sorted loader for sorted view
-      initializeSortedLoader: async (sortKey: 'newest' | 'oldest' | 'title_asc' | 'title_desc' = 'newest') => {
-        console.log('CardStore.initializeSortedLoader - Starting initialization with sort:', sortKey);
+      initializeSortedLoader: async (sortKey: 'newest' | 'oldest' | 'title_asc' | 'title_desc' = 'newest', coverFirst: boolean = false) => {
+        console.log('CardStore.initializeSortedLoader - Starting initialization with sort:', sortKey, 'coverFirst:', coverFirst);
         
         // Check if we already have cards loaded and a loader exists - if so, don't reinitialize
         const state = get();
@@ -157,7 +157,7 @@ export const useCardStore = create<CardState>()(
         
         try {
           const loader = new SortedCardLoader();
-          const initialCards = await loader.loadInitialCards(sortKey);
+          const initialCards = await loader.loadInitialCards(sortKey, coverFirst);
           
           // Check if request was cancelled
           if (abortController.signal.aborted) {

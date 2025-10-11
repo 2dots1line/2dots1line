@@ -84,10 +84,10 @@ function HomePage() {
         initializeRandomLoader();
       } else if (viewMode === 'sorted' && !sortedLoader) {
         console.log('Cards view: Initializing sorted loader for sorted view');
-        initializeSortedLoader(sortKey);
+        initializeSortedLoader(sortKey, hasCoverFirst);
       }
     }
-  }, [isAuthenticated, activeView, viewMode, sortKey, initializeRandomLoader, initializeSortedLoader]);
+  }, [isAuthenticated, activeView, viewMode, sortKey, hasCoverFirst, initializeRandomLoader, initializeSortedLoader]);
 
   // Clear cards only when switching to heavy views (cosmos) to prevent memory issues
   useEffect(() => {
@@ -424,6 +424,18 @@ function HomePage() {
     // Use a more efficient sorting approach for large datasets
     try {
       arr.sort((a, b) => {
+        // When coverFirst is enabled, prioritize cards with covers
+        if (hasCoverFirst) {
+          const aHasCover = !!(a?.background_image_url);
+          const bHasCover = !!(b?.background_image_url);
+          
+          // If one has cover and other doesn't, prioritize the one with cover
+          if (aHasCover && !bHasCover) return -1;
+          if (!aHasCover && bHasCover) return 1;
+          // If both have covers or both don't, continue to regular sorting below
+        }
+        
+        // Regular sorting by sortKey
         const aCreated = a?.created_at ? new Date(a.created_at as any).getTime() : 0;
         const bCreated = b?.created_at ? new Date(b.created_at as any).getTime() : 0;
         const aTitle = (a?.title || '').toString().toLowerCase();
@@ -446,17 +458,15 @@ function HomePage() {
     }
     
     return arr;
-  }, [cards, sortKey, activeView]); // Add activeView dependency
+  }, [cards, sortKey, activeView, hasCoverFirst]); // Add hasCoverFirst dependency
 
   const sortedCards = useMemo(() => {
     // CRITICAL: Don't process cards if we're not in cards view
     if (activeView !== 'cards') return [] as any[];
     
-    if (!hasCoverFirst) return baseSortedCards;
-    const withCover = baseSortedCards.filter((c) => !!c.background_image_url);
-    const withoutCover = baseSortedCards.filter((c) => !c.background_image_url);
-    return [...withCover, ...withoutCover];
-  }, [baseSortedCards, hasCoverFirst, activeView]);
+    // Cover sorting is now handled by the database, no client-side filtering needed
+    return baseSortedCards;
+  }, [baseSortedCards, activeView]);
 
   // NEW: Ensure no repetition in Sorted View
   const uniqueSortedCards = useMemo(() => {
@@ -622,6 +632,7 @@ function HomePage() {
                           onChange={(e) => {
                             setHasCoverFirst(e.target.checked);
                             setViewMode('sorted');
+                            clearCards(); // Clear cards to force reload with new sorting
                           }}
                         />
                         Covers first
@@ -634,6 +645,7 @@ function HomePage() {
                           onChange={(e) => {
                             setSortKey(e.target.value as any);
                             setViewMode('sorted');
+                            clearCards(); // Clear cards to force reload with new sorting
                           }}
                         >
                           <option value="newest">Newest</option>

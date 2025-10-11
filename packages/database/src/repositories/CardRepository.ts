@@ -58,6 +58,7 @@ export interface CardFilters {
   sortBy?: 'created_at' | 'updated_at' | 'importance_score' | 'growth_activity';
   sortOrder?: 'asc' | 'desc';
   searchQuery?: string; // Add search query to filters
+  coverFirst?: boolean; // Prioritize cards with covers in sorting
 }
 
 export interface CardResultWithMeta {
@@ -202,7 +203,7 @@ export class CardRepository {
         importanceScore: 0.5, // Simplified - should calculate from data
         createdAt: card.created_at,
         updatedAt: card.updated_at,
-        background_image_url: card.background_image_url || null,
+        background_image_url: card.background_image_url || '', // Transform NULL to empty string for sorting
         display_order: card.display_order,
         is_selected: card.is_selected,
         custom_title: card.custom_title,
@@ -427,17 +428,74 @@ export class CardRepository {
    * Get cards with advanced filtering and entity data loaded
    */
   async getCards(userId: string, filters: CardFilters): Promise<CardResultWithMeta> {
-    // Get cards from database
-    const cards = await this.db.prisma.cards.findMany({
-      where: {
-        user_id: userId,
-        ...(filters.cardType && { type: filters.cardType }),
-        // Note: evolutionState filtering would need proper implementation with business logic
-      },
-      take: filters.limit || 200, // Increased default limit for better UX
-      skip: filters.offset || 0,
-      orderBy: this.buildOrderBy(filters.sortBy, filters.sortOrder),
+    console.log('[CardRepository.getCards] Called with filters:', { 
+      userId, 
+      cardType: filters.cardType,
+      limit: filters.limit,
+      offset: filters.offset,
+      sortBy: filters.sortBy,
+      sortOrder: filters.sortOrder,
+      coverFirst: filters.coverFirst 
     });
+    
+    let cards: any[];
+    
+    // Use raw SQL when coverFirst is true to support NULLS LAST
+    if (filters.coverFirst) {
+      console.log('[CardRepository.getCards] Using raw SQL with NULLS LAST for cover sorting');
+      
+      const sortField = filters.sortBy || 'created_at';
+      const sortOrder = filters.sortOrder || 'desc';
+      const limit = filters.limit || 200;
+      const offset = filters.offset || 0;
+      
+      // Build WHERE clause
+      let whereClause = 'WHERE user_id = $1';
+      const params: any[] = [userId];
+      let paramIndex = 2;
+      
+      if (filters.cardType) {
+        whereClause += ` AND type = $${paramIndex}`;
+        params.push(filters.cardType);
+        paramIndex++;
+      }
+      
+      // Build ORDER BY with NULLS LAST
+      const orderByClause = `ORDER BY background_image_url ${sortOrder.toUpperCase()} NULLS LAST, ${sortField} ${sortOrder.toUpperCase()}`;
+      
+      const query = `
+        SELECT * FROM cards 
+        ${whereClause}
+        ${orderByClause}
+        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+      `;
+      
+      params.push(limit, offset);
+      
+      console.log('[CardRepository.getCards] Raw SQL query:', query);
+      console.log('[CardRepository.getCards] Parameters:', params);
+      
+      cards = await this.db.prisma.$queryRawUnsafe(query, ...params);
+    } else {
+      // Use standard Prisma query when coverFirst is false
+      cards = await this.db.prisma.cards.findMany({
+        where: {
+          user_id: userId,
+          ...(filters.cardType && { type: filters.cardType }),
+        },
+        take: filters.limit || 200,
+        skip: filters.offset || 0,
+        orderBy: this.buildOrderBy(filters.sortBy, filters.sortOrder, filters.coverFirst),
+      });
+    }
+    
+    console.log('[CardRepository.getCards] Retrieved', cards.length, 'cards from DB');
+    console.log('[CardRepository.getCards] First 3 cards background_image_url values:', 
+      cards.slice(0, 3).map((c: any) => ({ 
+        id: c.card_id.substring(0, 8), 
+        url: c.background_image_url 
+      }))
+    );
 
     const total = await this.db.prisma.cards.count({
       where: {
@@ -792,7 +850,7 @@ export class CardRepository {
         updatedAt: new Date(row.entity_updated_at),
         source_entity_id: row.source_entity_id,
         source_entity_type: row.source_entity_type,
-        background_image_url: row.background_image_url,
+        background_image_url: row.background_image_url || '', // Transform NULL to empty string for sorting
         display_order: row.display_order,
         is_selected: row.is_selected,
         custom_title: row.custom_title,
@@ -835,7 +893,7 @@ export class CardRepository {
       importanceScore: 0.5,
       createdAt: card.created_at,
       updatedAt: card.updated_at,
-      background_image_url: card.background_image_url,
+      background_image_url: card.background_image_url || '', // Transform NULL to empty string for sorting
       display_order: card.display_order,
       is_selected: card.is_selected,
       custom_title: card.custom_title,
@@ -869,7 +927,7 @@ export class CardRepository {
           importanceScore: 0.5,
           createdAt: card.created_at,
           updatedAt: card.updated_at,
-          background_image_url: card.background_image_url,
+          background_image_url: card.background_image_url || '', // Transform NULL to empty string for sorting
           display_order: card.display_order,
           is_selected: card.is_selected,
           custom_title: card.custom_title,
@@ -905,7 +963,7 @@ export class CardRepository {
           importanceScore: 0.7,
           createdAt: card.created_at,
           updatedAt: card.updated_at,
-          background_image_url: card.background_image_url,
+          background_image_url: card.background_image_url || '', // Transform NULL to empty string for sorting
           display_order: card.display_order,
           is_selected: card.is_selected,
           custom_title: card.custom_title,
@@ -917,19 +975,40 @@ export class CardRepository {
     );
   }
 
-  private buildOrderBy(sortBy?: string, sortOrder: 'asc' | 'desc' = 'desc') {
+  private buildOrderBy(sortBy?: string, sortOrder: 'asc' | 'desc' = 'desc', coverFirst?: boolean) {
+    console.log('[CardRepository.buildOrderBy] Called with:', { sortBy, sortOrder, coverFirst });
+    
+    // Base sort field
+    let baseSortField;
     switch (sortBy) {
       case 'created_at':
-        return { created_at: sortOrder };
+        baseSortField = { created_at: sortOrder };
+        break;
       case 'updated_at':
-        return { updated_at: sortOrder };
+        baseSortField = { updated_at: sortOrder };
+        break;
       case 'importance_score':
       case 'growth_activity':
         // For now, fallback to updated_at
-        return { updated_at: sortOrder };
+        baseSortField = { updated_at: sortOrder };
+        break;
       default:
-        return { created_at: sortOrder };
+        baseSortField = { created_at: sortOrder };
     }
+
+    // If coverFirst is enabled, prioritize cards with covers
+    // In Prisma, ordering by a nullable field with 'desc' puts non-null values first (covers first)
+    if (coverFirst) {
+      const orderBy = [
+        { background_image_url: 'desc' as const },
+        baseSortField
+      ];
+      console.log('[CardRepository.buildOrderBy] Returning coverFirst orderBy:', JSON.stringify(orderBy));
+      return orderBy;
+    }
+
+    console.log('[CardRepository.buildOrderBy] Returning standard orderBy:', JSON.stringify(baseSortField));
+    return baseSortField;
   }
 
   /**

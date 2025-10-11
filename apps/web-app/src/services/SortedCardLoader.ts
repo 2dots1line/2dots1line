@@ -18,6 +18,7 @@ export class SortedCardLoader {
   private currentPage = 0;
   private pageSize = 50;
   private sortKey: SortKey = 'newest';
+  private coverFirst: boolean = false;
   private isLoading = false;
   private hasMore = true;
   private totalCount = 0;
@@ -26,10 +27,11 @@ export class SortedCardLoader {
   /**
    * Load initial batch of sorted cards
    */
-  async loadInitialCards(sortKey: SortKey = 'newest'): Promise<DisplayCard[]> {
-    console.log(`[SortedCardLoader] Loading initial cards with sort: ${sortKey}`);
+  async loadInitialCards(sortKey: SortKey = 'newest', coverFirst: boolean = false): Promise<DisplayCard[]> {
+    console.log(`[SortedCardLoader] Loading initial cards with sort: ${sortKey}, coverFirst: ${coverFirst}`);
     
     this.sortKey = sortKey;
+    this.coverFirst = coverFirst;
     this.currentPage = 0;
     this.allCards = [];
     this.hasMore = true;
@@ -62,7 +64,8 @@ export class SortedCardLoader {
         limit: this.pageSize,
         offset: this.currentPage * this.pageSize,
         sortBy: this.getSortByField(),
-        sortOrder: this.getSortOrder()
+        sortOrder: this.getSortOrder(),
+        coverFirst: this.coverFirst
       }, this.currentAbortController.signal);
 
       if (response.success && response.cards) {

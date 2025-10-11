@@ -47,6 +47,7 @@ export interface GetCardsRequest {
     offset?: number;
     sortBy?: 'created_at' | 'updated_at' | 'importance_score' | 'growth_activity';
     sortOrder?: 'asc' | 'desc';
+    coverFirst?: boolean;
   };
 }
 
@@ -84,7 +85,8 @@ export class CardService {
         limit: filters.limit || 200, // Increased default limit for better UX
         offset: filters.offset || 0,
         sortBy: this.mapSortField(filters.sortBy),
-        sortOrder: filters.sortOrder || 'desc'
+        sortOrder: filters.sortOrder || 'desc',
+        coverFirst: filters.coverFirst
       };
 
       // Get base card data from repository with growth data
@@ -253,7 +255,7 @@ export class CardService {
       connections: 0, // Removed connection count calculation for performance
       insights: 0,
       tags: [],
-      background_image_url: cardData.background_image_url || null,
+      background_image_url: cardData.background_image_url || '', // Transform NULL to empty string for sorting
       source_entity_id: cardData.source_entity_id || null,
       source_entity_type: cardData.source_entity_type || null,
       display_order: cardData.display_order || null,

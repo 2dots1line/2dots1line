@@ -35,7 +35,8 @@ export class CardController {
         limit: req.query.limit ? parseInt(req.query.limit as string) : 200, // Increased default limit for better UX
         offset: req.query.offset ? parseInt(req.query.offset as string) : 0,
         sortBy: req.query.sort_by as 'created_at' | 'updated_at' | 'importance_score' | 'growth_activity' | undefined,
-        sortOrder: req.query.sort_order as 'asc' | 'desc' | undefined
+        sortOrder: req.query.sort_order as 'asc' | 'desc' | undefined,
+        coverFirst: req.query.cover_first === 'true'
       };
 
       // Call the CardService
