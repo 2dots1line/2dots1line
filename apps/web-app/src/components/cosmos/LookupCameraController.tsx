@@ -93,6 +93,19 @@ export const LookupCameraController: React.FC<LookupCameraControllerProps> = ({
   // Keyboard event handlers for WASD controls with mode management
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      // Only handle WASD/space if user is not typing in an input field
+      const activeElement = document.activeElement as HTMLElement;
+      const isTyping = activeElement && (
+        activeElement.tagName === 'INPUT' ||
+        activeElement.tagName === 'TEXTAREA' ||
+        activeElement.contentEditable === 'true' ||
+        activeElement.getAttribute('role') === 'textbox'
+      );
+      
+      if (isTyping) {
+        return; // Don't handle camera controls when typing in chat/inputs
+      }
+      
       if (['w', 'a', 's', 'd'].includes(event.key.toLowerCase())) {
         setKeys((prev) => ({ ...prev, [event.key.toLowerCase()]: true, shift: event.shiftKey }));
         // Switch to free camera mode when WASD is pressed
@@ -120,6 +133,19 @@ export const LookupCameraController: React.FC<LookupCameraControllerProps> = ({
     };
 
     const handleKeyUp = (event: KeyboardEvent) => {
+      // Only handle WASD/space if user is not typing in an input field
+      const activeElement = document.activeElement as HTMLElement;
+      const isTyping = activeElement && (
+        activeElement.tagName === 'INPUT' ||
+        activeElement.tagName === 'TEXTAREA' ||
+        activeElement.contentEditable === 'true' ||
+        activeElement.getAttribute('role') === 'textbox'
+      );
+      
+      if (isTyping) {
+        return; // Don't handle camera controls when typing in chat/inputs
+      }
+      
       if (['w', 'a', 's', 'd'].includes(event.key.toLowerCase())) {
         setKeys((prev) => {
           const newKeys = { ...prev, [event.key.toLowerCase()]: false, shift: event.shiftKey };
