@@ -323,24 +323,20 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       
       // Execute action based on type
       if (action.action === 'switch_view') {
-        // 3. Collapse to mini size (if not already mini)
-        if (size !== 'mini' && onSizeChange) {
-          console.log('🔘 ChatInterface: Collapsing to mini before view switch');
-          onSizeChange('mini');
-        }
-        
-        // 4. Store main content for display after scene loads
+        // 3. Store main content and desired chat size for display after scene loads
         sessionStorage.setItem('cosmosMainContent', JSON.stringify({
           content: confirmScenario.main_content,
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          targetChatSize: 'medium' // Target size after view switch
         }));
         
-        // 5. Small delay to let size transition animate, then switch view
+        // 4. Give user time to read transition message (1.5 seconds)
         setTimeout(() => {
+          // 5. Switch view directly (chat will transition in target view)
           const targetView = action.payload.target.toLowerCase();
           console.log('🔘 ChatInterface: Switching to view:', targetView);
           router.push(`/${targetView}`);
-        }, 300); // 300ms for smooth CSS transition
+        }, 1500); // 1.5 seconds to read transition message
         
       } else if (action.action === 'start_cosmos_quest') {
         // TODO: Implement cosmos quest trigger

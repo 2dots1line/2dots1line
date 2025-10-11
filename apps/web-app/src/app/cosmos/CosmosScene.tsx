@@ -98,7 +98,7 @@ const CosmosScene: React.FC = () => {
     
     // Wait for scene to be fully loaded before displaying main content
     if (contentData && !isLoading && graphData) {
-      const { content, timestamp } = JSON.parse(contentData);
+      const { content, timestamp, targetChatSize } = JSON.parse(contentData);
       
       console.log('🌌 CosmosScene: Scene loaded, displaying main content:', content.substring(0, 50) + '...');
       
@@ -111,8 +111,11 @@ const CosmosScene: React.FC = () => {
       };
       addMessage(mainMessage);
       
-      // Chat stays in mini mode - user can expand if they want
-      // No auto-expand to keep Cosmos view unobstructed
+      // Transition chat to target size (default to medium for engagement-aware switches)
+      const { setCosmosChatSize } = useHUDStore.getState();
+      const desiredSize = targetChatSize || 'medium';
+      console.log('🌌 CosmosScene: Transitioning chat to:', desiredSize);
+      setCosmosChatSize(desiredSize);
       
       // Clear from storage
       sessionStorage.removeItem('cosmosMainContent');
