@@ -579,7 +579,9 @@ function HomePage() {
       {/* Main Views - Layer 4 (z-30) - Mutually Exclusive */}
       {isAuthenticated && activeView === 'cards' && (
         <>
-          {isLoading ? (
+          {/* Only show loading overlay during INITIAL load (no cards yet) */}
+          {/* During pagination, keep scroll container mounted to preserve scroll position */}
+          {isLoading && cards.length === 0 ? (
             <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/20 backdrop-blur-sm">
               <div className="text-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
@@ -709,6 +711,16 @@ function HomePage() {
                         />
                       ))}
                     </div>
+                    
+                    {/* Pagination loading indicator - shows at bottom when loading more */}
+                    {isLoading && cards.length > 0 && (
+                      <div className="flex justify-center py-8">
+                        <div className="text-center">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white/50 mx-auto mb-2"></div>
+                          <div className="text-white/60 text-sm">Loading more cards...</div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
