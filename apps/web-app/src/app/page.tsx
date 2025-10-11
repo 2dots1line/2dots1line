@@ -437,41 +437,17 @@ function HomePage() {
     }
   }, [cards, isGenerating, updateCardBackground]);
 
-  // Compute sorted cards (base sort by sortKey) - NON-BLOCKING
-  // NOTE: Backend already handles cover sorting, so we only sort by sortKey here
+  // Return cards as-is from backend - NO client-side sorting
+  // Backend already handles both coverFirst and sortKey sorting correctly
+  // Client-side re-sorting causes visual "snapping" during pagination
   const baseSortedCards = useMemo(() => {
     // CRITICAL: Don't process cards if we're not in cards view
     if (activeView !== 'cards' || !cards || cards.length === 0) return [] as any[];
     
-    const arr = [...cards];
-    
-    // Sort by sortKey only (backend handles cover sorting)
-    try {
-      arr.sort((a, b) => {
-        const aCreated = a?.created_at ? new Date(a.created_at as any).getTime() : 0;
-        const bCreated = b?.created_at ? new Date(b.created_at as any).getTime() : 0;
-        const aTitle = (a?.title || '').toString().toLowerCase();
-        const bTitle = (b?.title || '').toString().toLowerCase();
-        
-        switch (sortKey) {
-          case 'oldest':
-            return aCreated - bCreated;
-          case 'title_asc':
-            return aTitle.localeCompare(bTitle);
-          case 'title_desc':
-            return bTitle.localeCompare(aTitle);
-          case 'newest':
-          default:
-            return bCreated - aCreated;
-        }
-      });
-    } catch (error) {
-      console.warn('[HomePage] Sorting failed, returning unsorted cards:', error);
-      return arr;
-    }
-    
-    return arr;
-  }, [cards, sortKey, activeView]);
+    // Return cards in the exact order received from backend
+    // This preserves pagination order and prevents snapping
+    return cards;
+  }, [cards, activeView]);
 
   // Search state for backend search
   const [searchResults, setSearchResults] = useState<any[]>([]);

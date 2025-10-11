@@ -461,7 +461,8 @@ export class CardRepository {
       }
       
       // Build ORDER BY with NULLS LAST
-      const orderByClause = `ORDER BY background_image_url ${sortOrder.toUpperCase()} NULLS LAST, ${sortField} ${sortOrder.toUpperCase()}`;
+      // Always use DESC for background_image_url to prioritize cards with covers (non-empty strings)
+      const orderByClause = `ORDER BY background_image_url DESC NULLS LAST, ${sortField} ${sortOrder.toUpperCase()}`;
       
       const query = `
         SELECT * FROM cards 
