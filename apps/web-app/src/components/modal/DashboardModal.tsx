@@ -4,6 +4,7 @@ import { GlassmorphicPanel, GlassButton, MarkdownRenderer, CardTile } from '@2do
 import { useCardStore } from '../../stores/CardStore';
 import { useHUDStore } from '../../stores/HUDStore';
 import { useEngagementStore } from '../../stores/EngagementStore';
+import { useAutoLoadCards } from '../hooks/useAutoLoadCards';
 import { 
   X, 
   TrendingUp, 
@@ -41,9 +42,12 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [dynamicDashboardData, setDynamicDashboardData] = useState<DynamicDashboardData | null>(null);
   // Use the same stores as infinite/sorted card views
-  const { cards, setSelectedCard } = useCardStore();
+  const { cards, setSelectedCard, isLoading: cardsLoading, error: cardsError } = useCardStore();
   const { setCardDetailModalOpen } = useHUDStore();
   const { trackEvent } = useEngagementStore();
+  
+  // Ensure cards are loaded when dashboard opens
+  useAutoLoadCards();
   const [dashboardConfig, setDashboardConfig] = useState<{
     dashboard_sections: Record<string, {
       title: string;
@@ -99,7 +103,7 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
     }
   }, [isOpen]);
 
-  // Cards are now loaded automatically when user is authenticated via useAutoLoadCards
+  // Cards are loaded automatically when user is authenticated via useAutoLoadCards hook above
 
   // Handle card selection - same approach as infinite/sorted card views
   const handleCardSelect = (card: any) => {
@@ -126,6 +130,28 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
     // Use the same card store as sorted view, but limit to 5 most recent
     const recentCards = cards.slice(0, 5);
     
+    // Show loading state while cards are being loaded, but only if we don't have any cards yet
+    if (cardsLoading && cards.length === 0) {
+      return (
+        <div className="text-center py-4 text-white/60">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white/60 mx-auto mb-2"></div>
+          <p className="text-sm">Loading cards...</p>
+        </div>
+      );
+    }
+    
+    // Show error state if cards failed to load
+    if (cardsError) {
+      return (
+        <div className="text-center py-4 text-red-400">
+          <div className="text-2xl mb-2">⚠️</div>
+          <p className="text-sm">Failed to load cards</p>
+          <p className="text-xs text-red-300 mt-1">{cardsError}</p>
+        </div>
+      );
+    }
+    
+    // Show empty state if no cards are available
     if (recentCards.length === 0) {
       return (
         <div className="text-center py-4 text-white/60">

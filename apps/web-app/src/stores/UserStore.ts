@@ -137,9 +137,9 @@ export const useUserStore = create<UserState>()(
             
             // Load user preferences after successful login
             try {
-              import('./BackgroundVideoStore').then(({ useBackgroundVideoStore }) => {
-                useBackgroundVideoStore.getState().loadUserPreferences();
-              });
+              const { useBackgroundVideoStore } = await import('./BackgroundVideoStore');
+              await useBackgroundVideoStore.getState().loadUserPreferences();
+              console.log('UserStore.login - User preferences loaded successfully');
             } catch (error) {
               console.warn('Failed to load user preferences after login:', error);
             }
@@ -156,14 +156,16 @@ export const useUserStore = create<UserState>()(
             
           } else {
             console.log('UserStore.login - Login failed:', response.data.error);
+            // Extract message from error object if it exists
+            const errorMessage = response.data.error?.message || response.data.error || 'Login failed';
             set({
               isLoading: false,
-              error: response.data.error || 'Login failed',
+              error: errorMessage,
             });
           }
         } catch (error: unknown) {
           const errorMessage = isAxiosError(error) 
-            ? error.response?.data?.error || 'Login failed'
+            ? (error.response?.data?.error?.message || error.response?.data?.error || 'Login failed')
             : 'Login failed';
           
           console.log('UserStore.login - Error:', errorMessage);
@@ -262,9 +264,9 @@ export const useUserStore = create<UserState>()(
             
             // Load user preferences after successful signup
             try {
-              import('./BackgroundVideoStore').then(({ useBackgroundVideoStore }) => {
-                useBackgroundVideoStore.getState().loadUserPreferences();
-              });
+              const { useBackgroundVideoStore } = await import('./BackgroundVideoStore');
+              await useBackgroundVideoStore.getState().loadUserPreferences();
+              console.log('UserStore.signup - User preferences loaded successfully');
             } catch (error) {
               console.warn('Failed to load user preferences after signup:', error);
             }
@@ -281,14 +283,16 @@ export const useUserStore = create<UserState>()(
             
           } else {
             console.log('UserStore.signup - Signup failed:', response.data.error);
+            // Extract message from error object if it exists
+            const errorMessage = response.data.error?.message || response.data.error || 'Registration failed';
             set({
               isLoading: false,
-              error: response.data.error || 'Registration failed',
+              error: errorMessage,
             });
           }
         } catch (error: unknown) {
           const errorMessage = isAxiosError(error) 
-            ? error.response?.data?.error || 'Registration failed'
+            ? (error.response?.data?.error?.message || error.response?.data?.error || 'Registration failed')
             : 'Registration failed';
           
           console.log('UserStore.signup - Error:', errorMessage);

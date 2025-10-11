@@ -50,6 +50,17 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
   const { logout } = useUserStore();
   const { trackEvent, currentView } = useEngagementStore();
 
+  // Handle logout with proper navigation
+  const handleLogout = () => {
+    logout();
+    setActiveView(null);
+    
+    // If we're on the cosmos page, navigate back to main page
+    if (pathname === '/cosmos') {
+      router.push('/');
+    }
+  };
+
   // Drag functionality removed - using minimize toggle instead
 
 
@@ -188,7 +199,7 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
           {isExpanded && (
           <div className="mt-4 pt-3 border-t border-white/20">
             <GlassButton
-              onClick={logout}
+              onClick={handleLogout}
               className="w-full justify-start text-left transition-all duration-200 text-white/80 hover:text-white hover:bg-white/20"
             >
               <LogOut 

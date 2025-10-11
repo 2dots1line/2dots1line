@@ -19,6 +19,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSwitchToSign
   const [validationErrors, setValidationErrors] = useState<{ [key: string]: string }>({});
 
   const { login, isLoading, error, clearError } = useUserStore();
+  const userStore = useUserStore.getState;
 
   // Handle form input changes
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -70,19 +71,27 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSwitchToSign
       return;
     }
 
-    try {
-      console.log('LoginModal - Attempting login with:', formData.email);
-      await login(formData.email, formData.password);
-      console.log('LoginModal - Login successful, closing modal');
-      // Close modal on successful login
-      onClose();
-      // Reset form
-      setFormData({ email: '', password: '' });
-      setValidationErrors({});
-    } catch (err) {
-      // Error is handled by the store
-      console.error('LoginModal - Login failed:', err);
-    }
+    console.log('LoginModal - Attempting login with:', formData.email);
+    await login(formData.email, formData.password);
+    
+    // Check if login was successful by checking error state
+    // We need to wait a bit for the store to update
+    setTimeout(() => {
+      const currentError = userStore().error;
+      const isAuthenticated = userStore().isAuthenticated;
+      
+      if (!currentError && isAuthenticated) {
+        console.log('LoginModal - Login successful, closing modal');
+        // Close modal on successful login
+        onClose();
+        // Reset form
+        setFormData({ email: '', password: '' });
+        setValidationErrors({});
+      } else {
+        console.log('LoginModal - Login failed, keeping modal open to show error');
+        // Don't close modal on error - let user see the error message
+      }
+    }, 100);
   };
 
   // Handle modal close
