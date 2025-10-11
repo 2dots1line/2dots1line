@@ -4,7 +4,6 @@
 import { GlassmorphicPanel, GlassButton, InfiniteCardCanvas, CardTile } from '@2dots1line/ui-components';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 
-import { useAutoLoadCards } from '../components/hooks/useAutoLoadCards';
 import { HUDContainer } from '../components/hud/HUDContainer';
 import { ConversationHistoryPanel } from '../components/hud/ConversationHistoryPanel';
 import LoginModal from '../components/modal/LoginModal';
@@ -43,8 +42,12 @@ function HomePage() {
     initializeSortedLoader,
     loadMoreRandomCards, 
     loadMoreSortedCards,
-    clearCards 
+    clearCards
   } = useCardStore();
+  
+  // Access loaders reactively with selectors
+  const sortedLoader = useCardStore(state => state.sortedLoader);
+  const randomLoader = useCardStore(state => state.randomLoader);
   const { loadUserPreferences } = useBackgroundVideoStore();
 
   // UI state for sorting and cover prioritization
@@ -71,23 +74,48 @@ function HomePage() {
     return () => window.removeEventListener('resize', updateAnchor);
   }, []);
 
-  // Automatically load cards when user is authenticated
-  const { cardsLoaded, totalCards } = useAutoLoadCards();
+  // Single source of automatic initialization - uses ref to run only once per view session
+  const hasInitializedCards = useRef(false);
 
-  // Initialize the appropriate loader when view mode changes
   useEffect(() => {
-    if (isAuthenticated && activeView === 'cards') {
-      const { randomLoader, sortedLoader } = useCardStore.getState();
-      
-      if (viewMode === 'infinite' && !randomLoader) {
-        console.log('Cards view: Initializing random loader for infinite view');
-        initializeRandomLoader();
-      } else if (viewMode === 'sorted' && !sortedLoader) {
-        console.log('Cards view: Initializing sorted loader for sorted view');
-        initializeSortedLoader(sortKey, hasCoverFirst);
-      }
+    // Only initialize when:
+    // 1. User is authenticated
+    // 2. In cards view
+    // 3. Sorted view mode
+    // 4. No loader exists yet
+    // 5. Haven't initialized this session
+    if (
+      isAuthenticated && 
+      activeView === 'cards' && 
+      viewMode === 'sorted' && 
+      !sortedLoader && 
+      !isLoading &&
+      !hasInitializedCards.current
+    ) {
+      console.log('[HomePage] Initial load - Creating loader with current UI state:', {
+        sortKey,
+        hasCoverFirst
+      });
+      hasInitializedCards.current = true;
+      initializeSortedLoader(sortKey, hasCoverFirst);
     }
-  }, [isAuthenticated, activeView, viewMode, sortKey, hasCoverFirst, initializeRandomLoader, initializeSortedLoader]);
+    
+    // Reset flag when leaving cards view
+    if (activeView !== 'cards') {
+      hasInitializedCards.current = false;
+    }
+  }, [isAuthenticated, activeView, viewMode, sortedLoader, isLoading, sortKey, hasCoverFirst, initializeSortedLoader]);
+
+  // Debug: Log when loader changes
+  useEffect(() => {
+    console.log('[HomePage] Loader state changed:', {
+      hasLoader: !!sortedLoader,
+      cards: cards.length,
+      sortKey,
+      hasCoverFirst,
+      isLoading
+    });
+  }, [sortedLoader, cards.length, sortKey, hasCoverFirst, isLoading]);
 
   // Clear cards only when switching to heavy views (cosmos) to prevent memory issues
   useEffect(() => {
@@ -106,15 +134,14 @@ function HomePage() {
     }
   }, [viewMode, loadMoreRandomCards, loadMoreSortedCards]);
 
-  // Check if there are more cards to load
+  // Check if there are more cards to load - REACTIVE to loader instances
   const hasMore = useMemo(() => {
-    const { randomLoader, sortedLoader } = useCardStore.getState();
     if (viewMode === 'infinite') {
       return randomLoader?.hasMore() || false;
     } else {
       return sortedLoader?.hasMoreCards() || false;
     }
-  }, [viewMode, cards]);
+  }, [viewMode, sortedLoader, randomLoader]);
 
   // Handle infinite scroll for sorted view
   const handleSortedScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
@@ -122,6 +149,7 @@ function HomePage() {
     const isNearBottom = scrollTop + clientHeight >= scrollHeight - 100; // 100px threshold
     
     if (isNearBottom && hasMore && !isLoading && viewMode === 'sorted') {
+      console.log('[HomePage] Near bottom - triggering load more');
       handleLoadMore();
     }
   }, [hasMore, isLoading, viewMode, handleLoadMore]);
@@ -410,36 +438,21 @@ function HomePage() {
   }, [cards, isGenerating, updateCardBackground]);
 
   // Compute sorted cards (base sort by sortKey) - NON-BLOCKING
+  // NOTE: Backend already handles cover sorting, so we only sort by sortKey here
   const baseSortedCards = useMemo(() => {
     // CRITICAL: Don't process cards if we're not in cards view
     if (activeView !== 'cards' || !cards || cards.length === 0) return [] as any[];
     
-    // For large card sets, use a more efficient approach
-    if (cards.length > 100) {
-      console.log(`[HomePage] Processing ${cards.length} cards - using efficient sorting`);
-    }
-    
     const arr = [...cards];
     
-    // Use a more efficient sorting approach for large datasets
+    // Sort by sortKey only (backend handles cover sorting)
     try {
       arr.sort((a, b) => {
-        // When coverFirst is enabled, prioritize cards with covers
-        if (hasCoverFirst) {
-          const aHasCover = !!(a?.background_image_url);
-          const bHasCover = !!(b?.background_image_url);
-          
-          // If one has cover and other doesn't, prioritize the one with cover
-          if (aHasCover && !bHasCover) return -1;
-          if (!aHasCover && bHasCover) return 1;
-          // If both have covers or both don't, continue to regular sorting below
-        }
-        
-        // Regular sorting by sortKey
         const aCreated = a?.created_at ? new Date(a.created_at as any).getTime() : 0;
         const bCreated = b?.created_at ? new Date(b.created_at as any).getTime() : 0;
         const aTitle = (a?.title || '').toString().toLowerCase();
         const bTitle = (b?.title || '').toString().toLowerCase();
+        
         switch (sortKey) {
           case 'oldest':
             return aCreated - bCreated;
@@ -454,34 +467,11 @@ function HomePage() {
       });
     } catch (error) {
       console.warn('[HomePage] Sorting failed, returning unsorted cards:', error);
-      return arr; // Return unsorted if sorting fails
+      return arr;
     }
     
     return arr;
-  }, [cards, sortKey, activeView, hasCoverFirst]); // Add hasCoverFirst dependency
-
-  const sortedCards = useMemo(() => {
-    // CRITICAL: Don't process cards if we're not in cards view
-    if (activeView !== 'cards') return [] as any[];
-    
-    // Cover sorting is now handled by the database, no client-side filtering needed
-    return baseSortedCards;
-  }, [baseSortedCards, activeView]);
-
-  // NEW: Ensure no repetition in Sorted View
-  const uniqueSortedCards = useMemo(() => {
-    // CRITICAL: Don't process cards if we're not in cards view
-    if (activeView !== 'cards') return [] as any[];
-    
-    const seen = new Set<string>();
-    return sortedCards.filter((c: any) => {
-      const raw = c?.card_id ?? c?.id ?? c?._id ?? '';
-      const id = String(raw);
-      if (!id || seen.has(id)) return false;
-      seen.add(id);
-      return true;
-    });
-  }, [sortedCards, activeView]);
+  }, [cards, sortKey, activeView]);
 
   // Search state for backend search
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -517,32 +507,36 @@ function HomePage() {
     return () => clearTimeout(timeoutId);
   }, [searchQuery]);
 
-  // NEW: Search applies to Sorted View only
-  const visibleSortedCards = useMemo(() => {
+  // Consolidated card transformations: deduplicate + search filter
+  const visibleCards = useMemo(() => {
     // CRITICAL: Don't process cards if we're not in cards view
     if (activeView !== 'cards') return [] as any[];
     
-    const q = searchQuery.trim();
-    if (!q) return uniqueSortedCards;
+    // 1. Deduplicate cards
+    const seen = new Set<string>();
+    const unique = baseSortedCards.filter((c: any) => {
+      const id = String(c?.card_id ?? '');
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+    
+    // 2. Apply search filter
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return unique;
     
     // Use backend search results if available
-    if (searchResults.length > 0) {
-      return searchResults;
-    }
+    if (searchResults.length > 0) return searchResults;
     
-    // Fallback to local search
-    return uniqueSortedCards.filter((c: any) => (c?.title || '').toLowerCase().includes(q.toLowerCase()));
-  }, [uniqueSortedCards, searchQuery, searchResults, activeView]);
+    // Fallback to local filter
+    return unique.filter((c: any) => (c?.title || '').toLowerCase().includes(q));
+  }, [baseSortedCards, activeView, searchQuery, searchResults]);
 
-  // NOTE: Infinite Canvas now uses the raw pool (no search filtering)
-  const filteredCards = useMemo(() => {
-    // CRITICAL: Don't process cards if we're not in cards view
+  // For infinite canvas view (uses raw cards)
+  const infiniteCanvasCards = useMemo(() => {
     if (activeView !== 'cards') return [] as any[];
-    
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return sortedCards;
-    return sortedCards.filter((c) => (c?.title || '').toLowerCase().includes(q));
-  }, [sortedCards, searchQuery, activeView]);
+    return cards;
+  }, [cards, activeView]);
 
   // Don't render auth-dependent UI until hydration is complete
   if (!hasHydrated) {
@@ -629,10 +623,12 @@ function HomePage() {
                         <input
                           type="checkbox"
                           checked={hasCoverFirst}
-                          onChange={(e) => {
-                            setHasCoverFirst(e.target.checked);
+                          onChange={async (e) => {
+                            const newCoverFirst = e.target.checked;
+                            setHasCoverFirst(newCoverFirst);
                             setViewMode('sorted');
-                            clearCards(); // Clear cards to force reload with new sorting
+                            // Force reinitialize with new cover setting (will clear and reload)
+                            await initializeSortedLoader(sortKey, newCoverFirst, true);
                           }}
                         />
                         Covers first
@@ -642,10 +638,12 @@ function HomePage() {
                         <select
                           className="bg-transparent border border-white/20 rounded px-2 py-1 text-sm text-onSurface"
                           value={sortKey}
-                          onChange={(e) => {
-                            setSortKey(e.target.value as any);
+                          onChange={async (e) => {
+                            const newSortKey = e.target.value as any;
+                            setSortKey(newSortKey);
                             setViewMode('sorted');
-                            clearCards(); // Clear cards to force reload with new sorting
+                            // Force reinitialize with new sort key (will clear and reload)
+                            await initializeSortedLoader(newSortKey, hasCoverFirst, true);
                           }}
                         >
                           <option value="newest">Newest</option>
@@ -703,7 +701,7 @@ function HomePage() {
 
               {viewMode === 'infinite' ? (
                 <InfiniteCardCanvas
-                  cards={cards}
+                  cards={infiniteCanvasCards}
                   onCardSelect={handleCardSelect}
                   onLoadMore={handleLoadMore}
                   hasMore={hasMore}
@@ -724,7 +722,7 @@ function HomePage() {
                                     max-[1200px]:gap_[37px]
                                     max-[768px]:gap_[32px]
                                     max-[480px]:gap_[27px]">
-                      {visibleSortedCards.map((card: any, idx: number) => (
+                      {visibleCards.map((card: any, idx: number) => (
                         <CardTile
                           key={String(card.card_id ?? card.id ?? idx)}
                           card={card}

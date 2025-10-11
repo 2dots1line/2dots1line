@@ -78,9 +78,11 @@ export const useUserStore = create<UserState>()(
               });
               
               // Clear card data
-              import('./CardStore').then(({ useCardStore }) => {
-                useCardStore.getState().clearCards();
-              });
+              // NOTE: Commented out to prevent race condition with card loading
+              // Cards will be loaded fresh for the user anyway
+              // import('./CardStore').then(({ useCardStore }) => {
+              //   useCardStore.getState().clearCards();
+              // });
               
               // Note: We don't clear background video preferences here because they should be loaded from backend
               // The localStorage will be cleared below, but preferences will be restored from user.preferences on login
@@ -205,9 +207,11 @@ export const useUserStore = create<UserState>()(
               });
               
               // Clear card data
-              import('./CardStore').then(({ useCardStore }) => {
-                useCardStore.getState().clearCards();
-              });
+              // NOTE: Commented out to prevent race condition with card loading
+              // Cards will be loaded fresh for the user anyway
+              // import('./CardStore').then(({ useCardStore }) => {
+              //   useCardStore.getState().clearCards();
+              // });
               
               // Note: We don't clear background video preferences here because they should be loaded from backend
               // The localStorage will be cleared below, but preferences will be restored from user.preferences on login

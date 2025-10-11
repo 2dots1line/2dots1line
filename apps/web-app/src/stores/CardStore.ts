@@ -39,7 +39,7 @@ interface CardState {
   
   // Actions
   initializeRandomLoader: () => Promise<void>;
-  initializeSortedLoader: (sortKey?: 'newest' | 'oldest' | 'title_asc' | 'title_desc', coverFirst?: boolean) => Promise<void>;
+  initializeSortedLoader: (sortKey?: 'newest' | 'oldest' | 'title_asc' | 'title_desc', coverFirst?: boolean, force?: boolean) => Promise<void>;
   loadMoreRandomCards: () => Promise<DisplayCard[]>;
   loadMoreSortedCards: () => Promise<DisplayCard[]>;
   setSelectedCard: (card: DisplayCard | null) => void;
@@ -47,6 +47,8 @@ interface CardState {
   clearCards: () => void;
   cancelCurrentRequest: () => void;
   refreshCards: () => Promise<void>;
+  getSortedLoader: () => SortedCardLoader | null;
+  getRandomLoader: () => RandomCardLoader | null;
 }
 
 export const useCardStore = create<CardState>()(
@@ -130,20 +132,36 @@ export const useCardStore = create<CardState>()(
       },
 
       // Initialize sorted loader for sorted view
-      initializeSortedLoader: async (sortKey: 'newest' | 'oldest' | 'title_asc' | 'title_desc' = 'newest', coverFirst: boolean = false) => {
-        console.log('CardStore.initializeSortedLoader - Starting initialization with sort:', sortKey, 'coverFirst:', coverFirst);
-        
-        // Check if we already have cards loaded and a loader exists - if so, don't reinitialize
+      initializeSortedLoader: async (sortKey: 'newest' | 'oldest' | 'title_asc' | 'title_desc' = 'newest', coverFirst: boolean = false, force: boolean = false) => {
         const state = get();
-        if (state.cards.length > 0 && state.sortedLoader) {
-          console.log('CardStore.initializeSortedLoader - Cards already loaded, skipping initialization');
-          return;
-        }
+        console.log('[CardStore] initializeSortedLoader CALLED:', {
+          sortKey,
+          coverFirst,
+          force,
+          currentCards: state.cards.length,
+          hasLoader: !!state.sortedLoader,
+          loaderPage: state.sortedLoader?.['currentPage'] || 'N/A'
+        });
         
-        // If we have no cards but a loader exists, clear it to allow reinitialization
-        if (state.cards.length === 0 && state.sortedLoader) {
-          console.log('CardStore.initializeSortedLoader - No cards but loader exists, clearing loader to allow reinitialization');
-          set({ sortedLoader: null });
+        // If force is true, clear everything and proceed
+        if (force) {
+          console.log('[CardStore] FORCE REINIT - Destroying old loader');
+          if (state.sortedLoader) {
+            state.sortedLoader.reset();
+          }
+          set({ cards: [], sortedLoader: null });
+        } else {
+          // Check if we already have cards loaded and a loader exists - if so, don't reinitialize
+          if (state.cards.length > 0 && state.sortedLoader) {
+            console.log('[CardStore] SKIP INIT - Already have cards and loader');
+            return;
+          }
+          
+          // If we have no cards but a loader exists, clear it to allow reinitialization
+          if (state.cards.length === 0 && state.sortedLoader) {
+            console.log('[CardStore] CLEAR ORPHANED LOADER - No cards but loader exists');
+            set({ sortedLoader: null });
+          }
         }
         
         // Cancel any existing request
@@ -161,7 +179,7 @@ export const useCardStore = create<CardState>()(
           
           // Check if request was cancelled
           if (abortController.signal.aborted) {
-            console.log('CardStore.initializeSortedLoader - Request cancelled');
+            console.log('[CardStore] Request cancelled during init');
             return;
           }
           
@@ -172,7 +190,11 @@ export const useCardStore = create<CardState>()(
             currentAbortController: null,
           });
           
-          console.log('CardStore.initializeSortedLoader - Initialized with', initialCards.length, 'cards');
+          console.log('[CardStore] ✅ INIT COMPLETE:', {
+            cardsLoaded: initialCards.length,
+            hasMore: loader.hasMoreCards(),
+            currentPage: loader['currentPage']
+          });
         } catch (error) {
           if (abortController.signal.aborted) {
             console.log('CardStore.initializeSortedLoader - Request was cancelled');
@@ -219,7 +241,18 @@ export const useCardStore = create<CardState>()(
       // Load more sorted cards
       loadMoreSortedCards: async () => {
         const state = get();
-        if (!state.sortedLoader || state.isLoading) return [];
+        if (!state.sortedLoader || state.isLoading) {
+          console.log('[CardStore] ⚠️ SKIP loadMore:', !state.sortedLoader ? 'NO LOADER' : 'ALREADY LOADING');
+          return [];
+        }
+        
+        const beforeCount = state.cards.length;
+        const currentPage = state.sortedLoader['currentPage'];
+        console.log(`[CardStore] 📥 LOAD MORE TRIGGERED:`, {
+          currentCards: beforeCount,
+          currentPage,
+          hasMore: state.sortedLoader.hasMoreCards()
+        });
         
         set({ isLoading: true, error: null });
         
@@ -232,7 +265,13 @@ export const useCardStore = create<CardState>()(
             isLoading: false,
           });
           
-          console.log('CardStore.loadMoreSortedCards - Loaded', newCards.length, 'more cards');
+          console.log(`[CardStore] ✅ LOAD MORE SUCCESS:`, {
+            newCards: newCards.length,
+            before: beforeCount,
+            after: updatedCards.length,
+            nextPage: state.sortedLoader['currentPage'],
+            hasMore: state.sortedLoader.hasMoreCards()
+          });
           return newCards;
         } catch (error) {
           console.error('CardStore.loadMoreSortedCards - Error:', error);
@@ -326,6 +365,12 @@ export const useCardStore = create<CardState>()(
         // Reload cards
         await get().initializeSortedLoader('newest');
       },
+
+      // Get sorted loader (for reactive access)
+      getSortedLoader: () => get().sortedLoader,
+      
+      // Get random loader (for reactive access)
+      getRandomLoader: () => get().randomLoader,
     }),
     {
       // Use a new key and persist nothing heavy to avoid quota issues

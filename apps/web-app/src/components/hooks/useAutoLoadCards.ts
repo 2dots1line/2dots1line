@@ -35,9 +35,11 @@ export const useAutoLoadCards = () => {
     lastUserId.current = user?.user_id || null;
 
     // Load cards when user is authenticated, but only if no cards are loaded and we haven't initialized yet
+    // CRITICAL: Also check if sortedLoader exists to avoid interfering with manual filter changes
     // Note: We don't wait for hasHydrated on first login since the user becomes authenticated before hydration
-    if (isAuthenticated && cards.length === 0 && !isLoading && !hasInitialized.current) {
-      console.log('useAutoLoadCards - Loading cards for authenticated user');
+    const { sortedLoader } = useCardStore.getState();
+    if (isAuthenticated && cards.length === 0 && !sortedLoader && !isLoading && !hasInitialized.current) {
+      console.log('useAutoLoadCards - Loading cards for authenticated user (no loader exists)');
       hasInitialized.current = true;
       initializeSortedLoader('newest');
     }
