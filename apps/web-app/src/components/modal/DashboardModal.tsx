@@ -3,6 +3,7 @@
 import { GlassmorphicPanel, GlassButton, MarkdownRenderer, CardTile } from '@2dots1line/ui-components';
 import { useCardStore } from '../../stores/CardStore';
 import { useHUDStore } from '../../stores/HUDStore';
+import { useEngagementStore } from '../../stores/EngagementStore';
 import { 
   X, 
   TrendingUp, 
@@ -42,6 +43,7 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
   // Use the same stores as infinite/sorted card views
   const { cards, setSelectedCard } = useCardStore();
   const { setCardDetailModalOpen } = useHUDStore();
+  const { trackEvent } = useEngagementStore();
   const [dashboardConfig, setDashboardConfig] = useState<{
     dashboard_sections: Record<string, {
       title: string;
@@ -101,6 +103,20 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
 
   // Handle card selection - same approach as infinite/sorted card views
   const handleCardSelect = (card: any) => {
+    // Track card click in dashboard
+    trackEvent({
+      type: 'click',
+      target: card.title || card.name || card.card_id || 'unknown_card',
+      targetType: 'card',
+      view: 'dashboard',
+      metadata: {
+        cardId: card.card_id || card.id,
+        cardTitle: card.title || card.name,
+        action: 'card_select',
+        source: 'dashboard_modal'
+      }
+    });
+
     setSelectedCard(card);
     setCardDetailModalOpen(true);
   };
@@ -357,7 +373,22 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                 return (
                   <GlassButton
                     key={tab.key}
-                    onClick={() => setActiveTab(tab.key as any)}
+                    onClick={() => {
+                      // Track dashboard tab click
+                      trackEvent({
+                        type: 'click',
+                        target: tab.key,
+                        targetType: 'button',
+                        view: 'dashboard',
+                        metadata: {
+                          tabLabel: tab.label,
+                          fromTab: activeTab,
+                          toTab: tab.key,
+                          action: 'tab_switch'
+                        }
+                      });
+                      setActiveTab(tab.key as any);
+                    }}
                     className={`px-4 py-2 flex items-center gap-2 transition-all duration-200 ${
                       activeTab === tab.key 
                         ? 'bg-white/20 text-white' 

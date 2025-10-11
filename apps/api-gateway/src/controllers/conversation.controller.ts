@@ -27,6 +27,30 @@ const messageSchema = z.object({
     currentView: z.enum(['chat', 'cards', 'cosmos', 'dashboard']),
     viewDescription: z.string().optional()
   }).optional(),
+  engagementContext: z.object({
+    recentEvents: z.array(z.object({
+      type: z.enum(['click', 'hover', 'focus', 'scroll', 'navigation']),
+      target: z.string(),
+      targetType: z.enum(['entity', 'card', 'button', 'modal', 'view']),
+      view: z.enum(['chat', 'cards', 'cosmos', 'dashboard']),
+      timestamp: z.string(),
+      metadata: z.record(z.any()).optional()
+    })),
+    sessionDuration: z.number().nullable().optional(),
+    currentViewDuration: z.number().nullable().optional(),
+    interactionSummary: z.object({
+      totalClicks: z.number(),
+      uniqueTargets: z.number(),
+      viewSwitches: z.number()
+    }).nullable().optional(),
+    enrichedEntities: z.array(z.object({
+      entityId: z.string(),
+      title: z.string(),
+      content: z.string(),
+      type: z.string(),
+      engagementDuration: z.number()
+    })).nullable().optional()
+  }).optional(),
   context: z.object({
     trigger_background_processing: z.boolean().optional()
   }).optional()
@@ -118,10 +142,16 @@ export class ConversationController {
         return;
       }
 
-      const { message, message_id, conversation_id, session_id, viewContext } = messageSchema.parse(req.body);
+      const { message, message_id, conversation_id, session_id, viewContext, engagementContext } = messageSchema.parse(req.body);
       
       console.log(`🌊 ConversationController.postMessageStream - Starting streaming conversation for user ${userId}`);
       console.log(`🌊 ConversationController.postMessageStream - Received message_id: ${message_id}`);
+      console.log(`🌊 ConversationController.postMessageStream - Engagement context:`, engagementContext ? {
+        recentEventsCount: engagementContext.recentEvents?.length || 0,
+        sessionDuration: engagementContext.sessionDuration,
+        hasInteractionSummary: !!engagementContext.interactionSummary,
+        hasEnrichedEntities: !!engagementContext.enrichedEntities
+      } : 'none');
 
       // Set up Server-Sent Events headers
       res.writeHead(200, {
@@ -285,6 +315,13 @@ export class ConversationController {
         viewContext: viewContext ? {
           currentView: viewContext.currentView,
           viewDescription: viewContext.viewDescription
+        } : undefined,
+        engagementContext: engagementContext ? {
+          recentEvents: engagementContext.recentEvents,
+          sessionDuration: engagementContext.sessionDuration ?? undefined,
+          currentViewDuration: engagementContext.currentViewDuration ?? undefined,
+          interactionSummary: engagementContext.interactionSummary ?? undefined,
+          enrichedEntities: engagementContext.enrichedEntities ?? undefined
         } : undefined,
         onChunk: (chunk: string) => {
           // Send each chunk to the client

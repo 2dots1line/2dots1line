@@ -6,7 +6,8 @@ import { getEntityTypeMapping, PromptCacheService } from '@2dots1line/core-utils
 type conversation_messages = any;
 import { 
   AugmentedMemoryContext,
-  ViewContext
+  ViewContext,
+  EngagementContext
 } from '@2dots1line/shared-types';
 import { Redis } from 'ioredis';
 import * as Mustache from 'mustache';
@@ -22,6 +23,7 @@ export interface PromptBuildInput {
   augmentedMemoryContext?: AugmentedMemoryContext;
   isNewConversation: boolean; // V11.0: Flag from controller instead of complex logic
   viewContext?: ViewContext; // V11.0: Current view context (chat | cards | cosmos)
+  engagementContext?: EngagementContext; // V11.0: User engagement context
 }
 
 
@@ -85,7 +87,7 @@ export class PromptBuilder {
    * READ-ONLY: No side effects, no database writes
    */
   public async buildPrompt(input: PromptBuildInput): Promise<PromptBuildOutput> {
-    const { userId, conversationId, finalInputText, augmentedMemoryContext, isNewConversation, viewContext } = input;
+    const { userId, conversationId, finalInputText, augmentedMemoryContext, isNewConversation, viewContext, engagementContext } = input;
     
     // Default to chat view if no view context is provided
     const effectiveViewContext = viewContext || { currentView: 'chat' as const };
@@ -142,7 +144,8 @@ export class PromptBuilder {
       session_context: sessionContext.length > 0 ? this.formatComponentContent('session_context', sessionContext) : null,
       current_conversation_history: this.formatComponentContent('current_conversation_history', conversationHistory),
       augmented_memory_context: this.formatComponentContent('augmented_memory_context', augmentedMemoryContext),
-      view_context: this.formatViewContext(effectiveViewContext, user.name || 'User')
+      view_context: this.formatViewContext(effectiveViewContext, user.name || 'User'),
+      engagement_context: this.formatEngagementContext(engagementContext)
     };
     const section3 = await this.getCachedDynamicContext(userId, conversationId, section3Data, dynamicContextTpl);
     
@@ -543,20 +546,20 @@ ${contextText}
   }
 
   /**
-   * NEW METHOD: Format view context component with dynamic instructions
+   * NEW METHOD: Format view context component with minimal information
    */
   private formatViewContext(viewContext: ViewContext, userName: string): string {
     const templates = this.configService.getAllTemplates();
     const template = templates.view_context_template;
     
-    // Load view-specific instructions
-    const viewInstructions = this.loadViewSpecificInstructions(viewContext.currentView);
+    // Load view-specific configuration
+    const viewConfig = this.loadViewSpecificInstructions(viewContext.currentView);
     
     if (!template) {
       // Fallback if template not found
       const fallback = `**Current View:** ${viewContext.currentView}\n**View Description:** ${viewContext.viewDescription || this.getDefaultViewDescription(viewContext.currentView)}`;
-      if (viewInstructions) {
-        return fallback + `\n\n**View-Specific Instructions:**\n${viewInstructions.specific_instructions.map((inst: string) => `- ${inst}`).join('\n')}`;
+      if (viewConfig?.available_features?.length > 0) {
+        return fallback + `\n\n**Available Features:**\n${viewConfig.available_features.map((feature: string) => `- ${feature}`).join('\n')}`;
       }
       return fallback;
     }
@@ -566,24 +569,17 @@ ${contextText}
         current_view: viewContext.currentView,
         view_description: viewContext.viewDescription || this.getDefaultViewDescription(viewContext.currentView),
         user_name: userName,
-        is_chat_view: viewContext.currentView === 'chat',
-        is_cards_view: viewContext.currentView === 'cards',
-        is_cosmos_view: viewContext.currentView === 'cosmos',
-        is_dashboard_view: viewContext.currentView === 'dashboard',
-        // Add view-specific instructions data
-        view_instructions: viewInstructions,
-        has_view_instructions: !!viewInstructions,
-        specific_instructions: viewInstructions?.specific_instructions || [],
-        suggested_actions: viewInstructions?.suggested_actions || [],
-        response_style: viewInstructions?.response_style || 'conversational'
+        // Add available features data
+        available_features: viewConfig?.available_features || [],
+        has_available_features: viewConfig?.available_features?.length > 0
       };
       
       return Mustache.render(template, viewData);
     } catch (error) {
       console.error('Error rendering view_context_template:', error);
       const fallback = `**Current View:** ${viewContext.currentView}\n**View Description:** ${viewContext.viewDescription || this.getDefaultViewDescription(viewContext.currentView)}`;
-      if (viewInstructions) {
-        return fallback + `\n\n**View-Specific Instructions:**\n${viewInstructions.specific_instructions.map((inst: string) => `- ${inst}`).join('\n')}`;
+      if (viewConfig?.available_features?.length > 0) {
+        return fallback + `\n\n**Available Features:**\n${viewConfig.available_features.map((feature: string) => `- ${feature}`).join('\n')}`;
       }
       return fallback;
     }
@@ -604,6 +600,96 @@ ${contextText}
         return 'Overview interface for high-level insights and strategic knowledge graph exploration';
       default:
         return 'Unknown interface context';
+    }
+  }
+
+  /**
+   * Format engagement context for LLM consumption
+   */
+  private formatEngagementContext(engagementContext?: EngagementContext): string | null {
+    if (!engagementContext || !engagementContext.recentEvents || engagementContext.recentEvents.length === 0) {
+      return null;
+    }
+
+    try {
+
+    const parts: string[] = [];
+    
+    // Filter events to last 30 seconds
+    const cutoffTime = new Date(Date.now() - 30000);
+    const recentEvents = engagementContext.recentEvents.filter(event => 
+      new Date(event.timestamp) >= cutoffTime
+    );
+
+    if (recentEvents.length === 0) {
+      return null;
+    }
+
+    // Group events by type and view
+    const eventsByType = recentEvents.reduce((acc, event) => {
+      if (!acc[event.type]) acc[event.type] = [];
+      acc[event.type].push(event);
+      return acc;
+    }, {} as Record<string, typeof recentEvents>);
+
+    const eventsByView = recentEvents.reduce((acc, event) => {
+      if (!acc[event.view]) acc[event.view] = [];
+      acc[event.view].push(event);
+      return acc;
+    }, {} as Record<string, typeof recentEvents>);
+
+    // Add recent interactions summary
+    parts.push('**Recent User Interactions (Last 30 seconds):**');
+    
+    // Show clicks by view
+    Object.entries(eventsByView).forEach(([view, events]) => {
+      const clicks = events.filter(e => e.type === 'click');
+      if (clicks.length > 0) {
+        const entityClicks = clicks.filter(e => e.targetType === 'entity');
+        const cardClicks = clicks.filter(e => e.targetType === 'card');
+        
+        let viewSummary = `- **${view} view**: ${clicks.length} clicks`;
+        if (entityClicks.length > 0) {
+          viewSummary += ` (${entityClicks.length} entities: ${entityClicks.map(e => e.target).join(', ')})`;
+        }
+        if (cardClicks.length > 0) {
+          viewSummary += ` (${cardClicks.length} cards: ${cardClicks.map(e => e.target).join(', ')})`;
+        }
+        parts.push(viewSummary);
+      }
+    });
+
+    // Show navigation patterns
+    const navigationEvents = eventsByType.navigation || [];
+    if (navigationEvents.length > 0) {
+      const viewSwitches = navigationEvents.map(e => `${e.metadata?.fromView || 'unknown'} → ${e.target}`).join(', ');
+      parts.push(`- **Navigation**: ${viewSwitches}`);
+    }
+
+    // Add enriched entities (entities user spent significant time with)
+    if (engagementContext.enrichedEntities && engagementContext.enrichedEntities.length > 0) {
+      parts.push('\n**Entities User Engaged With Deeply:**');
+      engagementContext.enrichedEntities.forEach(entity => {
+        parts.push(`- **${entity.title}** (${entity.type}): ${entity.content.substring(0, 100)}${entity.content.length > 100 ? '...' : ''}`);
+      });
+    }
+
+    // Add interaction summary
+    if (engagementContext.interactionSummary) {
+      const { totalClicks, uniqueTargets, viewSwitches } = engagementContext.interactionSummary;
+      parts.push(`\n**Interaction Summary**: ${totalClicks} total clicks, ${uniqueTargets} unique targets, ${viewSwitches} view switches`);
+    }
+
+    // Add session context
+    if (engagementContext.sessionDuration) {
+      const sessionMinutes = Math.round(engagementContext.sessionDuration / 60000);
+      parts.push(`**Session Duration**: ${sessionMinutes} minutes`);
+    }
+
+    return parts.join('\n');
+    } catch (error) {
+      console.error('Error formatting engagement context:', error);
+      return null;
     }
   }
 } 

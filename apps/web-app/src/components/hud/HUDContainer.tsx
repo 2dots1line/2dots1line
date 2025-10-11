@@ -15,6 +15,7 @@ import React, { useState, useEffect } from 'react';
 import { useHUDStore, ViewType } from '../../stores/HUDStore';
 import { useCardStore } from '../../stores/CardStore';
 import { useUserStore } from '../../stores/UserStore';
+import { useEngagementStore } from '../../stores/EngagementStore';
 
 interface HUDContainerProps {
   onViewSelect?: (view: ViewType) => void;
@@ -47,6 +48,7 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
   } = useHUDStore();
   
   const { logout } = useUserStore();
+  const { trackEvent, currentView } = useEngagementStore();
 
   // Drag functionality removed - using minimize toggle instead
 
@@ -57,6 +59,19 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
 
   // Handle view button click
   const handleButtonClick = (viewId: ViewType) => {
+    // Track navigation click
+    trackEvent({
+      type: 'click',
+      target: viewId,
+      targetType: 'button',
+      view: currentView,
+      metadata: {
+        fromView: currentView,
+        toView: viewId,
+        action: 'navigation'
+      }
+    });
+
     if (viewId === 'cosmos') {
       // Navigate to cosmos page
       router.push('/cosmos');

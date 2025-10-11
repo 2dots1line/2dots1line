@@ -2,77 +2,71 @@
   "chat": {
     "view_name": "Chat Interface",
     "description": "Main conversational interface for open-ended dialogue and personal growth",
-    "specific_instructions": [
-      "Focus on natural, flowing conversation that feels personal and authentic",
-      "Use memory retrieval proactively to provide deeper, more personalized responses",
-      "Encourage exploration of thoughts, feelings, and experiences through open-ended questions",
-      "Adapt your communication style to match the user's emotional tone and energy",
-      "When appropriate, suggest memory exploration or reflection on past experiences",
-      "Be conversational and warm, avoiding overly structured or formal language"
+    "available_features": [
+      "memory_exploration",
+      "conversation_analysis",
+      "cross_view_navigation"
     ],
-    "suggested_actions": [
-      "Ask follow-up questions to deepen understanding",
-      "Connect current topics to relevant past experiences",
-      "Suggest memory exploration when user seems curious about their own patterns",
-      "Offer gentle guidance for personal growth and self-reflection"
-    ],
-    "response_style": "conversational, warm, exploratory"
+    "feature_triggers": {
+      "memory_exploration": {
+        "pattern": "repeated_memory_references",
+        "threshold": 3,
+        "description": "Suggest memory exploration when user references past experiences multiple times"
+      }
+    }
   },
   "cards": {
     "view_name": "Cards Interface", 
     "description": "Knowledge graph exploration interface with card-based interactions",
-    "specific_instructions": [
-      "Focus on structured knowledge exploration and concept mapping",
-      "Reference specific entities, relationships, and connections in the knowledge graph",
-      "Suggest card-based activities like exploring related concepts or creating new connections",
-      "Use more analytical language when discussing patterns and relationships",
-      "Help users navigate their knowledge graph by suggesting relevant cards or concepts",
-      "Emphasize the interconnected nature of knowledge and memories"
+    "available_features": [
+      "card_creation",
+      "relationship_exploration",
+      "cosmos_visualization"
     ],
-    "suggested_actions": [
-      "Suggest exploring related cards or concepts",
-      "Highlight interesting connections between different knowledge areas",
-      "Recommend creating new cards for important concepts",
-      "Guide users to discover patterns in their knowledge graph"
-    ],
-    "response_style": "analytical, structured, connection-focused"
+    "feature_triggers": {
+      "cosmos_visualization": {
+        "pattern": "multiple_card_clicks",
+        "threshold": 2,
+        "description": "Suggest cosmos view when user explores multiple cards"
+      }
+    }
   },
   "cosmos": {
     "view_name": "Cosmos Interface",
     "description": "3D immersive memory visualization and exploration interface", 
-    "specific_instructions": [
-      "Use spatial and visual language to describe memory exploration",
-      "Suggest 3D navigation and immersive memory experiences",
-      "Focus on visual storytelling and spatial relationships between memories",
-      "Encourage exploration of memory landscapes and visual connections",
-      "Use metaphors related to space, navigation, and visual discovery",
-      "Help users understand their memories as a navigable 3D landscape"
+    "available_features": [
+      "guided_walkthrough",
+      "entity_clustering",
+      "relationship_exploration",
+      "memory_timeline"
     ],
-    "suggested_actions": [
-      "Suggest navigating to specific memory clusters or regions",
-      "Recommend exploring visual connections between memories",
-      "Guide users to discover spatial patterns in their memory landscape",
-      "Encourage immersive exploration of memory environments"
-    ],
-    "response_style": "spatial, visual, immersive"
+    "feature_triggers": {
+      "guided_walkthrough": {
+        "pattern": "multiple_entity_clicks",
+        "threshold": 3,
+        "description": "Offer guided walkthrough when user clicks 3+ entities"
+      },
+      "entity_clustering": {
+        "pattern": "scattered_entity_exploration",
+        "threshold": 5,
+        "description": "Suggest entity clustering when user explores many entities without clear pattern"
+      }
+    }
   },
   "dashboard": {
     "view_name": "Dashboard Interface",
     "description": "Overview interface for high-level insights and strategic knowledge graph exploration",
-    "specific_instructions": [
-      "Provide high-level insights and strategic overviews of the user's knowledge graph",
-      "Focus on patterns, trends, and connections across different life areas",
-      "Offer summaries and meta-analysis of the user's experiences and growth",
-      "Suggest exploration of different views (cards, cosmos, chat) for deeper dives",
-      "Use language that emphasizes overview, patterns, and strategic thinking",
-      "Help users understand the big picture of their personal knowledge and growth"
+    "available_features": [
+      "insight_generation",
+      "pattern_analysis",
+      "cross_view_navigation"
     ],
-    "suggested_actions": [
-      "Provide strategic insights about knowledge patterns",
-      "Suggest exploring specific areas in other views for deeper understanding",
-      "Offer high-level summaries of recent growth or changes",
-      "Guide users to discover macro-patterns in their life and knowledge"
-    ],
-    "response_style": "strategic, overview-focused, pattern-oriented"
+    "feature_triggers": {
+      "insight_generation": {
+        "pattern": "prolonged_dashboard_viewing",
+        "threshold": 30,
+        "description": "Suggest insight generation when user spends 30+ seconds on dashboard"
+      }
+    }
   }
 }

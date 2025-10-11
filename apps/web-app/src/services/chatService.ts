@@ -3,6 +3,8 @@
  * V9.7 - Updated for consolidated API Gateway endpoints
  */
 
+import { EngagementContext } from '@2dots1line/shared-types';
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
 
 export interface ChatMessage {
@@ -25,6 +27,7 @@ export interface SendMessageRequest {
     currentView: 'chat' | 'cards' | 'cosmos' | 'dashboard';
     viewDescription?: string;
   };
+  engagementContext?: EngagementContext;
   context?: {
     session_id?: string;
     trigger_background_processing?: boolean;

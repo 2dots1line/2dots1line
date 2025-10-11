@@ -1,5 +1,6 @@
 import { Shuffle } from 'lucide-react';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { useEngagementStore } from '../engagement/EngagementStore';
 
 import './InfiniteCardCanvas.css';
 
@@ -66,8 +67,40 @@ const generateCards = (count: number): Card[] => {
 };
 
 const CardDisplay: React.FC<CardDisplayProps> = ({ card, onMakeover }) => {
+  const { trackEvent } = useEngagementStore();
+
+  const handleMakeover = () => {
+    // Track card makeover click
+    trackEvent({
+      type: 'click',
+      target: card.id,
+      targetType: 'card',
+      view: 'cards',
+      metadata: {
+        cardTitle: card.title,
+        action: 'makeover'
+      }
+    });
+    
+    onMakeover(card.id);
+  };
+
+  const handleCardClick = () => {
+    // Track card click
+    trackEvent({
+      type: 'click',
+      target: card.id,
+      targetType: 'card',
+      view: 'cards',
+      metadata: {
+        cardTitle: card.title,
+        action: 'card_click'
+      }
+    });
+  };
+
   return (
-    <div className="card-item">
+    <div className="card-item" onClick={handleCardClick}>
       <div className="card-content">
         <div className="card-image-container">
           <img 
@@ -78,7 +111,10 @@ const CardDisplay: React.FC<CardDisplayProps> = ({ card, onMakeover }) => {
           />
           <button 
             className="makeover-button"
-            onClick={() => onMakeover(card.id)}
+            onClick={(e) => {
+              e.stopPropagation(); // Prevent card click
+              handleMakeover();
+            }}
             title="Give this card a makeover"
           >
             <Shuffle size={16} />
@@ -109,12 +145,35 @@ interface InfiniteCardCanvasProps {
 export const InfiniteCardCanvas: React.FC<InfiniteCardCanvasProps> = ({ onClose }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [cards, setCards] = useState<Card[]>([]);
+  const { trackEvent } = useEngagementStore();
 
   useEffect(() => {
     // Generate initial cards
     const initialCards = generateCards(50);
     setCards(initialCards);
   }, []);
+
+  // Track scroll events
+  useEffect(() => {
+    const handleScroll = () => {
+      trackEvent({
+        type: 'scroll',
+        target: 'cards_container',
+        targetType: 'modal',
+        view: 'cards',
+        metadata: {
+          scrollPosition: containerRef.current?.scrollTop || 0,
+          cardCount: cards.length
+        }
+      });
+    };
+
+    const container = containerRef.current;
+    if (container) {
+      container.addEventListener('scroll', handleScroll, { passive: true });
+      return () => container.removeEventListener('scroll', handleScroll);
+    }
+  }, [trackEvent, cards.length]);
 
   const handleMakeover = useCallback((cardId: string) => {
     const themes = Object.keys(imageCollections) as Array<keyof typeof imageCollections>;

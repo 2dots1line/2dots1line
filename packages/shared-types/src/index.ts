@@ -134,6 +134,12 @@ export type {
 } from './entities/memory.types';
 
 export type {
+  // Engagement tracking types
+  EngagementEvent,
+  EngagementContext
+} from './entities/engagement.types';
+
+export type {
   // Concept types
   TConcept
 } from './entities/concept.types';

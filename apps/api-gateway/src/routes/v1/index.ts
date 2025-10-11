@@ -106,6 +106,7 @@ v1Router.get('/users/me/profile', authMiddleware, userController.getUserProfile)
 v1Router.get('/users/me/growth-profile', authMiddleware, userController.getGrowthProfile);
 v1Router.get('/users/me/dashboard/growth-summary', authMiddleware, userController.getDashboardGrowthSummary);
 v1Router.get('/users/:userId', authMiddleware, userController.getUserData);
+v1Router.put('/users/:userId', authMiddleware, userController.updateUser);
 
 // --- Dashboard Routes (Authenticated) ---
 // Legacy dashboard routes (keeping for backward compatibility)

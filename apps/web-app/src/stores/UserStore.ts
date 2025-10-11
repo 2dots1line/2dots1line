@@ -70,14 +70,58 @@ export const useUserStore = create<UserState>()(
             // Set axios header immediately
             axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
             
-            // Clear chat data to prevent data leakage between users
+            // Clear ALL existing user data to prevent data leakage between users
             try {
-              // Dynamically import to avoid circular dependency
+              // Clear chat data
               import('./ChatStore').then(({ useChatStore }) => {
                 useChatStore.getState().clearUserData();
               });
+              
+              // Clear card data
+              import('./CardStore').then(({ useCardStore }) => {
+                useCardStore.getState().clearCards();
+              });
+              
+              // Note: We don't clear background video preferences here because they should be loaded from backend
+              // The localStorage will be cleared below, but preferences will be restored from user.preferences on login
+              
+              // Clear HRT parameters
+              import('./HRTParametersStore').then(({ useHRTParametersStore }) => {
+                useHRTParametersStore.getState().resetToDefaults();
+              });
+              
+              // Clear cosmos graph data
+              import('./CosmosStore').then(({ useCosmosStore }) => {
+                useCosmosStore.getState().setGraphData({ 
+                  version: '', 
+                  createdAt: '', 
+                  nodeCount: 0, 
+                  edgeCount: 0, 
+                  nodes: [], 
+                  edges: [], 
+                  communities: [], 
+                  metadata: { 
+                    dimension_reduction_algorithm: '', 
+                    vector_dimensionality: '', 
+                    semantic_similarity_threshold: 0, 
+                    communities: [] 
+                  } 
+                });
+                useCosmosStore.getState().setSelectedNode(null);
+              });
+              
+              // Clear notifications
+              import('./NotificationStore').then(({ useNotificationStore }) => {
+                useNotificationStore.getState().clearAllNotifications();
+              });
+              
+              // Clear HUD state
+              import('./HUDStore').then(({ useHUDStore }) => {
+                useHUDStore.getState().resetToDefaults();
+              });
+              
             } catch (error) {
-              console.warn('Failed to clear chat data on login:', error);
+              console.warn('Failed to clear existing user data on login:', error);
             }
             
             // Update state - this should trigger persist middleware
@@ -90,6 +134,15 @@ export const useUserStore = create<UserState>()(
             
             console.log('UserStore.login - Setting new state:', newState);
             set(newState);
+            
+            // Load user preferences after successful login
+            try {
+              import('./BackgroundVideoStore').then(({ useBackgroundVideoStore }) => {
+                useBackgroundVideoStore.getState().loadUserPreferences();
+              });
+            } catch (error) {
+              console.warn('Failed to load user preferences after login:', error);
+            }
             
             // Force a verification that state was set
             setTimeout(() => {
@@ -142,6 +195,60 @@ export const useUserStore = create<UserState>()(
             // Set axios header immediately
             axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
             
+            // Clear ALL existing user data to prevent data leakage between users
+            try {
+              // Clear chat data
+              import('./ChatStore').then(({ useChatStore }) => {
+                useChatStore.getState().clearUserData();
+              });
+              
+              // Clear card data
+              import('./CardStore').then(({ useCardStore }) => {
+                useCardStore.getState().clearCards();
+              });
+              
+              // Note: We don't clear background video preferences here because they should be loaded from backend
+              // The localStorage will be cleared below, but preferences will be restored from user.preferences on login
+              
+              // Clear HRT parameters
+              import('./HRTParametersStore').then(({ useHRTParametersStore }) => {
+                useHRTParametersStore.getState().resetToDefaults();
+              });
+              
+              // Clear cosmos graph data
+              import('./CosmosStore').then(({ useCosmosStore }) => {
+                useCosmosStore.getState().setGraphData({ 
+                  version: '', 
+                  createdAt: '', 
+                  nodeCount: 0, 
+                  edgeCount: 0, 
+                  nodes: [], 
+                  edges: [], 
+                  communities: [], 
+                  metadata: { 
+                    dimension_reduction_algorithm: '', 
+                    vector_dimensionality: '', 
+                    semantic_similarity_threshold: 0, 
+                    communities: [] 
+                  } 
+                });
+                useCosmosStore.getState().setSelectedNode(null);
+              });
+              
+              // Clear notifications
+              import('./NotificationStore').then(({ useNotificationStore }) => {
+                useNotificationStore.getState().clearAllNotifications();
+              });
+              
+              // Clear HUD state
+              import('./HUDStore').then(({ useHUDStore }) => {
+                useHUDStore.getState().resetToDefaults();
+              });
+              
+            } catch (error) {
+              console.warn('Failed to clear existing user data on signup:', error);
+            }
+            
             // Update state - this should trigger persist middleware
             const newState = {
               user,
@@ -152,6 +259,15 @@ export const useUserStore = create<UserState>()(
             
             console.log('UserStore.signup - Setting new state:', newState);
             set(newState);
+            
+            // Load user preferences after successful signup
+            try {
+              import('./BackgroundVideoStore').then(({ useBackgroundVideoStore }) => {
+                useBackgroundVideoStore.getState().loadUserPreferences();
+              });
+            } catch (error) {
+              console.warn('Failed to load user preferences after signup:', error);
+            }
             
             // Force a verification that state was set
             setTimeout(() => {
@@ -193,14 +309,72 @@ export const useUserStore = create<UserState>()(
         // Clear the persisted state from localStorage
         localStorage.removeItem('user-storage');
         
-        // Clear chat data to prevent data leakage between users
+        // Clear ALL user-specific data to prevent data leakage between users
         try {
-          // Dynamically import to avoid circular dependency
+          // Clear chat data
           import('./ChatStore').then(({ useChatStore }) => {
             useChatStore.getState().clearUserData();
           });
+          
+          // Clear card data
+          import('./CardStore').then(({ useCardStore }) => {
+            useCardStore.getState().clearCards();
+          });
+          
+          // Note: We don't clear background video preferences here because they should be loaded from backend
+          // The localStorage will be cleared below, but preferences will be restored from user.preferences on login
+          
+          // Clear HRT parameters
+          import('./HRTParametersStore').then(({ useHRTParametersStore }) => {
+            useHRTParametersStore.getState().resetToDefaults();
+          });
+          
+          // Clear cosmos graph data
+          import('./CosmosStore').then(({ useCosmosStore }) => {
+            useCosmosStore.getState().setGraphData({ 
+              version: '', 
+              createdAt: '', 
+              nodeCount: 0, 
+              edgeCount: 0, 
+              nodes: [], 
+              edges: [], 
+              communities: [], 
+              metadata: { 
+                dimension_reduction_algorithm: '', 
+                vector_dimensionality: '', 
+                semantic_similarity_threshold: 0, 
+                communities: [] 
+              } 
+            });
+            useCosmosStore.getState().setSelectedNode(null);
+          });
+          
+          // Clear notifications
+          import('./NotificationStore').then(({ useNotificationStore }) => {
+            useNotificationStore.getState().clearAllNotifications();
+          });
+          
+          // Clear HUD state
+          import('./HUDStore').then(({ useHUDStore }) => {
+            useHUDStore.getState().resetToDefaults();
+          });
+          
+          // Clear any other user-specific localStorage items
+          const userSpecificKeys = [
+            'card-storage-v3',
+            'background-media-storage',
+            'chat-storage',
+            'hrt-parameters-storage',
+            'notification-preferences-v1',
+            'hud-storage'
+          ];
+          
+          userSpecificKeys.forEach(key => {
+            localStorage.removeItem(key);
+          });
+          
         } catch (error) {
-          console.warn('Failed to clear chat data on logout:', error);
+          console.warn('Failed to clear user data on logout:', error);
         }
         
         set({

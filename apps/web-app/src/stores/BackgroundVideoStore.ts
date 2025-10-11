@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useUserStore } from './UserStore';
+import { userPreferencesService } from '../services/userPreferencesService';
 
 export type LocalVideoOption = 'Cloud1.mp4' | 'Cloud2.mp4' | 'Cloud3.mp4' | 'Cloud4.mp4' | 'Star1.mp4' | 'starryNight.mp4';
 export type ViewType = 'dashboard' | 'chat' | 'cards' | 'settings';
@@ -172,9 +173,19 @@ export const useBackgroundVideoStore = create<BackgroundVideoState>()(
             background_media: get().mediaPreferences,
           };
 
-          // This would typically call an API to update user preferences
-          // For now, we'll just update the local user store
-          userStore.updateUserPreferences(updatedPreferences);
+          // Save to backend via API
+          const response = await userPreferencesService.updateUserPreferences(user.user_id, {
+            preferences: updatedPreferences
+          });
+
+          if (response.success) {
+            // Update the local user store with the response from backend
+            userStore.updateUserPreferences(updatedPreferences);
+            console.log('Background video preferences saved to backend successfully');
+          } else {
+            console.error('Failed to save media preferences to backend:', response.error);
+            set({ error: 'Failed to save media preferences to backend' });
+          }
         } catch (error) {
           console.error('Failed to save media preferences:', error);
           set({ error: 'Failed to save media preferences' });

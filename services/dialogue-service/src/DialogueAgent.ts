@@ -11,7 +11,8 @@ import {
   TAgentInput,
   TAgentOutput,
   TDialogueAgentInputPayload,
-  TDialogueAgentResult
+  TDialogueAgentResult,
+  EngagementContext
 } from '@2dots1line/shared-types';
 import { 
   LLMChatTool, 
@@ -89,6 +90,7 @@ export class DialogueAgent {
       currentView: 'chat' | 'cards' | 'cosmos' | 'dashboard';
       viewDescription?: string;
     };
+    engagementContext?: EngagementContext;
     onChunk?: (chunk: string) => void;
   }): Promise<{
     response_text: string;
@@ -118,7 +120,8 @@ export class DialogueAgent {
       userId: input.userId, 
       conversationId: input.conversationId, 
       finalInputText, 
-      viewContext: input.viewContext 
+      viewContext: input.viewContext,
+      engagementContext: input.engagementContext
     }, undefined, 'first', input.onChunk);
 
     // --- PHASE III: CONDITIONAL ORCHESTRATION & FINAL RESPONSE ---
@@ -201,7 +204,8 @@ export class DialogueAgent {
         userId: input.userId, 
         conversationId: input.conversationId, 
         finalInputText, 
-        viewContext: input.viewContext 
+        viewContext: input.viewContext,
+        engagementContext: input.engagementContext
       }, augmentedContext, 'second', input.onChunk);
       
       console.log(`[${executionId}] Retrieval complete. Generating final response.`);
@@ -678,7 +682,8 @@ export class DialogueAgent {
       viewContext?: { 
         currentView: 'chat' | 'cards' | 'cosmos' | 'dashboard'; 
         viewDescription?: string 
-      } 
+      };
+      engagementContext?: EngagementContext;
     },
     augmentedMemoryContext?: AugmentedMemoryContext,
     callType: 'first' | 'second' = 'first',
@@ -709,8 +714,29 @@ export class DialogueAgent {
       finalInputText: input.finalInputText,
       augmentedMemoryContext,
       isNewConversation,
-      viewContext: (input as any).viewContext // V11.0: Pass view context to PromptBuilder
+      viewContext: (input as any).viewContext, // V11.0: Pass view context to PromptBuilder
+      engagementContext: input.engagementContext // V11.0: Pass engagement context to PromptBuilder
     };
+
+    console.log(`[DialogueAgent] V11.0 - ${callType.toUpperCase()} STREAMING LLM call - Engagement context:`, input.engagementContext ? {
+      recentEventsCount: input.engagementContext.recentEvents?.length || 0,
+      sessionDuration: input.engagementContext.sessionDuration,
+      hasInteractionSummary: !!input.engagementContext.interactionSummary,
+      hasEnrichedEntities: !!input.engagementContext.enrichedEntities
+    } : 'none');
+
+    // Validate engagement context to prevent processing errors
+    if (input.engagementContext) {
+      try {
+        if (!Array.isArray(input.engagementContext.recentEvents)) {
+          console.warn('[DialogueAgent] Invalid engagement context: recentEvents is not an array');
+          input.engagementContext = undefined;
+        }
+      } catch (error) {
+        console.warn('[DialogueAgent] Error validating engagement context:', error);
+        input.engagementContext = undefined;
+      }
+    }
 
     const promptOutput = await this.promptBuilder.buildPrompt(promptBuildInput);
 

@@ -27,6 +27,8 @@ import { userService } from '../../services/userService';
 import { useChatStore } from '../../stores/ChatStore';
 import { useUserStore } from '../../stores/UserStore';
 import { useHUDStore } from '../../stores/HUDStore';
+import { useEngagementStore } from '../../stores/EngagementStore';
+import { useEngagementContext } from '../../hooks/useEngagementContext';
 import { usePathname } from 'next/navigation';
 
 export type ChatSize = 'full' | 'medium' | 'mini';
@@ -117,6 +119,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     startNewChat
   } = useChatStore();
 
+  // Engagement tracking
+  const { getFormattedEngagementContext } = useEngagementContext();
+  const { trackEvent } = useEngagementStore();
+
   const onVoiceError = useCallback((error: string) => {
     console.error('❌ ChatInterface - Voice recording error:', error);
   }, []);
@@ -148,6 +154,27 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     // Always scroll to latest message for all sizes when messages change
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Track scroll events
+  useEffect(() => {
+    const handleScroll = () => {
+      trackEvent({
+        type: 'scroll',
+        target: 'chat_messages',
+        targetType: 'modal',
+        view: 'chat',
+        metadata: {
+          scrollPosition: messagesEndRef.current?.scrollTop || 0
+        }
+      });
+    };
+
+    const messagesContainer = messagesEndRef.current?.parentElement;
+    if (messagesContainer) {
+      messagesContainer.addEventListener('scroll', handleScroll, { passive: true });
+      return () => messagesContainer.removeEventListener('scroll', handleScroll);
+    }
+  }, [trackEvent]);
 
   // Auto-scroll when mini chat expands to show latest messages
   useEffect(() => {
@@ -233,6 +260,18 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     if ((!message.trim() && !currentAttachment) || isLoading) {
       return;
     }
+
+    // Track input focus/typing engagement
+    trackEvent({
+      type: 'focus',
+      target: 'message_input',
+      targetType: 'button',
+      view: 'chat',
+      metadata: {
+        messageLength: message.length,
+        hasAttachment: !!currentAttachment
+      }
+    });
     
     // Auto-expand mini chat when sending a message
     if (size === 'mini' && !isExpanded) {
@@ -281,6 +320,21 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         };
         addMessage(initialBotMessage);
         
+        // Track message send event
+        trackEvent({
+          type: 'click',
+          target: 'send_message',
+          targetType: 'button',
+          view: 'chat',
+          metadata: {
+            messageLength: messageContent.length,
+            hasAttachment: !!currentAttachment
+          }
+        });
+
+        const engagementContext = getFormattedEngagementContext(30000);
+        console.log('🔍 ChatInterface - Engagement context being sent:', engagementContext);
+        
         await chatService.sendMessageStreaming(
           {
             message: messageContent,
@@ -289,6 +343,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
               currentView: currentView as 'chat' | 'cards' | 'cosmos' | 'dashboard',
               viewDescription: undefined // Let the backend use default descriptions
             } : undefined,
+            engagementContext: engagementContext || undefined,
             context: {
               session_id: currentSessionId || undefined,
               trigger_background_processing: true

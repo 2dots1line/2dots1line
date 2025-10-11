@@ -203,6 +203,81 @@ export class UserController {
   };
 
   /**
+   * PUT /api/users/:userId
+   * Update user profile and preferences
+   */
+  updateUser = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.params.userId;
+      const requestingUserId = (req as any).user?.userId;
+      
+      // Validate that the user can only update their own profile
+      if (requestingUserId && requestingUserId !== userId) {
+        res.status(403).json({
+          success: false,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Cannot update another user\'s profile'
+          }
+        } as TApiResponse<any>);
+        return;
+      }
+      
+      if (!userId) {
+        res.status(400).json({ 
+          success: false, 
+          error: {
+            code: 'BAD_REQUEST',
+            message: 'User ID is required'
+          }
+        } as TApiResponse<any>);
+        return;
+      }
+      
+      const { name, profileImageUrl, preferences } = req.body;
+      
+      // Validate that at least one field is being updated
+      if (!name && !profileImageUrl && !preferences) {
+        res.status(400).json({ 
+          success: false, 
+          error: {
+            code: 'BAD_REQUEST',
+            message: 'At least one field (name, profileImageUrl, or preferences) must be provided'
+          }
+        } as TApiResponse<any>);
+        return;
+      }
+      
+      const updatedUser = await this.userService.updateUser(userId, {
+        name,
+        profileImageUrl,
+        preferences
+      });
+      
+      res.status(200).json({
+        success: true,
+        data: {
+          user_id: updatedUser.user_id,
+          email: updatedUser.email,
+          name: updatedUser.name,
+          profile_picture_url: updatedUser.profile_picture_url,
+          preferences: updatedUser.preferences,
+          created_at: updatedUser.created_at
+        }
+      } as TApiResponse<any>);
+    } catch (error) {
+      console.error('Error in user controller updateUser:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Internal Server Error'
+        }
+      } as TApiResponse<any>);
+    }
+  };
+
+  /**
    * GET /api/dashboard/insights
    * Returns recent insights for the user
    */

@@ -16,6 +16,7 @@ import { useCardStore } from '../stores/CardStore';
 import { useHUDStore } from '../stores/HUDStore';
 import { useUserStore } from '../stores/UserStore';
 import { useBackgroundVideoStore } from '../stores/BackgroundVideoStore';
+import { useEngagementStore } from '../stores/EngagementStore';
 import { cardService } from '../services/cardService';
 
 function HomePage() {
@@ -32,6 +33,7 @@ function HomePage() {
     cardsChatSize,
     setCardsChatSize
   } = useHUDStore();
+  const { trackEvent } = useEngagementStore();
   const { 
     cards, 
     isLoading, 
@@ -191,10 +193,24 @@ function HomePage() {
   // Handle card selection from InfiniteCardCanvas
   const handleCardSelect = useCallback(
     (card: any) => {
+      // Track card click in cards view
+      trackEvent({
+        type: 'click',
+        target: card.title || card.name || card.card_id || 'unknown_card',
+        targetType: 'card',
+        view: 'cards',
+        metadata: {
+          cardId: card.card_id || card.id,
+          cardTitle: card.title || card.name,
+          action: 'card_select',
+          source: 'cards_view'
+        }
+      });
+
       setSelectedCard(card);
       setCardDetailModalOpen(true); // Open card detail modal over cards view
     },
-    [setSelectedCard, setCardDetailModalOpen]
+    [setSelectedCard, setCardDetailModalOpen, trackEvent]
   );
 
   // Strictly manual cover generation states

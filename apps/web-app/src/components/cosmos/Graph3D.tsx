@@ -8,6 +8,8 @@ import { NodeMesh } from './NodeMesh';
 import { EdgeMesh, AnimatedEdgeMesh } from './EdgeMesh';
 import { EdgeLabel } from './EdgeLabel';
 import { NodeClusterContainer } from './NodeClusterContainer';
+import { useEngagementStore } from '../../stores/EngagementStore';
+import { useEngagementContext } from '../../hooks/useEngagementContext';
 import * as THREE from 'three';
 
 // TODO: Define proper types for graph data
@@ -60,6 +62,10 @@ export const Graph3D: React.FC<Graph3DProps> = ({
 }) => {
   // State for hover management
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  
+  // Engagement tracking
+  const { trackEvent } = useEngagementStore();
+  const { trackEntityEngagement, stopEntityEngagement } = useEngagementContext();
   
   // Normalize edge data - handle both 'links' and 'edges' properties
   const edges = graphData.links || graphData.edges || [];
@@ -307,10 +313,49 @@ export const Graph3D: React.FC<Graph3DProps> = ({
           <NodeMesh 
             key={node.id} 
             node={node} 
-            onClick={onNodeClick} 
+            onClick={(node) => {
+              // Track engagement with meaningful entity name
+              const entityName = node.title || node.id;
+              trackEvent({
+                type: 'click',
+                target: entityName, // Use entity name instead of ID
+                targetType: 'entity',
+                view: 'cosmos',
+                metadata: {
+                  entityId: node.id, // Keep ID in metadata for reference
+                  nodeType: node.type,
+                  nodeTitle: node.title || node.id,
+                  position: { x: node.x, y: node.y, z: node.z }
+                }
+              });
+              
+              // Track entity engagement for enrichment
+              trackEntityEngagement(node.id, node.type || 'unknown');
+              
+              // Call original handler
+              onNodeClick(node);
+            }} 
             modalOpen={modalOpen}
             onHover={(nodeId) => {
               setHoveredNodeId(nodeId);
+              
+              // Track hover engagement with meaningful entity name
+              if (nodeId) {
+                const node = graphData.nodes.find(n => n.id === nodeId);
+                const entityName = node ? (node.title || node.id) : nodeId;
+                trackEvent({
+                  type: 'hover',
+                  target: entityName, // Use entity name instead of ID
+                  targetType: 'entity',
+                  view: 'cosmos',
+                  metadata: { 
+                    entityId: nodeId, // Keep ID in metadata
+                    nodeType: node?.type || 'entity',
+                    nodeTitle: node ? (node.title || node.id) : nodeId
+                  }
+                });
+              }
+              
               // Camera positioning is handled by CameraController via camera-focus-request events
             }}
             isHighlighted={
