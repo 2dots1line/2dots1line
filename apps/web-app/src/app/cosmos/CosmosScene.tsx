@@ -10,6 +10,8 @@ import CosmosLoading from '../../components/modal/CosmosLoading';
 import CosmosNodeModal from '../../components/modal/CosmosNodeModal';
 import { NodeLabelControls } from '../../components/cosmos/NodeLabelControls';
 import SeedEntitiesDisplay from '../../components/cosmos/SeedEntitiesDisplay';
+import { useEntitySelection } from '../../hooks/useEntitySelection';
+import { LookupCameraController } from '../../components/cosmos/LookupCameraController';
 
 const CosmosScene: React.FC = () => {
   const {
@@ -36,6 +38,9 @@ const CosmosScene: React.FC = () => {
   // HRT seed entities state
   const [seedEntityIds, setSeedEntityIds] = useState<string[]>([]);
   const [seedEntities, setSeedEntities] = useState<any[]>([]);
+  
+  // Entity selection hook
+  const { selectedEntityId, selectEntity, clearSelection } = useEntitySelection();
 
   // Background loading handlers
   const handleBackgroundLoadStart = useCallback(() => {
@@ -63,6 +68,8 @@ const CosmosScene: React.FC = () => {
         // Clear previous seed entities when loading new graph data
         setSeedEntityIds([]);
         setSeedEntities([]);
+        // Clear entity selection when loading new graph data
+        clearSelection();
         
         const response = await cosmosService.getGraphProjection();
         if (response.success) {
@@ -90,6 +97,8 @@ const CosmosScene: React.FC = () => {
         // Clear previous seed entities when refreshing graph data
         setSeedEntityIds([]);
         setSeedEntities([]);
+        // Clear entity selection when refreshing graph data
+        clearSelection();
         
         const response = await cosmosService.getGraphProjection();
         if (response.success) {
@@ -308,6 +317,9 @@ const CosmosScene: React.FC = () => {
         onBackgroundLoadStart={handleBackgroundLoadStart}
         onBackgroundLoadComplete={handleBackgroundLoadComplete}
         onBackgroundLoadError={handleBackgroundLoadError}
+        selectedEntityId={selectedEntityId}
+        customCameraController={LookupCameraController}
+        customTargetDistance={80}
       />
       
       
@@ -321,8 +333,9 @@ const CosmosScene: React.FC = () => {
       <SeedEntitiesDisplay
         seedEntityIds={seedEntityIds}
         entities={seedEntities}
+        selectedEntityId={selectedEntityId}
         onEntityClick={(entityId) => {
-          // TODO: Focus camera on entity or show entity details
+          selectEntity(entityId, graphData, POSITION_SCALE);
         }}
       />
       

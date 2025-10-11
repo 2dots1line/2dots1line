@@ -65,26 +65,39 @@ export const CameraController: React.FC<CameraControllerProps> = ({
     };
 
     const handleCameraFocus = (event: CustomEvent) => {
-      const { position, entity } = event.detail;
-      console.log('🎥 CameraController: Focusing camera on entity:', entity.title, 'at position:', position);
+      console.log('🎥 CameraController: Received camera-focus-request event:', event.detail);
       
-      // Position camera near the entity
-      camera.position.set(
-        position.x + 20, // Offset to view the entity
-        position.y + 20,
-        position.z + 20
-      );
-      
-      // Look at the entity
-      camera.lookAt(position.x, position.y, position.z);
-      
-      // Update camera controls if they exist
-      if (controlsRef.current) {
-        controlsRef.current.target.set(position.x, position.y, position.z);
-        controlsRef.current.update();
+      const { position, entity, entity_id } = (event.detail || {}) as {
+        position?: { x: number; y: number; z: number };
+        entity?: { id?: string; title?: string };
+        entity_id?: string;
+      };
+
+      // Guard against malformed events (same validation as LookupCameraController)
+      if (!position || typeof position.x !== 'number' || typeof position.y !== 'number' || typeof position.z !== 'number') {
+        console.warn('🎥 CameraController: Ignoring camera-focus-request without concrete position', { position, entity_id, entity });
+        return;
       }
+
+      console.log('🎥 CameraController: Focusing on entity:', entity?.title || entity?.id || entity_id, 'at:', position);
+      console.log('🎥 CameraController: Controls available:', !!controlsRef.current);
       
-      console.log('🎥 Camera focused on entity at:', position);
+      if (controlsRef.current) {
+        // Smoothly animate to the new target (same logic as LookupCameraController)
+        const target = new THREE.Vector3(position.x, position.y, position.z);
+        controlsRef.current.target.copy(target);
+        
+        // Position camera at a good viewing angle (same offset as LookupCameraController)
+        const offset = new THREE.Vector3(30, 20, 30);
+        const newPosition = target.clone().add(offset);
+        camera.position.copy(newPosition);
+        
+        controlsRef.current.update();
+        
+        console.log('🎥 CameraController: Camera focused on entity at:', position);
+      } else {
+        console.warn('🎥 CameraController: Controls not available for camera focus');
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);

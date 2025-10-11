@@ -35,6 +35,7 @@ interface Graph3DProps {
   rotationSpeed?: number; // Custom rotation speed for the node cluster
   enableNodeRotation?: boolean; // Enable/disable node cluster rotation
   customCameraController?: React.ComponentType<any>; // Custom camera controller component
+  selectedEntityId?: string | null; // External entity selection for edge highlighting
 }
 
 export const Graph3D: React.FC<Graph3DProps> = ({ 
@@ -54,7 +55,8 @@ export const Graph3D: React.FC<Graph3DProps> = ({
   customTargetDistance,
   rotationSpeed,
   enableNodeRotation = true,
-  customCameraController
+  customCameraController,
+  selectedEntityId
 }) => {
   // State for hover management
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
@@ -62,38 +64,9 @@ export const Graph3D: React.FC<Graph3DProps> = ({
   // Normalize edge data - handle both 'links' and 'edges' properties
   const edges = graphData.links || graphData.edges || [];
   
-  console.log('🔍 Graph3D: Received graph data:', {
-    nodeCount: graphData.nodes.length,
-    firstNode: graphData.nodes[0],
-    edgeCount: edges.length,
-    firstEdge: edges[0],
-    showEdges,
-    edgeOpacity,
-    edgeWidth
-  });
+  // Debug logging removed for cleaner console
 
-  // Debug: Log all unique edge types
-  const edgeTypes = [...new Set(edges.map(edge => edge.type))];
-  console.log('🔍 Graph3D: Edge types found:', edgeTypes);
-
-  // Debug: Log all unique entity types
-  const entityTypes = [...new Set(graphData.nodes.map(node => 
-    node.type || node.entityType || node.category || 'unknown'
-  ))];
-  console.log('🔍 Graph3D: Entity types found:', entityTypes);
-
-  // Debug: Check if nodes have valid positions
-  if (graphData.nodes.length > 0) {
-    const firstNode = graphData.nodes[0];
-    console.log('🔍 First node position:', {
-      x: firstNode.x,
-      y: firstNode.y,
-      z: firstNode.z,
-      scaledX: firstNode.x * 0.3,
-      scaledY: firstNode.y * 0.3,
-      scaledZ: firstNode.z * 0.3
-    });
-  }
+  // Debug logging removed for cleaner console
 
   // Helper function to get edge color based on type
   const getEdgeColor = (edge: any): string => {
@@ -215,13 +188,22 @@ export const Graph3D: React.FC<Graph3DProps> = ({
 
   // Helper function to check if an edge should be visible
   const shouldShowEdge = (edge: any): boolean => {
-    // If edges are globally disabled, only show edges connected to hovered node
-    if (!showEdges) {
-      return !!hoveredNodeId && (edge.source === hoveredNodeId || edge.target === hoveredNodeId);
+    // Show edges connected to selected entity
+    if (selectedEntityId && (edge.source === selectedEntityId || edge.target === selectedEntityId)) {
+      return true;
+    }
+    
+    // Show edges connected to hovered node
+    if (hoveredNodeId && (edge.source === hoveredNodeId || edge.target === hoveredNodeId)) {
+      return true;
     }
     
     // If edges are globally enabled, show all edges
-    return true;
+    if (showEdges) {
+      return true;
+    }
+    
+    return false;
   };
 
   // Calculate node cluster center for camera positioning
@@ -331,8 +313,12 @@ export const Graph3D: React.FC<Graph3DProps> = ({
               setHoveredNodeId(nodeId);
               // Camera positioning is handled by CameraController via camera-focus-request events
             }}
-            isHighlighted={hoveredNodeId === node.id || 
-              (!!hoveredNodeId && getConnectedNodes(hoveredNodeId).includes(node.id))}
+            isHighlighted={
+              hoveredNodeId === node.id || 
+              selectedEntityId === node.id ||
+              (!!hoveredNodeId && getConnectedNodes(hoveredNodeId).includes(node.id)) ||
+              (!!selectedEntityId && getConnectedNodes(selectedEntityId).includes(node.id))
+            }
             isSearchResult={isSearchResult} // Use prop to determine if nodes are search results
           />
         ))}
@@ -385,15 +371,15 @@ export const Graph3D: React.FC<Graph3DProps> = ({
                 />
               )}
               
-              {/* Edge label - only show when edges are in hover mode */}
-              {!showEdges && (
+              {/* Edge label - hidden to reduce visual clutter */}
+              {/* {!showEdges && (
                 <EdgeLabel 
                   points={points}
                   label={edgeLabel}
                   color={edgeColor}
                   edgeId={`${edge.source}-${edge.target}`}
                 />
-              )}
+              )} */}
             </group>
           );
         })}

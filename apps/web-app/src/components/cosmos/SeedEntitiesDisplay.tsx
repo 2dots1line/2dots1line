@@ -12,12 +12,14 @@ interface SeedEntity {
 interface SeedEntitiesDisplayProps {
   seedEntityIds: string[];
   entities: SeedEntity[];
+  selectedEntityId?: string | null;
   onEntityClick?: (entityId: string) => void;
 }
 
 const SeedEntitiesDisplay: React.FC<SeedEntitiesDisplayProps> = ({
   seedEntityIds,
   entities,
+  selectedEntityId,
   onEntityClick
 }) => {
   if (seedEntityIds.length === 0) {
@@ -43,7 +45,11 @@ const SeedEntitiesDisplay: React.FC<SeedEntitiesDisplayProps> = ({
                 onClick={() => onEntityClick?.(entityId)}
                 variant="default"
                 size="sm"
-                className="group relative"
+                className={`group relative ${
+                  selectedEntityId === entityId 
+                    ? 'ring-2 ring-green-400 ring-opacity-50 bg-green-500/20' 
+                    : ''
+                }`}
               >
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>

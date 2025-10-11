@@ -291,6 +291,8 @@ export class PromptBuilder {
       return this.formatSessionContext(content as conversation_messages[]);
     } else if (tagName === 'conversation_summaries' && Array.isArray(content)) {
       return this.formatConversationSummaries(content);
+    } else if (tagName === 'augmented_memory_context' && typeof content === 'object' && content !== null) {
+      return this.formatAugmentedMemoryContext(content as any);
     } else if (typeof content === 'string') {
       return this.decodeHtmlEntities(content);
     } else {
@@ -298,6 +300,59 @@ export class PromptBuilder {
       const jsonString = JSON.stringify(content, null, 2);
       return this.decodeHtmlEntities(jsonString);
     }
+  }
+
+  /**
+   * Formats augmented memory context for LLM consumption.
+   * Ensures the LLM recognizes that memory context has been provided, even if only concepts are available.
+   */
+  private formatAugmentedMemoryContext(context: any): string | null {
+    if (!context) return null;
+    
+    const parts: string[] = [];
+    
+    // Add relevant memories if available
+    if (context.relevant_memories && Array.isArray(context.relevant_memories) && context.relevant_memories.length > 0) {
+      parts.push('**Relevant Memories:**');
+      context.relevant_memories.forEach((memory: string, index: number) => {
+        parts.push(`${index + 1}. ${this.decodeHtmlEntities(memory)}`);
+      });
+    }
+    
+    // Add retrieved concepts if available (even if no memories)
+    if (context.retrievedConcepts && Array.isArray(context.retrievedConcepts) && context.retrievedConcepts.length > 0) {
+      parts.push('**Related Concepts:**');
+      context.retrievedConcepts.forEach((concept: any, index: number) => {
+        const title = concept.title || concept.entity_id || `Concept ${index + 1}`;
+        const content = concept.content ? ` - ${this.decodeHtmlEntities(concept.content)}` : '';
+        parts.push(`${index + 1}. ${this.decodeHtmlEntities(title)}${content}`);
+      });
+    }
+    
+    // Add contextual insights if available
+    if (context.contextual_insights && Array.isArray(context.contextual_insights) && context.contextual_insights.length > 0) {
+      parts.push('**Contextual Insights:**');
+      context.contextual_insights.forEach((insight: string, index: number) => {
+        parts.push(`${index + 1}. ${this.decodeHtmlEntities(insight)}`);
+      });
+    }
+    
+    // Add emotional context if available
+    if (context.emotional_context) {
+      parts.push(`**Emotional Context:** ${this.decodeHtmlEntities(context.emotional_context)}`);
+    }
+    
+    // Add retrieval summary if available
+    if (context.retrievalSummary) {
+      parts.push(`**Retrieval Summary:** ${this.decodeHtmlEntities(context.retrievalSummary)}`);
+    }
+    
+    // If no content is available, return null (this should not happen if HRT found anything)
+    if (parts.length === 0) {
+      return null;
+    }
+    
+    return parts.join('\n\n');
   }
 
   /**
