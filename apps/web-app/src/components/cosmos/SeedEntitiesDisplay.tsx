@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { GlassmorphicPanel, GlassButton } from '@2dots1line/ui-components';
+import { useEngagementStore } from '../../stores/EngagementStore';
 
 interface SeedEntity {
   id: string;
@@ -22,9 +23,34 @@ const SeedEntitiesDisplay: React.FC<SeedEntitiesDisplayProps> = ({
   selectedEntityId,
   onEntityClick
 }) => {
+  const { trackEvent } = useEngagementStore();
+
   if (seedEntityIds.length === 0) {
     return null;
   }
+
+  const handleEntityClick = (entityId: string) => {
+    const entity = entities.find(e => e.id === entityId);
+    const entityName = entity?.title || entity?.type || `Entity ${entityId.slice(-6)}`;
+    
+    // Track entity capsule button click
+    trackEvent({
+      type: 'click',
+      target: entityName,
+      targetType: 'entity',
+      view: 'cosmos',
+      metadata: {
+        entityId: entityId,
+        entityTitle: entity?.title,
+        entityType: entity?.type,
+        action: 'capsule_button_click',
+        source: 'seed_entities_display'
+      }
+    });
+
+    // Call original handler
+    onEntityClick?.(entityId);
+  };
 
   return (
     <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-20 w-3/5 max-w-4xl">
@@ -42,7 +68,7 @@ const SeedEntitiesDisplay: React.FC<SeedEntitiesDisplayProps> = ({
             return (
               <GlassButton
                 key={entityId}
-                onClick={() => onEntityClick?.(entityId)}
+                onClick={() => handleEntityClick(entityId)}
                 variant="default"
                 size="sm"
                 className={`group relative ${
