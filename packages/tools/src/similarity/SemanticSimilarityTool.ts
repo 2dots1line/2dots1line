@@ -62,6 +62,29 @@ export class SemanticSimilarityTool {
     try {
       console.log(`[SemanticSimilarityTool] Searching for MOST SIMILAR entity to "${candidateName}" (target types: [${entityTypes.join(', ')}])`);
       
+      // NEW: Check for exact title match first (faster and more accurate than vector search)
+      // This prevents duplicates when embeddings differ (e.g., short name vs long description)
+      if (entityTypes.includes('concept')) {
+        const exactMatch = await this.dbService.prisma.concepts.findFirst({
+          where: {
+            user_id: userId,
+            title: candidateName,
+            status: 'active'
+          },
+          select: { entity_id: true, title: true, content: true }
+        });
+
+        if (exactMatch) {
+          console.log(`[SemanticSimilarityTool] ✅ EXACT title match found: "${candidateName}" → ${exactMatch.entity_id}`);
+          return {
+            entityId: exactMatch.entity_id,
+            entityName: exactMatch.title,
+            entityType: 'concept',
+            similarityScore: 1.0  // Perfect match
+          };
+        }
+      }
+      
       // Generate embedding for the candidate name (same as HRT approach)
       const embeddingResult = await this.embeddingTool.execute({
         payload: {

@@ -167,14 +167,16 @@ export class UserService {
     try {
       console.log(`[UserService] 🚀 Publishing user concept ${conceptId} to downstream workers`);
 
-      const textContent = `The user (${userName}) in this knowledge graph - the central person whose experiences, interests, and growth are being tracked.`;
+      // FIX: Use title only for consistency with IngestionAnalyst.extractTextContent()
+      // Concepts are embedded with title only (see IngestionAnalyst.ts line 637)
+      const textContent = userName;  // Just the name, like all other concepts
       const newEntities = [{ id: conceptId, type: 'Concept' }];
 
       // Step 1: Publish embedding job (same as IngestionAnalyst)
       await this.embeddingQueue.add('create_embedding', {
         entityId: conceptId,
         entityType: 'Concept',
-        textContent,
+        textContent,  // Now consistent: title only
         userId
       });
       console.log(`[UserService] ✅ Queued embedding job for user concept ${conceptId}`);

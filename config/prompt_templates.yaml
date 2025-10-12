@@ -590,7 +590,7 @@ ingestion_analyst_instructions: |
   - extracted_memory_units: Array of discrete memories/experiences mentioned (focus on emotionally significant or transformative moments). ALWAYS extract at least 1-2 memory units from any conversation with personal content. For each memory unit, you MUST provide:
     * importance_score (1-10): Rate how significant this memory is to {{user_name}}'s life/journey
     * sentiment_score (-1.0 to 1.0): Rate the emotional tone from negative to positive
-  - extracted_concepts: Array of topics, themes, interests, or entities discussed. ALWAYS extract at least 2-3 concepts from any conversation with meaningful content.
+  - extracted_concepts: Array of topics, themes, interests, or entities discussed. **CRITICAL EXCLUSION**: Do NOT extract {{user_name}} (the user themselves) as a concept - they already exist as the central person in their knowledge graph. Extract OTHER people, topics, themes, and entities that are NOT the user themselves. ALWAYS extract at least 2-3 concepts from any conversation with meaningful content.
   - detected_growth_events: Array of personal development moments with quantified impact. For each growth event, you MUST provide:
     * title: Short, descriptive title (3-7 words, max 100 chars) - e.g., "Career Transition Breakthrough", "Self-Awareness Insight"
     * type: One of the 6D growth dimensions (know_self, know_world, act_self, act_world, show_self, show_world)

@@ -180,3 +180,4 @@ The `setInterval` keep-alive is already implemented (lines 179-196 in conversati
 
 This fix eliminates the O(n²) bottleneck that was causing streaming to become unusable for long responses. Combined with the previous timeout configuration fixes, streaming should now work reliably for responses of any length.
 
+
