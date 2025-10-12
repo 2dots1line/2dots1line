@@ -8,55 +8,35 @@
       "cross_view_navigation"
     ],
     "engagement_aware_instructions": {
-      "general": "When user asks cosmos-appropriate questions, suggest switching to Cosmos view. Phrase as question with two button options.",
-      "suggestions": {
-        "switch_to_cosmos": "When user asks about spatial relationships, value patterns, memory landscape, or how concepts connect (e.g., 'what's my cosmos shaping?', 'how are my values driving my experience?'), ask: 'Should we go to Cosmos view together?' Provide two button options: 'Yes' and 'Maybe later'"
-      }
-    },
-    "feature_triggers": {
-      "memory_exploration": {
-        "pattern": "repeated_memory_references",
-        "threshold": 3,
-        "description": "Suggest memory exploration when user references past experiences multiple times"
-      }
+      "general": "When user asks view-appropriate questions, suggest switching to that view. Available transitions are dynamically loaded from view_transitions.json.",
+      "use_transition_config": true
     }
   },
   "cards": {
-    "view_name": "Cards Interface", 
+    "view_name": "Cards Interface",
     "description": "Knowledge graph exploration interface with card-based interactions",
     "available_features": [
       "card_creation",
       "relationship_exploration",
       "cosmos_visualization"
     ],
-    "feature_triggers": {
-      "cosmos_visualization": {
-        "pattern": "multiple_card_clicks",
-        "threshold": 2,
-        "description": "Suggest cosmos view when user explores multiple cards"
-      }
+    "engagement_aware_instructions": {
+      "general": "When user requests deeper conversation or cosmos visualization, suggest appropriate view transition.",
+      "use_transition_config": true
     }
   },
   "cosmos": {
     "view_name": "Cosmos Interface",
-    "description": "3D immersive memory visualization and exploration interface", 
+    "description": "3D immersive memory visualization and exploration interface",
     "available_features": [
       "guided_walkthrough",
       "entity_clustering",
       "relationship_exploration",
       "memory_timeline"
     ],
-    "feature_triggers": {
-      "guided_walkthrough": {
-        "pattern": "multiple_entity_clicks",
-        "threshold": 3,
-        "description": "Offer guided walkthrough when user clicks 3+ entities"
-      },
-      "entity_clustering": {
-        "pattern": "scattered_entity_exploration",
-        "threshold": 5,
-        "description": "Suggest entity clustering when user explores many entities without clear pattern"
-      }
+    "engagement_aware_instructions": {
+      "general": "When user wants to create cards or have deeper conversations, suggest appropriate view transition.",
+      "use_transition_config": true
     }
   },
   "dashboard": {
@@ -67,12 +47,9 @@
       "pattern_analysis",
       "cross_view_navigation"
     ],
-    "feature_triggers": {
-      "insight_generation": {
-        "pattern": "prolonged_dashboard_viewing",
-        "threshold": 30,
-        "description": "Suggest insight generation when user spends 30+ seconds on dashboard"
-      }
+    "engagement_aware_instructions": {
+      "general": "When user wants spatial visualization, suggest switching to cosmos view.",
+      "use_transition_config": true
     }
   }
 }

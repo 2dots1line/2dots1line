@@ -824,7 +824,7 @@ function HomePage() {
 
 ### Modified Files (7)
 
-4. `apps/web-app/src/stores/HUDStore.ts` - Add `setChatSizeForView`
+4. `apps/web-app/src/stores/ChatStore.ts` - Add generic chat size management
 5. `apps/web-app/src/components/chat/ChatInterface.tsx` - Use ViewTransitionService
 6. `apps/web-app/src/app/cosmos/CosmosScene.tsx` - Use generic hook
 7. `apps/web-app/src/app/page.tsx` - Add hook calls for chat/cards/dashboard
@@ -839,10 +839,472 @@ function HomePage() {
 - All 6 transitions work bidirectionally (12 total routes)
 - Single global storage key (`viewTransitionContent`)
 - No view-specific logic in implementation
-- Chat size management is generic and extensible
+- Chat size management is generic and extensible (in ChatStore, not HUDStore)
 - LLM receives dynamic transition config in prompt
 - No backward compatibility code
 - All tests pass
+
+---
+
+# Phase 2: Agent Capability System Extension
+
+## Overview
+
+The View Transition System (Steps 1-10) is Phase 1. The Agent Capability System extends this foundation to support all agent actions, not just view transitions. This creates a unified, configuration-driven architecture for agent improvisation and extensibility.
+
+## Architecture Extension
+
+### Step 11: Create Agent Capability Registry
+
+**File**: `config/agent_capabilities.json` (NEW)
+
+Comprehensive registry defining all agent actions:
+
+```json
+{
+  "version": "2.0",
+  "description": "Comprehensive agent capability registry - defines all actions agent can take",
+  
+  "capability_categories": {
+    "view_transitions": {
+      "description": "Navigate user between different UI views",
+      "config_source": "view_transitions.json",
+      "capabilities": [
+        {
+          "id": "switch_view",
+          "name": "Switch to different view",
+          "execution_type": "frontend_navigation",
+          "requires_consent": true,
+          "uses_config": "view_transitions.json"
+        }
+      ]
+    },
+    
+    "live_experiences": {
+      "description": "Trigger immersive, interactive experiences",
+      "capabilities": [
+        {
+          "id": "start_cosmos_quest",
+          "name": "Start guided Cosmos journey",
+          "trigger_patterns": ["take me on a journey", "explore my memories", "give me a tour", "show me patterns", "walk me through"],
+          "question_template": "Would you like me to guide you through an immersive journey in your Cosmos?",
+          "available_from": ["chat", "cosmos"],
+          "requires_consent": true,
+          "execution_type": "frontend_component",
+          "target_component": "CosmosQuestLive",
+          "parameters": {
+            "quest_type": "string",
+            "focus_entities": "array<string>",
+            "narrative_style": "string"
+          }
+        },
+        {
+          "id": "focus_entity",
+          "name": "Focus on specific entity",
+          "trigger_patterns": ["show me", "focus on", "zoom into", "look at"],
+          "available_from": ["cosmos"],
+          "requires_consent": false,
+          "execution_type": "frontend_action",
+          "target_action": "camera_focus",
+          "parameters": {
+            "entity_id": "string"
+          }
+        }
+      ]
+    },
+    
+    "worker_triggers": {
+      "description": "Trigger background workers for async processing",
+      "capabilities": [
+        {
+          "id": "trigger_insight_generation",
+          "name": "Generate insights from current context",
+          "trigger_patterns": ["analyze this", "what insights do you see", "what patterns emerge", "help me understand the bigger picture"],
+          "question_template": "Would you like me to analyze your recent memories and generate insights?",
+          "available_from": ["chat", "dashboard"],
+          "requires_consent": true,
+          "execution_type": "backend_worker",
+          "target_worker": "InsightWorker",
+          "parameters": {
+            "context_window": "number",
+            "focus_areas": "array<string>"
+          },
+          "async_notification": true,
+          "estimated_duration_ms": 5000
+        },
+        {
+          "id": "trigger_ingestion",
+          "name": "Ingest and process new information",
+          "trigger_patterns": ["remember this", "save this for later", "ingest this", "process this information"],
+          "available_from": ["chat"],
+          "requires_consent": false,
+          "execution_type": "backend_worker",
+          "target_worker": "IngestionWorker",
+          "parameters": {
+            "content": "string",
+            "content_type": "string",
+            "priority": "string"
+          },
+          "async_notification": true
+        }
+      ]
+    },
+    
+    "data_operations": {
+      "description": "Create, update, or manipulate user data",
+      "capabilities": [
+        {
+          "id": "create_card",
+          "name": "Create new card",
+          "trigger_patterns": ["create a card", "save this as a card", "make a card for", "organize this"],
+          "question_template": "Should I create a card to save this?",
+          "available_from": ["chat", "cosmos"],
+          "requires_consent": true,
+          "execution_type": "backend_api",
+          "target_endpoint": "/api/v1/cards",
+          "method": "POST",
+          "parameters": {
+            "title": "string",
+            "content": "string",
+            "source_entity_id": "string?",
+            "tags": "array<string>"
+          },
+          "success_action": {
+            "type": "switch_view",
+            "target": "cards",
+            "message": "Card created! Let's see it in your collection."
+          }
+        }
+      ]
+    }
+  },
+  
+  "prompt_config": {
+    "max_capabilities_in_prompt": 10,
+    "capability_selection_strategy": "context_relevant",
+    "context_matching_algorithm": "semantic_similarity",
+    "fallback_to_improvisation": true,
+    "improvisation_guidelines": "If no capability matches perfectly, agent can propose creative combinations or new actions, but must be explicit about uncertainty."
+  }
+}
+```
+
+---
+
+### Step 12: Create Capability Executor Service
+
+**File**: `apps/web-app/src/services/capabilityExecutor.ts` (NEW)
+
+Generic executor for all capability types:
+
+```typescript
+import { ViewTransitionService } from './viewTransitionService';
+
+export interface CapabilityExecution {
+  capabilityId: string;
+  parameters: Record<string, any>;
+  onSuccess?: (result: any) => void;
+  onError?: (error: Error) => void;
+}
+
+export class CapabilityExecutor {
+  static async execute(execution: CapabilityExecution): Promise<void> {
+    const capability = await this.getCapability(execution.capabilityId);
+    
+    if (!capability) {
+      throw new Error(`Capability ${execution.capabilityId} not found`);
+    }
+
+    switch (capability.execution_type) {
+      case 'frontend_navigation':
+        await this.executeFrontendNavigation(capability, execution.parameters);
+        break;
+      case 'frontend_component':
+        await this.executeFrontendComponent(capability, execution.parameters);
+        break;
+      case 'frontend_action':
+        await this.executeFrontendAction(capability, execution.parameters);
+        break;
+      case 'backend_worker':
+        await this.executeBackendWorker(capability, execution.parameters);
+        break;
+      case 'backend_api':
+        await this.executeBackendAPI(capability, execution.parameters);
+        break;
+      default:
+        throw new Error(`Unknown execution type: ${capability.execution_type}`);
+    }
+  }
+
+  private static async getCapability(capabilityId: string): Promise<any> {
+    const response = await fetch('/config/agent_capabilities.json');
+    const config = await response.json();
+    
+    for (const category of Object.values(config.capability_categories)) {
+      const found = (category as any).capabilities.find((c: any) => c.id === capabilityId);
+      if (found) return found;
+    }
+    
+    return null;
+  }
+
+  private static async executeFrontendNavigation(capability: any, parameters: any) {
+    // Delegate to ViewTransitionService
+    const targetView = parameters.target || capability.target_view;
+    const navTarget = ViewTransitionService.getNavigationTarget(targetView);
+    // ... navigation logic
+  }
+
+  private static async executeFrontendComponent(capability: any, parameters: any) {
+    window.dispatchEvent(new CustomEvent('load-component', {
+      detail: {
+        component: capability.target_component,
+        parameters
+      }
+    }));
+  }
+
+  private static async executeFrontendAction(capability: any, parameters: any) {
+    window.dispatchEvent(new CustomEvent(capability.target_action, {
+      detail: parameters
+    }));
+  }
+
+  private static async executeBackendWorker(capability: any, parameters: any) {
+    const response = await fetch(`/api/v1/workers/${capability.target_worker}/trigger`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(parameters)
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to trigger ${capability.target_worker}`);
+    }
+    
+    if (capability.async_notification) {
+      console.log(`${capability.target_worker} triggered, will notify when complete`);
+    }
+  }
+
+  private static async executeBackendAPI(capability: any, parameters: any) {
+    const response = await fetch(capability.target_endpoint, {
+      method: capability.method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(parameters)
+    });
+    
+    const result = await response.json();
+    
+    if (capability.success_action) {
+      await this.handleSuccessAction(capability.success_action, result);
+    }
+    
+    return result;
+  }
+
+  private static async handleSuccessAction(action: any, result: any) {
+    if (action.type === 'switch_view') {
+      ViewTransitionService.storeTransitionContent(
+        action.target,
+        action.message,
+        'mini'
+      );
+      // ... navigate
+    }
+  }
+}
+```
+
+---
+
+### Step 13: Enhance PromptBuilder for Context-Aware Capability Loading
+
+**File**: `services/dialogue-service/src/PromptBuilder.ts`
+
+Add capability filtering and ranking methods:
+
+```typescript
+private formatAgentCapabilities(
+  viewContext?: ViewContext,
+  conversationContext?: any,
+  engagementContext?: EngagementContext
+): string {
+  const capabilitiesConfig = JSON.parse(
+    fs.readFileSync(
+      path.join(process.cwd(), 'config', 'agent_capabilities.json'),
+      'utf-8'
+    )
+  );
+
+  const currentView = viewContext?.currentView || 'chat';
+  
+  // Filter capabilities available from current view
+  const availableCapabilities = this.filterCapabilitiesByContext(
+    capabilitiesConfig,
+    currentView,
+    conversationContext,
+    engagementContext
+  );
+
+  // Rank by relevance (semantic similarity to recent messages)
+  const rankedCapabilities = this.rankCapabilitiesByRelevance(
+    availableCapabilities,
+    conversationContext
+  );
+
+  // Take top N (configurable)
+  const topCapabilities = rankedCapabilities.slice(
+    0,
+    capabilitiesConfig.prompt_config.max_capabilities_in_prompt
+  );
+
+  return Mustache.render(this.templates.agent_capabilities_template, {
+    current_view: currentView,
+    available_capabilities: topCapabilities,
+    improvisation_allowed: capabilitiesConfig.prompt_config.fallback_to_improvisation,
+    improvisation_guidelines: capabilitiesConfig.prompt_config.improvisation_guidelines
+  });
+}
+
+private filterCapabilitiesByContext(
+  config: any,
+  currentView: string,
+  conversationContext: any,
+  engagementContext: any
+): any[] {
+  const allCapabilities: any[] = [];
+  
+  // Flatten all capabilities from all categories
+  Object.values(config.capability_categories).forEach((category: any) => {
+    category.capabilities.forEach((cap: any) => {
+      if (cap.available_from && cap.available_from.includes(currentView)) {
+        allCapabilities.push({
+          ...cap,
+          category: category.description
+        });
+      }
+    });
+  });
+
+  return allCapabilities;
+}
+
+private rankCapabilitiesByRelevance(
+  capabilities: any[],
+  conversationContext: any
+): any[] {
+  if (!conversationContext?.recentMessages || conversationContext.recentMessages.length === 0) {
+    return capabilities;
+  }
+
+  const recentText = conversationContext.recentMessages
+    .map((m: any) => m.content)
+    .join(' ')
+    .toLowerCase();
+
+  // Score each capability based on trigger pattern match
+  const scored = capabilities.map(cap => {
+    let score = 0;
+    
+    if (cap.trigger_patterns) {
+      cap.trigger_patterns.forEach((pattern: string) => {
+        if (recentText.includes(pattern.toLowerCase())) {
+          score += 10; // Exact match = high score
+        }
+      });
+    }
+    
+    if (cap.trigger_context) {
+      cap.trigger_context.forEach((context: string) => {
+        if (recentText.includes(context.toLowerCase())) {
+          score += 5;
+        }
+      });
+    }
+    
+    return { ...cap, relevance_score: score };
+  });
+
+  return scored.sort((a, b) => b.relevance_score - a.relevance_score);
+}
+```
+
+---
+
+### Step 14: Add Capability Template to Prompt
+
+**File**: `config/prompt_templates.yaml`
+
+Add new template section:
+
+```yaml
+agent_capabilities_template: |
+  **AGENT CAPABILITIES**
+  
+  You have access to the following capabilities in {{current_view}} view:
+  
+  {{#available_capabilities}}
+  **Capability: {{name}}** (ID: {{id}})
+  - **Execution**: {{execution_type}}
+  - **Requires consent**: {{requires_consent}}
+  {{#trigger_patterns}}
+  - Trigger pattern: "{{.}}"
+  {{/trigger_patterns}}
+  {{#question_template}}
+  - Consent question: "{{question_template}}"
+  {{/question_template}}
+  
+  {{/available_capabilities}}
+  
+  {{#improvisation_allowed}}
+  **IMPROVISATION:**
+  You can also propose creative combinations or new actions not explicitly listed.
+  Guidelines: {{improvisation_guidelines}}
+  When improvising, be explicit: "I notice you're asking about X. While I don't have a built-in capability for this, I can try Y..."
+  {{/improvisation_allowed}}
+```
+
+---
+
+## Benefits of This Extension
+
+1. **Unified Architecture**: All agent actions (view transitions, worker triggers, data operations) use same pattern
+2. **Configuration-Driven**: Add new capabilities by editing JSON, not code
+3. **Context-Aware**: Only load relevant capabilities based on view + conversation context
+4. **Scalable Prompting**: Agent isn't overwhelmed - sees only top 10 most relevant actions
+5. **Improvisation Support**: Agent can combine capabilities or propose new actions
+6. **Extensible**: Easy to add new execution types, new workers, new capabilities
+
+## Implementation Timeline
+
+- **Phase 1** (Current Plan): View Transition Abstraction (Steps 1-10)
+- **Phase 2** (This Extension): Agent Capability System (Steps 11-14)
+- **Phase 3** (Future): Add specific capabilities (cosmos quest, card creation, worker triggers)
+
+---
+
+### To-dos (Phase 1)
+
+- [ ] Create config/view_transitions.json with all 6 transitions and view configs
+- [ ] Create apps/web-app/src/services/viewTransitionService.ts with generic transition logic
+- [ ] Add setChatSize method to apps/web-app/src/stores/ChatStore.ts (NOT HUDStore)
+- [ ] Create apps/web-app/src/hooks/useViewTransitionContent.ts reusable hook
+- [ ] Update apps/web-app/src/components/chat/ChatInterface.tsx to use ViewTransitionService
+- [ ] Update apps/web-app/src/app/cosmos/CosmosScene.tsx to use generic hook and remove old logic
+- [ ] Update apps/web-app/src/app/page.tsx to add hook calls for chat/cards/dashboard views
+- [ ] Update config/view_specific_instructions.json to reference transitions config
+- [ ] Update services/dialogue-service/src/PromptBuilder.ts to load transitions dynamically
+- [ ] Update config/prompt_templates.yaml to render transitions dynamically
+- [ ] Run all 6 test scenarios to verify transitions work end-to-end
+
+### To-dos (Phase 2 - Future)
+
+- [ ] Create config/agent_capabilities.json with comprehensive capability registry
+- [ ] Create apps/web-app/src/services/capabilityExecutor.ts generic executor
+- [ ] Enhance services/dialogue-service/src/PromptBuilder.ts with capability filtering and ranking
+- [ ] Add agent_capabilities_template to config/prompt_templates.yaml
+- [ ] Test capability execution for each execution type
+- [ ] Add specific capabilities (cosmos quest, card creation, worker triggers)
 
 ### To-dos
 

@@ -31,6 +31,7 @@ import { useHUDStore } from '../../stores/HUDStore';
 import { useEngagementStore } from '../../stores/EngagementStore';
 import { useEngagementContext } from '../../hooks/useEngagementContext';
 import { usePathname } from 'next/navigation';
+import { ViewTransitionService } from '../../services/viewTransitionService';
 
 export type ChatSize = 'full' | 'medium' | 'mini';
 
@@ -263,12 +264,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
    */
   const handleActionClick = useCallback((action: UiAction, buttonValue: 'confirm' | 'dismiss') => {
     if (buttonValue === 'dismiss') {
-      // Scenario B: User clicked "Maybe later"
-      console.log('🔘 ChatInterface: User dismissed action suggestion');
-      
+      // Scenario B: User dismissed
       const dismissScenario = action.payload.scenarios.on_dismiss;
       
-      // Add agent's pre-computed fallback response
       const botMessage: ChatMessage = {
         id: `bot-${Date.now()}`,
         type: 'bot',
@@ -277,27 +275,27 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       };
       addMessage(botMessage);
       
-      // Track dismissal
       trackEvent({
         type: 'click',
         target: 'action_dismiss',
         targetType: 'button',
         view: currentView || 'chat',
-        metadata: {
-          action: action.action,
-          target: action.payload.target
-        }
+        metadata: { action: action.action, target: action.payload.target }
       });
       
-      // Stay in current view - no navigation
       return;
     }
     
-    if (buttonValue === 'confirm') {
-      // Scenario A: User clicked "Yes"
-      console.log('🔘 ChatInterface: User confirmed action:', action);
-      
+    if (buttonValue === 'confirm' && action.action === 'switch_view') {
+      // Scenario A: User confirmed
       const confirmScenario = action.payload.scenarios.on_confirm;
+      const targetView = action.payload.target.toLowerCase();
+      
+      // Get transition config
+      const transitionConfig = ViewTransitionService.getTransition(
+        currentView || 'chat',
+        targetView
+      );
       
       // 1. Add transition message immediately
       const transitionMessage: ChatMessage = {
@@ -316,40 +314,42 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         view: currentView || 'chat',
         metadata: {
           action: action.action,
-          target: action.payload.target,
+          target: targetView,
           question: action.question
         }
       });
       
-      // Execute action based on type
-      if (action.action === 'switch_view') {
-        // 3. Store main content and desired chat size for display after scene loads
-        sessionStorage.setItem('cosmosMainContent', JSON.stringify({
-          content: confirmScenario.main_content,
-          timestamp: Date.now(),
-          targetChatSize: 'medium' // Target size after view switch
-        }));
+      // 3. Store main content using ViewTransitionService (single global key)
+      ViewTransitionService.storeTransitionContent(
+        targetView,
+        confirmScenario.main_content,
+        transitionConfig?.target_chat_size
+      );
+      
+      // 4. Give user time to read transition message
+      const delay = transitionConfig?.transition_delay_ms || 1500;
+      setTimeout(() => {
+        // 5. Navigate to target view
+        const navTarget = ViewTransitionService.getNavigationTarget(targetView);
         
-        // 4. Give user time to read transition message (1.5 seconds)
-        setTimeout(() => {
-          // 5. Switch view directly (chat will transition in target view)
-          const targetView = action.payload.target.toLowerCase();
-          console.log('🔘 ChatInterface: Switching to view:', targetView);
-          router.push(`/${targetView}`);
-        }, 1500); // 1.5 seconds to read transition message
+        // Handle navigation based on route and activeView
+        if (navTarget.route === '/') {
+          // Navigating to main page - set activeView via HUD
+          if (navTarget.activeView) {
+            useHUDStore.getState().setActiveView(navTarget.activeView as any);
+          }
+          router.push('/');
+        } else {
+          // Navigating to dedicated route (e.g., /cosmos)
+          router.push(navTarget.route);
+        }
         
-      } else if (action.action === 'start_cosmos_quest') {
-        // TODO: Implement cosmos quest trigger
-        console.log('🎬 ChatInterface: Starting cosmos quest:', action.payload);
-      } else if (action.action === 'open_card') {
-        // TODO: Implement card opening
-        console.log('🗂️ ChatInterface: Opening card:', action.payload);
-      } else if (action.action === 'focus_entity') {
-        // TODO: Implement entity focus
-        console.log('🎯 ChatInterface: Focusing entity:', action.payload);
-      }
+        console.log(`🔄 ChatInterface: Navigating to ${targetView}`, navTarget);
+      }, delay);
     }
-  }, [router, trackEvent, currentView, addMessage, size, onSizeChange]);
+    
+    // Other actions (open_card, focus_entity, etc.) - future implementation
+  }, [router, trackEvent, currentView, addMessage]);
 
   // Early return after all hooks are defined
   if (!isOpen) return null;

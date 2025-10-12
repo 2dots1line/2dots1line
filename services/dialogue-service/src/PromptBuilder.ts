@@ -565,6 +565,26 @@ ${contextText}
     }
 
     try {
+      // Load available transitions from view_transitions.json
+      const transitionsConfig = JSON.parse(
+        fs.readFileSync(
+          path.join(process.cwd(), 'config', 'view_transitions.json'),
+          'utf-8'
+        )
+      );
+
+      // Filter transitions that start from current view
+      const availableTransitions = Object.entries(transitionsConfig.transitions)
+        .filter(([key, t]: [string, any]) => t.from === viewContext.currentView)
+        .map(([key, t]: [string, any]) => ({
+          transition_key: key,
+          from: t.from,
+          to: t.to,
+          question_template: t.question_template,
+          trigger_patterns: t.trigger_patterns,
+          target_chat_size: t.target_chat_size
+        }));
+
       const viewData = {
         current_view: viewContext.currentView,
         view_description: viewContext.viewDescription || this.getDefaultViewDescription(viewContext.currentView),
@@ -573,15 +593,9 @@ ${contextText}
         available_features: viewConfig?.available_features || [],
         has_available_features: viewConfig?.available_features?.length > 0,
         
-        // NEW: Add engagement-aware instructions
-        has_engagement_aware_instructions: !!viewConfig?.engagement_aware_instructions,
-        engagement_aware_general: viewConfig?.engagement_aware_instructions?.general || '',
-        suggestion_examples: viewConfig?.engagement_aware_instructions?.suggestions 
-          ? Object.entries(viewConfig.engagement_aware_instructions.suggestions).map(([key, value]) => ({
-              action_type: key.replace(/_/g, ' '),
-              suggestion_template: value
-            }))
-          : []
+        // NEW: Available transitions
+        has_available_transitions: availableTransitions.length > 0,
+        available_transitions: availableTransitions
       };
       
       return Mustache.render(template, viewData);

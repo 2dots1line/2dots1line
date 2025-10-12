@@ -14,6 +14,7 @@ import { NodeLabelControls } from '../../components/cosmos/NodeLabelControls';
 import SeedEntitiesDisplay from '../../components/cosmos/SeedEntitiesDisplay';
 import { useEntitySelection } from '../../hooks/useEntitySelection';
 import { LookupCameraController } from '../../components/cosmos/LookupCameraController';
+import { useViewTransitionContent } from '../../hooks/useViewTransitionContent';
 import type { ChatMessage } from '../../services/chatService';
 
 const CosmosScene: React.FC = () => {
@@ -46,6 +47,10 @@ const CosmosScene: React.FC = () => {
   
   // Entity selection hook
   const { selectedEntityId, selectEntity, clearSelection } = useEntitySelection();
+  const POSITION_SCALE = 10;
+
+  // Use generic hook to handle transition content
+  useViewTransitionContent('cosmos', isLoading, !!graphData);
 
   // Background loading handlers
   const handleBackgroundLoadStart = useCallback(() => {
@@ -90,37 +95,8 @@ const CosmosScene: React.FC = () => {
     };
 
     fetchGraphData();
-  }, [setGraphData, setLoading, setError]);
+  }, [setGraphData, setLoading, setError, clearSelection]);
 
-  // Check for main content on mount and when loading completes
-  useEffect(() => {
-    const contentData = sessionStorage.getItem('cosmosMainContent');
-    
-    // Wait for scene to be fully loaded before displaying main content
-    if (contentData && !isLoading && graphData) {
-      const { content, timestamp, targetChatSize } = JSON.parse(contentData);
-      
-      console.log('🌌 CosmosScene: Scene loaded, displaying main content:', content.substring(0, 50) + '...');
-      
-      // Add main content as bot message
-      const mainMessage: ChatMessage = {
-        id: `cosmos-content-${timestamp}`,
-        type: 'bot',
-        content: content,
-        timestamp: new Date(timestamp)
-      };
-      addMessage(mainMessage);
-      
-      // Transition chat to target size (default to medium for engagement-aware switches)
-      const { setCosmosChatSize } = useHUDStore.getState();
-      const desiredSize = targetChatSize || 'medium';
-      console.log('🌌 CosmosScene: Transitioning chat to:', desiredSize);
-      setCosmosChatSize(desiredSize);
-      
-      // Clear from storage
-      sessionStorage.removeItem('cosmosMainContent');
-    }
-  }, [isLoading, graphData, addMessage]);
 
   // Listen for coordinates_updated notifications and refresh Cosmos data
   useEffect(() => {
@@ -190,8 +166,6 @@ const CosmosScene: React.FC = () => {
     return <CosmosError message={error} />;
   }
 
-  const POSITION_SCALE = 10; // Increased scale to spread nodes out
-  
   // Check if all nodes have zero or very small positions
   const allNodesHaveSmallPositions = (graphData.nodes ?? []).every(node => {
     // Handle both flat structure (x, y, z) and nested structure (position array/object)

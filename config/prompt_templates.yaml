@@ -524,22 +524,29 @@ view_context_template: |
   **Current View:** {{current_view}}
   **View Description:** {{view_description}}
   
+  {{#has_available_transitions}}
+  **Available View Transitions:**
+  You can suggest switching to other views when appropriate. Available transitions from {{current_view}}:
+  {{#available_transitions}}
+  - **{{from}} → {{to}}**: Use question: "{{question_template}}"
+    Trigger patterns: {{#trigger_patterns}}"{{.}}", {{/trigger_patterns}}
+    Target chat size: {{target_chat_size}}
+  {{/available_transitions}}
+  
+  **How to suggest transitions:**
+  1. Detect if user's question matches trigger patterns
+  2. Use the exact question_template for that transition
+  3. Generate both on_confirm and on_dismiss scenarios
+  4. Set target to destination view name
+  5. System will automatically handle chat sizing and navigation
+  {{/has_available_transitions}}
+  
   {{#has_available_features}}
   **Available Features:**
   {{#available_features}}
   - {{.}}
   {{/available_features}}
   {{/has_available_features}}
-  
-  {{#has_engagement_aware_instructions}}
-  **Context-Aware Suggestions:**
-  {{engagement_aware_general}}
-  
-  **Available Actions:**
-  {{#suggestion_examples}}
-  - **{{action_type}}**: {{suggestion_template}}
-  {{/suggestion_examples}}
-  {{/has_engagement_aware_instructions}}
 
 
 # NEW: Template for the Ingestion Analyst's persona block

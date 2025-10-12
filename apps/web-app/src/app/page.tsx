@@ -17,6 +17,7 @@ import { useUserStore } from '../stores/UserStore';
 import { useBackgroundVideoStore } from '../stores/BackgroundVideoStore';
 import { useEngagementStore } from '../stores/EngagementStore';
 import { cardService } from '../services/cardService';
+import { useViewTransitionContent } from '../hooks/useViewTransitionContent';
 
 function HomePage() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
@@ -60,6 +61,27 @@ function HomePage() {
   const [anchorPixel, setAnchorPixel] = useState<{ x: number; y: number } | null>(null);
   const anchorElRef = useRef<HTMLSpanElement>(null);
   const sortedViewRef = useRef<HTMLDivElement>(null);
+
+  // Handle transition content for chat view
+  useViewTransitionContent(
+    'chat',
+    false, // chat is always loaded
+    activeView === 'chat' // only ready when chat view is active
+  );
+  
+  // Handle transition content for cards view
+  useViewTransitionContent(
+    'cards',
+    isLoading && cards.length === 0, // loading state
+    activeView === 'cards' && cards.length > 0 // ready when cards loaded
+  );
+  
+  // Handle transition content for dashboard view
+  useViewTransitionContent(
+    'dashboard',
+    false, // dashboard is always loaded
+    activeView === 'dashboard' // only ready when dashboard view is active
+  );
 
   useEffect(() => {
     const updateAnchor = () => {

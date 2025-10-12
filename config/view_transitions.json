@@ -1,0 +1,128 @@
+{
+  "storage_key": "viewTransitionContent",
+  
+  "transitions": {
+    "chat_to_cosmos": {
+      "from": "chat",
+      "to": "cosmos",
+      "trigger_patterns": [
+        "spatial relationships",
+        "memory landscape",
+        "how concepts connect",
+        "value patterns",
+        "cosmos shaping",
+        "visualize",
+        "show me in 3D"
+      ],
+      "question_template": "Should we go to Cosmos view together?",
+      "target_chat_size": "medium",
+      "transition_delay_ms": 1500
+    },
+    "chat_to_cards": {
+      "from": "chat",
+      "to": "cards",
+      "trigger_patterns": [
+        "go to cards",
+        "cards view",
+        "see my cards",
+        "show me cards",
+        "browse cards",
+        "card collection",
+        "organize my cards",
+        "look at cards"
+      ],
+      "question_template": "Should we go to your Cards view?",
+      "target_chat_size": "medium",
+      "transition_delay_ms": 1500
+    },
+    "cosmos_to_cards": {
+      "from": "cosmos",
+      "to": "cards",
+      "trigger_patterns": [
+        "create a card",
+        "save this entity",
+        "organize this memory",
+        "make a card for"
+      ],
+      "question_template": "Would you like to create a card for this entity?",
+      "target_chat_size": "medium",
+      "transition_delay_ms": 1500
+    },
+    "cards_to_chat": {
+      "from": "cards",
+      "to": "chat",
+      "trigger_patterns": [
+        "let's discuss",
+        "tell me more about",
+        "I want to reflect on",
+        "help me understand"
+      ],
+      "question_template": "Should we dive deeper in a conversation?",
+      "target_chat_size": "large",
+      "transition_delay_ms": 1500
+    },
+    "cosmos_to_chat": {
+      "from": "cosmos",
+      "to": "chat",
+      "trigger_patterns": [
+        "let's talk about this",
+        "I have questions about",
+        "help me process"
+      ],
+      "question_template": "Would you like to open up a conversation about this?",
+      "target_chat_size": "large",
+      "transition_delay_ms": 1500
+    },
+    "dashboard_to_cosmos": {
+      "from": "dashboard",
+      "to": "cosmos",
+      "trigger_patterns": [
+        "show me in 3D",
+        "visualize this pattern",
+        "explore spatially"
+      ],
+      "question_template": "Want to see this in your cosmos?",
+      "target_chat_size": "medium",
+      "transition_delay_ms": 1500
+    },
+    "cards_to_cosmos": {
+      "from": "cards",
+      "to": "cosmos",
+      "trigger_patterns": [
+        "where does this fit",
+        "show connections",
+        "see the bigger picture"
+      ],
+      "question_template": "Should we see how this connects in your cosmos?",
+      "target_chat_size": "medium",
+      "transition_delay_ms": 1500
+    }
+  },
+  
+  "views": {
+    "chat": {
+      "route": "/",
+      "activeView": "chat",
+      "chat_enabled": true,
+      "default_chat_size": "large"
+    },
+    "cosmos": {
+      "route": "/cosmos",
+      "activeView": null,
+      "chat_enabled": true,
+      "default_chat_size": "mini"
+    },
+    "cards": {
+      "route": "/",
+      "activeView": "cards",
+      "chat_enabled": true,
+      "default_chat_size": "mini"
+    },
+    "dashboard": {
+      "route": "/",
+      "activeView": "dashboard",
+      "chat_enabled": false
+    }
+  }
+}
+

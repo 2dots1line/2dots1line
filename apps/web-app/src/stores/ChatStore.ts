@@ -28,6 +28,11 @@ interface ChatState {
   showHistoryModal: boolean;
   showNewChatButton: boolean;
   
+  // Chat sizing per view - chat is independent floating entity
+  chatSizeByView: {
+    [key: string]: 'mini' | 'medium' | 'large';
+  };
+  
   // Actions
   setCurrentConversation: (conversationId: string | null) => void;
   setCurrentSession: (sessionId: string | null) => void;
@@ -47,6 +52,10 @@ interface ChatState {
   // UI actions
   setShowHistoryModal: (show: boolean) => void;
   setShowNewChatButton: (show: boolean) => void;
+  
+  // Generic chat size methods
+  setChatSize: (view: string, size: 'mini' | 'medium' | 'large') => void;
+  getChatSize: (view: string) => 'mini' | 'medium' | 'large';
   
   // Utility actions
   startNewChat: () => void;
@@ -70,6 +79,14 @@ export const useChatStore = create<ChatState>()(
       
       showHistoryModal: false,
       showNewChatButton: false,
+      
+      // Chat size by view - default sizes for each view
+      chatSizeByView: {
+        cosmos: 'mini',
+        cards: 'mini',
+        chat: 'large',
+        dashboard: 'mini'
+      },
       
       // Actions
       setCurrentConversation: (conversationId) => {
@@ -173,6 +190,22 @@ export const useChatStore = create<ChatState>()(
       
       setShowNewChatButton: (show) => {
         set({ showNewChatButton: show });
+      },
+      
+      // Generic chat size methods
+      setChatSize: (view: string, size: 'mini' | 'medium' | 'large') => {
+        console.log(`💬 ChatStore: Setting chat size for ${view} to ${size}`);
+        set((state) => ({
+          chatSizeByView: {
+            ...state.chatSizeByView,
+            [view]: size
+          }
+        }));
+      },
+      
+      getChatSize: (view: string) => {
+        const size = get().chatSizeByView[view];
+        return size || 'mini'; // Default to mini if view not found
       },
       
       // Utility actions
