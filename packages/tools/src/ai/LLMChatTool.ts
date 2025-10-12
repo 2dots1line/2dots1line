@@ -410,70 +410,77 @@ ${input.payload.systemPrompt}`;
                 
                 // If we're in the direct_response_text field AND it's a respond_directly decision, extract and stream only that content
                 if (isRespondDirectlyDecision && inDirectResponseText) {
-                  // Extract everything from the text start to the current position
-                  let currentResponseText = accumulatedText.substring(directResponseTextStart);
+                  // OPTIMIZED: Only process NEW content, not entire accumulated text
+                  // This prevents O(n²) behavior as the response grows
+                  const fullResponseText = accumulatedText.substring(directResponseTextStart);
+                  const alreadyProcessedLength = lastStreamedLength;
                   
-                  // Check if we've reached the end of the direct_response_text field
-                  // Since direct_response_text is now the last field, look for closing quote + closing brace
-                  let endPosition = -1;
+                  // Extract only the new content that arrived in this chunk
+                  const newRawContent = fullResponseText.substring(alreadyProcessedLength);
                   
-                  // Look for the closing quote followed by closing brace (end of JSON)
-                  const endMatch = currentResponseText.match(/^([^"]*(?:\\.[^"]*)*)"(\s*})/);
-                  if (endMatch) {
-                    endPosition = endMatch[1].length;
-                    console.log(`🌊 LLMChatTool: Found end boundary via closing quote + brace at position ${endPosition}`);
-                  } else {
-                    // Fallback to character-by-character approach
-                    let i = 0;
-                    while (i < currentResponseText.length) {
-                      if (currentResponseText[i] === '"') {
-                        // Check if this quote is escaped
+                  if (newRawContent.length > 0) {
+                    // Check if the end marker appears in the new content
+                    // Look for: unescaped quote followed by optional whitespace and closing brace
+                    // Pattern: " followed by \n or \r\n or space, then }
+                    let contentToProcess = newRawContent;
+                    let isEndOfResponse = false;
+                    let endMarkerIndex = -1;
+                    
+                    // Search for closing quote + closing brace pattern
+                    // Look for patterns like: "\n}, " }, "\r\n}, "}
+                    const endPatterns = ['"\n}', '"\r\n}', '" }', '"}'];
+                    
+                    for (const pattern of endPatterns) {
+                      const index = newRawContent.indexOf(pattern);
+                      if (index !== -1) {
+                        // Check if the quote is escaped by looking backwards
                         let escapeCount = 0;
-                        let j = i - 1;
-                        while (j >= 0 && currentResponseText[j] === '\\') {
+                        let checkPos = index - 1;
+                        while (checkPos >= 0 && newRawContent[checkPos] === '\\') {
                           escapeCount++;
-                          j--;
+                          checkPos--;
                         }
-                        // If the quote is not escaped (even number of backslashes before it)
+                        
+                        // If even number of backslashes (or zero), the quote is not escaped
                         if (escapeCount % 2 === 0) {
-                          // Look ahead to see what comes after this quote
-                          let nextIndex = i + 1;
-                          // Skip whitespace
-                          while (nextIndex < currentResponseText.length && /\s/.test(currentResponseText[nextIndex])) {
-                            nextIndex++;
-                          }
-                          
-                          // Check if we have a closing brace after whitespace (end of JSON)
-                          if (nextIndex < currentResponseText.length && currentResponseText[nextIndex] === '}') {
-                            endPosition = i;
-                            console.log(`🌊 LLMChatTool: Found end boundary at position ${endPosition}, next char: "}"`);
-                            break;
-                          }
+                          endMarkerIndex = index;
+                          contentToProcess = newRawContent.substring(0, index);
+                          isEndOfResponse = true;
+                          inDirectResponseText = false;
+                          console.log(`🌊 LLMChatTool: ✅ Found end marker "${pattern}" in new content at position ${index}`);
+                          break;
                         }
                       }
-                      i++;
                     }
-                  }
-                  
-                  if (endPosition !== -1) {
-                    // We've reached the end of the direct_response_text field
-                    currentResponseText = currentResponseText.substring(0, endPosition);
-                    inDirectResponseText = false;
-                    console.log(`🌊 LLMChatTool: ✅ Exited direct_response_text field at position ${endPosition}`);
-                    console.log(`🌊 LLMChatTool: Final direct_response_text: "${currentResponseText}"`);
-                  }
-                  
-                  // Unescape the response text
-                  const unescapedText = currentResponseText.replace(/\\"/g, '"').replace(/\\n/g, '\n').replace(/\\\\/g, '\\');
-                  
-                  // Only send new content that hasn't been sent yet
-                  if (unescapedText.length > lastStreamedLength) {
-                    const newContent = unescapedText.substring(lastStreamedLength);
-                    lastStreamedLength = unescapedText.length;
-                    text = unescapedText;
-                    hasStreamedAnyContent = true;
-                    input.payload.onChunk!(newContent);
-                    console.log(`🌊 LLMChatTool: ✅ Streamed clean response chunk: "${newContent}"`);
+                    
+                    if (endMarkerIndex === -1) {
+                      // No end marker found yet, process all new content
+                      contentToProcess = newRawContent;
+                    }
+                    
+                    // Unescape only the new content (not re-processing old content)
+                    const unescapedNewContent = contentToProcess
+                      .replace(/\\"/g, '"')
+                      .replace(/\\n/g, '\n')
+                      .replace(/\\\\/g, '\\');
+                    
+                    if (unescapedNewContent.length > 0) {
+                      // Update tracking
+                      lastStreamedLength += contentToProcess.length;
+                      text = fullResponseText.substring(0, lastStreamedLength)
+                        .replace(/\\"/g, '"')
+                        .replace(/\\n/g, '\n')
+                        .replace(/\\\\/g, '\\');
+                      hasStreamedAnyContent = true;
+                      
+                      // Stream the new content to frontend
+                      input.payload.onChunk!(unescapedNewContent);
+                      console.log(`🌊 LLMChatTool: ✅ Streamed clean response chunk (${unescapedNewContent.length} chars): "${unescapedNewContent.substring(0, 100)}${unescapedNewContent.length > 100 ? '...' : ''}"`);
+                    }
+                    
+                    if (isEndOfResponse) {
+                      console.log(`🌊 LLMChatTool: ✅ Exited direct_response_text field - response complete`);
+                    }
                   }
                 } else {
                   // We're not in the direct_response_text field yet, or it's not a respond_directly decision

@@ -153,17 +153,47 @@ export class ConversationController {
         hasEnrichedEntities: !!engagementContext.enrichedEntities
       } : 'none');
 
+      // CRITICAL FIX: Disable all timeouts for SSE streaming
+      // @ts-ignore - Node.js Socket properties
+      req.socket.setTimeout(0); // Disable request timeout
+      // @ts-ignore
+      req.socket.setKeepAlive(true, 30000); // Enable TCP keep-alive every 30s
+      // @ts-ignore
+      req.socket.setNoDelay(true); // Disable Nagle's algorithm for immediate chunk delivery
+
       // Set up Server-Sent Events headers
       res.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Cache-Control'
+        'Access-Control-Allow-Headers': 'Cache-Control',
+        'X-Accel-Buffering': 'no' // Disable nginx buffering if behind proxy
       });
 
       // Send initial connection confirmation
       res.write(`data: ${JSON.stringify({ type: 'connected', message: 'Streaming connection established' })}\n\n`);
+
+      // CRITICAL FIX: Start keep-alive heartbeat to prevent connection timeout
+      // Send a comment (ignored by SSE parsers) every 15 seconds to keep connection alive
+      const keepAliveInterval = setInterval(() => {
+        if (!res.writableEnded) {
+          res.write(`: keepalive ${Date.now()}\n\n`);
+          console.log(`💓 ConversationController: Sent keep-alive heartbeat`);
+        }
+      }, 15000); // 15 seconds
+
+      // Cleanup function to clear keep-alive when stream ends
+      const cleanup = () => {
+        clearInterval(keepAliveInterval);
+        console.log(`🧹 ConversationController: Cleaned up keep-alive interval`);
+      };
+
+      // Handle client disconnect
+      req.on('close', () => {
+        console.log(`🔌 ConversationController: Client disconnected, cleaning up`);
+        cleanup();
+      });
 
       // Handle conversation logic - FIXED to reuse active conversations
       let session: any | null;
@@ -308,30 +338,36 @@ export class ConversationController {
       })}\n\n`);
 
       // Call the streaming DialogueAgent
-      const agentResult = await this.dialogueAgent.processTurnStreaming({
-        userId,
-        conversationId: actualConversationId,
-        currentMessageText: message,
-        viewContext: viewContext ? {
-          currentView: viewContext.currentView,
-          viewDescription: viewContext.viewDescription
-        } : undefined,
-        engagementContext: engagementContext ? {
-          recentEvents: engagementContext.recentEvents,
-          sessionDuration: engagementContext.sessionDuration ?? undefined,
-          currentViewDuration: engagementContext.currentViewDuration ?? undefined,
-          interactionSummary: engagementContext.interactionSummary ?? undefined,
-          enrichedEntities: engagementContext.enrichedEntities ?? undefined
-        } : undefined,
-        onChunk: (chunk: string) => {
-          // Send each chunk to the client
-          res.write(`data: ${JSON.stringify({ 
-            type: 'response_chunk', 
-            content: chunk,
-            conversation_id: actualConversationId
-          })}\n\n`);
-        }
-      });
+      let agentResult;
+      try {
+        agentResult = await this.dialogueAgent.processTurnStreaming({
+          userId,
+          conversationId: actualConversationId,
+          currentMessageText: message,
+          viewContext: viewContext ? {
+            currentView: viewContext.currentView,
+            viewDescription: viewContext.viewDescription
+          } : undefined,
+          engagementContext: engagementContext ? {
+            recentEvents: engagementContext.recentEvents,
+            sessionDuration: engagementContext.sessionDuration ?? undefined,
+            currentViewDuration: engagementContext.currentViewDuration ?? undefined,
+            interactionSummary: engagementContext.interactionSummary ?? undefined,
+            enrichedEntities: engagementContext.enrichedEntities ?? undefined
+          } : undefined,
+          onChunk: (chunk: string) => {
+            // Send each chunk to the client
+            res.write(`data: ${JSON.stringify({ 
+              type: 'response_chunk', 
+              content: chunk,
+              conversation_id: actualConversationId
+            })}\n\n`);
+          }
+        });
+      } finally {
+        // Always clean up keep-alive, whether processing succeeded or failed
+        cleanup();
+      }
 
       // Log the ASSISTANT'S response
       await this.conversationRepository.addMessage({
@@ -364,25 +400,31 @@ export class ConversationController {
     } catch (error) {
       console.error('❌ ConversationController.postMessageStream error:', error);
       
-      // Send error to client if connection is still open
-      if (!res.headersSent) {
-        res.writeHead(200, {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Headers': 'Cache-Control'
-        });
-        res.write(`data: ${JSON.stringify({ 
-          type: 'error',
-          error: { 
-            code: 'INTERNAL_ERROR', 
-            message: 'Failed to process streaming message' 
+      // Send error to client if connection is still open and headers were sent
+      try {
+        if (!res.writableEnded) {
+          if (!res.headersSent) {
+            res.writeHead(200, {
+              'Content-Type': 'text/event-stream',
+              'Cache-Control': 'no-cache',
+              'Connection': 'keep-alive',
+              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Headers': 'Cache-Control'
+            });
           }
-        })}\n\n`);
-        res.write(`data: ${JSON.stringify({ type: 'stream_end' })}\n\n`);
+          res.write(`data: ${JSON.stringify({ 
+            type: 'error',
+            error: { 
+              code: 'INTERNAL_ERROR', 
+              message: 'Failed to process streaming message' 
+            }
+          })}\n\n`);
+          res.write(`data: ${JSON.stringify({ type: 'stream_end' })}\n\n`);
+          res.end();
+        }
+      } catch (writeError) {
+        console.error('❌ ConversationController.postMessageStream - Failed to send error to client:', writeError);
       }
-      res.end();
     }
   };
 
