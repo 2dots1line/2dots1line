@@ -549,6 +549,37 @@ view_context_template: |
   {{/has_available_features}}
 
 
+# Template for agent capabilities (Phase 2: Agent Capability System)
+agent_capabilities_template: |
+  ## AGENT CAPABILITIES
+  
+  You have access to the following capabilities in {{current_view}} view:
+  
+  {{#available_capabilities}}
+  **{{name}}** (ID: `{{id}}`)
+  - Category: {{category}}
+  - Execution: {{execution_type}}
+  - Requires consent: {{requires_consent}}
+  {{#trigger_patterns}}
+  - Trigger: "{{.}}"
+  {{/trigger_patterns}}
+  {{#question_template}}
+  - Question: "{{question_template}}"
+  {{/question_template}}
+  {{#parameters}}
+  - Parameters: {{parameters}}
+  {{/parameters}}
+  
+  {{/available_capabilities}}
+  
+  {{#improvisation_allowed}}
+  **IMPROVISATION ALLOWED:**
+  {{improvisation_guidelines}}
+  
+  When improvising, be explicit: "I notice you're asking about X. While I don't have a built-in capability for this, I could try Y..."
+  {{/improvisation_allowed}}
+
+
 # NEW: Template for the Ingestion Analyst's persona block
 ingestion_analyst_persona: |
   <system_identity>

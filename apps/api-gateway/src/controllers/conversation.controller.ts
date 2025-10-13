@@ -153,49 +153,7 @@ export class ConversationController {
         hasEnrichedEntities: !!engagementContext.enrichedEntities
       } : 'none');
 
-      // CRITICAL FIX: Disable all timeouts for SSE streaming
-      // @ts-ignore - Node.js Socket properties
-      req.socket.setTimeout(0); // Disable request timeout
-      // @ts-ignore
-      req.socket.setKeepAlive(true, 30000); // Enable TCP keep-alive every 30s
-      // @ts-ignore
-      req.socket.setNoDelay(true); // Disable Nagle's algorithm for immediate chunk delivery
-
-      // Set up Server-Sent Events headers
-      res.writeHead(200, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Cache-Control',
-        'X-Accel-Buffering': 'no' // Disable nginx buffering if behind proxy
-      });
-
-      // Send initial connection confirmation
-      res.write(`data: ${JSON.stringify({ type: 'connected', message: 'Streaming connection established' })}\n\n`);
-
-      // CRITICAL FIX: Start keep-alive heartbeat to prevent connection timeout
-      // Send a comment (ignored by SSE parsers) every 15 seconds to keep connection alive
-      const keepAliveInterval = setInterval(() => {
-        if (!res.writableEnded) {
-          res.write(`: keepalive ${Date.now()}\n\n`);
-          console.log(`💓 ConversationController: Sent keep-alive heartbeat`);
-        }
-      }, 15000); // 15 seconds
-
-      // Cleanup function to clear keep-alive when stream ends
-      const cleanup = () => {
-        clearInterval(keepAliveInterval);
-        console.log(`🧹 ConversationController: Cleaned up keep-alive interval`);
-      };
-
-      // Handle client disconnect
-      req.on('close', () => {
-        console.log(`🔌 ConversationController: Client disconnected, cleaning up`);
-        cleanup();
-      });
-
-      // Handle conversation logic - FIXED to reuse active conversations
+      // VALIDATION: Do all validation BEFORE setting up streaming headers
       let session: any | null;
       let conversation: any = null;
 
@@ -313,6 +271,49 @@ export class ConversationController {
       }
 
       const actualConversationId = conversation!.conversation_id;
+
+      // NOW set up Server-Sent Events after all validation is complete
+      // CRITICAL FIX: Disable all timeouts for SSE streaming
+      // @ts-ignore - Node.js Socket properties
+      req.socket.setTimeout(0); // Disable request timeout
+      // @ts-ignore
+      req.socket.setKeepAlive(true, 30000); // Enable TCP keep-alive every 30s
+      // @ts-ignore
+      req.socket.setNoDelay(true); // Disable Nagle's algorithm for immediate chunk delivery
+
+      // Set up Server-Sent Events headers
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Cache-Control',
+        'X-Accel-Buffering': 'no' // Disable nginx buffering if behind proxy
+      });
+
+      // Send initial connection confirmation
+      res.write(`data: ${JSON.stringify({ type: 'connected', message: 'Streaming connection established' })}\n\n`);
+
+      // CRITICAL FIX: Start keep-alive heartbeat to prevent connection timeout
+      // Send a comment (ignored by SSE parsers) every 15 seconds to keep connection alive
+      const keepAliveInterval = setInterval(() => {
+        if (!res.writableEnded) {
+          res.write(`: keepalive ${Date.now()}\n\n`);
+          console.log(`💓 ConversationController: Sent keep-alive heartbeat`);
+        }
+      }, 15000); // 15 seconds
+
+      // Cleanup function to clear keep-alive when stream ends
+      const cleanup = () => {
+        clearInterval(keepAliveInterval);
+        console.log(`🧹 ConversationController: Cleaned up keep-alive interval`);
+      };
+
+      // Handle client disconnect
+      req.on('close', () => {
+        console.log(`🔌 ConversationController: Client disconnected, cleaning up`);
+        cleanup();
+      });
 
       // Log the USER'S message immediately
       await this.conversationRepository.addMessage({

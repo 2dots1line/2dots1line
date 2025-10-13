@@ -1,6 +1,7 @@
 import { ConfigService } from '@2dots1line/config-service';
-import { UserRepository, ConversationRepository } from '@2dots1line/database';
+import { UserRepository, ConversationRepository, DatabaseService } from '@2dots1line/database';
 import { getEntityTypeMapping, PromptCacheService } from '@2dots1line/core-utils';
+import { SharedEmbeddingService } from '@2dots1line/tools';
 
 // Use any type for now since Prisma types are complex
 type conversation_messages = any;
@@ -34,6 +35,8 @@ export interface PromptBuildOutput {
 }
 
 export class PromptBuilder {
+  private sharedEmbeddingService: SharedEmbeddingService;
+
   // Dependencies are injected via the constructor for testability and DI best practices.
   constructor(
     private configService: ConfigService,
@@ -42,7 +45,10 @@ export class PromptBuilder {
     private sessionRepository: SessionRepository, // NEW DEPENDENCY
     private redisClient: Redis,
     private promptCacheService?: PromptCacheService // Optional for backward compatibility
-  ) {}
+  ) {
+    // Initialize SharedEmbeddingService with DatabaseService singleton
+    this.sharedEmbeddingService = new SharedEmbeddingService(DatabaseService.getInstance());
+  }
 
   /**
    * Generic method to fetch all required data in parallel
@@ -715,5 +721,227 @@ ${contextText}
       console.error('Error formatting engagement context:', error);
       return null;
     }
+  }
+
+  /**
+   * Format agent capabilities for LLM consumption
+   * Loads capabilities from agent_capabilities.json and filters by context
+   * Uses semantic similarity for ranking (with keyword fallback)
+   */
+  private async formatAgentCapabilities(
+    viewContext?: ViewContext,
+    conversationContext?: any
+  ): Promise<string | null> {
+    try {
+      // Load capabilities config
+      const capabilitiesConfig = JSON.parse(
+        fs.readFileSync(
+          path.join(process.cwd(), 'config', 'agent_capabilities.json'),
+          'utf-8'
+        )
+      );
+
+      const currentView = viewContext?.currentView || 'chat';
+      
+      // Filter capabilities available from current view
+      const availableCapabilities = this.filterCapabilitiesByContext(
+        capabilitiesConfig,
+        currentView
+      );
+
+      // Rank by relevance (semantic similarity to recent messages)
+      const rankedCapabilities = await this.rankCapabilitiesByRelevance(
+        availableCapabilities,
+        conversationContext
+      );
+
+      // Take top N (configurable)
+      const topCapabilities = rankedCapabilities.slice(
+        0,
+        capabilitiesConfig.prompt_config.max_capabilities_in_prompt
+      );
+
+      if (topCapabilities.length === 0) {
+        return null;
+      }
+
+      const templates = this.configService.getAllTemplates();
+      const template = templates.agent_capabilities_template;
+      if (!template) {
+        return null;
+      }
+
+      return Mustache.render(template, {
+        current_view: currentView,
+        available_capabilities: topCapabilities,
+        improvisation_allowed: capabilitiesConfig.prompt_config.fallback_to_improvisation,
+        improvisation_guidelines: capabilitiesConfig.prompt_config.improvisation_guidelines
+      });
+    } catch (error) {
+      console.error('Error formatting agent capabilities:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Filter capabilities by current view context
+   */
+  private filterCapabilitiesByContext(
+    config: any,
+    currentView: string
+  ): any[] {
+    const allCapabilities: any[] = [];
+    
+    // Flatten all capabilities from all categories
+    Object.values(config.capability_categories).forEach((category: any) => {
+      category.capabilities.forEach((cap: any) => {
+        // Include view_transitions special handling
+        if (cap.id === 'switch_view') {
+          // Always available from any view
+          allCapabilities.push({
+            ...cap,
+            category: category.description,
+            available_from: [currentView]
+          });
+        } else if (cap.available_from && cap.available_from.includes(currentView)) {
+          allCapabilities.push({
+            ...cap,
+            category: category.description
+          });
+        }
+      });
+    });
+
+    return allCapabilities;
+  }
+
+  /**
+   * Rank capabilities by semantic similarity to recent conversation
+   * 
+   * Uses SharedEmbeddingService with Redis caching for fast lookups.
+   * Fallback to keyword matching if embedding generation fails.
+   * 
+   * Performance:
+   * - Cache hit: <10ms (Redis lookup)
+   * - Cache miss: ~800ms (embedding generation)
+   * - Capability embeddings cached for 7 days
+   * - Conversation embeddings cached for 5 minutes
+   */
+  private async rankCapabilitiesByRelevance(
+    capabilities: any[],
+    conversationContext: any
+  ): Promise<any[]> {
+    if (!conversationContext?.recentMessages || conversationContext.recentMessages.length === 0) {
+      return capabilities;
+    }
+
+    try {
+      // 1. Join recent conversation text
+      const recentText = conversationContext.recentMessages
+        .map((m: any) => m.content)
+        .join(' ');
+
+      // 2. Generate conversation embedding (cached in Redis for 5 min)
+      const convEmbedding = await this.sharedEmbeddingService.getEmbedding(
+        recentText,
+        conversationContext.userId || 'system',
+        'capability-ranking'
+      );
+
+      // 3. Score each capability based on semantic similarity
+      const capabilityScores = await Promise.all(
+        capabilities.map(async (cap) => {
+          if (!cap.trigger_patterns || cap.trigger_patterns.length === 0) {
+            return { ...cap, relevance_score: 0, similarity_raw: 0 };
+          }
+
+          // Combine all trigger patterns for this capability
+          const triggerText = cap.trigger_patterns.join('. ');
+          
+          // Get embedding (cached in Redis for 7 days)
+          const capEmbedding = await this.sharedEmbeddingService.getEmbedding(
+            triggerText,
+            'system',
+            `capability-${cap.id}`
+          );
+
+          // 4. Calculate cosine similarity
+          const similarity = this.cosineSimilarity(convEmbedding, capEmbedding);
+          
+          // Scale to 0-100 for intuitive scoring
+          const score = similarity * 100;
+
+          return {
+            ...cap,
+            relevance_score: score,
+            similarity_raw: similarity
+          };
+        })
+      );
+
+      // 5. Sort by relevance (descending)
+      return capabilityScores.sort((a, b) => b.relevance_score - a.relevance_score);
+
+    } catch (error) {
+      console.error('Semantic ranking failed, falling back to keyword matching:', error);
+      // Fallback to keyword matching
+      return this.rankCapabilitiesByKeywords(capabilities, conversationContext);
+    }
+  }
+
+  /**
+   * Calculate cosine similarity between two embedding vectors
+   */
+  private cosineSimilarity(a: number[], b: number[]): number {
+    if (a.length !== b.length) {
+      throw new Error(`Vector dimensions must match: ${a.length} vs ${b.length}`);
+    }
+
+    const dotProduct = a.reduce((sum, val, i) => sum + val * b[i], 0);
+    const magA = Math.sqrt(a.reduce((sum, val) => sum + val * val, 0));
+    const magB = Math.sqrt(b.reduce((sum, val) => sum + val * val, 0));
+    
+    if (magA === 0 || magB === 0) {
+      return 0; // Avoid division by zero
+    }
+    
+    return dotProduct / (magA * magB);
+  }
+
+  /**
+   * Fallback: Keyword-based ranking when embedding fails
+   */
+  private rankCapabilitiesByKeywords(
+    capabilities: any[],
+    conversationContext: any
+  ): any[] {
+    const recentText = conversationContext.recentMessages
+      .map((m: any) => m.content)
+      .join(' ')
+      .toLowerCase();
+
+    const scored = capabilities.map(cap => {
+      let score = 0;
+      
+      if (cap.trigger_patterns) {
+        cap.trigger_patterns.forEach((pattern: string) => {
+          // Exact substring match
+          if (recentText.includes(pattern.toLowerCase())) {
+            score += 10;
+          }
+          
+          // Partial word match
+          const words = pattern.toLowerCase().split(' ');
+          const matchedWords = words.filter(word => recentText.includes(word));
+          if (matchedWords.length > 0) {
+            score += matchedWords.length * 2;
+          }
+        });
+      }
+      
+      return { ...cap, relevance_score: score };
+    });
+
+    return scored.sort((a, b) => b.relevance_score - a.relevance_score);
   }
 } 

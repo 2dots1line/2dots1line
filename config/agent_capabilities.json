@@ -1,0 +1,158 @@
+{
+  "version": "2.0",
+  "description": "Comprehensive agent capability registry - defines all actions agent can take",
+  
+  "capability_categories": {
+    "view_transitions": {
+      "description": "Navigate user between different UI views",
+      "config_source": "view_transitions.json",
+      "capabilities": [
+        {
+          "id": "switch_view",
+          "name": "Switch to different view",
+          "execution_type": "frontend_navigation",
+          "requires_consent": true,
+          "uses_config": "view_transitions.json",
+          "note": "View transitions are dynamically loaded from view_transitions.json"
+        }
+      ]
+    },
+    
+    "live_experiences": {
+      "description": "Trigger immersive, interactive experiences",
+      "capabilities": [
+        {
+          "id": "start_cosmos_quest",
+          "name": "Start guided Cosmos journey",
+          "trigger_patterns": [
+            "take me on a journey",
+            "explore my memories",
+            "give me a tour",
+            "show me patterns",
+            "walk me through",
+            "guide me through cosmos"
+          ],
+          "question_template": "Would you like me to guide you through an immersive journey in your Cosmos?",
+          "available_from": ["chat", "cosmos"],
+          "requires_consent": true,
+          "execution_type": "frontend_component",
+          "target_component": "CosmosQuestLive",
+          "parameters": {
+            "quest_type": "string",
+            "focus_entities": "array<string>",
+            "narrative_style": "string"
+          }
+        },
+        {
+          "id": "focus_entity",
+          "name": "Focus on specific entity",
+          "trigger_patterns": [
+            "show me",
+            "focus on",
+            "zoom into",
+            "look at",
+            "examine"
+          ],
+          "available_from": ["cosmos"],
+          "requires_consent": false,
+          "execution_type": "frontend_action",
+          "target_action": "camera_focus",
+          "parameters": {
+            "entity_id": "string"
+          }
+        }
+      ]
+    },
+    
+    "worker_triggers": {
+      "description": "Trigger background workers for async processing",
+      "capabilities": [
+        {
+          "id": "trigger_insight_generation",
+          "name": "Generate insights from current context",
+          "trigger_patterns": [
+            "analyze this",
+            "what insights do you see",
+            "what patterns emerge",
+            "help me understand the bigger picture",
+            "synthesize my thoughts"
+          ],
+          "question_template": "Would you like me to analyze your recent memories and generate insights?",
+          "available_from": ["chat", "dashboard"],
+          "requires_consent": true,
+          "execution_type": "backend_worker",
+          "target_worker": "InsightWorker",
+          "parameters": {
+            "context_window": "number",
+            "focus_areas": "array<string>"
+          },
+          "async_notification": true,
+          "estimated_duration_ms": 5000
+        },
+        {
+          "id": "trigger_ingestion",
+          "name": "Ingest and process new information",
+          "trigger_patterns": [
+            "remember this",
+            "save this for later",
+            "ingest this",
+            "process this information",
+            "store this memory"
+          ],
+          "available_from": ["chat"],
+          "requires_consent": false,
+          "execution_type": "backend_worker",
+          "target_worker": "IngestionWorker",
+          "parameters": {
+            "content": "string",
+            "content_type": "string",
+            "priority": "string"
+          },
+          "async_notification": true
+        }
+      ]
+    },
+    
+    "data_operations": {
+      "description": "Create, update, or manipulate user data",
+      "capabilities": [
+        {
+          "id": "create_card",
+          "name": "Create new card",
+          "trigger_patterns": [
+            "create a card",
+            "save this as a card",
+            "make a card for",
+            "organize this into a card"
+          ],
+          "question_template": "Should I create a card to save this?",
+          "available_from": ["chat", "cosmos"],
+          "requires_consent": true,
+          "execution_type": "backend_api",
+          "target_endpoint": "/api/v1/cards",
+          "method": "POST",
+          "parameters": {
+            "title": "string",
+            "content": "string",
+            "source_entity_id": "string?",
+            "tags": "array<string>"
+          },
+          "success_action": {
+            "type": "switch_view",
+            "target": "cards",
+            "message": "Card created! Let's see it in your collection."
+          }
+        }
+      ]
+    }
+  },
+  
+  "prompt_config": {
+    "max_capabilities_in_prompt": 10,
+    "capability_selection_strategy": "context_relevant",
+    "context_matching_algorithm": "semantic_similarity",
+    "fallback_to_improvisation": true,
+    "improvisation_guidelines": "If no capability matches perfectly, agent can propose creative combinations or new actions, but must be explicit about uncertainty."
+  }
+}
+
