@@ -47,7 +47,7 @@ export class EnvironmentModelConfigService {
   /**
    * Get model for specific use case, prioritizing environment variables
    */
-  public getModelForUseCase(useCase: 'chat' | 'vision' | 'embedding' | 'key_phrase' | 'ontology'): string {
+  public getModelForUseCase(useCase: 'chat' | 'vision' | 'embedding' | 'key_phrase' | 'ontology' | 'image' | 'video' | 'live' | 'audio_tts'): string {
     // Ensure environment is loaded
     environmentLoader.load();
 
@@ -73,9 +73,31 @@ export class EnvironmentModelConfigService {
   /**
    * Get model from environment variables
    */
-  private getModelFromEnvironment(useCase: 'chat' | 'vision' | 'embedding' | 'key_phrase' | 'ontology'): string | null {
-    const envKey = `LLM_${useCase.toUpperCase()}_MODEL`;
+  private getModelFromEnvironment(useCase: 'chat' | 'vision' | 'embedding' | 'key_phrase' | 'ontology' | 'image' | 'video' | 'live' | 'audio_tts'): string | null {
+    // Map use cases to env var names
+    const envKeyMap: Record<string, string> = {
+      'chat': 'LLM_CHAT_MODEL',
+      'vision': 'LLM_VISION_MODEL',
+      'embedding': 'LLM_EMBEDDING_MODEL',
+      'key_phrase': 'LLM_KEY_PHRASE_MODEL',
+      'ontology': 'LLM_ONTOLOGY_MODEL',
+      'image': 'LLM_IMAGE_MODEL',
+      'video': 'LLM_VIDEO_MODEL',
+      'live': 'LLM_LIVE_MODEL',
+      'audio_tts': 'LLM_AUDIO_TTS_MODEL'
+    };
+    
+    const envKey = envKeyMap[useCase];
     const model = environmentLoader.get(envKey);
+    
+    // Backward compatibility: Check legacy GEMINI_IMAGE_MODEL
+    if (!model && useCase === 'image') {
+      const legacyModel = environmentLoader.get('GEMINI_IMAGE_MODEL');
+      if (legacyModel) {
+        console.log(`🔧 EnvironmentModelConfigService: Using legacy GEMINI_IMAGE_MODEL=${legacyModel}`);
+        return legacyModel;
+      }
+    }
     
     if (model) {
       console.log(`🔧 EnvironmentModelConfigService: Found ${envKey}=${model}`);
@@ -83,7 +105,8 @@ export class EnvironmentModelConfigService {
     }
 
     // Check for fallback model if specific use case not found
-    if (useCase !== 'embedding') {
+    // Don't use fallback for media-specific use cases
+    if (!['embedding', 'image', 'video', 'live', 'audio_tts'].includes(useCase)) {
       // For key_phrase, check for specific fallback first
       if (useCase === 'key_phrase') {
         const keyPhraseFallback = environmentLoader.get('LLM_KEY_PHRASE_FALLBACK_MODEL');
@@ -106,7 +129,7 @@ export class EnvironmentModelConfigService {
   /**
    * Hardcoded fallback models (last resort)
    */
-  private getHardcodedFallback(useCase: 'chat' | 'vision' | 'embedding' | 'key_phrase' | 'ontology'): string {
+  private getHardcodedFallback(useCase: 'chat' | 'vision' | 'embedding' | 'key_phrase' | 'ontology' | 'image' | 'video' | 'live' | 'audio_tts'): string {
     const provider = this.getProvider();
     
     if (provider === 'openai') {
@@ -115,7 +138,11 @@ export class EnvironmentModelConfigService {
         vision: 'gpt-4o',
         embedding: 'text-embedding-3-small',
         key_phrase: 'gpt-4o-mini',
-        ontology: 'gpt-4o-mini'
+        ontology: 'gpt-4o-mini',
+        image: 'dall-e-3',
+        video: 'unsupported',
+        live: 'gpt-4o-realtime-preview',
+        audio_tts: 'tts-1'
       };
       return openaiFallbacks[useCase];
     } else {
@@ -124,7 +151,11 @@ export class EnvironmentModelConfigService {
         vision: 'gemini-2.5-flash',
         embedding: 'text-embedding-004',
         key_phrase: 'gemini-2.5-flash',
-        ontology: 'gemini-2.5-flash-lite'
+        ontology: 'gemini-2.5-flash-lite',
+        image: 'gemini-2.5-flash-image',
+        video: 'veo-3.0-fast-generate-001',
+        live: 'gemini-live-2.5-flash-preview-native-audio',
+        audio_tts: 'gemini-native-audio'
       };
       return geminiFallbacks[useCase];
     }

@@ -144,6 +144,73 @@
           }
         }
       ]
+    },
+    
+    "media_generation": {
+      "description": "Generate images and videos using AI",
+      "capabilities": [
+        {
+          "id": "generate_card_image",
+          "name": "Generate card cover image",
+          "trigger_patterns": [
+            "generate an image",
+            "create a cover",
+            "visualize this",
+            "design a background",
+            "make an image for",
+            "create a visual",
+            "generate cover art"
+          ],
+          "question_template": "Would you like me to generate a cover image for this card?",
+          "available_from": ["chat", "cards"],
+          "requires_consent": true,
+          "execution_type": "backend_api",
+          "target_endpoint": "/api/cards/{cardId}/generate-cover",
+          "method": "POST",
+          "parameters": {
+            "motif": "string (extracted from conversation)",
+            "style_pack": "string? (minimal|abstract|nature|cosmic|photorealistic)",
+            "quality": "string? (low|medium|high)"
+          },
+          "cost_info": {
+            "low": "$0.02 per image",
+            "medium": "$0.001 per image (Nano-Banana)",
+            "high": "$0.04 per image (Imagen 4)"
+          },
+          "success_message": "Image generated successfully! Check your card."
+        },
+        {
+          "id": "generate_background_video",
+          "name": "Generate background video",
+          "trigger_patterns": [
+            "generate a video background",
+            "create a video",
+            "animate the background",
+            "make the background come alive",
+            "change the video background",
+            "create an animated background"
+          ],
+          "question_template": "Would you like me to generate a custom 8-second background video? (Estimated cost: $4-6, takes 30s-6min)",
+          "available_from": ["chat", "cards", "dashboard"],
+          "requires_consent": true,
+          "execution_type": "async_backend_worker",
+          "target_worker": "VideoGenerationWorker",
+          "target_endpoint": "/api/v1/media/generate-video",
+          "method": "POST",
+          "parameters": {
+            "prompt": "string (LLM-generated from conversation)",
+            "viewContext": "string (chat|cards|dashboard)",
+            "mood": "string? (calm|energetic|mysterious|focused)",
+            "quality": "string? (fast|standard)",
+            "cinematography": "string? (cinematic|static|dynamic|aerial)",
+            "useImageSeed": "boolean (generate starting image for consistency)"
+          },
+          "async_notification": true,
+          "estimated_duration": "30 seconds to 6 minutes",
+          "cost_estimate": "$4.00-6.00 per video",
+          "success_message": "Video generation started. You'll be notified when it's ready!"
+        }
+      ]
     }
   },
   

@@ -167,5 +167,17 @@ module.exports = {
       out_file: path.join(__dirname, 'logs', 'spatial-query-worker-out.log'),
       log_file: path.join(__dirname, 'logs', 'spatial-query-worker-combined.log'),
     },
+    {
+      name: 'video-generation-worker',
+      script: './workers/video-generation-worker/dist/index.js',
+      instances: 1,
+      exec_mode: 'fork',
+      watch: false,
+      ...baseConfig,
+      // Force individual logging to prevent shared context
+      error_file: path.join(__dirname, 'logs', 'video-generation-worker-error.log'),
+      out_file: path.join(__dirname, 'logs', 'video-generation-worker-out.log'),
+      log_file: path.join(__dirname, 'logs', 'video-generation-worker-combined.log'),
+    },
   ],
 }; 

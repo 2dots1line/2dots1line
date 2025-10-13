@@ -1,13 +1,40 @@
 import { Request, Response } from 'express';
 import { PexelsService } from '@2dots1line/pexels-service';
+import { Queue } from 'bullmq';
+import { Redis } from 'ioredis';
+import { VideoJobData } from '@2dots1line/video-generation-worker';
 
 export class MediaController {
   private pexelsService: PexelsService;
+  private videoGenerationQueue: Queue<VideoJobData> | null = null;
+  private redisConnection: Redis | null = null;
 
   constructor() {
     // Environment variables are loaded by DatabaseService.getInstance() in app.ts
     // No need to load them again here
     this.pexelsService = new PexelsService();
+    
+    // Initialize video generation queue if Redis is available
+    this.initializeVideoGenerationQueue();
+  }
+
+  private initializeVideoGenerationQueue(): void {
+    try {
+      const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+      this.redisConnection = new Redis(redisUrl, {
+        maxRetriesPerRequest: null,
+        enableReadyCheck: false
+      });
+
+      this.videoGenerationQueue = new Queue<VideoJobData>('video-generation-queue', {
+        connection: this.redisConnection
+      });
+
+      console.log('✅ Video generation queue initialized');
+    } catch (error) {
+      console.error('❌ Failed to initialize video generation queue:', error);
+      console.log('⚠️  Video generation functionality will be disabled');
+    }
   }
 
   /**
@@ -204,6 +231,143 @@ export class MediaController {
       res.status(500).json({
         success: false,
         error: 'Failed to get photo details'
+      });
+    }
+  }
+
+  /**
+   * Generate a background video using Veo 3
+   * V11.0 AI Media Generation Suite
+   */
+  async generateVideo(req: Request, res: Response) {
+    try {
+      // Extract userId from authenticated request
+      const userId = (req as any).user?.id;
+      
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          error: 'Unauthorized - User ID not found'
+        });
+      }
+
+      if (!this.videoGenerationQueue) {
+        return res.status(503).json({
+          success: false,
+          error: 'Video generation service is currently unavailable. Please ensure Redis and the video-generation-worker are running.'
+        });
+      }
+
+      // Extract and validate request parameters
+      const {
+        prompt,
+        viewContext = 'chat',
+        mood,
+        quality = 'fast',
+        cinematography,
+        useImageSeed = false,
+        imageSeedMotif
+      } = req.body;
+
+      if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Prompt is required and must be a non-empty string'
+        });
+      }
+
+      if (!['chat', 'cards', 'dashboard'].includes(viewContext)) {
+        return res.status(400).json({
+          success: false,
+          error: 'viewContext must be one of: chat, cards, dashboard'
+        });
+      }
+
+      if (!['fast', 'standard'].includes(quality)) {
+        return res.status(400).json({
+          success: false,
+          error: 'quality must be either "fast" or "standard"'
+        });
+      }
+
+      // Add job to video generation queue
+      const job = await this.videoGenerationQueue.add('generate_video', {
+        userId,
+        prompt,
+        viewContext,
+        mood,
+        quality,
+        cinematography,
+        useImageSeed,
+        imageSeedMotif: useImageSeed ? imageSeedMotif || `Static frame: ${prompt}` : undefined
+      });
+
+      console.log(`✅ Video generation job ${job.id} queued for user ${userId}`);
+
+      // Return 202 Accepted with job information
+      res.status(202).json({
+        success: true,
+        message: 'Video generation started. You will be notified when complete.',
+        jobId: job.id,
+        estimatedTime: quality === 'fast' ? '30 seconds to 2 minutes' : '1 to 6 minutes',
+        estimatedCost: quality === 'fast' ? '$4.00' : '$6.00'
+      });
+
+    } catch (error) {
+      console.error('Video generation error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to start video generation',
+        detail: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * Get video generation job status
+   * V11.0 AI Media Generation Suite
+   */
+  async getVideoJobStatus(req: Request, res: Response) {
+    try {
+      const { jobId } = req.params;
+
+      if (!this.videoGenerationQueue) {
+        return res.status(503).json({
+          success: false,
+          error: 'Video generation service is currently unavailable'
+        });
+      }
+
+      const job = await this.videoGenerationQueue.getJob(jobId);
+
+      if (!job) {
+        return res.status(404).json({
+          success: false,
+          error: 'Job not found'
+        });
+      }
+
+      const state = await job.getState();
+      const progress = job.progress;
+      const returnValue = job.returnvalue;
+
+      res.json({
+        success: true,
+        data: {
+          jobId: job.id,
+          state,
+          progress,
+          result: returnValue,
+          finishedOn: job.finishedOn,
+          failedReason: job.failedReason
+        }
+      });
+
+    } catch (error) {
+      console.error('Job status check error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to check job status'
       });
     }
   }

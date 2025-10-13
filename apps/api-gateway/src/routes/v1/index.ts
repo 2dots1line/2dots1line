@@ -148,6 +148,10 @@ v1Router.get('/media/popular/photos', authMiddleware, mediaController.getPopular
 v1Router.get('/media/videos/:id', authMiddleware, mediaController.getVideoDetails.bind(mediaController));
 v1Router.get('/media/photos/:id', authMiddleware, mediaController.getPhotoDetails.bind(mediaController));
 
+// --- AI Media Generation Routes (Authenticated) --- V11.0: Gemini Imagen/Veo
+v1Router.post('/media/generate-video', authMiddleware, mediaController.generateVideo.bind(mediaController));
+v1Router.get('/media/video-jobs/:jobId', authMiddleware, mediaController.getVideoJobStatus.bind(mediaController));
+
 
 
 // --- HRT Parameters Routes (Authenticated) ---

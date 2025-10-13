@@ -1,0 +1,23 @@
+{
+  "name": "@2dots1line/video-generation-worker",
+  "version": "1.0.0",
+  "description": "Worker for asynchronous video generation using Veo 3",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "@2dots1line/media-generation-service": "workspace:*",
+    "@2dots1line/core-utils": "workspace:*",
+    "bullmq": "^5.0.0",
+    "ioredis": "^5.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "typescript": "^5.8.3",
+    "ts-node": "^10.0.0"
+  }
+}
+

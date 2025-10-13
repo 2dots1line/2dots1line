@@ -12,6 +12,7 @@
   "dependencies": {
     "@2dots1line/shared-types": "workspace:*",
     "@2dots1line/ui-components": "workspace:*",
+    "@2dots1line/media-generation-service": "workspace:*",
     "@react-three/drei": "^9.105.6",
     "@react-three/fiber": "^8.18.0",
     "axios": "^1.6.0",
@@ -23,7 +24,7 @@
     "socket.io-client": "^4.8.1",
     "three": "^0.164.1",
     "zustand": "^4.4.7",
-    "@google/genai": "^1.17.0"
+    "@google/genai": "^1.24.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

@@ -1,0 +1,99 @@
+{
+  "version": "1.0",
+  "image_generation": {
+    "base_template": "Create a {style} cover image for: \"{motif}\".",
+    "styles": {
+      "minimal": {
+        "description": "Clean, minimalist design with negative space",
+        "prompt_suffix": "Minimalist aesthetic, simple shapes, clean lines, lots of negative space, modern design.",
+        "examples": ["zen garden", "abstract shapes", "single object focus"]
+      },
+      "abstract": {
+        "description": "Abstract geometric patterns, modern aesthetic",
+        "prompt_suffix": "Abstract geometric patterns, vibrant colors, dynamic composition, modern art style.",
+        "examples": ["flowing waves", "geometric fractals", "color gradients"]
+      },
+      "nature": {
+        "description": "Organic forms inspired by nature",
+        "prompt_suffix": "Organic natural forms, flowing lines, earth tones, inspired by nature, peaceful ambiance.",
+        "examples": ["forest scene", "mountain landscape", "ocean waves"]
+      },
+      "cosmic": {
+        "description": "Ethereal, space-inspired, mystical colors",
+        "prompt_suffix": "Cosmic ethereal atmosphere, deep space colors, stars and nebulae, mystical and mysterious.",
+        "examples": ["galaxy", "nebula", "constellation"]
+      },
+      "photorealistic": {
+        "description": "Realistic photography style",
+        "prompt_suffix": "Photorealistic style, high detail, professional photography, natural lighting.",
+        "examples": ["portrait", "landscape", "still life"]
+      }
+    },
+    "constraints": [
+      "No text or watermarks",
+      "High contrast",
+      "Clean background",
+      "Centered composition"
+    ],
+    "quality_presets": {
+      "low": "imagen-4.0-fast-generate-001",
+      "medium": "gemini-2.5-flash-image",
+      "high": "imagen-4.0-generate-001"
+    }
+  },
+  "video_generation": {
+    "base_template": "Create a looping 8-second background video: {description}. {cinematography}",
+    "cinematography_styles": {
+      "cinematic": "Slow, smooth camera movement. Cinematic framing with depth of field.",
+      "static": "Static camera, minimal movement, peaceful and stable.",
+      "dynamic": "Dynamic camera movements, tracking shots, energetic pacing.",
+      "aerial": "Aerial drone view, sweeping overhead shots, grand perspective."
+    },
+    "mood_presets": {
+      "calm": {
+        "description": "Peaceful and tranquil",
+        "prompt_suffix": "Gentle, peaceful atmosphere. Soft lighting. Tranquil ambiance. Calming colors.",
+        "suggested_scenes": ["peaceful beach sunset", "calm forest stream", "gentle clouds drifting"]
+      },
+      "energetic": {
+        "description": "Dynamic and vibrant",
+        "prompt_suffix": "Dynamic movement. Vibrant colors. Uplifting energy. Fast-paced action.",
+        "suggested_scenes": ["city lights at night", "fast-moving traffic", "lightning storm"]
+      },
+      "mysterious": {
+        "description": "Moody and enigmatic",
+        "prompt_suffix": "Moody lighting. Ethereal fog. Enigmatic atmosphere. Deep shadows.",
+        "suggested_scenes": ["misty forest", "abandoned space station", "moonlit landscape"]
+      },
+      "focused": {
+        "description": "Clean and minimal",
+        "prompt_suffix": "Clean, organized space. Neutral tones. Minimal distraction. Professional environment.",
+        "suggested_scenes": ["minimalist office", "zen meditation room", "clean modern space"]
+      }
+    },
+    "scene_templates": {
+      "nature": {
+        "forest": "Dense forest with sunlight filtering through trees, gentle wind moving leaves",
+        "ocean": "Ocean waves rolling onto shore, seagulls in distance, golden hour lighting",
+        "mountain": "Mountain peaks with clouds passing by, snow-capped summits, aerial view",
+        "waterfall": "Majestic waterfall in lush rainforest, mist rising, birds flying"
+      },
+      "urban": {
+        "cityscape": "Modern city skyline at dusk, lights beginning to turn on, time-lapse clouds",
+        "street": "Busy city street with people walking, cars passing, vibrant urban life",
+        "night": "City at night with neon lights, reflections on wet pavement, bustling energy"
+      },
+      "abstract": {
+        "particles": "Floating particles in space, slow graceful movement, colorful and ethereal",
+        "fluid": "Fluid liquid motion with color mixing, organic flowing shapes, mesmerizing",
+        "geometric": "Animated geometric patterns, rotating shapes, modern and clean"
+      },
+      "cosmic": {
+        "space": "Deep space with stars and distant galaxies, slow camera pan, awe-inspiring",
+        "nebula": "Colorful nebula clouds, cosmic dust and gas, slow swirling motion",
+        "planet": "View from orbit of a beautiful planet, slowly rotating, atmosphere visible"
+      }
+    }
+  }
+}
+

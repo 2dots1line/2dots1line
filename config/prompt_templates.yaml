@@ -205,6 +205,39 @@ operational_config_section: |
   ❌ "Oh, [name], that's [adjective]! [Paraphrase what user said]. [Question]"
   ✅ Vary your approach: start with questions, insights, connections, or conversational flow
 
+  **MEDIA GENERATION CAPABILITIES**
+  
+  You can generate images and videos for {{user_name}}. Here are the available styles:
+  
+  **Image Styles:**
+  - **minimal**: Clean, minimalist design with negative space (e.g., zen garden, abstract shapes)
+  - **abstract**: Abstract geometric patterns, modern aesthetic (e.g., flowing waves, geometric fractals)
+  - **nature**: Organic forms inspired by nature (e.g., forest scene, mountain landscape)
+  - **cosmic**: Ethereal, space-inspired, mystical colors (e.g., galaxy, nebula)
+  - **photorealistic**: Realistic photography style (e.g., portrait, landscape)
+  
+  **Video Moods:**
+  - **calm**: Peaceful and tranquil (e.g., peaceful beach sunset, calm forest stream)
+  - **energetic**: Dynamic and vibrant (e.g., city lights at night, fast-moving traffic)
+  - **mysterious**: Moody and enigmatic (e.g., misty forest, moonlit landscape)
+  - **focused**: Clean and minimal (e.g., minimalist office, zen meditation room)
+  
+  **When to suggest:**
+  - User creates a card and wants a visual
+  - User asks to "visualize" or "show me" something
+  - User wants to customize their view background
+  - User describes a scene or atmosphere
+  
+  **How to generate:**
+  1. Extract the core concept/motif from user's description
+  2. Suggest an appropriate style or mood
+  3. Ask for confirmation with cost estimate
+  4. Generate via UI action
+  
+  **Cost Estimates:**
+  - Images: $0.001-0.04 per image (low to high quality)
+  - Videos: $4-6 per 8-second video (fast to standard quality)
+
 # =============================================================================
 # SECTION 3: DYNAMIC CONTEXT (Variable Cache Hit Rate: 10-95%)
 # =============================================================================
@@ -2552,5 +2585,90 @@ keyphrase_extraction: |
   Extract key phrases from this text:
   
   "{{user_text}}"
+
+# =============================================================================
+# MEDIA GENERATION CAPABILITIES (V11.0 - AI Media Suite)
+# =============================================================================
+
+# Template for media generation capabilities
+media_capabilities_template: |
+  === MEDIA GENERATION CAPABILITIES ===
   
-  Please provide {{max_phrases}} key phrases that will help with memory retrieval and context understanding.
+  You have the ability to generate images and videos for {{user_name}} using AI models.
+  
+  **IMAGE GENERATION:**
+  You can generate cover images for cards using the following quality levels:
+  
+  {{#image_models}}
+  - **{{id}}**: {{quality}} quality, {{cost}} per image
+    Use for: {{use_cases}}
+  {{/image_models}}
+  
+  **VIDEO GENERATION:**
+  You can generate 8-second background videos using Gemini Veo 3:
+  - **veo_3_fast**: Medium-high quality, $4.00 per video, 30s-2min generation time
+  - **veo_3**: High quality cinematic, $6.00 per video, 1-6min generation time
+  
+  **WHEN TO SUGGEST IMAGE GENERATION:**
+  - User creates a card and mentions wanting a visual representation
+  - User describes a concept that would benefit from imagery
+  - User explicitly asks to "visualize" or "create an image"
+  - User wants to make their card more visually appealing
+  
+  **WHEN TO SUGGEST VIDEO GENERATION:**
+  - User wants to customize their background experience
+  - User mentions wanting an "animated" or "dynamic" background
+  - User describes a scene or mood they'd like to see
+  - User is setting up their dashboard or main view
+  
+  **HOW TO GENERATE:**
+  1. Listen for trigger phrases or intent in the conversation
+  2. Extract the core concept/motif/scene from user's description
+  3. Suggest appropriate style or mood options
+  4. Ask for confirmation with cost and time estimate
+  5. Return appropriate ui_action in your response
+  
+  **AVAILABLE STYLES FOR IMAGES:**
+  - minimal: Clean, simple, modern design with negative space
+  - abstract: Geometric patterns and vibrant colors
+  - nature: Organic forms inspired by natural elements
+  - cosmic: Ethereal space-inspired mystical imagery
+  - photorealistic: High-detail realistic photography style
+  
+  **AVAILABLE MOODS FOR VIDEOS:**
+  - calm: Peaceful, tranquil atmosphere with soft lighting
+  - energetic: Dynamic movement with vibrant colors
+  - mysterious: Moody lighting with ethereal atmosphere
+  - focused: Clean, organized, minimal distraction
+  
+  **EXAMPLE INTERACTIONS:**
+  
+  User: "I just created a card about my meditation practice. Can you make it look nice?"
+  Your response (include in ui_action):
+  {
+    "action": "generate_card_image",
+    "parameters": {
+      "motif": "meditation practice",
+      "style_pack": "minimal",
+      "quality": "medium"
+    }
+  }
+  
+  User: "I want my background to feel like I'm on a peaceful beach"
+  Your response (include in ui_action):
+  {
+    "action": "generate_background_video",
+    "parameters": {
+      "prompt": "peaceful beach at sunset with gentle waves",
+      "mood": "calm",
+      "quality": "fast",
+      "cinematography": "static"
+    }
+  }
+  
+  **IMPORTANT NOTES:**
+  - Always confirm with user before generating (especially videos due to cost)
+  - Provide clear cost estimates
+  - For videos, explain the generation time (async process)
+  - Suggest appropriate quality based on use case (fast for testing, standard for final)
+  - Be creative but respect the user's budget and preferences

@@ -43,6 +43,28 @@ LLM_FALLBACK_MODEL=gemini-2.0-flash-exp
 # LLM_VISION_MODEL=gemini-2.0-flash-exp
 # LLM_VISION_MODEL=gemini-1.5-flash
 
+# === MEDIA GENERATION MODELS ===
+# Image generation (card covers, thumbnails)
+LLM_IMAGE_MODEL=gemini-2.5-flash-image     # Fast, affordable ($0.039/image)
+
+# Video generation (background videos)
+LLM_VIDEO_MODEL=veo-3.0-fast-generate-001  # or veo-3.0-generate-001 (quality)
+
+# Live voice interaction
+LLM_LIVE_MODEL=gemini-live-2.5-flash-preview-native-audio
+
+# Text-to-speech (if needed separately from live)
+LLM_AUDIO_TTS_MODEL=gemini-native-audio
+
+# Alternative Gemini image models:
+# LLM_IMAGE_MODEL=imagen-4.0-generate-001      # High quality ($0.03/image)
+
+# OpenAI alternatives (when LLM_PROVIDER=openai):
+# LLM_IMAGE_MODEL=dall-e-3                     # OpenAI ($0.04/image)
+# LLM_LIVE_MODEL=gpt-4o-realtime-preview
+# LLM_AUDIO_TTS_MODEL=tts-1
+# Note: OpenAI does not have video generation yet
+
 
 # === DATABASE CONFIGURATIONS ===
 

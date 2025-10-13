@@ -2,7 +2,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
+import { MediaGenerationService } from '@2dots1line/media-generation-service';
 import path from 'path';
 import fs from 'fs';
 
@@ -17,19 +17,6 @@ type Payload = {
     quality?: 'low' | 'medium' | 'high';
   };
 };
-
-function buildPrompt(p: Payload): string {
-  const parts: string[] = [];
-  parts.push(`Create a simple centered silhouette cover image for the motif: "${p.motif}".`);
-  if (p.style_pack) parts.push(`Style pack: ${p.style_pack}.`);
-  if (p.constraints?.length) parts.push(`Constraints: ${p.constraints.join(', ')}.`);
-  if (p.palette) {
-    const palette = Object.entries(p.palette).map(([k, v]) => `${k}: ${v}`).join(', ');
-    parts.push(`Color palette: ${palette}.`);
-  }
-  parts.push('No text, no watermark, high contrast, clean background.');
-  return parts.join(' ');
-}
 
 function ensureDir(dirPath: string) {
   if (!fs.existsSync(dirPath)) {
@@ -61,30 +48,16 @@ export async function POST(req: Request, { params }: { params: { cardId: string 
       return NextResponse.json({ error: 'motif is required' }, { status: 400 });
     }
 
-    const apiKey = process.env.GOOGLE_API_KEY;
-    if (!apiKey) {
-      console.error('[cards/generate-cover] Missing GOOGLE_API_KEY');
-      return NextResponse.json({ error: 'GOOGLE_API_KEY not configured' }, { status: 503 });
-    }
-
-    const model = process.env.GEMINI_IMAGE_MODEL || 'imagen-4.0-generate-001';
-    const ai = new GoogleGenAI({ apiKey });
-    const prompt = buildPrompt(body);
-
-    const response = await ai.models.generateImages({
-      model,
-      prompt,
-      config: { numberOfImages: 1 },
+    // Use provider-agnostic MediaGenerationService
+    const mediaService = new MediaGenerationService();
+    
+    const { imageUrl, provider, model } = await mediaService.generateImage({
+      motif: body.motif,
+      styleHints: body.style_pack ? [body.style_pack] : undefined,
+      quality: body.export?.quality || 'medium'
     });
 
-    const first = response?.generatedImages?.[0];
-    const imgBytesB64 = first?.image?.imageBytes;
-    if (!imgBytesB64) {
-      console.error('[cards/generate-cover] No image data returned from Gemini/Imagen');
-      return NextResponse.json({ error: 'No image data returned from Gemini' }, { status: 502 });
-    }
-
-    const dataUrl = `data:image/png;base64,${imgBytesB64}`;
+    console.log(`✅ Image generated: provider=${provider}, model=${model}`);
 
     // Save to disk under public/covers
     const publicDir = path.join(process.cwd(), 'public');
@@ -95,7 +68,7 @@ export async function POST(req: Request, { params }: { params: { cardId: string 
     const filename = `${cardId}-${Date.now()}.png`;
     const filePath = path.join(coversDir, filename);
 
-    const { buffer, mime } = dataUrlToBuffer(dataUrl);
+    const { buffer, mime } = dataUrlToBuffer(imageUrl);
     // Only allow PNG/JPEG for safety, default to .png naming
     if (!/^image\/(png|jpeg|jpg)$/.test(mime)) {
       console.warn(`[cards/generate-cover] Unexpected mime type from generator: ${mime}, saving as png`);
@@ -106,7 +79,12 @@ export async function POST(req: Request, { params }: { params: { cardId: string 
     // URL consumed by the client and also stored in Postgres via cardService
     const image_url = `/covers/${filename}`;
 
-    return NextResponse.json({ success: true, image_url, provider: 'gemini' }, { status: 200 });
+    return NextResponse.json({ 
+      success: true, 
+      image_url, 
+      provider,
+      model
+    }, { status: 200 });
   } catch (err: any) {
     const detail = {
       name: err?.name,
