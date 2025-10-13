@@ -20,13 +20,11 @@ const CosmosPage: React.FC = () => {
             <MediumChat 
               isOpen={cosmosChatOpen}
               onSizeChange={setCosmosChatSize}
-              className="pointer-events-auto"
             />
           ) : (
             <MiniChat 
               isOpen={cosmosChatOpen}
               onSizeChange={setCosmosChatSize}
-              className="pointer-events-auto"
             />
           )}
         </div>

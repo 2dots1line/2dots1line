@@ -756,13 +756,11 @@ function HomePage() {
                 <MediumChat 
                   isOpen={cardsChatOpen}
                   onSizeChange={setCardsChatSize}
-                  className="pointer-events-auto"
                 />
               ) : (
                 <MiniChat 
                   isOpen={cardsChatOpen}
                   onSizeChange={setCardsChatSize}
-                  className="pointer-events-auto"
                 />
               )}
             </div>
