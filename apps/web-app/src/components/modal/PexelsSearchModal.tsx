@@ -114,12 +114,12 @@ export const PexelsSearchModal: React.FC<PexelsSearchModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[1100] flex items-center justify-center pointer-events-none">
       <GlassmorphicPanel
         variant="glass-panel"
         rounded="xl"
         padding="lg"
-        className="relative w-full max-w-6xl h-[80vh] max-h-[800px] flex flex-col"
+        className="relative w-full max-w-4xl h-[70vh] flex flex-col overflow-hidden pointer-events-auto"
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-6 flex-shrink-0">

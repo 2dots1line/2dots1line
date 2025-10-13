@@ -10,12 +10,13 @@ import {
   LogOut
 } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 import { useHUDStore, ViewType } from '../../stores/HUDStore';
 import { useCardStore } from '../../stores/CardStore';
 import { useUserStore } from '../../stores/UserStore';
 import { useEngagementStore } from '../../stores/EngagementStore';
+import { ContextualSettings } from '../settings/ContextualSettings';
 
 interface HUDContainerProps {
   onViewSelect?: (view: ViewType) => void;
@@ -37,12 +38,17 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
   const router = useRouter();
   const pathname = usePathname();
   const [pendingView, setPendingView] = useState<ViewType | null>(null);
+  const hudRef = useRef<HTMLDivElement>(null);
   
   const {
     isExpanded,
     activeView,
+    showSettings,
     isNavigatingFromCosmos,
     toggleHUD,
+    toggleSettings,
+    minimizeHUD,
+    expandHUD,
     setActiveView,
     setIsNavigatingFromCosmos,
   } = useHUDStore();
@@ -70,7 +76,22 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
 
   // Handle view button click
   const handleButtonClick = (viewId: ViewType) => {
-    // Track navigation click
+    // Special handling for Settings button - just toggle inline settings panel
+    if (viewId === 'settings') {
+      toggleSettings();
+      trackEvent({
+        type: 'click',
+        target: 'settings',
+        targetType: 'button',
+        view: currentView,
+        metadata: {
+          action: 'toggle_settings'
+        }
+      });
+      return;
+    }
+
+    // Track navigation click for other views
     trackEvent({
       type: 'click',
       target: viewId,
@@ -111,7 +132,16 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
       setPendingView(null);
       setIsNavigatingFromCosmos(false);
     }
-  }, [pathname, pendingView, setActiveView, onViewSelect]);
+  }, [pathname, pendingView, setActiveView, onViewSelect, setIsNavigatingFromCosmos]);
+
+  // Handlers for hover-based auto-open/close
+  const handleMouseEnter = () => {
+    expandHUD();
+  };
+
+  const handleMouseLeave = () => {
+    minimizeHUD();
+  };
 
   // Cleanup on unmount - CardStore manages its own lifecycle
 
@@ -128,6 +158,9 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
 
   return (
     <div
+      ref={hudRef}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       className={`fixed top-4 right-4 z-50 transition-all duration-300 ease-in-out ${className}`}
     >
       {/* Main HUD Panel - This slides in/out */}
@@ -143,7 +176,7 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
           rounded="xl"
           padding="sm"
           className={`
-            w-32 transition-all duration-300 ease-in-out
+            ${showSettings ? 'w-72' : 'w-32'} transition-all duration-300 ease-in-out
             ${isExpanded ? 'opacity-100' : 'opacity-0 pointer-events-none'}
           `}
         >
@@ -171,13 +204,18 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
             <div className="space-y-2">
             {HUD_BUTTONS.map((button) => {
               const IconComponent = button.icon;
+              // Highlight Settings button when showSettings is true, otherwise highlight based on activeView
+              const isActive = button.id === 'settings' 
+                ? showSettings 
+                : currentActiveView === button.id;
+              
               return (
                 <GlassButton
                   key={button.id}
                   onClick={() => handleButtonClick(button.id)}
                   className={`
                     w-full justify-start text-left transition-all duration-200
-                    ${currentActiveView === button.id 
+                    ${isActive 
                       ? 'bg-white/25 border-white/40 text-white shadow-lg' 
                       : 'text-white/80 hover:text-white'
                     }
@@ -192,6 +230,13 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
                 </GlassButton>
               );
             })}
+            </div>
+          )}
+          
+          {/* NEW: Inline contextual settings when showSettings is true */}
+          {isExpanded && showSettings && (
+            <div className="mt-4 pt-4 border-t border-white/20">
+              <ContextualSettings />
             </div>
           )}
           

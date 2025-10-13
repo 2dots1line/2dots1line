@@ -16,6 +16,7 @@ import { useHUDStore } from '../stores/HUDStore';
 import { useUserStore } from '../stores/UserStore';
 import { useBackgroundVideoStore } from '../stores/BackgroundVideoStore';
 import { useEngagementStore } from '../stores/EngagementStore';
+import { useCardsViewStore } from '../stores/CardsViewStore';
 import { cardService } from '../services/cardService';
 import { useViewTransitionContent } from '../hooks/useViewTransitionContent';
 
@@ -50,13 +51,10 @@ function HomePage() {
   const sortedLoader = useCardStore(state => state.sortedLoader);
   const randomLoader = useCardStore(state => state.randomLoader);
   const { loadUserPreferences } = useBackgroundVideoStore();
+  
+  // Cards view settings from store
+  const { viewMode, sortKey, hasCoverFirst, searchQuery, setViewMode, setSortKey, setHasCoverFirst, setSearchQuery } = useCardsViewStore();
 
-  // UI state for sorting and cover prioritization
-  const [sortKey, setSortKey] = useState<'newest' | 'oldest' | 'title_asc' | 'title_desc'>('newest');
-  const [hasCoverFirst, setHasCoverFirst] = useState<boolean>(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  // NEW: view mode
-  const [viewMode, setViewMode] = useState<'infinite' | 'sorted'>('sorted');
   // Removed anchor pixel state and ref
   const [anchorPixel, setAnchorPixel] = useState<{ x: number; y: number } | null>(null);
   const anchorElRef = useRef<HTMLSpanElement>(null);

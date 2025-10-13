@@ -7,6 +7,7 @@ interface HUDState {
   // State
   isExpanded: boolean;
   activeView: ViewType; // Unified state for all views
+  showSettings: boolean; // Toggle for inline settings panel (separate from activeView)
   isDragging: boolean;
   position: { x: number; y: number };
   
@@ -21,6 +22,12 @@ interface HUDState {
   cosmosChatOpen: boolean;
   cardsChatSize: 'medium' | 'mini';
   cosmosChatSize: 'medium' | 'mini';
+  
+  // Global settings modal state
+  showGlobalSettings: boolean;
+  
+  // Pexels modal state (for background video selection)
+  pexelsModalView: ViewType; // Which view is requesting pexels search
   
   // Actions
   toggleHUD: () => void;
@@ -38,6 +45,13 @@ interface HUDState {
   setCosmosChatOpen: (open: boolean) => void;
   setCardsChatSize: (size: 'medium' | 'mini') => void;
   setCosmosChatSize: (size: 'medium' | 'mini') => void;
+  
+  // Settings actions
+  setShowSettings: (show: boolean) => void;
+  toggleSettings: () => void;
+  setShowGlobalSettings: (show: boolean) => void;
+  setPexelsModalView: (view: ViewType) => void;
+  
   resetToDefaults: () => void;
 }
 
@@ -49,6 +63,7 @@ export const useHUDStore = create<HUDState>()(
       // Initial state - Start expanded for better visibility
       isExpanded: true,
       activeView: null, // Unified view state
+      showSettings: false, // Inline settings panel toggle
       isDragging: false,
       position: DEFAULT_POSITION,
       isNavigatingFromCosmos: false,
@@ -59,6 +74,12 @@ export const useHUDStore = create<HUDState>()(
       cosmosChatOpen: true,
       cardsChatSize: 'mini',
       cosmosChatSize: 'mini',
+      
+      // Global settings modal state
+      showGlobalSettings: false,
+      
+      // Pexels modal state
+      pexelsModalView: null,
 
       // Actions
       toggleHUD: () => {
@@ -79,6 +100,10 @@ export const useHUDStore = create<HUDState>()(
         // Auto-expand HUD when a view is selected
         if (view) {
           set({ isExpanded: true });
+        }
+        // Close settings panel when switching views
+        if (view !== 'settings') {
+          set({ showSettings: false });
         }
       },
 
@@ -119,10 +144,29 @@ export const useHUDStore = create<HUDState>()(
         set({ cosmosChatSize: size });
       },
 
+      // Settings actions
+      setShowSettings: (show: boolean) => {
+        set({ showSettings: show });
+      },
+
+      toggleSettings: () => {
+        const { showSettings } = get();
+        set({ showSettings: !showSettings });
+      },
+
+      setShowGlobalSettings: (show: boolean) => {
+        set({ showGlobalSettings: show });
+      },
+
+      setPexelsModalView: (view: ViewType) => {
+        set({ pexelsModalView: view });
+      },
+
       resetToDefaults: () => {
         set({
           isExpanded: true,
           activeView: null,
+          showSettings: false,
           isDragging: false,
           position: DEFAULT_POSITION,
           isNavigatingFromCosmos: false,
@@ -131,6 +175,7 @@ export const useHUDStore = create<HUDState>()(
           cosmosChatOpen: true,
           cardsChatSize: 'mini',
           cosmosChatSize: 'mini',
+          showGlobalSettings: false,
         });
       },
     }),
