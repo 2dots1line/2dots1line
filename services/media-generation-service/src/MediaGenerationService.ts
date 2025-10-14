@@ -202,20 +202,51 @@ export class MediaGenerationService {
       throw new Error('Video polling only supported with Gemini provider');
     }
     
-    const operation: any = await (this.geminiClient as any).operations.get({ name: operationId });
+    // Poll operation status directly using fetch to Gemini API
+    const apiKey = environmentLoader.get('GOOGLE_API_KEY');
+    if (!apiKey) {
+      throw new Error('GOOGLE_API_KEY is required');
+    }
+    
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/${operationId}`,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey
+        }
+      }
+    );
+    
+    if (!response.ok) {
+      throw new Error(`Failed to poll operation: ${response.statusText}`);
+    }
+    
+    const operation: any = await response.json();
+    
+    console.log('[pollVideoOperation] Operation status:', operation.done ? 'DONE' : 'PENDING');
     
     if (operation?.done) {
-      const response: any = operation.response;
-      const video = response?.generatedVideos?.[0];
+      console.log('[pollVideoOperation] Operation response structure:', JSON.stringify(operation, null, 2).substring(0, 500));
+      
+      // REST API response structure (per official docs):
+      // .response.generateVideoResponse.generatedSamples[0].video.uri
+      const videoResponse: any = operation.response;
+      const generateVideoResponse = videoResponse?.generateVideoResponse;
+      const video = generateVideoResponse?.generatedSamples?.[0]?.video;
       
       if (!video) {
+        console.error('[pollVideoOperation] No video found in REST response.');
+        console.error('[pollVideoOperation] Response keys:', Object.keys(videoResponse || {}));
+        console.error('[pollVideoOperation] generateVideoResponse keys:', Object.keys(generateVideoResponse || {}));
+        console.error('[pollVideoOperation] Full response:', JSON.stringify(videoResponse, null, 2).substring(0, 1000));
         throw new Error('No video in operation response');
       }
       
       return {
         done: true,
-        videoUrl: video?.video?.uri || '',
-        videoBytes: video?.video?.videoBytes ? Buffer.from(video.video.videoBytes, 'base64') : undefined
+        videoUrl: video.uri || '',
+        videoBytes: video.videoBytes ? Buffer.from(video.videoBytes, 'base64') : undefined
       };
     }
     

@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 
 export type ViewMode = 'infinite' | 'sorted';
 export type SortKey = 'newest' | 'oldest' | 'title_asc' | 'title_desc';
+export type CoverStyle = 'minimal' | 'abstract' | 'nature' | 'cosmic' | 'photorealistic';
 
 interface CardsViewState {
   // State
@@ -10,12 +11,14 @@ interface CardsViewState {
   sortKey: SortKey;
   hasCoverFirst: boolean;
   searchQuery: string;
+  defaultCoverStyle: CoverStyle;
   
   // Actions
   setViewMode: (mode: ViewMode) => void;
   setSortKey: (key: SortKey) => void;
   setHasCoverFirst: (value: boolean) => void;
   setSearchQuery: (query: string) => void;
+  setDefaultCoverStyle: (style: CoverStyle) => void;
   resetToDefaults: () => void;
 }
 
@@ -24,6 +27,7 @@ const DEFAULT_STATE = {
   sortKey: 'newest' as SortKey,
   hasCoverFirst: false,
   searchQuery: '',
+  defaultCoverStyle: 'minimal' as CoverStyle,
 };
 
 export const useCardsViewStore = create<CardsViewState>()(
@@ -49,6 +53,10 @@ export const useCardsViewStore = create<CardsViewState>()(
         set({ searchQuery: query });
       },
       
+      setDefaultCoverStyle: (style: CoverStyle) => {
+        set({ defaultCoverStyle: style });
+      },
+      
       resetToDefaults: () => {
         set(DEFAULT_STATE);
       },
@@ -59,6 +67,7 @@ export const useCardsViewStore = create<CardsViewState>()(
         viewMode: state.viewMode,
         sortKey: state.sortKey,
         hasCoverFirst: state.hasCoverFirst,
+        defaultCoverStyle: state.defaultCoverStyle,
       }),
     }
   )

@@ -4,6 +4,7 @@
 import { Request, Response } from 'express';
 import type { TApiResponse, TRegisterRequest, TLoginRequest } from '@2dots1line/shared-types';
 import { AuthService, type AuthResult } from '@2dots1line/user-service';
+import jwt from 'jsonwebtoken';
 
 export class AuthController {
   private authService: AuthService;
@@ -129,6 +130,53 @@ export class AuthController {
           code: 'INTERNAL_ERROR',
           message: 'Internal Server Error'
         }
+      } as TApiResponse<any>);
+    }
+  };
+
+  verifyToken = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        res.status(401).json({
+          success: false,
+          error: { code: 'NO_TOKEN', message: 'No token provided' }
+        } as TApiResponse<any>);
+        return;
+      }
+
+      const token = authHeader.substring(7);
+      const user = await this.authService.validateToken(token);
+      
+      if (user) {
+        // Token is valid - check if near expiry and auto-refresh
+        const decoded = jwt.decode(token) as any;
+        const expiresIn = decoded.exp * 1000 - Date.now();
+        const shouldRefresh = expiresIn < 2 * 60 * 60 * 1000; // < 2 hours
+        
+        if (shouldRefresh) {
+          const result = await this.authService.authenticate({ email: user.email });
+          res.status(200).json({
+            success: true,
+            data: { user: result.user, token: result.token, refreshed: true }
+          } as TApiResponse<any>);
+        } else {
+          res.status(200).json({
+            success: true,
+            data: { user, refreshed: false }
+          } as TApiResponse<any>);
+        }
+      } else {
+        res.status(401).json({
+          success: false,
+          error: { code: 'INVALID_TOKEN', message: 'Token is invalid or expired' }
+        } as TApiResponse<any>);
+      }
+    } catch (error) {
+      console.error('Error in auth controller verify token:', error);
+      res.status(500).json({
+        success: false,
+        error: { code: 'SERVER_ERROR', message: 'Token verification failed' }
       } as TApiResponse<any>);
     }
   };

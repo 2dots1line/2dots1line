@@ -88,6 +88,45 @@ export interface NewStarGeneratedPayload {
 }
 
 /**
+ * Payload for NotificationWorker - Video Generation Complete
+ * V11.0 AI Media Generation Suite
+ */
+export interface VideoGenerationCompletePayload {
+  type: "video_generation_complete";
+  userId: string;
+  videoUrl: string;
+  viewContext: string;
+  cost: string;
+  model: string;
+  message: string;
+}
+
+/**
+ * Payload for NotificationWorker - Image Generation Complete
+ * V11.0 AI Media Generation Suite
+ */
+export interface ImageGenerationCompletePayload {
+  type: "image_generation_complete";
+  userId: string;
+  imageUrl: string;
+  viewContext: string;
+  cost: string;
+  model: string;
+  message: string;
+}
+
+/**
+ * Payload for NotificationWorker - Video Generation Failed
+ * V11.0 AI Media Generation Suite
+ */
+export interface VideoGenerationFailedPayload {
+  type: "video_generation_failed";
+  userId: string;
+  error: string;
+  message: string;
+}
+
+/**
  * SSE Message format for broadcasting to API Gateway
  */
 export interface SSEMessage {
@@ -97,7 +136,13 @@ export interface SSEMessage {
 }
 
 // Union type for all notification payloads
-export type NotificationJobPayload = NewCardAvailablePayload | GraphProjectionUpdatedPayload | NewStarGeneratedPayload;
+export type NotificationJobPayload = 
+  | NewCardAvailablePayload 
+  | GraphProjectionUpdatedPayload 
+  | NewStarGeneratedPayload
+  | VideoGenerationCompletePayload
+  | ImageGenerationCompletePayload
+  | VideoGenerationFailedPayload;
 
 // It seems the workers are importing `EmbeddingJob`, etc. directly.
 // Let's define these as the payload types for now.

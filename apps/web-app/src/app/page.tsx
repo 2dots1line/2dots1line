@@ -24,7 +24,7 @@ function HomePage() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isSignupModalOpen, setIsSignupModalOpen] = useState(false);
 
-  const { user, isAuthenticated, logout, initializeAuth, hasHydrated } = useUserStore();
+  const { user, isAuthenticated, logout, hasHydrated } = useUserStore();
   const { 
     setActiveView, 
     activeView, 
@@ -174,29 +174,28 @@ function HomePage() {
     }
   }, [hasMore, isLoading, viewMode, handleLoadMore]);
 
-  // Memoize initializeAuth to prevent unnecessary re-renders
-  const memoizedInitializeAuth = useCallback(() => {
-    initializeAuth();
-  }, [initializeAuth]);
-
-  // Initialize authentication state on component mount
+  // Initialize authentication state ONCE on component mount
   useEffect(() => {
-    memoizedInitializeAuth();
-    // Debug: Log current authentication state
-    console.log('HomePage - Auth state:', { user, isAuthenticated, hasHydrated });
-    console.log('HomePage - localStorage token:', localStorage.getItem('auth_token'));
-    console.log('HomePage - localStorage state:', localStorage.getItem('user-storage'));
-
+    console.log('=== HomePage useEffect MOUNT - Calling initializeAuth ===');
+    // Call initializeAuth directly from store to avoid subscribing to store updates
+    useUserStore.getState().initializeAuth();
+    
     // Fallback: Force hydration after 2 seconds if it hasn't completed
     const hydrationTimeout = setTimeout(() => {
-      if (!hasHydrated) {
+      const currentHasHydrated = useUserStore.getState().hasHydrated;
+      if (!currentHasHydrated) {
         console.log('HomePage - Forcing hydration due to timeout');
         useUserStore.getState().setHasHydrated(true);
       }
     }, 2000);
 
     return () => clearTimeout(hydrationTimeout);
-  }, [memoizedInitializeAuth, user, isAuthenticated, hasHydrated]);
+  }, []); // Empty dependency array - run ONCE on mount only
+
+  // Separate effect to log auth state changes for debugging (optional)
+  useEffect(() => {
+    console.log('HomePage - Auth state changed:', { user: user?.user_id, isAuthenticated, hasHydrated });
+  }, [user, isAuthenticated, hasHydrated]);
 
   // Load video preferences when user is authenticated
   useEffect(() => {
@@ -284,12 +283,14 @@ function HomePage() {
 
   // Helper: Generate cover for a single card with conservative retries/backoff
   const generateCoverForCard = async (card: any) => {
-    const motif =
-      (typeof card.title === 'string' && card.title.trim()) ||
-      (typeof card.subtitle === 'string' && card.subtitle.trim()) ||
-      (typeof card.display_data?.preview === 'string' && card.display_data.preview.trim()) ||
-      card.type ||
-      'abstract motif';
+    // Build motif from title and content/description for richer context
+    const titlePart = (typeof card.title === 'string' && card.title.trim()) ||
+                      (typeof card.subtitle === 'string' && card.subtitle.trim()) || '';
+    const contentPart = (typeof card.display_data?.preview === 'string' && card.display_data.preview.trim()) || '';
+    
+    const motif = titlePart && contentPart 
+      ? `${titlePart}: ${contentPart}`
+      : titlePart || contentPart || card.type || 'abstract motif';
 
     const payload = {
       motif,
@@ -540,7 +541,10 @@ function HomePage() {
       <div className="relative w-full h-screen overflow-hidden">
         <DynamicBackground view="dashboard" />
         <main className="relative z-10 flex flex-col items-center justify-center min-h-screen p-4">
-          <div className="text-white">Loading...</div>
+          <div className="text-white text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+            <div>Verifying your session...</div>
+          </div>
         </main>
       </div>
     );

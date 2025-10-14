@@ -83,6 +83,12 @@ dist/*.tsbuildinfo
 # Generated media files
 covers/
 apps/web-app/public/images/
+apps/web-app/public/videos/generated/
+
+# Test files
+test-*.js
+test-*.html
+
 # Multiverse development assets
 DevLog/multiverse/
 

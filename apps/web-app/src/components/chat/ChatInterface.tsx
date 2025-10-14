@@ -181,6 +181,99 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     }
   }, [trackEvent]);
 
+  // Listen for video generation complete events
+  useEffect(() => {
+    const handleVideoComplete = async (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const data = customEvent.detail;
+      console.log('[ChatInterface] Video generation complete:', data);
+      
+      // Trigger a proactive LLM message that naturally mentions the video
+      try {
+        const token = localStorage.getItem('auth_token');
+        const conversationId = currentConversationId || `conv_${Date.now()}`;
+        
+        // Send a system message to LLM with video ready context
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001'}/api/v1/conversation/message/stream`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token || 'dev-token'}`
+          },
+          body: JSON.stringify({
+            conversation_id: conversationId,
+            message: {
+              type: 'system_event',
+              content: `[SYSTEM: User's video is now ready at ${data.videoUrl}. Naturally mention this in your next response as if you're informing them casually. Include the video using markdown: ![Video](${data.videoUrl})]`
+            },
+            view_context: currentView || 'chat'
+          })
+        });
+
+        if (response.ok && response.body) {
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let fullResponse = '';
+          let botMessageId = `bot-proactive-${Date.now()}`;
+
+          // Create initial bot message
+          const initialMessage: ChatMessage = {
+            id: botMessageId,
+            type: 'bot',
+            content: '',
+            timestamp: new Date()
+          };
+          addMessage(initialMessage);
+
+          // Stream the response
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n');
+
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                try {
+                  const jsonData = JSON.parse(line.slice(6));
+                  if (jsonData.content) {
+                    fullResponse += jsonData.content;
+                    updateMessage(botMessageId, { content: fullResponse });
+                  }
+                } catch (e) {
+                  // Skip invalid JSON
+                }
+              }
+            }
+          }
+        } else {
+          // Fallback: just show a simple message with video
+          const videoMessage: ChatMessage = {
+            id: `bot-video-${Date.now()}`,
+            type: 'bot',
+            content: `Your video is ready!\n\n![Video](${data.videoUrl})`,
+            timestamp: new Date()
+          };
+          addMessage(videoMessage);
+        }
+      } catch (error) {
+        console.error('[ChatInterface] Error triggering proactive video message:', error);
+        // Fallback: simple message
+        const videoMessage: ChatMessage = {
+          id: `bot-video-${Date.now()}`,
+          type: 'bot',
+          content: `Your video is ready!\n\n![Video](${data.videoUrl})`,
+          timestamp: new Date()
+        };
+        addMessage(videoMessage);
+      }
+    };
+
+    window.addEventListener('video_generation_complete', handleVideoComplete);
+    return () => window.removeEventListener('video_generation_complete', handleVideoComplete);
+  }, [addMessage, updateMessage, currentConversationId, currentView]);
+
   // Auto-scroll when mini chat expands to show latest messages
   useEffect(() => {
     if (size === 'mini' && isExpanded) {
@@ -421,19 +514,16 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         })
       });
       
-      if (!response.ok) {
+      // Video generation returns 202 Accepted (async operation)
+      if (!response.ok && response.status !== 202) {
         throw new Error('Video generation failed to start');
       }
       
       const result = await response.json();
       
-      const successMessage: ChatMessage = {
-        id: `bot-${Date.now() + 1}`,
-        type: 'bot',
-        content: `✅ Video generation job started! Job ID: ${result.data.jobId}`,
-        timestamp: new Date()
-      };
-      addMessage(successMessage);
+      // Video generation started successfully - no UI message needed
+      // The LLM's transition_message (from scenarios.on_confirm) already plays
+      console.log('[ChatInterface] Video generation started:', result.jobId);
       
     } catch (error) {
       console.error('Video generation error:', error);

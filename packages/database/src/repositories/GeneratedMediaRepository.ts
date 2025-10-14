@@ -6,6 +6,7 @@
 
 import { PrismaClient, Prisma } from '@prisma/client';
 import { DatabaseService } from '../DatabaseService';
+import crypto from 'crypto';
 
 export interface GeneratedMedia {
   id: string;
@@ -48,8 +49,12 @@ export class GeneratedMediaRepository {
    * Create a new generated media record
    */
   async createGeneratedMedia(data: CreateGeneratedMediaInput): Promise<GeneratedMedia> {
+    // Generate UUID for the id field
+    const id = crypto.randomUUID();
+    
     const result = await this.prisma.$queryRaw<any[]>`
       INSERT INTO generated_media (
+        id,
         user_id,
         media_type,
         file_url,
@@ -62,6 +67,7 @@ export class GeneratedMediaRepository {
         provider,
         model
       ) VALUES (
+        ${id},
         ${data.userId},
         ${data.mediaType},
         ${data.fileUrl},

@@ -9,6 +9,15 @@ export type ViewType = 'dashboard' | 'chat' | 'cards' | 'settings';
 // Type for all possible views (including cosmos)
 export type AllViewType = ViewType | 'cosmos';
 
+export interface VideoFile {
+  id: string; // Relative path from /videos/
+  label: string; // Display name
+  path: string; // Full URL path
+  directory: string; // 'root' | 'generated' | etc
+  size?: number;
+  createdAt?: string;
+}
+
 export interface MediaItem {
   id: string;
   source: 'local' | 'pexels' | 'generated';
@@ -40,7 +49,9 @@ interface BackgroundVideoState {
   mediaPreferences: Record<ViewType, UserMediaPreference | null>;
   searchResults: MediaItem[];
   generatedMedia: MediaItem[]; // New: cached generated media
+  localVideos: VideoFile[]; // New: local videos from filesystem
   isLoading: boolean;
+  isLoadingLocalVideos: boolean; // New: loading state for local videos
   error: string | null;
 
   // Actions
@@ -56,6 +67,8 @@ interface BackgroundVideoState {
   loadGeneratedMedia: () => Promise<void>;
   deleteGeneratedMedia: (id: string) => Promise<void>;
   applyGeneratedVideo: (id: string, view: ViewType) => void;
+  // New: Local videos action
+  loadLocalVideos: () => Promise<void>;
 }
 
 const DEFAULT_LOCAL_VIDEOS: Record<ViewType, UserMediaPreference> = {
@@ -72,7 +85,9 @@ export const useBackgroundVideoStore = create<BackgroundVideoState>()(
       mediaPreferences: { ...DEFAULT_LOCAL_VIDEOS },
       searchResults: [],
       generatedMedia: [],
+      localVideos: [],
       isLoading: false,
+      isLoadingLocalVideos: false,
       error: null,
 
       // Actions
@@ -300,6 +315,26 @@ export const useBackgroundVideoStore = create<BackgroundVideoState>()(
           console.log(`✅ Applied generated video to ${view} view`);
         } else {
           console.warn(`⚠️  Generated video not found: ${id}`);
+        }
+      },
+
+      // New: Load local videos from filesystem via API
+      loadLocalVideos: async () => {
+        set({ isLoadingLocalVideos: true });
+        
+        try {
+          const response = await fetch('/api/videos/list');
+          const data = await response.json();
+          
+          if (data.success) {
+            set({ localVideos: data.data, isLoadingLocalVideos: false });
+            console.log(`✅ Loaded ${data.data.length} local videos from filesystem`);
+          } else {
+            set({ localVideos: [], isLoadingLocalVideos: false });
+          }
+        } catch (error) {
+          console.error('Failed to load local videos:', error);
+          set({ localVideos: [], isLoadingLocalVideos: false });
         }
       },
     }),

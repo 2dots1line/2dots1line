@@ -60,6 +60,46 @@ export const useNotificationConnection = () => {
           console.log('[Socket.IO] Server confirmation:', data);
         });
 
+        // Handle video generation complete
+        socket.on('video_generation_complete', (data: any) => {
+          console.log('[Socket.IO] Video generation complete:', data);
+          addNotification({
+            type: 'success',
+            title: '🎬 Video Ready!',
+            message: data.message || 'Your background video is ready!',
+            duration: 8000,
+            metadata: {
+              videoUrl: data.videoUrl,
+              viewContext: data.viewContext,
+              cost: data.cost,
+              model: data.model
+            }
+          });
+          
+          // 🔥 NEW: Refresh local videos list to pick up the new file from filesystem
+          const { useBackgroundVideoStore } = require('../stores/BackgroundVideoStore');
+          const { loadLocalVideos } = useBackgroundVideoStore.getState();
+          loadLocalVideos().catch((err: Error) => 
+            console.error('[Socket.IO] Failed to refresh local videos:', err)
+          );
+          
+          // Dispatch custom event for chat interface to show inline preview
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('video_generation_complete', { detail: data }));
+          }
+        });
+
+        // Handle video generation failed
+        socket.on('video_generation_failed', (data: any) => {
+          console.log('[Socket.IO] Video generation failed:', data);
+          addNotification({
+            type: 'error',
+            title: '❌ Video Generation Failed',
+            message: data.message || 'Video generation failed. Please try again.',
+            duration: 5000
+          });
+        });
+
         // Handle all notification events
         const handleNotification = (data: any) => {
           try {

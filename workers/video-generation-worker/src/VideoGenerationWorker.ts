@@ -152,25 +152,46 @@ export class VideoGenerationWorker {
         const progress = Math.min(90, 10 + (i / maxPolls) * 80);
         await job.updateProgress(progress);
         
-        if (result.done && result.videoBytes) {
+        if (result.done && (result.videoBytes || result.videoUrl)) {
           console.log(`[VideoGenerationWorker] Video generation complete!`);
           
-          // Step 4: Save video to disk
+          // Step 4: Download video if only URL is provided
+          let videoBuffer: Buffer;
+          if (result.videoBytes) {
+            videoBuffer = result.videoBytes;
+          } else if (result.videoUrl) {
+            console.log(`[VideoGenerationWorker] Downloading video from: ${result.videoUrl}`);
+            const videoResponse = await fetch(result.videoUrl, {
+              headers: {
+                'x-goog-api-key': process.env.GOOGLE_API_KEY || ''
+              }
+            });
+            if (!videoResponse.ok) {
+              throw new Error(`Failed to download video: ${videoResponse.statusText}`);
+            }
+            const arrayBuffer = await videoResponse.arrayBuffer();
+            videoBuffer = Buffer.from(arrayBuffer);
+            console.log(`[VideoGenerationWorker] Video downloaded: ${videoBuffer.length} bytes`);
+          } else {
+            throw new Error('No video bytes or URL in response');
+          }
+          
+          // Step 5: Save video to disk (in web-app public folder for Next.js)
           const filename = `${userId}-${viewContext}-${Date.now()}.mp4`;
-          const videoDir = path.join(process.cwd(), 'public', 'videos', 'generated');
+          const videoDir = path.join(process.cwd(), 'apps', 'web-app', 'public', 'videos', 'generated');
           
           if (!fs.existsSync(videoDir)) {
             fs.mkdirSync(videoDir, { recursive: true });
           }
           
           const filePath = path.join(videoDir, filename);
-          fs.writeFileSync(filePath, result.videoBytes);
+          fs.writeFileSync(filePath, videoBuffer);
           
           const publicUrl = `/videos/generated/${filename}`;
           
           console.log(`[VideoGenerationWorker] Video saved to: ${publicUrl}`);
           
-          // Step 4a: Save to database
+          // Step 6: Save to database
           const generationDurationSeconds = Math.floor((Date.now() - startTime) / 1000);
           try {
             await this.generatedMediaRepo.createGeneratedMedia({

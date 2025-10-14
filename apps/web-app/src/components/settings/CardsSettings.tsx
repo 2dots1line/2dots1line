@@ -2,10 +2,28 @@ import React from 'react';
 import { BackgroundVideoSelector } from './BackgroundVideoSelector';
 import { useCardsViewStore } from '../../stores/CardsViewStore';
 import { useCardStore } from '../../stores/CardStore';
-import { LayoutGrid, List, Star } from 'lucide-react';
+import { LayoutGrid, List, Star, Palette } from 'lucide-react';
+
+// Available image generation styles from config/media_generation_prompts.json
+const IMAGE_STYLES = [
+  { value: 'minimal', label: 'Minimal', description: 'Clean, minimalist design' },
+  { value: 'abstract', label: 'Abstract', description: 'Geometric patterns' },
+  { value: 'nature', label: 'Nature', description: 'Organic forms' },
+  { value: 'cosmic', label: 'Cosmic', description: 'Space-inspired' },
+  { value: 'photorealistic', label: 'Photorealistic', description: 'Realistic style' },
+] as const;
 
 export const CardsSettings: React.FC = () => {
-  const { viewMode, sortKey, hasCoverFirst, setViewMode, setSortKey, setHasCoverFirst } = useCardsViewStore();
+  const { 
+    viewMode, 
+    sortKey, 
+    hasCoverFirst, 
+    defaultCoverStyle,
+    setViewMode, 
+    setSortKey, 
+    setHasCoverFirst,
+    setDefaultCoverStyle 
+  } = useCardsViewStore();
   const { initializeSortedLoader } = useCardStore();
   
   return (
@@ -89,6 +107,29 @@ export const CardsSettings: React.FC = () => {
             <option value="title_asc" className="bg-gray-900 text-white">Title (A-Z)</option>
             <option value="title_desc" className="bg-gray-900 text-white">Title (Z-A)</option>
           </select>
+        </div>
+
+        {/* Default Cover Style */}
+        <div>
+          <label className="text-xs font-medium text-white/70 mb-2 flex items-center gap-1 block">
+            <Palette size={12} />
+            Default Cover Style
+          </label>
+          <select
+            value={defaultCoverStyle}
+            onChange={(e) => setDefaultCoverStyle(e.target.value as any)}
+            className="w-full px-3 py-2 text-sm bg-white/10 border border-white/20 rounded-lg text-white/90 font-brand focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-transparent transition-all"
+            title="Default style for AI-generated card covers"
+          >
+            {IMAGE_STYLES.map((style) => (
+              <option key={style.value} value={style.value} className="bg-gray-900 text-white">
+                {style.label} - {style.description}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-white/50 mt-1">
+            Applied when generating new card covers
+          </p>
         </div>
       </div>
     </div>

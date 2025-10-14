@@ -77,7 +77,12 @@ function formatMarkdownContent(text: string): string {
   formattedText = processLists(formattedText);
 
   // Phase 3: Inline Formatting
-  // Images - must be processed before italic (because of the ! prefix)
+  // Images and Videos - must be processed before italic (because of the ! prefix)
+  // Video format: ![Video](url.mp4) or ![Video](url.webm)
+  formattedText = formattedText.replace(/!\[([^\]]*)\]\(([^)]+\.(?:mp4|webm|ogg))\)/gi, 
+    '<video controls class="markdown-video" style="max-width: 100%; height: auto; border-radius: 8px; margin: 8px 0;"><source src="$2" type="video/mp4" />Your browser does not support the video tag.</video>');
+  
+  // Images format: ![alt](url)
   formattedText = formattedText.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" class="markdown-image" style="max-width: 100%; height: auto; border-radius: 8px; margin: 8px 0;" />');
   
   // Bold text (**...**)

@@ -5,18 +5,28 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { X, RefreshCw, AlertCircle, Wand2 } from 'lucide-react';
+import { X, RefreshCw, AlertCircle, Wand2, Palette } from 'lucide-react';
 import { GlassmorphicPanel, GlassButton } from '@2dots1line/ui-components';
 import { useEntityDetails } from '../../hooks/cosmos/useEntityDetails';
 import { useRelatedEntities } from '../../hooks/useRelatedEntities';
 import { cardService } from '../../services/cardService';
 import { useCardStore } from '../../stores/CardStore';
+import { useCardsViewStore } from '../../stores/CardsViewStore';
 
 interface EntityDetailModalProps {
   entity: any; // Can be card or node
   isOpen: boolean;
   onClose: () => void;
 }
+
+// Available image generation styles from config/media_generation_prompts.json
+const IMAGE_STYLES = [
+  { value: 'minimal', label: 'Minimal', description: 'Clean, minimalist design with negative space' },
+  { value: 'abstract', label: 'Abstract', description: 'Geometric patterns, modern aesthetic' },
+  { value: 'nature', label: 'Nature', description: 'Organic forms inspired by nature' },
+  { value: 'cosmic', label: 'Cosmic', description: 'Ethereal, space-inspired, mystical colors' },
+  { value: 'photorealistic', label: 'Photorealistic', description: 'Realistic photography style' },
+] as const;
 
 export const EntityDetailModal: React.FC<EntityDetailModalProps> = ({
   entity: initialEntity,
@@ -25,12 +35,38 @@ export const EntityDetailModal: React.FC<EntityDetailModalProps> = ({
 }) => {
   const [currentEntity, setCurrentEntity] = useState(initialEntity);
   const [isGeneratingCover, setIsGeneratingCover] = useState(false);
+  const [showStyleDropdown, setShowStyleDropdown] = useState(false);
+  
   const { updateCardBackground } = useCardStore();
+  const { defaultCoverStyle } = useCardsViewStore();
+  
+  // Use global default style, can be overridden per-generation
+  const [selectedStyle, setSelectedStyle] = useState<string>(defaultCoverStyle);
 
   // Update current entity when prop changes
   useEffect(() => {
     setCurrentEntity(initialEntity);
   }, [initialEntity]);
+
+  // Sync with global default style when it changes
+  useEffect(() => {
+    setSelectedStyle(defaultCoverStyle);
+  }, [defaultCoverStyle]);
+
+  // Close style dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (showStyleDropdown && !target.closest('.style-dropdown-container')) {
+        setShowStyleDropdown(false);
+      }
+    };
+
+    if (showStyleDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showStyleDropdown]);
 
   const { entityDetails, isLoading, error, refetch } = useEntityDetails(currentEntity);
   const { relatedEntities, isLoadingRelated } = useRelatedEntities(
@@ -87,11 +123,22 @@ export const EntityDetailModal: React.FC<EntityDetailModalProps> = ({
       }
 
       // Generate cover using card ID
-      const motif = entityDetails?.title || entityId;
+      // Build motif from title and content/description
+      const titlePart = entityDetails?.title || '';
+      const contentPart = entityDetails?.description || '';
+      const motif = titlePart && contentPart 
+        ? `${titlePart}: ${contentPart}`
+        : titlePart || contentPart || entityId;
+      
+      console.log(`[EntityDetailModal] Generating cover with style="${selectedStyle}", motif="${motif}"`);
+      
       const resp = await fetch(`/api/cards/${cardId}/generate-cover`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ motif }),
+        body: JSON.stringify({ 
+          motif,
+          style_pack: selectedStyle 
+        }),
       });
       
       const data = await resp.json();
@@ -206,18 +253,60 @@ export const EntityDetailModal: React.FC<EntityDetailModalProps> = ({
           </div>
           
           <div className="flex items-center gap-2">
+            {/* Style Selector Dropdown */}
+            <div className="relative style-dropdown-container">
+              <GlassButton
+                onClick={() => setShowStyleDropdown(!showStyleDropdown)}
+                className="px-3 py-2 hover:bg-white/20 flex items-center gap-2"
+                title="Select image style"
+              >
+                <Palette size={16} />
+                <span className="text-xs font-medium">
+                  {IMAGE_STYLES.find(s => s.value === selectedStyle)?.label || 'Style'}
+                </span>
+              </GlassButton>
+              
+              {/* Dropdown Menu */}
+              {showStyleDropdown && (
+                <div className="absolute right-0 top-full mt-2 w-64 bg-black/90 backdrop-blur-md border border-white/20 rounded-lg shadow-xl z-50 overflow-hidden">
+                  <div className="p-2 border-b border-white/10">
+                    <p className="text-xs text-white/60 font-medium">Image Style</p>
+                  </div>
+                  {IMAGE_STYLES.map((style) => (
+                    <button
+                      key={style.value}
+                      onClick={() => {
+                        setSelectedStyle(style.value);
+                        setShowStyleDropdown(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 hover:bg-white/10 transition-colors ${
+                        selectedStyle === style.value ? 'bg-white/15 text-white' : 'text-white/80'
+                      }`}
+                    >
+                      <div className="font-medium text-sm">{style.label}</div>
+                      <div className="text-xs text-white/50 mt-0.5">{style.description}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            
             <GlassButton
               onClick={handleGenerateCover}
               disabled={isGeneratingCover}
-              className="p-2 hover:bg-white/20 disabled:opacity-50"
+              className="px-3 py-2 hover:bg-white/20 disabled:opacity-50 flex items-center gap-2"
               title="Generate AI cover"
             >
               {isGeneratingCover ? (
                 <RefreshCw size={16} className="animate-spin" />
               ) : (
-                <Wand2 size={18} />
+                <Wand2 size={16} />
               )}
+              <span className="text-xs font-medium">
+                {isGeneratingCover ? 'Generating...' : 'Generate Cover'}
+              </span>
             </GlassButton>
+            
             <GlassButton
               onClick={handleRefresh}
               disabled={isLoading}

@@ -71,6 +71,7 @@ v1Router.get('/health', (req, res) => {
 // --- Auth Routes (Public) ---
 v1Router.post('/auth/register', authController.register);
 v1Router.post('/auth/login', authController.login);
+v1Router.get('/auth/verify', authMiddleware, authController.verifyToken);
 
 // --- Conversation Routes (Authenticated) ---
 v1Router.post('/conversations/messages', authMiddleware, conversationController.postMessage);

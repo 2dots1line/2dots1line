@@ -25,6 +25,7 @@ export interface UserState {
   isLoading: boolean;
   error: string | null;
   hasHydrated: boolean;
+  isInitializing: boolean;
   
   // Actions
   login: (email: string, password: string) => Promise<void>;
@@ -48,6 +49,7 @@ export const useUserStore = create<UserState>()(
       isLoading: false,
       error: null,
       hasHydrated: false, // Start as false to prevent hydration mismatch
+      isInitializing: false, // Track if initialization is in progress
 
       // Actions
       login: async (email: string, password: string) => {
@@ -398,49 +400,40 @@ export const useUserStore = create<UserState>()(
         set({ error: null });
       },
 
-      initializeAuth: () => {
-        console.log('UserStore.initializeAuth - Starting initialization');
-        
+      initializeAuth: async () => {
         const state = get();
-        console.log('UserStore.initializeAuth - Current state:', { 
-          isAuthenticated: state.isAuthenticated, 
-          hasHydrated: state.hasHydrated,
-          user: state.user ? 'exists' : 'null'
-        });
         
-        // Set hydrated to true if not already set
+        // Guard: Prevent multiple simultaneous initializations
+        if (state.isInitializing) {
+          console.log('UserStore.initializeAuth - Already initializing, skipping');
+          return;
+        }
+        
+        // DEBUG: Log stack trace to see WHO is calling this
+        console.log('UserStore.initializeAuth - Starting initialization');
+        console.log('UserStore.initializeAuth - Called from:', new Error().stack);
+        set({ isInitializing: true });
+        
+        // Set hydrated to true immediately to prevent UI blocking
         if (!state.hasHydrated) {
           set({ hasHydrated: true });
         }
         
         // Only check auth state on client side
         if (typeof window !== 'undefined') {
-          // If already authenticated (from rehydration), just ensure token is set
-          if (state.isAuthenticated && state.user) {
-            const token = localStorage.getItem('auth_token');
-            if (token) {
-              axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-              console.log('UserStore.initializeAuth - User already authenticated, token restored');
-            }
-            console.log('UserStore.initializeAuth - Initialization complete (already authenticated)');
-            return;
-          }
+          const token = localStorage.getItem('auth_token');
           
-          // Development mode: automatically set up dev authentication
-          if (process.env.NODE_ENV === 'development') {
-            const token = localStorage.getItem('auth_token');
+          // Development mode auto-auth
+          if (process.env.NODE_ENV === 'development' && !token && !state.isAuthenticated) {
             const persistedState = localStorage.getItem('user-storage');
             
-            // Only auto-setup dev auth if there's no token AND no persisted state
-            // This prevents auto-login after explicit logout
-            if (!token && !persistedState) {
+            // Only auto-setup dev auth if there's no persisted state
+            if (!persistedState) {
               console.log('UserStore.initializeAuth - Development mode: setting up dev token');
               
-              // Set up development token and user
               localStorage.setItem('auth_token', 'dev-token');
               axios.defaults.headers.common['Authorization'] = `Bearer dev-token`;
               
-              // Set up mock user data
               const mockUser: User = {
                 user_id: 'dev-user-123',
                 email: 'dev@example.com',
@@ -464,40 +457,63 @@ export const useUserStore = create<UserState>()(
               });
               
               console.log('UserStore.initializeAuth - Development authentication set up');
-              console.log('UserStore.initializeAuth - Initialization complete');
-              return;
-            } else if (token) {
-              // Token exists, set up axios header
-              axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-              console.log('UserStore.initializeAuth - Set axios header for existing token');
-            } else {
-              // No token and no persisted state - user explicitly logged out
-              console.log('UserStore.initializeAuth - No token or persisted state, staying logged out');
             }
+            return;
           }
           
-          // If we have a token but no authenticated state, clear inconsistent state
-          if (state.isAuthenticated && !state.user) {
-            const token = localStorage.getItem('auth_token');
-            console.log('UserStore.initializeAuth - Found token:', !!token);
+          // If we have a token, verify it with the backend
+          if (token) {
+            console.log('UserStore.initializeAuth - Verifying token with backend...');
             
-            if (token) {
-              // Set the authorization header for future requests
+            try {
               axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-              console.log('UserStore.initializeAuth - Set axios header');
-            } else {
-              // No token found, clear authentication state
-              console.log('UserStore.initializeAuth - No token found, clearing state');
+              const response = await axios.get(`${API_BASE_URL}/api/v1/auth/verify`, {
+                timeout: 5000 // 5 second timeout to prevent hanging
+              });
+              
+              if (response.data.success) {
+                const { user, token: newToken, refreshed } = response.data.data;
+                
+                // Update state with verified user
+                set({
+                  user,
+                  isAuthenticated: true,
+                  error: null,
+                });
+                
+                // If token was refreshed, store the new one
+                if (refreshed && newToken) {
+                  localStorage.setItem('auth_token', newToken);
+                  axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+                  console.log('UserStore.initializeAuth - Token refreshed automatically');
+                }
+                
+                console.log('UserStore.initializeAuth - Token verified successfully');
+              }
+            } catch (error) {
+              // Token is invalid or expired - clear authentication state
+              console.log('UserStore.initializeAuth - Token verification failed, logging out', error);
+              localStorage.removeItem('auth_token');
+              delete axios.defaults.headers.common['Authorization'];
               set({
                 user: null,
                 isAuthenticated: false,
-                error: null,
+                error: 'Session expired. Please log in again.',
               });
             }
+          } else if (state.isAuthenticated) {
+            // No token but state says authenticated - clear inconsistent state
+            console.log('UserStore.initializeAuth - Clearing inconsistent state');
+            set({
+              user: null,
+              isAuthenticated: false,
+              error: null,
+            });
           }
         }
         
         console.log('UserStore.initializeAuth - Initialization complete');
+        set({ isInitializing: false });
       },
 
       setHasHydrated: (hydrated: boolean) => {
@@ -558,4 +574,26 @@ if (typeof window !== 'undefined') {
   if (token) {
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
   }
+  
+  // Global axios interceptor to handle 401 responses
+  axios.interceptors.response.use(
+    (response) => response,
+    (error) => {
+      if (error.response?.status === 401) {
+        console.log('Axios interceptor - 401 detected, clearing auth state');
+        
+        // Clear auth state
+        localStorage.removeItem('auth_token');
+        delete axios.defaults.headers.common['Authorization'];
+        
+        useUserStore.getState().logout();
+        
+        // Show error message to user
+        useUserStore.setState({
+          error: 'Your session has expired. Please log in again.',
+        });
+      }
+      return Promise.reject(error);
+    }
+  );
 } 

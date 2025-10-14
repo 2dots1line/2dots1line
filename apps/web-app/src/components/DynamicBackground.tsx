@@ -108,18 +108,31 @@ const LocalBackgroundVideo: React.FC<LocalBackgroundVideoProps> = ({
   const { getMediaForView } = useBackgroundVideoStore();
   const media = getMediaForView(view);
   
-  // Get the local video file name
-  const videoFileName = media?.source === 'local' ? media.id : 'Cloud1.mp4';
+  // Support both old format (just filename) and new format (relative path with subdirs)
+  let videoPath = '/videos/Cloud1.mp4'; // fallback
+  
+  if (media?.source === 'local') {
+    if (media.url) {
+      // New format with full path
+      videoPath = media.url;
+    } else if (media.id) {
+      // Old format or new format - check if it includes subdirectory
+      videoPath = media.id.includes('/') ? `/videos/${media.id}` : `/videos/${media.id}`;
+    }
+  } else if (media?.source === 'generated' && media.url) {
+    videoPath = media.url;
+  }
 
   return (
     <div className={`absolute inset-0 z-0 ${className}`}>
       <video
+        key={videoPath} // Force re-render on video change
         autoPlay
         loop
         muted
         playsInline
         className="w-full h-full object-cover"
-        src={`/videos/${videoFileName}`}
+        src={videoPath}
       >
         Your browser does not support the video tag.
       </video>

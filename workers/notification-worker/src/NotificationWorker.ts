@@ -282,6 +282,9 @@ export class NotificationWorker {
   /**
    * Main job processing function with 10-second consolidation window.
    * Collects events for 10 seconds, then sends 1 consolidated notification.
+   * 
+   * Special handling for immediate notifications (video/image generation):
+   * - These are sent immediately without consolidation
    */
   private async processJob(job: Job<NotificationJobPayload>): Promise<void> {
     if (this.isShuttingDown) {
@@ -290,7 +293,7 @@ export class NotificationWorker {
     }
 
     const { type, userId } = job.data;
-    console.log(`[NotificationWorker] Collecting ${type} event for user ${userId}`);
+    console.log(`[NotificationWorker] Processing ${type} event for user ${userId}`);
 
     try {
       // Check if user has active connections
@@ -300,6 +303,17 @@ export class NotificationWorker {
         return;
       }
 
+      // Handle immediate notifications (video/image generation complete)
+      if (type === 'video_generation_complete' || type === 'image_generation_complete' || type === 'video_generation_failed') {
+        console.log(`[NotificationWorker] Sending immediate ${type} notification to user ${userId}`);
+        if (this.io) {
+          this.io.to(`user:${userId}`).emit(type, job.data);
+          console.log(`[NotificationWorker] ✅ Sent ${type} notification to user ${userId}`);
+        }
+        return;
+      }
+
+      // For other events, use consolidation
       // Add event to pending notifications
       this.addPendingNotification(userId, type, job.data);
 
