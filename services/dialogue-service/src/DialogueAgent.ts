@@ -91,7 +91,9 @@ export class DialogueAgent {
       viewDescription?: string;
     };
     engagementContext?: EngagementContext;
+    enableGrounding?: boolean;
     onChunk?: (chunk: string) => void;
+    onGroundingSources?: (sources: Array<{web_url: string; title?: string; snippet?: string}>) => void;
   }): Promise<{
     response_text: string;
     ui_actions: Array<{
@@ -115,14 +117,77 @@ export class DialogueAgent {
     // --- PHASE I: INPUT PRE-PROCESSING ---
     const { processedText: finalInputText, visionAnalysis, documentAnalysis } = await this.processInput(input.currentMessageText, input.currentMessageMedia);
 
-    // --- PHASE II: SINGLE SYNTHESIS LLM CALL WITH STREAMING ---
-    const llmResponse = await this.performSingleSynthesisCallStreaming({ 
-      userId: input.userId, 
-      conversationId: input.conversationId, 
-      finalInputText, 
-      viewContext: input.viewContext,
-      engagementContext: input.engagementContext
-    }, undefined, 'first', input.onChunk);
+    // --- PHASE II: GROUNDING-AWARE SYNTHESIS ---
+    let llmResponse: any;
+    let groundingMetadata: any = null;
+    
+    if (input.enableGrounding) {
+      // TWO-TURN GROUNDING FLOW
+      console.log(`🌐 DialogueAgent - Grounding enabled: Starting two-turn flow`);
+      
+      // Turn 1: Search the web (non-streaming, get raw results)
+      console.log(`🔍 DialogueAgent - Turn 1: Performing web search...`);
+      const searchResponse = await this.performSingleSynthesisCallStreaming({ 
+        userId: input.userId, 
+        conversationId: input.conversationId, 
+        finalInputText, 
+        viewContext: input.viewContext,
+        engagementContext: input.engagementContext,
+        enableGrounding: true
+      }, undefined, 'first', undefined); // No streaming for search turn
+      
+      // Extract grounding metadata and raw search results
+      groundingMetadata = (searchResponse as any).grounding_metadata;
+      const searchResults = (searchResponse as any).direct_response_text || (searchResponse as any).response_text;
+      
+      console.log(`✅ DialogueAgent - Turn 1 complete: Found ${groundingMetadata?.grounding_chunks?.length || 0} sources`);
+      
+      // Emit sources to frontend for live display
+      if (groundingMetadata?.grounding_chunks && input.onGroundingSources) {
+        input.onGroundingSources(groundingMetadata.grounding_chunks);
+        console.log(`📡 DialogueAgent - Emitted ${groundingMetadata.grounding_chunks.length} sources to frontend`);
+      }
+      
+      // Turn 2: Package results into Dot-styled response (with streaming)
+      console.log(`📦 DialogueAgent - Turn 2: Packaging results with Dot's voice...`);
+      const refinementPrompt = `Based on the following web search results, provide a natural, conversational response in Dot's voice.
+
+WEB SEARCH RESULTS:
+${searchResults}
+
+INSTRUCTIONS:
+- Synthesize the information naturally
+- Maintain Dot's warm, insightful personality
+- Include key facts and figures
+- Keep it concise and conversational
+- Do NOT include "thought_process" or technical details
+- Respond as if you naturally have this knowledge
+
+USER'S ORIGINAL QUESTION: ${finalInputText}`;
+
+      llmResponse = await this.performSingleSynthesisCallStreaming({ 
+        userId: input.userId, 
+        conversationId: input.conversationId, 
+        finalInputText: refinementPrompt, 
+        viewContext: input.viewContext,
+        engagementContext: input.engagementContext,
+        enableGrounding: false // No grounding for refinement turn
+      }, undefined, 'second', input.onChunk);
+      
+      // Attach grounding metadata to final response
+      (llmResponse as any).grounding_metadata = groundingMetadata;
+      
+    } else {
+      // STANDARD SINGLE-TURN FLOW
+      llmResponse = await this.performSingleSynthesisCallStreaming({ 
+        userId: input.userId, 
+        conversationId: input.conversationId, 
+        finalInputText, 
+        viewContext: input.viewContext,
+        engagementContext: input.engagementContext,
+        enableGrounding: false
+      }, undefined, 'first', input.onChunk);
+    }
 
     // --- PHASE III: CONDITIONAL ORCHESTRATION & FINAL RESPONSE ---
     const { response_plan, turn_context_package, ui_actions } = llmResponse;
@@ -148,14 +213,22 @@ export class DialogueAgent {
       console.log(`[${executionId}] DEBUG: direct_response_text is null:`, directResponseText === null);
       console.log(`[${executionId}] DEBUG: direct_response_text is undefined:`, directResponseText === undefined);
       
+      // Include grounding metadata if present
+      const metadata: any = {
+        execution_id: executionId,
+        decision: response_plan.decision,
+        processing_time_ms: Date.now() - parseInt(executionId.split('_')[2])
+      };
+      
+      if ((llmResponse as any).grounding_metadata) {
+        metadata.grounding_metadata = (llmResponse as any).grounding_metadata;
+        console.log(`[${executionId}] ✅ Including grounding metadata with ${(llmResponse as any).grounding_metadata.grounding_chunks?.length || 0} sources`);
+      }
+      
       return { 
         response_text: directResponseText,
         ui_actions,
-        metadata: {
-          execution_id: executionId,
-          decision: response_plan.decision,
-          processing_time_ms: Date.now() - parseInt(executionId.split('_')[2])
-        },
+        metadata,
         vision_analysis: visionAnalysis,
         document_analysis: documentAnalysis
       };
@@ -667,8 +740,8 @@ export class DialogueAgent {
       }
     );
 
-    // Use Gemini's native JSON parsing
-    return this.parseLLMResponse(llmResult);
+    // Use Gemini's native JSON parsing (pass grounding flag for plain text handling)
+    return this.parseLLMResponse(llmResult, (input as any).enableGrounding);
   }
 
   /**
@@ -684,6 +757,7 @@ export class DialogueAgent {
         viewDescription?: string 
       };
       engagementContext?: EngagementContext;
+      enableGrounding?: boolean;
     },
     augmentedMemoryContext?: AugmentedMemoryContext,
     callType: 'first' | 'second' = 'first',
@@ -764,6 +838,7 @@ export class DialogueAgent {
         temperature: 0.3,
         maxTokens: 50000,
         enforceJsonMode: true,
+        enableGrounding: !!input.enableGrounding,
         enableStreaming: true,
         onChunk: onChunk
       },
@@ -790,18 +865,47 @@ export class DialogueAgent {
       }
     );
 
-    // Use Gemini's native JSON parsing
-    return this.parseLLMResponse(llmResult);
+    // Use Gemini's native JSON parsing (pass grounding flag for plain text handling)
+    return this.parseLLMResponse(llmResult, input.enableGrounding);
   }
 
   /**
    * Simple LLM response parser using Gemini's native JSON capabilities.
    * Clean and reliable - no complex fallback strategies.
    */
-  private parseLLMResponse(llmResult: any): any {
+  private parseLLMResponse(llmResult: any, enableGrounding?: boolean): any {
     const rawText = llmResult.result.text;
     console.log('DialogueAgent - Raw LLM response:', rawText.substring(0, 200) + '...');
     
+    // GROUNDING MODE: Plain text response, wrap it in expected structure
+    if (enableGrounding) {
+      console.log('DialogueAgent - Grounding mode: wrapping plain text response');
+      const parsed = {
+        decision: 'respond_directly',
+        response_plan: {
+          response_type: 'direct_answer',
+          confidence: 'high',
+          reasoning: 'Grounding-enabled response with web search results'
+        },
+        direct_response_text: rawText,
+        ui_action_hints: [],
+        ui_actions: []
+      };
+      
+      // Attach grounding metadata from tool (if provided by Gemini)
+      try {
+        if (llmResult && llmResult.metadata && llmResult.metadata.grounding_metadata) {
+          (parsed as any).grounding_metadata = llmResult.metadata.grounding_metadata;
+          console.log('DialogueAgent - Attached grounding metadata:', llmResult.metadata.grounding_metadata);
+        }
+      } catch (e) {
+        console.warn('DialogueAgent - Failed to attach grounding metadata:', e);
+      }
+      
+      return parsed;
+    }
+    
+    // JSON MODE: Parse structured JSON response
     try {
       // Enhanced JSON extraction with markdown handling
       let cleaned = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
@@ -861,6 +965,14 @@ export class DialogueAgent {
         parsed.ui_actions = [];
       }
       
+      // Attach grounding metadata from tool (if provided by Gemini)
+      try {
+        if (llmResult && llmResult.metadata && llmResult.metadata.grounding_metadata) {
+          (parsed as any).grounding_metadata = llmResult.metadata.grounding_metadata;
+        }
+      } catch (e) {
+        console.warn('DialogueAgent - Failed to attach grounding metadata:', e);
+      }
       return parsed;
       
     } catch (e) {

@@ -8,6 +8,7 @@ import {
   useVoiceRecording,
   VoiceRecordingIndicator
 } from '@2dots1line/ui-components';
+import { GroundingMetadata } from './GroundingMetadata';
 import { 
   X, 
   Send, 
@@ -58,6 +59,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [currentAttachment, setCurrentAttachment] = useState<File | null>(null);
   const [currentDecision, setCurrentDecision] = useState<'respond_directly' | 'query_memory' | null>(null);
   const [isExpanded, setIsExpanded] = useState(size === 'mini' ? false : true);
+  const [isGroundingEnabled, setIsGroundingEnabled] = useState(false);
+  const [liveGroundingSources, setLiveGroundingSources] = useState<Array<{web_url: string; title?: string; snippet?: string}>>([]);
 
   // Debug logging
   console.log('ChatInterface render:', { size, isExpanded, onSizeChange: !!onSizeChange });
@@ -383,7 +386,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
   // Helper function to get appropriate placeholder text based on decision
   // Must be defined before early return
-  const getPlaceholderText = useCallback((decision: 'respond_directly' | 'query_memory' | null): string => {
+  const getPlaceholderText = useCallback((decision: 'respond_directly' | 'query_memory' | null, isGrounding?: boolean): string => {
+    if (isGrounding) {
+      return 'searching the web...';
+    }
     switch (decision) {
       case 'query_memory':
         return 'recollecting memory...';
@@ -734,6 +740,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     
     addMessage(userMessage);
     setMessage('');
+    setIsGroundingEnabled(false); // Reset grounding toggle after each message
+    setLiveGroundingSources([]); // Reset live sources for new message
     
     try {
       let response;
@@ -754,7 +762,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         const initialBotMessage: ChatMessage = {
           id: botMessageId,
           type: 'bot',
-          content: getPlaceholderText(currentDecision),
+          content: getPlaceholderText(currentDecision, isGroundingEnabled),
           timestamp: new Date(),
           conversation_id: currentConversationId || undefined
         };
@@ -784,6 +792,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
               viewDescription: undefined // Let the backend use default descriptions
             } : undefined,
             engagementContext: engagementContext || undefined,
+            enableGrounding: isGroundingEnabled,
             context: {
               session_id: currentSessionId || undefined,
               trigger_background_processing: true
@@ -817,6 +826,16 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 ui_actions: response.ui_actions
               });
             }
+
+            // If grounding metadata is present, attach it so renderer can show citations
+            if ((response as any).metadata && (response as any).metadata.grounding_metadata) {
+              updateMessage(botMessageId, {
+                content: accumulatedResponse || getPlaceholderText(currentDecision),
+                timestamp: new Date(),
+                ...(response.ui_actions && { ui_actions: response.ui_actions }),
+                grounding_metadata: (response as any).metadata.grounding_metadata as any
+              } as any);
+            }
           },
           (error: Error) => {
             updateMessage(botMessageId, {
@@ -833,6 +852,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 timestamp: new Date()
               });
             }
+          },
+          (sources: Array<{web_url: string; title?: string; snippet?: string}>) => {
+            // Received grounding sources - display them live
+            console.log('🌐 ChatInterface: Received grounding sources:', sources);
+            setLiveGroundingSources(sources);
           }
         );
         
@@ -938,11 +962,53 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
             content={msg.content}
             variant="chat"
             className={`text-sm leading-relaxed ${
-              msg.content === 'thinking...' || msg.content === 'recollecting memory...'
+              msg.content === 'thinking...' || msg.content === 'recollecting memory...' || msg.content === 'searching the web...'
                 ? 'text-white/60 italic animate-pulse' 
                 : 'text-white/90'
             }`}
           />
+        )}
+
+        {/* Live grounding sources (show while searching) */}
+        {msg.type === 'bot' && msg.content === 'searching the web...' && liveGroundingSources.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2 items-center animate-in fade-in duration-300">
+            <Globe size={12} className="text-blue-400/60" />
+            <span className="text-xs text-blue-400/60">Found:</span>
+            {liveGroundingSources.slice(0, 5).map((source, idx) => {
+              const getDomainName = (url: string): string => {
+                try {
+                  const urlObj = new URL(url);
+                  let domain = urlObj.hostname.replace(/^www\./, '');
+                  if (domain.length > 20) domain = domain.substring(0, 17) + '...';
+                  return domain;
+                } catch {
+                  return 'source';
+                }
+              };
+              
+              const displayName = source.title 
+                ? (source.title.length > 25 ? source.title.substring(0, 22) + '...' : source.title)
+                : getDomainName(source.web_url);
+              
+              return (
+                <div
+                  key={idx}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-500/10 border border-blue-400/20 rounded-full text-xs text-blue-300/80 animate-in slide-in-from-left duration-200"
+                  style={{ animationDelay: `${idx * 50}ms` }}
+                >
+                  <span className="font-medium">{displayName}</span>
+                </div>
+              );
+            })}
+            {liveGroundingSources.length > 5 && (
+              <span className="text-xs text-blue-400/50">+{liveGroundingSources.length - 5}</span>
+            )}
+          </div>
+        )}
+
+        {/* Final grounding metadata (show after response complete) */}
+        {msg.type === 'bot' && (msg as any).grounding_metadata && (
+          <GroundingMetadata metadata={(msg as any).grounding_metadata} />
         )}
         
         {/* Inline action buttons */}
@@ -1246,11 +1312,22 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 <Paperclip size={18} className="stroke-current" strokeWidth={1.5} />
               </GlassButton>
               <GlassButton
-                className="p-2 hover:bg-white/20"
-                title="Web search"
+                onClick={() => setIsGroundingEnabled(!isGroundingEnabled)}
+                className={`
+                  p-2 transition-all duration-200
+                  ${isGroundingEnabled 
+                    ? 'bg-blue-500/30 hover:bg-blue-500/40 text-blue-200 ring-2 ring-blue-400/50' 
+                    : 'hover:bg-white/20'
+                  }
+                `}
+                title={isGroundingEnabled ? "Web search enabled" : "Enable web search"}
                 disabled={isLoading}
               >
-                <Globe size={18} className="stroke-current" strokeWidth={1.5} />
+                <Globe 
+                  size={18} 
+                  className="stroke-current" 
+                  strokeWidth={isGroundingEnabled ? 2 : 1.5} 
+                />
               </GlassButton>
               
               {/* Spacer to push voice and send to the right */}

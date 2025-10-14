@@ -322,3 +322,4 @@ The foundation is now in place for **Phase 3**: implementing specific high-value
 - [Capability Registry](../config/agent_capabilities.json)
 - [Capability Executor](../apps/web-app/src/services/capabilityExecutor.ts)
 
+

@@ -59,6 +59,7 @@ export interface LLMChatInputPayload {
   enableStreaming?: boolean;  // Whether to enable streaming responses
   onChunk?: (chunk: string) => void;  // Callback for streaming chunks
   modelOverride?: string;     // Optional model override (e.g., 'gemini-2.0-flash-lite', 'gemini-2.0-flash', 'gemini-2.0-pro')
+  enableGrounding?: boolean;  // NEW: Enable Google Search grounding for Gemini
   
   // New fields for LLM interaction logging
   workerType?: string;        // 'insight-worker', 'ingestion-worker', 'dialogue-service'
@@ -288,13 +289,31 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
             console.error('❌ LLMChatTool - Invalid history format: First message must be from user, got:', history[0].role);
             throw new Error('Invalid conversation history: First message must be from user');
           }
+          // The Tool type in current @google/generative-ai may not yet include googleSearch; cast for runtime support
+          const toolsConfig: any = input.payload.enableGrounding ? [{ googleSearch: {} }] : undefined;
+          
+          console.log(`🌐 LLMChatTool: Grounding enabled = ${input.payload.enableGrounding}`);
+          console.log(`🔧 LLMChatTool: Tools config = ${JSON.stringify(toolsConfig)}`);
+          
+          // CRITICAL: Cannot use JSON mode with Google Search grounding
+          // When grounding is enabled, we must use plain text responses
+          const generationConfig: any = {
+            temperature: input.payload.temperature || 0.7,
+            maxOutputTokens: input.payload.maxTokens || 50000,
+          };
+          
+          // Only add JSON mode if grounding is NOT enabled
+          if (!input.payload.enableGrounding && input.payload.enforceJsonMode !== false) {
+            generationConfig.responseMimeType = 'application/json';
+            console.log(`📝 LLMChatTool: Using JSON mode`);
+          } else {
+            console.log(`📝 LLMChatTool: Using PLAIN TEXT mode (grounding=${input.payload.enableGrounding})`);
+          }
+          
           const chat = this.model!.startChat({
             history,
-            generationConfig: {
-              temperature: input.payload.temperature || 0.7,
-              maxOutputTokens: input.payload.maxTokens || 50000,
-              responseMimeType: 'application/json',
-            },
+            tools: toolsConfig as any,
+            generationConfig,
           });
           
           // Enhanced system prompt for deterministic JSON output (only for non-specialized tools)
@@ -303,6 +322,21 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
           if ((input.payload as any).skipGenericFormatting) {
             // For specialized tools like KeyPhraseExtractionTool, use the prompt as-is
             enhancedSystemPrompt = input.payload.systemPrompt;
+          } else if (input.payload.enableGrounding) {
+            // For grounding mode: CRITICAL - Override prompt to force search tool usage
+            // Gemini will only use the googleSearch tool if we explicitly instruct it to
+            enhancedSystemPrompt = `You are an AI assistant with access to Google Search for real-time information.
+
+CRITICAL INSTRUCTIONS:
+- You MUST use the Google Search tool to find current, accurate information to answer the user's question
+- Search for relevant, up-to-date information from reliable sources
+- Provide a comprehensive answer based on the search results
+- Include specific facts, figures, and citations from the sources you find
+- Respond in natural language with proper citations
+
+${input.payload.systemPrompt}`;
+            
+            console.log('🔍 LLMChatTool: Grounding mode - Enhanced prompt to encourage search tool usage');
           } else {
             // For general tools, add generic JSON formatting
             enhancedSystemPrompt = `You are a machine that only returns and replies with valid, iterable RFC8259 compliant JSON in your responses.
@@ -326,6 +360,9 @@ ${input.payload.systemPrompt}`;
           if ((input.payload as any).skipGenericFormatting) {
             // For specialized tools, use the system prompt as-is (it's already consolidated)
             currentMessage = enhancedSystemPrompt;
+          } else if (input.payload.enableGrounding) {
+            // For grounding mode: Use natural language format optimized for web search
+            currentMessage = `${enhancedSystemPrompt}\n\n${input.payload.userMessage}`;
           } else {
             // For general tools, add context sections
             currentMessage = `${enhancedSystemPrompt}\n\nRELEVANT CONTEXT FROM USER'S PAST:\n${input.payload.memoryContextBlock || 'No memories provided.'}\n\nCURRENT MESSAGE: ${input.payload.userMessage}`;
@@ -342,16 +379,38 @@ ${input.payload.systemPrompt}`;
             const stream = result.stream;
             
             let accumulatedText = '';
-            let lastStreamedLength = 0;
-            let inDirectResponseText = false;
-            let directResponseTextStart = -1;
-            let responsePlanStart = -1;
-            let hasStreamedAnyContent = false;
-            let isRespondDirectlyDecision = false;
             
-            for await (const chunk of stream) {
-              const chunkText = chunk.text();
-              accumulatedText += chunkText;
+            // GROUNDING MODE: Simple streaming - just stream all text directly
+            if (input.payload.enableGrounding) {
+              console.log(`🌊 LLMChatTool: Grounding mode - streaming plain text responses`);
+              for await (const chunk of stream) {
+                const chunkText = chunk.text();
+                accumulatedText += chunkText;
+                
+                // Stream directly to frontend without JSON parsing
+                if (chunkText.length > 0) {
+                  input.payload.onChunk!(chunkText);
+                  console.log(`🌊 LLMChatTool: ✅ Streamed grounding chunk (${chunkText.length} chars)`);
+                }
+              }
+              
+              // Get the final response for metadata
+              response = await result.response;
+              providerModel = (response as any)?.model || this.currentModelName || 'unknown';
+              text = accumulatedText;
+              
+            } else {
+              // JSON MODE: Complex streaming with JSON parsing
+              let lastStreamedLength = 0;
+              let inDirectResponseText = false;
+              let directResponseTextStart = -1;
+              let responsePlanStart = -1;
+              let hasStreamedAnyContent = false;
+              let isRespondDirectlyDecision = false;
+              
+              for await (const chunk of stream) {
+                const chunkText = chunk.text();
+                accumulatedText += chunkText;
               
               // Debug: Log the current accumulated text to understand the structure
               console.log(`🌊 LLMChatTool: Current accumulated text length: ${accumulatedText.length}`);
@@ -500,22 +559,23 @@ ${input.payload.systemPrompt}`;
               }
             }
             
-            // If we never streamed any content, log a warning
-            if (!hasStreamedAnyContent) {
-              if (!isRespondDirectlyDecision) {
-                console.log(`🌊 LLMChatTool: ℹ️ No streaming needed - decision was not "respond_directly"`);
-              } else {
-                console.warn(`🌊 LLMChatTool: ⚠️ Never found "direct_response_text" field in response despite "respond_directly" decision. Full response: "${accumulatedText}"`);
+              // If we never streamed any content, log a warning
+              if (!hasStreamedAnyContent) {
+                if (!isRespondDirectlyDecision) {
+                  console.log(`🌊 LLMChatTool: ℹ️ No streaming needed - decision was not "respond_directly"`);
+                } else {
+                  console.warn(`🌊 LLMChatTool: ⚠️ Never found "direct_response_text" field in response despite "respond_directly" decision. Full response: "${accumulatedText}"`);
+                }
               }
-            }
-            
-            // Get the final response for metadata and parsing
-            response = await result.response;
-            providerModel = (response as any)?.model || this.currentModelName || 'unknown';
-            
-            // For streaming mode, we need to return the full accumulated text for parsing
-            // The backend gets the complete JSON, frontend only got the clean direct_response_text
-            text = accumulatedText; // Use the full JSON for parsing
+              
+              // Get the final response for metadata and parsing
+              response = await result.response;
+              providerModel = (response as any)?.model || this.currentModelName || 'unknown';
+              
+              // For streaming mode, we need to return the full accumulated text for parsing
+              // The backend gets the complete JSON, frontend only got the clean direct_response_text
+              text = accumulatedText; // Use the full JSON for parsing
+            } // End of JSON mode else block
           } else {
             // Non-streaming mode (existing behavior)
             const result = await chat.sendMessage(currentMessage);
@@ -574,7 +634,8 @@ ${input.payload.systemPrompt}`;
             metadata: {
               processing_time_ms: Math.round(processingTime),
               model_used: providerModel,
-              session_id: input.payload.sessionId
+              session_id: input.payload.sessionId,
+              grounding_metadata: this.extractGroundingMetadataSafely(response)
             }
           };
         } else if (this.provider === 'openai') {
@@ -819,6 +880,36 @@ ${input.payload.systemPrompt}`;
    */
   private estimateTokens(text: string): number {
     return Math.ceil(text.length / 4);
+  }
+
+  /**
+   * Safely extract grounding metadata from Gemini response
+   */
+  private extractGroundingMetadataSafely(response: any): any | null {
+    try {
+      const candidate = response?.candidates?.[0];
+      const gm = candidate?.groundingMetadata;
+      if (!gm) return null;
+      const searchQueries = gm.searchEntryPoint?.renderedContent || '';
+      const groundingChunks = (gm.groundingChunks || []).map((chunk: any) => ({
+        web_url: chunk.web?.uri || '',
+        title: chunk.web?.title || '',
+        snippet: chunk.web?.snippet || ''
+      }));
+      const groundingSupports = (gm.groundingSupports || []).map((support: any) => ({
+        segment: support.segment,
+        grounding_chunk_indices: support.groundingChunkIndices || [],
+        confidence_scores: support.confidenceScores || []
+      }));
+      return {
+        search_queries: searchQueries ? [searchQueries] : [],
+        grounding_chunks: groundingChunks,
+        grounding_supports: groundingSupports
+      };
+    } catch (e) {
+      console.warn('LLMChatTool: Failed to extract grounding metadata', e);
+      return null;
+    }
   }
 }
 

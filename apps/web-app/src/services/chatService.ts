@@ -68,6 +68,24 @@ export interface GenericAction {
 // Discriminated union
 export type UiAction = ViewSwitchAction | MediaGenerationAction | GenericAction;
 
+export interface GroundingMetadata {
+  search_queries: string[];
+  grounding_chunks: Array<{
+    web_url: string;
+    title?: string;
+    snippet?: string;
+  }>;
+  grounding_supports?: Array<{
+    segment: {
+      start_index: number;
+      end_index: number;
+      text: string;
+    };
+    grounding_chunk_indices: number[];
+    confidence_scores: number[];
+  }>;
+}
+
 export interface ChatMessage {
   id: string;
   type: 'user' | 'bot';
@@ -79,6 +97,7 @@ export interface ChatMessage {
     type: 'image' | 'document';
   };
   ui_actions?: UiAction[];
+  grounding_metadata?: GroundingMetadata;
 }
 
 export interface SendMessageRequest {
@@ -90,6 +109,7 @@ export interface SendMessageRequest {
     viewDescription?: string;
   };
   engagementContext?: EngagementContext;
+  enableGrounding?: boolean;
   context?: {
     session_id?: string;
     trigger_background_processing?: boolean;
@@ -188,7 +208,8 @@ class ChatService {
     onComplete?: (response: SendMessageResponse) => void,
     onError?: (error: Error) => void,
     messageId?: string,
-    onDecision?: (decision: 'respond_directly' | 'query_memory') => void
+    onDecision?: (decision: 'respond_directly' | 'query_memory') => void,
+    onGroundingSources?: (sources: Array<{web_url: string; title?: string; snippet?: string}>) => void
   ): Promise<void> {
     console.log('🌊 ChatService.sendMessageStreaming - Starting streaming request:', {
       url: `${API_BASE_URL}/api/v1/conversations/messages/stream`,
@@ -278,6 +299,11 @@ class ChatService {
                       // Regular content chunk
                       onChunk(data.content);
                     }
+                    break;
+                    
+                  case 'grounding_sources':
+                    console.log('🌊 ChatService.sendMessageStreaming - Received grounding sources:', data.sources);
+                    onGroundingSources?.(data.sources);
                     break;
                     
                   case 'response_complete':

@@ -51,6 +51,7 @@ const messageSchema = z.object({
       engagementDuration: z.number()
     })).nullable().optional()
   }).optional(),
+  enableGrounding: z.boolean().optional(),
   context: z.object({
     trigger_background_processing: z.boolean().optional()
   }).optional()
@@ -142,7 +143,7 @@ export class ConversationController {
         return;
       }
 
-      const { message, message_id, conversation_id, session_id, viewContext, engagementContext } = messageSchema.parse(req.body);
+      const { message, message_id, conversation_id, session_id, viewContext, engagementContext, enableGrounding } = messageSchema.parse(req.body);
       
       console.log(`🌊 ConversationController.postMessageStream - Starting streaming conversation for user ${userId}`);
       console.log(`🌊 ConversationController.postMessageStream - Received message_id: ${message_id}`);
@@ -356,11 +357,20 @@ export class ConversationController {
             interactionSummary: engagementContext.interactionSummary ?? undefined,
             enrichedEntities: engagementContext.enrichedEntities ?? undefined
           } : undefined,
+          enableGrounding: !!enableGrounding,
           onChunk: (chunk: string) => {
             // Send each chunk to the client
             res.write(`data: ${JSON.stringify({ 
               type: 'response_chunk', 
               content: chunk,
+              conversation_id: actualConversationId
+            })}\n\n`);
+          },
+          onGroundingSources: (sources: Array<{web_url: string; title?: string; snippet?: string}>) => {
+            // Send grounding sources to client for live display
+            res.write(`data: ${JSON.stringify({ 
+              type: 'grounding_sources', 
+              sources,
               conversation_id: actualConversationId
             })}\n\n`);
           }
