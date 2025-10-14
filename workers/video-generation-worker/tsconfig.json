@@ -19,6 +19,9 @@
       "path": "../../packages/core-utils/tsconfig.build.json"
     },
     {
+      "path": "../../packages/database/tsconfig.build.json"
+    },
+    {
       "path": "../../services/media-generation-service/tsconfig.build.json"
     }
   ]

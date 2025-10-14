@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { MediaGenerationService } from '@2dots1line/media-generation-service';
+import { GeneratedMediaRepository } from '@2dots1line/database';
 import path from 'path';
 import fs from 'fs';
 
@@ -37,6 +38,8 @@ function dataUrlToBuffer(dataUrl: string): { buffer: Buffer; mime: string } {
 
 // POST /api/cards/[cardId]/generate-cover
 export async function POST(req: Request, { params }: { params: { cardId: string } }) {
+  const startTime = Date.now();
+  
   try {
     const cardId = params.cardId;
     const body: Payload = await req.json();
@@ -46,6 +49,27 @@ export async function POST(req: Request, { params }: { params: { cardId: string 
     }
     if (!body?.motif || typeof body.motif !== 'string' || !body.motif.trim()) {
       return NextResponse.json({ error: 'motif is required' }, { status: 400 });
+    }
+
+    // Extract userId from Authorization header (JWT token)
+    let userId: string | null = null;
+    try {
+      const authHeader = req.headers.get('authorization');
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+        // Decode JWT token to get userId
+        // For dev-token, we'll use dev-user-123
+        if (token === 'dev-token') {
+          userId = 'dev-user-123';
+        } else {
+          // In production, decode actual JWT
+          const base64Payload = token.split('.')[1];
+          const payload = JSON.parse(Buffer.from(base64Payload, 'base64').toString());
+          userId = payload.user_id || payload.sub || payload.userId;
+        }
+      }
+    } catch (authError) {
+      console.warn('[generate-cover] Failed to extract userId:', authError);
     }
 
     // Use provider-agnostic MediaGenerationService
@@ -78,6 +102,36 @@ export async function POST(req: Request, { params }: { params: { cardId: string 
 
     // URL consumed by the client and also stored in Postgres via cardService
     const image_url = `/covers/${filename}`;
+
+    // Save to database if userId was extracted
+    if (userId) {
+      try {
+        const generatedMediaRepo = new GeneratedMediaRepository();
+        const generationDurationSeconds = Math.floor((Date.now() - startTime) / 1000);
+        
+        await generatedMediaRepo.createGeneratedMedia({
+          userId,
+          mediaType: 'image',
+          fileUrl: image_url,
+          filePath,
+          prompt: body.motif,
+          viewContext: 'cards',
+          generationCost: model.includes('nano-banana') || model.includes('flash') ? 0.001 : (model.includes('fast') ? 0.02 : 0.04),
+          generationDurationSeconds,
+          provider,
+          model,
+          metadata: {
+            cardId,
+            style_pack: body.style_pack,
+            quality: body.export?.quality
+          }
+        });
+        console.log(`✅ Image metadata saved to database for user ${userId}`);
+      } catch (dbError) {
+        console.error('[generate-cover] Failed to save to database:', dbError);
+        // Continue anyway - image file is saved
+      }
+    }
 
     return NextResponse.json({ 
       success: true, 

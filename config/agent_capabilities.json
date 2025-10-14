@@ -150,34 +150,36 @@
       "description": "Generate images and videos using AI",
       "capabilities": [
         {
-          "id": "generate_card_image",
-          "name": "Generate card cover image",
+          "id": "generate_image",
+          "name": "Generate AI image",
           "trigger_patterns": [
             "generate an image",
-            "create a cover",
+            "create an image",
             "visualize this",
-            "design a background",
-            "make an image for",
+            "make an image",
             "create a visual",
-            "generate cover art"
+            "draw something",
+            "show me a picture of"
           ],
-          "question_template": "Would you like me to generate a cover image for this card?",
-          "available_from": ["chat", "cards"],
+          "question_template": "Would you like me to generate an AI image based on your description?",
+          "available_from": ["chat"],
           "requires_consent": true,
           "execution_type": "backend_api",
-          "target_endpoint": "/api/cards/{cardId}/generate-cover",
+          "target_endpoint": "/api/v1/media/generate-image",
           "method": "POST",
           "parameters": {
-            "motif": "string (extracted from conversation)",
-            "style_pack": "string? (minimal|abstract|nature|cosmic|photorealistic)",
-            "quality": "string? (low|medium|high)"
+            "prompt": "string (extracted from conversation)",
+            "style": "string? (minimal|abstract|nature|cosmic|photorealistic)",
+            "quality": "string? (low|medium|high)",
+            "viewContext": "string (chat|cards|dashboard)"
           },
           "cost_info": {
             "low": "$0.02 per image",
-            "medium": "$0.001 per image (Nano-Banana)",
+            "medium": "$0.001 per image (Nano-Banana, default)",
             "high": "$0.04 per image (Imagen 4)"
           },
-          "success_message": "Image generated successfully! Check your card."
+          "success_message": "Image generated successfully! It's now in your generated media library.",
+          "note": "Images render inline in chat immediately. Separate from card covers."
         },
         {
           "id": "generate_background_video",

@@ -82,7 +82,7 @@ dist/*.tsbuildinfo
 
 # Generated media files
 covers/
-
+apps/web-app/public/images/
 # Multiverse development assets
 DevLog/multiverse/
 

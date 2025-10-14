@@ -22,12 +22,14 @@ import {
 } from 'lucide-react';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { io, Socket } from 'socket.io-client';
 
-import { chatService, type ChatMessage, type UiAction } from '../../services/chatService';
+import { chatService, type ChatMessage, type UiAction, type MediaGenerationAction, type ViewSwitchAction } from '../../services/chatService';
 import { userService } from '../../services/userService';
 import { useChatStore } from '../../stores/ChatStore';
 import { useUserStore } from '../../stores/UserStore';
 import { useHUDStore } from '../../stores/HUDStore';
+import { useBackgroundVideoStore } from '../../stores/BackgroundVideoStore';
 import { useEngagementStore } from '../../stores/EngagementStore';
 import { useEngagementContext } from '../../hooks/useEngagementContext';
 import { usePathname } from 'next/navigation';
@@ -245,6 +247,47 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     }
   }, [message, isOpen, autoResizeTextarea]);
 
+  // V11.0: WebSocket listener for video generation completion
+  useEffect(() => {
+    if (!isOpen || !user?.user_id) return;
+    
+    const socket: Socket = io(process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001', {
+      auth: {
+        token: localStorage.getItem('auth_token') || 'dev-token',
+        userId: user.user_id
+      }
+    });
+    
+    console.log('[ChatInterface] WebSocket connected for video notifications');
+    
+    socket.on('video_generation_complete', async (data: any) => {
+      console.log('[ChatInterface] Video generation complete:', data);
+      
+      // Show notification in chat
+      const notificationMessage: ChatMessage = {
+        id: `bot-${Date.now()}`,
+        type: 'bot',
+        content: `🎉 ${data.message || 'Your background video is ready!'}\n\n[View in Settings](/settings)`,
+        timestamp: new Date()
+      };
+      addMessage(notificationMessage);
+      
+      // Reload generated media
+      const { loadGeneratedMedia, applyGeneratedVideo } = useBackgroundVideoStore.getState();
+      await loadGeneratedMedia();
+      
+      // Auto-apply to the view context if specified
+      if (data.viewContext && data.videoId) {
+        applyGeneratedVideo(data.videoId, data.viewContext);
+      }
+    });
+    
+    return () => {
+      console.log('[ChatInterface] WebSocket disconnected');
+      socket.disconnect();
+    };
+  }, [isOpen, user, addMessage]);
+
   // Helper function to get appropriate placeholder text based on decision
   // Must be defined before early return
   const getPlaceholderText = useCallback((decision: 'respond_directly' | 'query_memory' | null): string => {
@@ -257,12 +300,162 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         return 'thinking...';
     }
   }, []);
+  
+  /**
+   * Type guard to check if an action is a media generation action
+   */
+  const isMediaGenerationAction = (action: UiAction): action is MediaGenerationAction => {
+    return action.action === 'generate_image' || 
+           action.action === 'generate_card_image' || 
+           action.action === 'generate_background_video';
+  };
 
   /**
-   * Handle UI action button click (e.g., "Yes" for view switch)
+   * V11.0: Handle image generation action (dedicated API endpoint)
+   */
+  const handleImageGeneration = useCallback(async (action: MediaGenerationAction) => {
+    console.log('[handleImageGeneration] Called with action:', JSON.stringify(action, null, 2));
+    console.log('[handleImageGeneration] action.payload:', action.payload);
+    console.log('[handleImageGeneration] action.payload.parameters:', action.payload.parameters);
+    
+    const { parameters } = action.payload;
+    console.log('[handleImageGeneration] Extracted parameters:', parameters);
+    
+    try {
+      // Note: "Generating..." message is now shown by handleActionClick via scenarios.on_confirm.transition_message
+      
+      // Extract prompt - support both 'prompt' and 'motif' field names
+      const prompt = parameters?.prompt || parameters?.motif || '';
+      const style = parameters?.style || parameters?.style_pack || undefined;
+      const quality = parameters?.quality || 'medium';
+      
+      console.log('[handleImageGeneration] Extracted values:', { prompt, style, quality });
+      
+      // Validate prompt before sending
+      if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
+        console.error('[handleImageGeneration] Invalid prompt!');
+        console.error('[handleImageGeneration] Full action object:', action);
+        console.error('[handleImageGeneration] parameters object:', parameters);
+        console.error('[handleImageGeneration] prompt value:', prompt);
+        throw new Error('No valid prompt provided for image generation');
+      }
+      
+      const requestBody = {
+        prompt: prompt.trim(),
+        style,
+        quality,
+        viewContext: parameters?.viewContext || 'chat'
+      };
+      
+      console.log('[handleImageGeneration] Request body:', requestBody);
+      console.log('[handleImageGeneration] Full action:', action);
+      
+      const token = localStorage.getItem('auth_token');
+      const apiUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001'}/api/v1/media/generate-image`;
+      console.log('[handleImageGeneration] Calling API:', apiUrl);
+      
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token || 'dev-token'}`
+        },
+        body: JSON.stringify(requestBody)
+      });
+      
+      console.log('[handleImageGeneration] Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('[handleImageGeneration] Server error response:', errorData);
+        throw new Error(errorData.error || errorData.detail || 'Image generation failed');
+      }
+      
+      const result = await response.json();
+      console.log('[handleImageGeneration] Success result:', result);
+      
+      // Render image inline in chat
+      const successMessage: ChatMessage = {
+        id: `bot-${Date.now() + 1}`,
+        type: 'bot',
+        content: `✅ Image generated successfully!\n\n![Generated Image](${result.imageUrl})\n\n*${result.model} • ${result.cost} • ${result.duration}*`,
+        timestamp: new Date()
+      };
+      addMessage(successMessage);
+      
+    } catch (error) {
+      console.error('[handleImageGeneration] Error:', error);
+      const errorMessage: ChatMessage = {
+        id: `bot-${Date.now() + 1}`,
+        type: 'bot',
+        content: `❌ Sorry, image generation failed. ${error instanceof Error ? error.message : 'Please try again.'}`,
+        timestamp: new Date()
+      };
+      addMessage(errorMessage);
+    }
+  }, [addMessage]);
+  
+  /**
+   * V11.0: Handle video generation action
+   */
+  const handleVideoGeneration = useCallback(async (action: MediaGenerationAction) => {
+    const { parameters } = action.payload;
+    
+    try {
+      // Note: "Generating..." message is now shown by handleActionClick via scenarios.on_confirm.transition_message
+      
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001'}/api/v1/media/generate-video`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token || 'dev-token'}`
+        },
+        body: JSON.stringify({
+          prompt: parameters?.prompt,
+          viewContext: parameters?.viewContext || 'chat',
+          mood: parameters?.mood,
+          quality: parameters?.quality || 'fast',
+          cinematography: parameters?.cinematography,
+          useImageSeed: parameters?.useImageSeed || false
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Video generation failed to start');
+      }
+      
+      const result = await response.json();
+      
+      const successMessage: ChatMessage = {
+        id: `bot-${Date.now() + 1}`,
+        type: 'bot',
+        content: `✅ Video generation job started! Job ID: ${result.data.jobId}`,
+        timestamp: new Date()
+      };
+      addMessage(successMessage);
+      
+    } catch (error) {
+      console.error('Video generation error:', error);
+      const errorMessage: ChatMessage = {
+        id: `bot-${Date.now() + 1}`,
+        type: 'bot',
+        content: '❌ Sorry, video generation failed to start. Please try again.',
+        timestamp: new Date()
+      };
+      addMessage(errorMessage);
+    }
+  }, [addMessage]);
+
+  /**
+   * Handle UI action button click (e.g., "Yes" for view switch, media generation)
    * IMPORTANT: Must be defined before early return to maintain hook order
    */
   const handleActionClick = useCallback((action: UiAction, buttonValue: 'confirm' | 'dismiss') => {
+    console.log('[handleActionClick] Called with:', { action, buttonValue });
+    console.log('[handleActionClick] action type:', action.action);
+    console.log('[handleActionClick] action.payload:', action.payload);
+    
     if (buttonValue === 'dismiss') {
       // Scenario B: User dismissed
       const dismissScenario = action.payload.scenarios.on_dismiss;
@@ -286,10 +479,69 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       return;
     }
     
-    if (buttonValue === 'confirm' && action.action === 'switch_view') {
-      // Scenario A: User confirmed
+    // Type guard for media generation (image)
+    if (buttonValue === 'confirm' && (action.action === 'generate_image' || action.action === 'generate_card_image')) {
+      if (!isMediaGenerationAction(action)) return; // Type guard
+      
       const confirmScenario = action.payload.scenarios.on_confirm;
-      const targetView = action.payload.target.toLowerCase();
+      
+      // Show transition message (like view transitions do)
+      const transitionMessage: ChatMessage = {
+        id: `transition-${Date.now()}`,
+        type: 'bot',
+        content: confirmScenario.transition_message || '🎨 Generating your image...',
+        timestamp: new Date()
+      };
+      addMessage(transitionMessage);
+      
+      // Track confirmation
+      trackEvent({
+        type: 'click',
+        target: 'action_confirm',
+        targetType: 'button',
+        view: currentView || 'chat',
+        metadata: { action: action.action, question: action.question }
+      });
+      
+      // Trigger actual generation
+      handleImageGeneration(action);
+      return;
+    }
+    
+    // Type guard for media generation (video)
+    if (buttonValue === 'confirm' && action.action === 'generate_background_video') {
+      if (!isMediaGenerationAction(action)) return; // Type guard
+      
+      const confirmScenario = action.payload.scenarios.on_confirm;
+      
+      // Show transition message (like view transitions do)
+      const transitionMessage: ChatMessage = {
+        id: `transition-${Date.now()}`,
+        type: 'bot',
+        content: confirmScenario.transition_message || '🎬 Starting video generation...',
+        timestamp: new Date()
+      };
+      addMessage(transitionMessage);
+      
+      // Track confirmation
+      trackEvent({
+        type: 'click',
+        target: 'action_confirm',
+        targetType: 'button',
+        view: currentView || 'chat',
+        metadata: { action: action.action, question: action.question }
+      });
+      
+      // Trigger actual generation
+      handleVideoGeneration(action);
+      return;
+    }
+    
+    // Type guard for view switch
+    if (buttonValue === 'confirm' && action.action === 'switch_view') {
+      const viewAction = action as ViewSwitchAction;
+      const confirmScenario = viewAction.payload.scenarios.on_confirm;
+      const targetView = viewAction.payload.target.toLowerCase();
       
       // Get transition config
       const transitionConfig = ViewTransitionService.getTransition(
@@ -313,9 +565,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         targetType: 'button',
         view: currentView || 'chat',
         metadata: {
-          action: action.action,
+          action: viewAction.action,
           target: targetView,
-          question: action.question
+          question: viewAction.question
         }
       });
       
@@ -606,27 +858,35 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         {/* Inline action buttons */}
         {msg.ui_actions && msg.ui_actions.length > 0 && (
           <div className="inline-flex items-center gap-2 ml-2">
-            {msg.ui_actions.map((action, index) => (
-              <span key={index} className="inline-flex items-center gap-2">
-                {action.buttons.map((button, btnIndex) => (
-                  <button
-                    key={btnIndex}
-                    onClick={() => handleActionClick(action, button.value)}
-                    className={`inline-flex items-center px-4 py-1.5 rounded-full
-                               backdrop-blur-sm border text-sm font-medium
-                               transition-all duration-200 ease-in-out
-                               hover:scale-105 active:scale-95
-                               ${button.value === 'confirm' 
-                                 ? 'bg-green-500/10 border-green-400/30 text-green-400 hover:shadow-[0_0_12px_rgba(74,222,128,0.4)]'
-                                 : 'bg-gray-500/10 border-gray-400/30 text-gray-400 hover:shadow-[0_0_12px_rgba(156,163,175,0.4)]'
-                               }`}
-                    aria-label={`${button.label}: ${action.question}`}
-                  >
-                    {button.label}
-                  </button>
-                ))}
-              </span>
-            ))}
+            {msg.ui_actions.map((action, index) => {
+              console.log(`[render] Message ${msg.id} - Action ${index}:`, action);
+              console.log(`[render] Action payload:`, action.payload);
+              const payload = action.payload as any;
+              if (payload.parameters) {
+                console.log(`[render] Action parameters:`, payload.parameters);
+              }
+              return (
+                <span key={index} className="inline-flex items-center gap-2">
+                  {action.buttons.map((button, btnIndex) => (
+                    <button
+                      key={btnIndex}
+                      onClick={() => handleActionClick(action, button.value)}
+                      className={`inline-flex items-center px-4 py-1.5 rounded-full
+                                 backdrop-blur-sm border text-sm font-medium
+                                 transition-all duration-200 ease-in-out
+                                 hover:scale-105 active:scale-95
+                                 ${button.value === 'confirm' 
+                                   ? 'bg-green-500/10 border-green-400/30 text-green-400 hover:shadow-[0_0_12px_rgba(74,222,128,0.4)]'
+                                   : 'bg-gray-500/10 border-gray-400/30 text-gray-400 hover:shadow-[0_0_12px_rgba(156,163,175,0.4)]'
+                                 }`}
+                      aria-label={`${button.label}: ${action.question}`}
+                    >
+                      {button.label}
+                    </button>
+                  ))}
+                </span>
+              );
+            })}
           </div>
         )}
         

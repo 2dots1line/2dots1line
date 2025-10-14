@@ -83,6 +83,13 @@ export type {
   CreateGraphProjectionData 
 } from './GraphProjectionRepository';
 
+// Generated Media (AI Media Generation Suite)
+export { GeneratedMediaRepository } from './GeneratedMediaRepository';
+export type {
+  GeneratedMedia,
+  CreateGeneratedMediaInput
+} from './GeneratedMediaRepository';
+
 // Export types for use in services
 export type { CardData, CardFilters, CardResultWithMeta } from './CardRepository';
 
@@ -101,6 +108,7 @@ import { GrowthEventRepository } from './GrowthEventRepository';
 import { InteractionLogRepository } from './InteractionLogRepository';
 import { ProactivePromptRepository } from './ProactivePromptRepository';
 import { GraphProjectionRepository } from './GraphProjectionRepository';
+import { GeneratedMediaRepository } from './GeneratedMediaRepository';
 
 export function createRepositories(db: DatabaseService) {
   return {
@@ -117,6 +125,7 @@ export function createRepositories(db: DatabaseService) {
     interactionLog: new InteractionLogRepository(db),
     proactivePrompt: new ProactivePromptRepository(db),
     graphProjection: new GraphProjectionRepository(db),
+    generatedMedia: new GeneratedMediaRepository(),
   };
 }
 

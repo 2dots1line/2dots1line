@@ -8,6 +8,7 @@
 
 import { MediaGenerationService } from '@2dots1line/media-generation-service';
 import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
+import { GeneratedMediaRepository } from '@2dots1line/database';
 import { Worker, Job, Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import fs from 'fs';
@@ -40,6 +41,7 @@ export class VideoGenerationWorker {
   private notificationQueue: Queue;
   private redisConnection: Redis;
   private mediaService: MediaGenerationService;
+  private generatedMediaRepo: GeneratedMediaRepository;
 
   constructor(config: VideoGenerationWorkerConfig = {}) {
     console.log('[VideoGenerationWorker] Initializing...');
@@ -66,6 +68,9 @@ export class VideoGenerationWorker {
 
     // Initialize MediaGenerationService
     this.mediaService = new MediaGenerationService();
+    
+    // Initialize GeneratedMediaRepository
+    this.generatedMediaRepo = new GeneratedMediaRepository();
 
     // Initialize notification queue
     this.notificationQueue = new Queue('notification-queue', {
@@ -110,6 +115,8 @@ export class VideoGenerationWorker {
     
     console.log(`[VideoGenerationWorker] Processing job ${job.id} for user ${userId}`);
     console.log(`[VideoGenerationWorker] Prompt: ${prompt}`);
+    
+    const startTime = Date.now();
     
     try {
       // Step 1: Optionally generate starting image for consistency
@@ -162,6 +169,33 @@ export class VideoGenerationWorker {
           const publicUrl = `/videos/generated/${filename}`;
           
           console.log(`[VideoGenerationWorker] Video saved to: ${publicUrl}`);
+          
+          // Step 4a: Save to database
+          const generationDurationSeconds = Math.floor((Date.now() - startTime) / 1000);
+          try {
+            await this.generatedMediaRepo.createGeneratedMedia({
+              userId,
+              mediaType: 'video',
+              fileUrl: publicUrl,
+              filePath,
+              prompt,
+              viewContext,
+              generationCost: parseFloat(estimatedCost.replace('$', '')),
+              generationDurationSeconds,
+              provider: 'gemini',
+              model,
+              metadata: {
+                quality,
+                mood,
+                cinematography,
+                useImageSeed
+              }
+            });
+            console.log(`[VideoGenerationWorker] Video metadata saved to database`);
+          } catch (dbError) {
+            console.error(`[VideoGenerationWorker] Failed to save to database:`, dbError);
+            // Continue anyway - video file is saved
+          }
           
           // Step 5: Notify user via notification queue
           await this.notificationQueue.add('video_generation_complete', {

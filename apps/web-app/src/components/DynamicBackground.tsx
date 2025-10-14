@@ -28,6 +28,28 @@ export const DynamicBackground: React.FC<DynamicBackgroundProps> = ({
     return <LocalBackgroundVideo view={view as ViewType} className={className} overlayOpacity={overlayOpacity} />;
   }
   
+  // Handle generated media
+  if (media.source === 'generated') {
+    return (
+      <div className={`absolute inset-0 z-0 ${className}`}>
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="w-full h-full object-cover"
+          src={media.url}
+        >
+          Your browser does not support the video tag.
+        </video>
+        <div 
+          className="absolute inset-0 bg-black"
+          style={{ opacity: overlayOpacity }}
+        />
+      </div>
+    );
+  }
+  
   // Handle Pexels media
   if (media.source === 'pexels') {
     if (media.type === 'video') {

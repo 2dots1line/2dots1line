@@ -11,7 +11,7 @@ export type AllViewType = ViewType | 'cosmos';
 
 export interface MediaItem {
   id: string;
-  source: 'local' | 'pexels';
+  source: 'local' | 'pexels' | 'generated';
   type: 'video' | 'photo';
   title: string;
   url: string;
@@ -23,10 +23,12 @@ export interface MediaItem {
   width?: number;
   height?: number;
   photographer?: string;
+  prompt?: string; // For generated media
+  generatedAt?: string; // For generated media
 }
 
 export interface UserMediaPreference {
-  source: 'local' | 'pexels';
+  source: 'local' | 'pexels' | 'generated';
   type: 'video' | 'photo';
   id: string;
   url?: string;
@@ -37,6 +39,7 @@ interface BackgroundVideoState {
   // State
   mediaPreferences: Record<ViewType, UserMediaPreference | null>;
   searchResults: MediaItem[];
+  generatedMedia: MediaItem[]; // New: cached generated media
   isLoading: boolean;
   error: string | null;
 
@@ -49,6 +52,10 @@ interface BackgroundVideoState {
   saveUserPreferences: () => Promise<void>;
   resetToDefaults: () => void;
   clearSearchResults: () => void;
+  // New: Generated media actions
+  loadGeneratedMedia: () => Promise<void>;
+  deleteGeneratedMedia: (id: string) => Promise<void>;
+  applyGeneratedVideo: (id: string, view: ViewType) => void;
 }
 
 const DEFAULT_LOCAL_VIDEOS: Record<ViewType, UserMediaPreference> = {
@@ -64,6 +71,7 @@ export const useBackgroundVideoStore = create<BackgroundVideoState>()(
       // Initial state
       mediaPreferences: { ...DEFAULT_LOCAL_VIDEOS },
       searchResults: [],
+      generatedMedia: [],
       isLoading: false,
       error: null,
 
@@ -199,6 +207,100 @@ export const useBackgroundVideoStore = create<BackgroundVideoState>()(
 
       clearSearchResults: () => {
         set({ searchResults: [] });
+      },
+
+      // New: Load generated media from API
+      loadGeneratedMedia: async () => {
+        set({ isLoading: true, error: null });
+        
+        try {
+          const token = localStorage.getItem('auth_token');
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001'}/api/v1/media/generated?type=video`, {
+            headers: { 
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          if (!response.ok) {
+            throw new Error('Failed to load generated media');
+          }
+          
+          const data = await response.json();
+          
+          if (data.success && Array.isArray(data.data)) {
+            const items: MediaItem[] = data.data.map((m: any) => ({
+              id: m.id,
+              source: 'generated' as const,
+              type: 'video' as const,
+              title: m.prompt,
+              url: m.fileUrl,
+              prompt: m.prompt,
+              generatedAt: m.createdAt
+            }));
+            
+            set({ generatedMedia: items, isLoading: false });
+            console.log(`✅ Loaded ${items.length} generated videos`);
+          } else {
+            set({ generatedMedia: [], isLoading: false });
+          }
+        } catch (error) {
+          console.error('Failed to load generated media:', error);
+          set({ 
+            error: error instanceof Error ? error.message : 'Failed to load generated media',
+            isLoading: false 
+          });
+        }
+      },
+
+      // New: Delete generated media
+      deleteGeneratedMedia: async (id: string) => {
+        try {
+          const token = localStorage.getItem('auth_token');
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001'}/api/v1/media/generated/${id}`, {
+            method: 'DELETE',
+            headers: { 
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          if (!response.ok) {
+            throw new Error('Failed to delete generated media');
+          }
+          
+          // Remove from local state
+          const { generatedMedia } = get();
+          set({ 
+            generatedMedia: generatedMedia.filter(m => m.id !== id)
+          });
+          
+          console.log(`✅ Deleted generated media: ${id}`);
+        } catch (error) {
+          console.error('Failed to delete generated media:', error);
+          set({ 
+            error: error instanceof Error ? error.message : 'Failed to delete generated media'
+          });
+        }
+      },
+
+      // New: Apply generated video to a view
+      applyGeneratedVideo: (id: string, view: ViewType) => {
+        const { generatedMedia, setMediaForView } = get();
+        const media = generatedMedia.find(m => m.id === id);
+        
+        if (media) {
+          setMediaForView(view, {
+            source: 'generated',
+            type: 'video',
+            id: media.id,
+            url: media.url,
+            title: media.title
+          });
+          console.log(`✅ Applied generated video to ${view} view`);
+        } else {
+          console.warn(`⚠️  Generated video not found: ${id}`);
+        }
       },
     }),
     {

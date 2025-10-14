@@ -128,6 +128,10 @@ export const useChatStore = create<ChatState>()(
       },
       
       updateMessage: (messageId, updates) => {
+        console.log('[ChatStore] updateMessage called:', { messageId, updates });
+        if (updates.ui_actions) {
+          console.log('[ChatStore] ui_actions being added:', JSON.stringify(updates.ui_actions, null, 2));
+        }
         set((state) => ({
           messages: state.messages.map(msg => 
             msg.id === messageId 
@@ -146,6 +150,20 @@ export const useChatStore = create<ChatState>()(
               : msg
           )
         }));
+        
+        // Verify what was actually stored
+        const updatedMsg = get().messages.find(m => m.id === messageId);
+        if (updatedMsg?.ui_actions) {
+          const firstAction = updatedMsg.ui_actions[0];
+          const firstPayload = firstAction?.payload as any; // Cast for logging purposes
+          console.log('[ChatStore] Message after update:', {
+            messageId,
+            has_ui_actions: true,
+            ui_actions_count: updatedMsg.ui_actions.length,
+            first_action_payload: firstPayload,
+            has_parameters: !!firstPayload?.parameters
+          });
+        }
       },
       
       clearMessages: () => {

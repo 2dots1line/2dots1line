@@ -7,28 +7,66 @@ import { EngagementContext } from '@2dots1line/shared-types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
 
-export interface UiAction {
-  action: 'switch_view' | 'start_cosmos_quest' | 'open_card' | 'focus_entity';
+// Base scenario types for discriminated union
+interface ViewSwitchScenarios {
+  on_confirm: {
+    transition_message: string;
+    main_content: string;  // Required for view switches
+  };
+  on_dismiss: {
+    content: string;
+  };
+}
+
+interface MediaGenerationScenarios {
+  on_confirm: {
+    transition_message: string;
+    // NO main_content - not needed for media generation
+  };
+  on_dismiss: {
+    content: string;
+  };
+}
+
+// Specific action types
+export interface ViewSwitchAction {
+  action: 'switch_view';
   question: string;
-  buttons: Array<{
-    label: string;
-    value: 'confirm' | 'dismiss';
-  }>;
+  buttons: Array<{ label: string; value: 'confirm' | 'dismiss' }>;
   payload: {
     target: string;
-    scenarios: {
-      on_confirm: {
-        transition_message: string;
-        main_content: string;
-      };
-      on_dismiss: {
-        content: string;
-      };
-    };
+    scenarios: ViewSwitchScenarios;
     priority?: string;
     metadata?: any;
   };
 }
+
+export interface MediaGenerationAction {
+  action: 'generate_image' | 'generate_card_image' | 'generate_background_video';
+  question: string;
+  buttons: Array<{ label: string; value: 'confirm' | 'dismiss' }>;
+  payload: {
+    target: string;
+    parameters: Record<string, any>;
+    scenarios: MediaGenerationScenarios;
+    metadata?: any;
+  };
+}
+
+export interface GenericAction {
+  action: 'start_cosmos_quest' | 'open_card' | 'focus_entity';
+  question: string;
+  buttons: Array<{ label: string; value: 'confirm' | 'dismiss' }>;
+  payload: {
+    target: string;
+    parameters?: Record<string, any>;
+    scenarios: MediaGenerationScenarios;  // Use simpler scenarios
+    metadata?: any;
+  };
+}
+
+// Discriminated union
+export type UiAction = ViewSwitchAction | MediaGenerationAction | GenericAction;
 
 export interface ChatMessage {
   id: string;

@@ -9,6 +9,7 @@
     "dev": "ts-node src/index.ts"
   },
   "dependencies": {
+    "@2dots1line/database": "workspace:*",
     "@2dots1line/media-generation-service": "workspace:*",
     "@2dots1line/core-utils": "workspace:*",
     "bullmq": "^5.0.0",

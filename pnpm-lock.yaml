@@ -135,6 +135,9 @@ importers:
       '@2dots1line/dialogue-service':
         specifier: workspace:*
         version: link:../../services/dialogue-service
+      '@2dots1line/media-generation-service':
+        specifier: workspace:*
+        version: link:../../services/media-generation-service
       '@2dots1line/pexels-service':
         specifier: workspace:*
         version: link:../../services/pexels-service
@@ -147,6 +150,9 @@ importers:
       '@2dots1line/user-service':
         specifier: workspace:*
         version: link:../../services/user-service
+      '@2dots1line/video-generation-worker':
+        specifier: workspace:*
+        version: link:../../workers/video-generation-worker
       '@types/jsonwebtoken':
         specifier: ^9.0.5
         version: 9.0.10
@@ -156,6 +162,9 @@ importers:
       axios:
         specifier: ^1.10.0
         version: 1.12.2
+      bullmq:
+        specifier: ^5.37.0
+        version: 5.61.0
       cors:
         specifier: ^2.8.5
         version: 2.8.5
@@ -272,6 +281,9 @@ importers:
 
   apps/web-app:
     dependencies:
+      '@2dots1line/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       '@2dots1line/media-generation-service':
         specifier: workspace:*
         version: link:../../services/media-generation-service
@@ -1362,6 +1374,9 @@ importers:
       '@2dots1line/core-utils':
         specifier: workspace:*
         version: link:../../packages/core-utils
+      '@2dots1line/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       '@2dots1line/media-generation-service':
         specifier: workspace:*
         version: link:../../services/media-generation-service

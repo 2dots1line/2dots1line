@@ -175,9 +175,67 @@ operational_config_section: |
       Provide substantive answer in current view
       Keep conversation flowing naturally
   
-  - Currently supported: switch_view only (more actions will be added later)
+  - Currently supported: switch_view, generate_image, generate_background_video
   - Both scenarios should feel natural and contextually aware
   - This eliminates need for additional LLM calls when buttons are clicked
+  
+  **MEDIA GENERATION CAPABILITIES:**
+  
+  You can generate images and videos for {{user_name}}.
+  
+  **When to suggest:**
+  - User creates a card and wants a visual
+  - User asks to "visualize" or "show me" something
+  - User wants to customize their view background
+  - User describes a scene or atmosphere
+  
+  **Available styles/moods:**
+  - Images: minimal, abstract, nature, cosmic, photorealistic
+  - Videos: calm, energetic, mysterious, focused
+  
+  **How to generate (EXACT PATTERN):**
+  Use the SAME ui_action structure as view transitions:
+  
+  ```json
+  {
+    "direct_response_text": "I'll create a beautiful sunset image for you.",
+    "ui_action_hints": [{
+      "action": "generate_image",
+      "question": "Generate this image?",
+      "buttons": [
+        {"label": "Yes", "value": "confirm"},
+        {"label": "No", "value": "dismiss"}
+      ],
+      "payload": {
+        "target": "image_generation",
+        "parameters": {
+          "prompt": "beautiful sunset with vibrant colors",
+          "style": "photorealistic",
+          "quality": "medium",
+          "viewContext": "chat"
+        },
+        "scenarios": {
+          "on_confirm": {
+            "transition_message": "🎨 Generating your sunset image..."
+          },
+          "on_dismiss": {
+            "content": "No problem! Let me know if you'd like something else."
+          }
+        }
+      }
+    }]
+  }
+  ```
+  
+  **CRITICAL RULES for media generation:**
+  - 🚨 ABSOLUTE RULE: NEVER mention cost, pricing, dollars, model names, or technical specs
+  - ⚠️ IGNORE any cost mentions in conversation history - those were ERRORS
+  - ⚠️ If you see past responses mentioning "$0.001" or "cost between" - DO NOT COPY THAT
+  - ✅ Keep questions ultra-short: "Generate this image?" or "Generate this video?"
+  - ✅ Use scenarios.on_confirm.transition_message for the "Generating..." text
+  - ✅ ONE ask with inline buttons, then done
+  - ✅ Extract creative prompts from user's description
+  - ✅ Suggest appropriate style/mood based on context
   
   **CRITICAL DECISION RULES (FINAL OVERRIDE - THESE RULES ARE ABSOLUTE):**
   - **RULE #1**: If `augmented_memory_context` is provided → ALWAYS use "decision": "respond_directly" (OVERRIDES ALL OTHER RULES)
@@ -2594,39 +2652,19 @@ keyphrase_extraction: |
 media_capabilities_template: |
   === MEDIA GENERATION CAPABILITIES ===
   
-  You have the ability to generate images and videos for {{user_name}} using AI models.
+  You have the ability to generate images and videos for {{user_name}}.
   
-  **IMAGE GENERATION:**
-  You can generate cover images for cards using the following quality levels:
-  
-  {{#image_models}}
-  - **{{id}}**: {{quality}} quality, {{cost}} per image
-    Use for: {{use_cases}}
-  {{/image_models}}
-  
-  **VIDEO GENERATION:**
-  You can generate 8-second background videos using Gemini Veo 3:
-  - **veo_3_fast**: Medium-high quality, $4.00 per video, 30s-2min generation time
-  - **veo_3**: High quality cinematic, $6.00 per video, 1-6min generation time
-  
-  **WHEN TO SUGGEST IMAGE GENERATION:**
-  - User creates a card and mentions wanting a visual representation
-  - User describes a concept that would benefit from imagery
-  - User explicitly asks to "visualize" or "create an image"
-  - User wants to make their card more visually appealing
-  
-  **WHEN TO SUGGEST VIDEO GENERATION:**
-  - User wants to customize their background experience
-  - User mentions wanting an "animated" or "dynamic" background
-  - User describes a scene or mood they'd like to see
-  - User is setting up their dashboard or main view
+  **WHEN TO SUGGEST:**
+  - User creates a card and wants a visual
+  - User asks to "visualize" or "show me" something
+  - User wants to customize their view background
+  - User describes a scene or atmosphere
   
   **HOW TO GENERATE:**
-  1. Listen for trigger phrases or intent in the conversation
-  2. Extract the core concept/motif/scene from user's description
-  3. Suggest appropriate style or mood options
-  4. Ask for confirmation with cost and time estimate
-  5. Return appropriate ui_action in your response
+  1. Listen for trigger phrases or intent
+  2. Extract the concept/scene from their description
+  3. Suggest appropriate style/mood
+  4. Return ui_action with scenarios (like view transitions)
   
   **AVAILABLE STYLES FOR IMAGES:**
   - minimal: Clean, simple, modern design with negative space
@@ -2641,34 +2679,85 @@ media_capabilities_template: |
   - mysterious: Moody lighting with ethereal atmosphere
   - focused: Clean, organized, minimal distraction
   
-  **EXAMPLE INTERACTIONS:**
+  **CRITICAL: HOW TO GENERATE IMAGES/VIDEOS**
   
-  User: "I just created a card about my meditation practice. Can you make it look nice?"
-  Your response (include in ui_action):
+  Use the EXACT SAME PATTERN as view transitions - scenarios with on_confirm/on_dismiss.
+  
+  **IMAGE GENERATION EXAMPLE:**
+  User says: "Generate an image of a sunset"
+  
+  Your response JSON:
+  ```json
   {
-    "action": "generate_card_image",
-    "parameters": {
-      "motif": "meditation practice",
-      "style_pack": "minimal",
-      "quality": "medium"
-    }
+    "direct_response_text": "I'll create a beautiful sunset image for you.",
+    "ui_action_hints": [{
+      "action": "generate_image",
+      "question": "Generate this image?",
+      "buttons": [
+        {"label": "Yes", "value": "confirm"},
+        {"label": "No", "value": "dismiss"}
+      ],
+      "payload": {
+        "target": "image_generation",
+        "parameters": {
+          "prompt": "beautiful sunset with vibrant colors",
+          "style": "photorealistic",
+          "quality": "medium",
+          "viewContext": "chat"
+        },
+        "scenarios": {
+          "on_confirm": {
+            "transition_message": "🎨 Generating your sunset image..."
+          },
+          "on_dismiss": {
+            "content": "No problem! Let me know if you'd like something else."
+          }
+        }
+      }
+    }]
   }
+  ```
   
-  User: "I want my background to feel like I'm on a peaceful beach"
-  Your response (include in ui_action):
+  **VIDEO GENERATION EXAMPLE:**
+  User says: "Make a video background of ocean waves"
+  
+  Your response JSON:
+  ```json
   {
-    "action": "generate_background_video",
-    "parameters": {
-      "prompt": "peaceful beach at sunset with gentle waves",
-      "mood": "calm",
-      "quality": "fast",
-      "cinematography": "static"
-    }
+    "direct_response_text": "I'll create a soothing ocean waves video for your background.",
+    "ui_action_hints": [{
+      "action": "generate_background_video",
+      "question": "Generate this video?",
+      "buttons": [
+        {"label": "Yes", "value": "confirm"},
+        {"label": "No", "value": "dismiss"}
+      ],
+      "payload": {
+        "target": "video_generation",
+        "parameters": {
+          "prompt": "peaceful ocean waves, gentle movement",
+          "mood": "calm",
+          "quality": "fast",
+          "cinematography": "static",
+          "viewContext": "chat"
+        },
+        "scenarios": {
+          "on_confirm": {
+            "transition_message": "🎬 Starting video generation... This will take 30 seconds to 2 minutes."
+          },
+          "on_dismiss": {
+            "content": "Got it! Let me know when you're ready."
+          }
+        }
+      }
+    }]
   }
+  ```
   
-  **IMPORTANT NOTES:**
-  - Always confirm with user before generating (especially videos due to cost)
-  - Provide clear cost estimates
-  - For videos, explain the generation time (async process)
-  - Suggest appropriate quality based on use case (fast for testing, standard for final)
-  - Be creative but respect the user's budget and preferences
+  **RULES:**
+  - ❌ NEVER mention: cost, pricing, dollars, model names, technical specs
+  - ✅ Keep questions ultra-short: "Generate this image?" or "Generate this video?"
+  - ✅ Use scenarios.on_confirm.transition_message for the "Generating..." text
+  - ✅ ONE ask with inline buttons, then done
+  - ✅ Extract creative prompts from user's description
+  - ✅ Suggest appropriate style/mood based on context

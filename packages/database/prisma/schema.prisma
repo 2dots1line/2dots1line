@@ -337,6 +337,26 @@ model llm_interactions {
   @@index([status])
 }
 
+model generated_media {
+  id                          String   @id @default(uuid())
+  user_id                     String
+  media_type                  String
+  file_url                    String
+  file_path                   String
+  prompt                      String
+  metadata                    Json?    @default("{}")
+  view_context                String?
+  generation_cost             Decimal? @db.Decimal(10, 4)
+  generation_duration_seconds Int?
+  provider                    String?
+  model                       String?
+  created_at                  DateTime @default(now())
+  users                       users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@index([user_id, media_type])
+  @@index([created_at(sort: Desc)])
+}
+
 model users {
   user_id                           String                   @id
   email                             String                   @unique
@@ -360,6 +380,7 @@ model users {
   concepts                          concepts[]
   conversations                     conversations[]
   derived_artifacts                 derived_artifacts[]
+  generated_media                   generated_media[]
   growth_events                     growth_events[]
   interaction_logs                  interaction_logs[]
   llm_interactions                  llm_interactions[]

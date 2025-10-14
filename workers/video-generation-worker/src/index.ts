@@ -7,7 +7,7 @@ import { VideoGenerationWorker, VideoJobData } from './VideoGenerationWorker';
 import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
 
 // Export types for use by other services
-export { VideoJobData } from './VideoGenerationWorker';
+export type { VideoJobData } from './VideoGenerationWorker';
 
 async function main() {
   console.log('[VideoGenerationWorker] Starting video generation worker...');

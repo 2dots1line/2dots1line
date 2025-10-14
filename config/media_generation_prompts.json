@@ -37,7 +37,7 @@
     ],
     "quality_presets": {
       "low": "imagen-4.0-fast-generate-001",
-      "medium": "gemini-2.5-flash-image",
+      "medium": "imagen-4.0-generate-001",
       "high": "imagen-4.0-generate-001"
     }
   },

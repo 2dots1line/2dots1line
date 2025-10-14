@@ -822,14 +822,11 @@ export class DialogueAgent {
       
       // Map ui_action_hints to ui_actions with two-button pattern for frontend compatibility
       if (parsed.ui_action_hints && Array.isArray(parsed.ui_action_hints)) {
-        parsed.ui_actions = parsed.ui_action_hints.map((hint: any) => ({
-          action: hint.action,
-          question: hint.question || '',
-          buttons: hint.buttons || [
-            {label: 'Yes', value: 'confirm'},
-            {label: 'Maybe later', value: 'dismiss'}
-          ],
-          payload: {
+        parsed.ui_actions = parsed.ui_action_hints.map((hint: any) => {
+          // Use hint.payload directly if it exists (V11.0 structure from LLM)
+          // This preserves all fields like parameters, target, scenarios, metadata
+          const payload = hint.payload || {
+            // Fallback for old structure (backward compatibility)
             target: hint.target,
             scenarios: hint.scenarios || {
               on_confirm: {
@@ -841,8 +838,18 @@ export class DialogueAgent {
               }
             },
             priority: hint.priority || 'medium'
-          }
-        }));
+          };
+          
+          return {
+            action: hint.action,
+            question: hint.question || '',
+            buttons: hint.buttons || [
+              {label: 'Yes', value: 'confirm'},
+              {label: 'Maybe later', value: 'dismiss'}
+            ],
+            payload
+          };
+        });
         
         // Log view switch suggestions for monitoring
         const viewSwitchHints = parsed.ui_action_hints.filter((h: any) => h.action === 'switch_view');

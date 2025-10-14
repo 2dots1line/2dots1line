@@ -77,6 +77,9 @@ function formatMarkdownContent(text: string): string {
   formattedText = processLists(formattedText);
 
   // Phase 3: Inline Formatting
+  // Images - must be processed before italic (because of the ! prefix)
+  formattedText = formattedText.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" class="markdown-image" style="max-width: 100%; height: auto; border-radius: 8px; margin: 8px 0;" />');
+  
   // Bold text (**...**)
   formattedText = formattedText.replace(/\*\*([^*<>]+)\*\*/g, '<strong>$1</strong>');
   
