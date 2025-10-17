@@ -1,0 +1,15 @@
+[Unit]
+Description=2D1L Docker Compose Services
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/home/[USER]/2D1L
+ExecStart=/usr/bin/docker-compose -f docker-compose.dev.yml up -d
+ExecStop=/usr/bin/docker-compose -f docker-compose.dev.yml down
+User=[USER]
+
+[Install]
+WantedBy=multi-user.target

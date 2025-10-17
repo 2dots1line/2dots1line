@@ -69,7 +69,7 @@
 22. **3D Scene Development (R3F):**
     *   Optimize for performance: use instancing, LODs, texture compression, and dispose of unused Three.js objects.
     *   Encapsulate scene-specific logic within its respective component (e.g., `CloudScene.tsx`).
-    *   Use shared utilities from `packages/canvas-core/` and shaders from `packages/shader-lib/` where possible.
+    *   Use inline shaders and local 3D utilities as needed for performance.
 23. **Accessibility (A11Y):**
     *   Ensure all interactive elements are keyboard navigable.
     *   Provide ARIA attributes where necessary.

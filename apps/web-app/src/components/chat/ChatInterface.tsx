@@ -347,7 +347,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   useEffect(() => {
     if (!isOpen || !user?.user_id) return;
     
-    const socket: Socket = io(process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001', {
+    const socket: Socket = io(process.env.NEXT_PUBLIC_NOTIFICATION_SERVICE_URL || 'http://localhost:3002', {
       auth: {
         token: localStorage.getItem('auth_token') || 'dev-token',
         userId: user.user_id

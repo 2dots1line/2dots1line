@@ -36,7 +36,6 @@ The repository follows a monorepo structure with the following main directories:
 - `docs/` - Project documentation
 - `config/` - Configuration files
 - `infrastructure/` - Infrastructure as code
-- `3d-assets/` - 3D assets and resources
 - `archive/` - Legacy and archived code
 
 ## Apps Directory (`apps/`)
@@ -297,26 +296,6 @@ packages/core-utils/
 └── .turbo/ (turborepo cache)
 ```
 
-### Canvas Core (`packages/canvas-core/`)
-3D canvas utilities and core rendering functionality.
-
-```
-packages/canvas-core/
-├── package.json (651B, 28 lines)
-├── tsconfig.json (495B, 20 lines)
-├── tsconfig.tsbuildinfo (90KB, 1 lines)
-├── src/
-│   ├── index.ts (154B, 6 lines)
-│   ├── camera/
-│   │   └── index.ts (328B, 13 lines)
-│   ├── lighting/
-│   │   └── index.ts (348B, 12 lines)
-│   └── utils/
-│       └── index.ts (179B, 5 lines)
-├── dist/ (compiled output)
-├── node_modules/ (dependencies)
-└── .turbo/ (turborepo cache)
-```
 
 ### Orb Core (`packages/orb-core/`)
 Core orb functionality including base classes, effects, emotions, and states.

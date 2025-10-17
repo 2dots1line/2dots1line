@@ -32,7 +32,7 @@ export function createV1Routes(
   // Create a mock notifier that uses HTTP fallback
   const mockNotifier = {
     sendQuestUpdate: async (executionId: string, data: any) => {
-      const notificationWorkerUrl = 'http://localhost:3002';
+      const notificationWorkerUrl = process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:3002';
       try {
         const response = await fetch(`${notificationWorkerUrl}/internal/quest/update`, {
           method: 'POST',

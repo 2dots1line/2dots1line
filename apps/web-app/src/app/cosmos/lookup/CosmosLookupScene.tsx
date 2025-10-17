@@ -166,7 +166,7 @@ const CosmosLookupScene: React.FC = () => {
 
       const seedIds = entityIds;
       
-      const connectedResponse = await fetch('http://localhost:3001/api/v1/neo4j/query', {
+      const connectedResponse = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001'}/api/v1/neo4j/query`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -218,7 +218,7 @@ const CosmosLookupScene: React.FC = () => {
         LIMIT 100
       `;
 
-      const relationshipsResponse = await fetch('http://localhost:3001/api/v1/neo4j/query', {
+      const relationshipsResponse = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001'}/api/v1/neo4j/query`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -275,7 +275,7 @@ const CosmosLookupScene: React.FC = () => {
     try {
       // Step 1: Get the specific entity to verify it exists
       console.log('🔍 CosmosLookupScene: Step 1 - Fetching entity from PostgreSQL');
-      const entityResponse = await fetch(`http://localhost:3001/api/v1/entities/${lookupState.entityId}`, {
+      const entityResponse = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001'}/api/v1/entities/${lookupState.entityId}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -299,7 +299,7 @@ const CosmosLookupScene: React.FC = () => {
 
       // Step 2: Find semantically similar entities using Weaviate
       console.log('🔍 CosmosLookupScene: Step 2 - Finding similar entities in Weaviate');
-      const similarityResponse = await fetch('http://localhost:8080/v1/graphql', {
+      const similarityResponse = await fetch(`${process.env.NEXT_PUBLIC_WEAVIATE_URL || 'http://localhost:8080'}/v1/graphql`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -351,7 +351,7 @@ const CosmosLookupScene: React.FC = () => {
 
       // Step 3: Find semantically similar entities
       console.log('🔍 CosmosLookupScene: Step 3 - Finding semantically similar entities');
-      const similarEntitiesResponse = await fetch('http://localhost:8080/v1/graphql', {
+      const similarEntitiesResponse = await fetch(`${process.env.NEXT_PUBLIC_WEAVIATE_URL || 'http://localhost:8080'}/v1/graphql`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

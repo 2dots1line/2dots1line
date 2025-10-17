@@ -16,6 +16,17 @@ API_GATEWAY_CONTAINER_PORT=3001
 JWT_SECRET=YOUR_JWT_SECRET
 JWT_EXPIRES_IN=1d
 
+# === FRONTEND CONFIGURATION ===
+# For local development: http://localhost:3000
+# For production: https://your-domain.com
+FRONTEND_URL=http://localhost:3000
+
+# === SERVICE URLS ===
+# Notification Service URL (for internal communication)
+# For local development: http://localhost:3002
+# For production: https://your-notification-service.com
+NOTIFICATION_SERVICE_URL=http://localhost:3002
+
 
 # === AI PROVIDER KEYS ===
 # For US Region (or default) - Ensure this is your actual Gemini API Key

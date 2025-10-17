@@ -25,9 +25,6 @@
       "@2dots1line/core-utils": ["packages/core-utils/dist"],
       "@2dots1line/tool-registry": ["packages/tool-registry/src"],
       "@2dots1line/tools": ["packages/tools/src"],
-      "@2dots1line/canvas-core": ["packages/canvas-core/src"],
-      "@2dots1line/orb-core": ["packages/orb-core/src"],
-      "@2dots1line/shader-lib": ["packages/shader-lib/src"],
       "@2dots1line/ui-components": ["packages/ui-components/src"]
     }
   },

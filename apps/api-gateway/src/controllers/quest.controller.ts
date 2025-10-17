@@ -107,7 +107,7 @@ export class QuestController {
     } else {
       // HTTP fallback
       console.log(`[QuestController] Using HTTP fallback for ${updateType}`);
-      const notificationWorkerUrl = 'http://localhost:3002';
+      const notificationWorkerUrl = process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:3002';
       fetch(`${notificationWorkerUrl}/internal/quest/update`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -277,7 +277,7 @@ export class QuestController {
    * Send progressive updates via HTTP to NotificationWorker
    */
   private async sendProgressiveUpdatesViaHTTP(result: any, executionId: string) {
-    const notificationWorkerUrl = 'http://localhost:3002'; // NotificationWorker port
+    const notificationWorkerUrl = process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:3002'; // NotificationWorker port
     
     try {
       // Batch 1: Key phrases
