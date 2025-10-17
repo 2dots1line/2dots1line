@@ -14,8 +14,8 @@ export default function RootLayout({
       <body>
         {/* Engagement tracking */}
         <ViewTracker />
-        {/* Engagement debugger (development only) */}
-        <EngagementDebugger />
+        {/* Engagement debugger (development only) - HIDDEN */}
+        {/* <EngagementDebugger /> */}
         {/* Notification layer */}
         <NotificationRoot />
         {children}

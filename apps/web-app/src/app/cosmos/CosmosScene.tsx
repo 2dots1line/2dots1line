@@ -10,7 +10,6 @@ import CosmosInfoPanel from '../../components/modal/CosmosInfoPanel';
 import CosmosError from '../../components/modal/CosmosError';
 import CosmosLoading from '../../components/modal/CosmosLoading';
 import { EntityDetailModal } from '../../components/modal/EntityDetailModal';
-import { NodeLabelControls } from '../../components/cosmos/NodeLabelControls';
 import SeedEntitiesDisplay from '../../components/cosmos/SeedEntitiesDisplay';
 import { useEntitySelection } from '../../hooks/useEntitySelection';
 import { LookupCameraController } from '../../components/cosmos/LookupCameraController';
@@ -303,17 +302,7 @@ const CosmosScene: React.FC = () => {
 
   return (
     <div className="w-full h-full relative">
-      {/* Lookup Mode Navigation Button */}
-      <div className="absolute top-4 left-4 z-10">
-        <div className="bg-black/20 backdrop-blur-md rounded-lg p-3 text-white">
-          <button
-            onClick={() => window.location.href = '/cosmos/lookup'}
-            className="px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-400 rounded text-sm font-medium transition-colors"
-          >
-            🔍 Try Entity Lookup
-          </button>
-        </div>
-      </div>
+      {/* Lookup Mode Navigation Button - Removed */}
 
       <Graph3D
         graphData={safeGraphData}
@@ -332,8 +321,7 @@ const CosmosScene: React.FC = () => {
       />
       
       
-      {/* Node Label Controls */}
-      <NodeLabelControls />
+      {/* Node Label Controls - Removed (duplicate with settings panel) */}
       
       <CosmosInfoPanel />
       {selectedNode && <EntityDetailModal entity={selectedNode} isOpen={!!selectedNode} onClose={() => setSelectedNode(null)} />}

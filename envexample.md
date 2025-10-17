@@ -21,6 +21,16 @@ JWT_EXPIRES_IN=1d
 # For production: https://your-domain.com
 FRONTEND_URL=http://localhost:3000
 
+# Frontend API Configuration (NEXT_PUBLIC_* variables are baked into the build)
+# For local development: http://localhost:3001
+# For production: https://your-api-domain.com
+NEXT_PUBLIC_API_BASE_URL=http://localhost:3001
+
+# Weaviate URL for frontend (NEXT_PUBLIC_* variables are baked into the build)
+# For local development: http://localhost:8080
+# For production: https://your-weaviate-domain.com
+NEXT_PUBLIC_WEAVIATE_URL=http://localhost:8080
+
 # === SERVICE URLS ===
 # Notification Service URL (for internal communication)
 # For local development: http://localhost:3002

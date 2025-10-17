@@ -16,7 +16,7 @@
 import { DatabaseService, Neo4jService } from '@2dots1line/database';
 import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
 import { Worker, Job, Queue } from 'bullmq';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '@2dots1line/database';
 
 // Event types that trigger projection updates
 export interface NewEntitiesCreatedEvent {

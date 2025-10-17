@@ -9,7 +9,6 @@ import CosmosInfoPanel from '../../../components/modal/CosmosInfoPanel';
 import CosmosError from '../../../components/modal/CosmosError';
 import CosmosLoading from '../../../components/modal/CosmosLoading';
 import { EntityDetailModal } from '../../../components/modal/EntityDetailModal';
-import { NodeLabelControls } from '../../../components/cosmos/NodeLabelControls';
 import { LookupControls } from '../../../components/cosmos/LookupControls';
 import { performKeyPhraseLookup, createGraphProjection, LookupConfig as EntityLookupConfig } from '../../../utils/entityLookup';
 
@@ -877,8 +876,7 @@ const CosmosLookupScene: React.FC = () => {
       />
       
       
-      {/* Node Label Controls */}
-      <NodeLabelControls />
+      {/* Node Label Controls - Removed (duplicate with settings panel) */}
       
       <CosmosInfoPanel />
       {selectedNode && <EntityDetailModal entity={selectedNode} isOpen={!!selectedNode} onClose={() => setSelectedNode(null)} />}

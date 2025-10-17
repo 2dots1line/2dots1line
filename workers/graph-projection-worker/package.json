@@ -13,12 +13,14 @@
     "@2dots1line/shared-types": "workspace:*",
     "@2dots1line/database": "workspace:*",
     "@2dots1line/core-utils": "workspace:*",
-    "bullmq": "^4.0.0"
+    "bullmq": "^4.0.0",
+    "dotenv": "^16.4.5"
   },
   "devDependencies": {
-    "@types/node": "^20.17.0",
-    "typescript": "^5.8.3",
-    "ts-node": "^10.0.0",
-    "jest": "^29.0.0"
+    "@types/node": "^20.11.20",
+    "prisma": "6.17.1",
+    "@prisma/client": "6.17.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
   }
 }

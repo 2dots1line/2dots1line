@@ -12,8 +12,6 @@ const env = envLoader.load();
 // Generate consistent environment for all PM2 processes
 const baseEnv = envLoader.generateEcosystemEnv();
 
-console.log('✅ Environment loaded for PM2 ecosystem from:', Object.keys(baseEnv).length, 'variables');
-
 const baseConfig = {
   env: baseEnv,
   env_production: {

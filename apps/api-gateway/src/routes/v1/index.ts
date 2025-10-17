@@ -68,6 +68,18 @@ v1Router.get('/health', (req, res) => {
   });
 });
 
+// --- DEBUG ROUTE ---
+v1Router.get('/debug/env', (req, res) => {
+  res.status(200).json({
+    success: true,
+    data: {
+      NODE_ENV: process.env.NODE_ENV || 'undefined',
+      GOOGLE_API_KEY: process.env.GOOGLE_API_KEY ? `SET (length: ${process.env.GOOGLE_API_KEY.length})` : 'NOT SET',
+      PEXELS_API_KEY: process.env.PEXELS_API_KEY ? `SET (length: ${process.env.PEXELS_API_KEY.length})` : 'NOT SET',
+    }
+  });
+});
+
 // --- Auth Routes (Public) ---
 v1Router.post('/auth/register', authController.register);
 v1Router.post('/auth/login', authController.login);

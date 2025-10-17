@@ -144,10 +144,10 @@ operational_config_section: |
         "scenarios": {
           "on_confirm": {
             "transition_message": "Great! Let's go explore your cosmos together...",
-            "main_content": "Looking at your cosmos, I can see three major clusters forming around your work on 2dots1line, your parenting philosophy with Vivian, and your creative process..."
+            "main_content": "Based on the user's actual knowledge graph data, describe what you see in their cosmos. Query their memory units, concepts, and relationships to generate a personalized description of their knowledge landscape. Reference specific entities, themes, and connections from their actual data."
           },
           "on_dismiss": {
-            "content": "No problem! To answer your question about how your cosmos is shaping: you're currently building three interconnected themes..."
+            "content": "No problem! To answer your question about how your cosmos is shaping: query the user's knowledge graph to identify their current themes and patterns, then describe what you observe in their knowledge landscape."
           }
         }
       }
@@ -337,6 +337,8 @@ dynamic_context_section: |
   ## 3.7 VIEW CONTEXT
   Current user interface context:
   {{view_context}}
+  
+  **CRITICAL: Pay attention to the current view. Do NOT suggest switching to a view the user is already in.**
   {{/view_context}}
   
   {{#engagement_context}}
@@ -615,9 +617,11 @@ view_context_template: |
   **Current View:** {{current_view}}
   **View Description:** {{view_description}}
   
+  **IMPORTANT: You are currently in the {{current_view}} view. Do NOT suggest switching to {{current_view}} view since the user is already here.**
+  
   {{#has_available_transitions}}
   **Available View Transitions:**
-  You can suggest switching to other views when appropriate. Available transitions from {{current_view}}:
+  You can suggest switching to OTHER views when appropriate. Available transitions from {{current_view}}:
   {{#available_transitions}}
   - **{{from}} → {{to}}**: Use question: "{{question_template}}"
     Trigger patterns: {{#trigger_patterns}}"{{.}}", {{/trigger_patterns}}
@@ -628,7 +632,7 @@ view_context_template: |
   1. Detect if user's question matches trigger patterns
   2. Use the exact question_template for that transition
   3. Generate both on_confirm and on_dismiss scenarios
-  4. Set target to destination view name
+  4. Set target to destination view name (NEVER suggest current view)
   5. System will automatically handle chat sizing and navigation
   {{/has_available_transitions}}
   

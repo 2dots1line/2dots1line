@@ -147,6 +147,13 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
 
       if (this.provider === 'gemini') {
         const apiKey = process.env.GOOGLE_API_KEY;
+        
+        // --- DEBUG LOGGING ---
+        console.log(`[DEBUG] GOOGLE_API_KEY Type: ${typeof apiKey}`);
+        console.log(`[DEBUG] GOOGLE_API_KEY Length: ${apiKey ? apiKey.length : 'undefined'}`);
+        console.log(`[DEBUG] GOOGLE_API_KEY Value (first 5 chars): ${apiKey ? apiKey.substring(0, 5) : 'undefined'}`);
+        // --- END DEBUG LOGGING ---
+
         if (!apiKey) throw new Error('GOOGLE_API_KEY environment variable is required');
         this.genAI = new GoogleGenerativeAI(apiKey);
         this.model = this.genAI.getGenerativeModel({

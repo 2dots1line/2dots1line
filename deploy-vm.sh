@@ -13,7 +13,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-VM_NAME="2d1l-vm"
+VM_NAME="twodots-vm"
 ZONE="us-central1-a"
 MACHINE_TYPE="e2-standard-4"
 BOOT_DISK_SIZE="100GB"
@@ -40,14 +40,19 @@ gcloud config set project $PROJECT_ID
 
 # Create the VM instance
 echo -e "${YELLOW}🖥️  Creating Compute Engine VM instance...${NC}"
-gcloud compute instances create $VM_NAME \
-    --zone=$ZONE \
-    --machine-type=$MACHINE_TYPE \
-    --boot-disk-size=$BOOT_DISK_SIZE \
+gcloud compute instances create "$VM_NAME" \
+    --project="$PROJECT_ID" \
+    --zone="$ZONE" \
+    --machine-type="$MACHINE_TYPE" \
+    --network-interface=network-tier=PREMIUM \
+    --maintenance-policy=MIGRATE \
+    --provisioning-model=STANDARD \
+    --scopes=https://www.googleapis.com/auth/cloud-platform \
+    --tags=twodots-server \
+    --image-family="$IMAGE_FAMILY" \
+    --image-project="$IMAGE_PROJECT" \
+    --boot-disk-size="$BOOT_DISK_SIZE" \
     --boot-disk-type=pd-ssd \
-    --image-family=$IMAGE_FAMILY \
-    --image-project=$IMAGE_PROJECT \
-    --tags=2d1l-server \
     --metadata=startup-script='#!/bin/bash
 # Update system
 apt-get update && apt-get upgrade -y
@@ -93,28 +98,28 @@ echo -e "${YELLOW}🔥 Creating firewall rules...${NC}"
 gcloud compute firewall-rules create allow-http-2d1l \
     --allow tcp:80 \
     --source-ranges 0.0.0.0/0 \
-    --target-tags 2d1l-server \
+    --target-tags twodots-server \
     --description "Allow HTTP traffic for 2D1L"
 
 # Allow HTTPS
 gcloud compute firewall-rules create allow-https-2d1l \
     --allow tcp:443 \
     --source-ranges 0.0.0.0/0 \
-    --target-tags 2d1l-server \
+    --target-tags twodots-server \
     --description "Allow HTTPS traffic for 2D1L"
 
 # Allow frontend port
 gcloud compute firewall-rules create allow-frontend-2d1l \
     --allow tcp:3000 \
     --source-ranges 0.0.0.0/0 \
-    --target-tags 2d1l-server \
+    --target-tags twodots-server \
     --description "Allow frontend traffic for 2D1L"
 
 # Allow API Gateway port
 gcloud compute firewall-rules create allow-api-2d1l \
     --allow tcp:3001 \
     --source-ranges 0.0.0.0/0 \
-    --target-tags 2d1l-server \
+    --target-tags twodots-server \
     --description "Allow API Gateway traffic for 2D1L"
 
 echo -e "${GREEN}✅ Firewall rules created successfully!${NC}"

@@ -7,7 +7,6 @@ import CosmosError from '../modal/CosmosError';
 import CosmosLoading from '../modal/CosmosLoading';
 import { EntityDetailModal } from '../modal/EntityDetailModal';
 import QuestInfoPanel from '../modal/QuestInfoPanel';
-import { NodeLabelControls } from './NodeLabelControls';
 import { LookupCameraController } from './LookupCameraController';
 import { HUDContainer } from '../hud/HUDContainer';
 import { GlassmorphicPanel, GlassButton } from '@2dots1line/ui-components';
@@ -431,8 +430,7 @@ const LiveQuestScene: React.FC = () => {
 
   return (
     <div className="w-full h-full relative text-white">
-      {/* Top Left: Node Label Controls (Labels/Edges Toggle) */}
-      <NodeLabelControls />
+      {/* Top Left: Node Label Controls - Removed (duplicate with settings panel) */}
       
       {/* Top Right: HUD */}
       <HUDContainer className="top-4 right-4" onViewSelect={(view) => {

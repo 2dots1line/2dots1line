@@ -81,6 +81,40 @@ Access your application via the VM's external IP:
 - **Neo4j Browser**: `http://[VM_IP]:7474`
 - **Weaviate**: `http://[VM_IP]:8080`
 
+**IMPORTANT**: The most important verification is to **create a new user account** via the sign-up page and test the login and chat functionality. The commands above only verify that the services are running, not that they are working together correctly. See the "Post-Deployment Verification" section below for more detailed checks.
+
+## Post-Deployment Verification (Data Consistency)
+
+After creating a new user (e.g., `test@example.com`), you can use these commands on the VM to verify that the data has been correctly written to the databases, adapting them from the `DATA_CONSISTENCY_CHECK_GUIDE.md`.
+
+### 1. PostgreSQL Check
+
+Verify the user exists in the `users` table. You will need to replace `[YOUR_POSTGRES_USER]` and `[YOUR_POSTGRES_DB]` with the values from your `.env` file.
+
+```bash
+docker exec postgres-2d1l psql -U [YOUR_POSTGRES_USER] -d [YOUR_POSTGRES_DB] -c "SELECT user_id, email, created_at FROM users WHERE email = 'test@example.com';"
+```
+
+### 2. Neo4j Check
+
+Verify the corresponding `User` node was created in the graph. Replace `[YOUR_NEO4J_PASSWORD]` with the value from your `.env` file.
+
+```bash
+docker exec neo4j-2d1l cypher-shell -u neo4j -p [YOUR_NEO4J_PASSWORD] "MATCH (n:User {email: 'test@example.com'}) RETURN n.user_id, n.email, n.created_at;"
+```
+
+### 3. Weaviate Check
+
+After the new user has a conversation, you can verify that `UserKnowledgeItem` objects are being created for them.
+
+```bash
+# First, get the user_id from PostgreSQL
+USER_ID=$(docker exec postgres-2d1l psql -U [USER] -d [DB] -t -c "SELECT user_id FROM users WHERE email = 'test@example.com';" | xargs)
+
+# Then, query Weaviate for items associated with that user_id
+curl -s -X POST "http://localhost:8080/v1/graphql" -H "Content-Type: application/json" -d "{\"query\": \"{ Get { UserKnowledgeItem(where: { path: [\\\"userId\\\"], operator: Equal, valueString: \\\"$USER_ID\\\" }) { _additional { id }, title, userId } } }\"}" | jq
+```
+
 ## Manual Deployment Steps
 
 If you prefer to run the commands manually:
@@ -95,6 +129,7 @@ gcloud compute instances create 2d1l-vm \
     --boot-disk-type=pd-ssd \
     --image-family=ubuntu-2204-lts \
     --image-project=ubuntu-os-cloud \
+    --scopes=https://www.googleapis.com/auth/cloud-platform \
     --tags=2d1l-server
 ```
 
@@ -166,9 +201,9 @@ gcloud init
 ```bash
 # Clone repository
 cd ~
-git clone https://github.com/your-username/2D1L.git 2D1L
+git clone https://github.com/2dots1line/2dots1line.git 2D1L
 cd 2D1L
-git checkout next-horizon
+git checkout compute-engine-deployment
 
 # Fetch secrets and create .env
 # (See deploy-app.sh for the complete .env template)
@@ -176,6 +211,17 @@ git checkout next-horizon
 # Install dependencies and build
 pnpm setup
 pnpm build
+```
+
+### 4.5. Initialize Databases
+
+**CRITICAL:** For a fresh deployment, the databases inside the Docker containers will be empty. You must initialize the PostgreSQL schema before starting the application services. This command is taken from `scripts/GUIDES/QUICK_CLEAN_START.md`.
+
+```bash
+# From the project root directory (e.g., /home/user/2D1L)
+cd packages/database
+pnpm prisma db push
+cd ../..
 ```
 
 ### 5. Start Services
@@ -290,9 +336,10 @@ Create `/etc/logrotate.d/2d1l`:
 ### Common Issues
 
 1. **Services not starting**: Check logs with `pm2 logs` and `docker-compose logs`
-2. **Database connection issues**: Verify Docker containers are running with `docker ps`
-3. **Port conflicts**: Check if ports are already in use with `lsof -i :PORT`
-4. **Permission issues**: Ensure user is in docker group with `groups $USER`
+2. **Registration/Login Fails**: This is often because the database schema was not initialized. Make sure you ran the `pnpm prisma db push` command (see step 4.5) after starting the Docker containers for the first time.
+3. **Database connection issues**: Verify Docker containers are running with `docker ps`
+4. **Port conflicts**: Check if ports are already in use with `lsof -i :PORT`
+5. **Permission issues**: Ensure user is in docker group with `groups $USER`
 
 ### Useful Commands
 
