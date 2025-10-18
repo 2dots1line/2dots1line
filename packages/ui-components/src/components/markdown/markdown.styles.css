@@ -170,6 +170,24 @@
   }
 }
 
+/* Video and image elements */
+.markdown-content .markdown-video {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 8px 0;
+  display: block;
+  background: #000;
+}
+
+.markdown-content .markdown-image {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 8px 0;
+  display: block;
+}
+
 /* Hover states for interactive elements */
 .markdown-content .message-list li:hover {
   opacity: 0.8;

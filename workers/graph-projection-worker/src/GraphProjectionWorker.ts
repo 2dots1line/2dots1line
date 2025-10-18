@@ -116,12 +116,19 @@ export class GraphProjectionWorker {
       retryDelay: 5000,
       dimensionReducerUrl: environmentLoader.get('DIMENSION_REDUCER_URL') || 'http://localhost:8000',
       projectionMethod: 'umap',
-      // V11.0 Hybrid UMAP Configuration
+      // V11.0 Hybrid UMAP Configuration (Legacy - now using dynamic square root function)
       umapInterval: parseInt(environmentLoader.get('UMAP_INTERVAL') || '500'),
       minNodesForUMAP: parseInt(environmentLoader.get('MIN_NODES_FOR_UMAP') || '500'),
       maxNodesForUMAP: parseInt(environmentLoader.get('MAX_NODES_FOR_UMAP') || '10000'),
       ...config
     };
+
+    // Log the new dynamic UMAP behavior
+    console.log(`[GraphProjectionWorker] V11.0 Dynamic UMAP Learning Configuration:`);
+    console.log(`[GraphProjectionWorker] - Early graphs (2-9 nodes): Every 2-3 nodes`);
+    console.log(`[GraphProjectionWorker] - Growing graphs (10-100 nodes): Every 3-10 nodes`);
+    console.log(`[GraphProjectionWorker] - Large graphs (100+ nodes): Every 10-500 nodes (capped)`);
+    console.log(`[GraphProjectionWorker] - Function: interval = min(500, max(2, floor(sqrt(nodes))))`);
 
     // Validate configuration
     this.validateConfiguration();
@@ -369,7 +376,7 @@ export class GraphProjectionWorker {
 
   /**
    * V11.0 Hybrid UMAP: Generate coordinates using hybrid approach
-   * Decides between UMAP learning and linear transformation based on node count
+   * Decides between UMAP learning and UMAP transform based on node count and existing models
    */
   public async generateProjectionWithHybridUMAP(userId: string, newEntities: Array<{id: string, type: string}>, forceUMAPLearning: boolean = false): Promise<{
     nodes: Node3D[];
@@ -388,6 +395,20 @@ export class GraphProjectionWorker {
     
     console.log(`[GraphProjectionWorker] Current nodes: ${currentNodeCount}, New entities: ${newEntities.length}, Total: ${totalNodes}`);
 
+    // Check if user has any UMAP model first
+    const hasModel = await this.hasUMAPModel(userId);
+    
+    if (!hasModel) {
+      if (totalNodes < 2) {
+        console.log(`[GraphProjectionWorker] 📍 Not enough nodes for UMAP learning (${totalNodes} < 2), skipping coordinate generation`);
+        return { nodes: [], projectionMethod: 'none' };
+      } else {
+        console.log(`[GraphProjectionWorker] 🌱 Bootstrap: First UMAP learning for ${totalNodes} nodes`);
+        return await this.handleUMAPLearningPhase(userId, newEntities);
+      }
+    }
+
+    // Regular hybrid logic for established users
     if (forceUMAPLearning || this.shouldRunUMAP(totalNodes)) {
       console.log(`[GraphProjectionWorker] 🧠 Running UMAP Learning Phase (total nodes: ${totalNodes}${forceUMAPLearning ? ', FORCED' : ''})`);
       return await this.handleUMAPLearningPhase(userId, newEntities);
@@ -398,17 +419,39 @@ export class GraphProjectionWorker {
   }
 
   /**
-   * V11.0: Check if UMAP learning should run based on node count
+   * V11.0: Check if UMAP learning should run based on dynamic interval calculation
+   * Uses square root function: more frequent learning early, less frequent for large graphs
    */
   private shouldRunUMAP(totalNodes: number): boolean {
-    // Configuration is validated in constructor, so these values are guaranteed to exist
-    const minNodes = this.config.minNodesForUMAP!;
-    const maxNodes = this.config.maxNodesForUMAP || Infinity;
-    const interval = this.config.umapInterval!;
+    // Don't learn with 0 or 1 nodes
+    if (totalNodes < 2) return false;
     
-    return totalNodes >= minNodes && 
-           totalNodes <= maxNodes &&
-           totalNodes % interval === 0;
+    const interval = this.calculateLearningInterval(totalNodes);
+    return totalNodes % interval === 0;
+  }
+
+  /**
+   * V11.0: Calculate learning interval using square root function
+   * - Early graphs (2-9 nodes): Every 2-3 nodes
+   * - Growing graphs (10-100 nodes): Every 3-10 nodes  
+   * - Large graphs (100+ nodes): Every 10-500 nodes (capped)
+   */
+  private calculateLearningInterval(nodeCount: number): number {
+    if (nodeCount < 2) return 2; // Clean edge case handling
+    
+    // Square root scaling: interval grows as sqrt(nodes)
+    const baseInterval = Math.floor(Math.sqrt(nodeCount));
+    
+    // Apply practical bounds: Min 2, Max 500
+    return Math.max(2, Math.min(baseInterval, 500));
+  }
+
+  /**
+   * V11.0: Check if user has any UMAP model (helper method)
+   */
+  private async hasUMAPModel(userId: string): Promise<boolean> {
+    const model = await this.getUMAPModel(userId);
+    return model !== null;
   }
 
   /**

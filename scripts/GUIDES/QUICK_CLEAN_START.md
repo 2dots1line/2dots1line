@@ -1,3 +1,23 @@
+Root Cause:
+Two Turbo build processes (PIDs 19790 and 17731) were actively running turbo run build
+These processes had file handles open on build artifacts (.js, .d.ts, .map files) in the packages/*/src/ directories
+When quick-clean.sh tried to delete these files, it got stuck because they were locked by the running build processes
+Solution Applied:
+Killed the running Turbo build processes using kill -9
+Stopped the Turbo daemon (PID 63492) to prevent automatic restarts
+Verified the clean script now runs smoothly - it completed successfully without hanging
+Prevention Tips:
+To avoid this issue in the future:
+Before running clean scripts, check for active build processes:
+Stop builds before cleaning:
+Use the improved clean script which already has timeouts to prevent hanging
+Your quick-clean.sh script should now run smoothly without getting stuck at the "removing build artifacts from source" step!
+
+
+   ps aux | grep -E "(turbo|tsc|next)" | grep -v grep
+
+      pkill -f "turbo.*build"
+   pkill -f "turbo.*daemon"
 Manual cleansing:
 # Use faster, quieter removal approach
 rm -rf node_modules pnpm-lock.yaml 2>/dev/null || true

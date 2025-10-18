@@ -211,14 +211,33 @@ pnpm stop:db
 
 ### VM Production
 
-#### Starting Production Services
+#### Prerequisites: Docker Setup
+
+**CRITICAL:** Before starting services, ensure Docker permissions are configured.
 
 ```bash
 # SSH into VM
 gcloud compute ssh twodots-vm --zone=us-central1-a
 
-# Start all services
+# Install docker-compose if not already installed
+sudo apt update
+sudo apt install docker-compose -y
+
+# Fix Docker permissions
+sudo usermod -aG docker $USER
+newgrp docker
+
+# Test Docker access
+docker ps
+```
+
+#### Starting Production Services
+
+```bash
+# Navigate to project directory
 cd ~/2D1L
+
+# Start all services
 pnpm start:prod
 
 # Verify services
@@ -429,7 +448,34 @@ pnpm lint
 pnpm install
 ```
 
-#### 6. PM2 Process Management Issues
+#### 6. Docker Permission Errors
+
+**Problem:** `PermissionError: [Errno 13] Permission denied` when running docker-compose
+
+**Solutions:**
+```bash
+# 1. Add user to docker group
+sudo usermod -aG docker $USER
+
+# 2. Apply group changes
+newgrp docker
+
+# 3. Test Docker access
+docker ps
+
+# 4. If still failing, check groups
+groups $USER
+
+# 5. Create docker group if missing
+sudo groupadd docker
+sudo usermod -aG docker $USER
+newgrp docker
+
+# 6. Restart Docker daemon
+sudo systemctl restart docker
+```
+
+#### 7. PM2 Process Management Issues
 
 **Problem:** PM2 processes not starting or crashing
 

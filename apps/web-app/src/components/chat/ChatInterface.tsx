@@ -191,6 +191,15 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       const data = customEvent.detail;
       console.log('[ChatInterface] Video generation complete:', data);
       
+      // Reload generated media to pick up the new video
+      const { loadGeneratedMedia, applyGeneratedVideo } = useBackgroundVideoStore.getState();
+      await loadGeneratedMedia();
+      
+      // Auto-apply to the view context if specified
+      if (data.viewContext && data.videoId) {
+        applyGeneratedVideo(data.videoId, data.viewContext);
+      }
+
       // Trigger a proactive LLM message that naturally mentions the video
       try {
         const token = localStorage.getItem('auth_token');
@@ -356,27 +365,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     
     console.log('[ChatInterface] WebSocket connected for video notifications');
     
-    socket.on('video_generation_complete', async (data: any) => {
-      console.log('[ChatInterface] Video generation complete:', data);
-      
-      // Show notification in chat
-      const notificationMessage: ChatMessage = {
-        id: `bot-${Date.now()}`,
-        type: 'bot',
-        content: `🎉 ${data.message || 'Your background video is ready!'}\n\n[View in Settings](/settings)`,
-        timestamp: new Date()
-      };
-      addMessage(notificationMessage);
-      
-      // Reload generated media
-      const { loadGeneratedMedia, applyGeneratedVideo } = useBackgroundVideoStore.getState();
-      await loadGeneratedMedia();
-      
-      // Auto-apply to the view context if specified
-      if (data.viewContext && data.videoId) {
-        applyGeneratedVideo(data.videoId, data.viewContext);
-      }
-    });
+    // Note: Video generation complete is handled by the custom event listener below
+    // This WebSocket handler is removed to prevent duplicate messages
     
     return () => {
       console.log('[ChatInterface] WebSocket disconnected');

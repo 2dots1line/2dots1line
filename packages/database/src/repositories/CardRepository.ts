@@ -75,37 +75,44 @@ export class CardRepository {
    */
   private async loadEntityData(sourceEntityId: string, sourceEntityType: string): Promise<any> {
     try {
-      switch (sourceEntityType) {
-        case 'MemoryUnit':
+      // Normalize entity type to handle both lowercase and capitalized forms
+      const normalizedType = sourceEntityType.toLowerCase();
+      
+      switch (normalizedType) {
+        case 'memoryunit':
+        case 'memory_unit':
           return await this.db.prisma.memory_units.findUnique({
             where: { entity_id: sourceEntityId }
           });
-        case 'Concept':
+        case 'concept':
           return await this.db.prisma.concepts.findUnique({
             where: { entity_id: sourceEntityId }
           });
-        case 'DerivedArtifact':
+        case 'derivedartifact':
+        case 'derived_artifact':
           return await this.db.prisma.derived_artifacts.findUnique({
             where: { entity_id: sourceEntityId }
           });
-        case 'ProactivePrompt':
+        case 'proactiveprompt':
+        case 'proactive_prompt':
           return await this.db.prisma.proactive_prompts.findUnique({
             where: { entity_id: sourceEntityId }
           });
-        case 'Community':
+        case 'community':
           return await this.db.prisma.communities.findUnique({
             where: { entity_id: sourceEntityId }
           });
-        case 'GrowthEvent':
+        case 'growthevent':
+        case 'growth_event':
           return await this.db.prisma.growth_events.findUnique({
             where: { entity_id: sourceEntityId }
           });
-        case 'User':
+        case 'user':
           return await this.db.prisma.users.findUnique({
             where: { user_id: sourceEntityId }
           });
         default:
-          console.warn(`[CardRepository] Unknown entity type: ${sourceEntityType}`);
+          console.warn(`[CardRepository] Unknown entity type: ${sourceEntityType} (normalized: ${normalizedType})`);
           return null;
       }
     } catch (error) {
@@ -137,51 +144,58 @@ export class CardRepository {
       try {
         let entities: any[] = [];
         
-        switch (entityType) {
-          case 'MemoryUnit':
+        // Normalize entity type to handle both lowercase and capitalized forms
+        const normalizedType = entityType.toLowerCase();
+        
+        switch (normalizedType) {
+          case 'memoryunit':
+          case 'memory_unit':
             entities = await this.db.prisma.memory_units.findMany({
               where: { entity_id: { in: entityIds } }
             });
             break;
-          case 'Concept':
+          case 'concept':
             entities = await this.db.prisma.concepts.findMany({
               where: { entity_id: { in: entityIds } }
             });
             break;
-          case 'DerivedArtifact':
+          case 'derivedartifact':
+          case 'derived_artifact':
             entities = await this.db.prisma.derived_artifacts.findMany({
               where: { entity_id: { in: entityIds } }
             });
             break;
-          case 'ProactivePrompt':
+          case 'proactiveprompt':
+          case 'proactive_prompt':
             entities = await this.db.prisma.proactive_prompts.findMany({
               where: { entity_id: { in: entityIds } }
             });
             break;
-          case 'Community':
+          case 'community':
             entities = await this.db.prisma.communities.findMany({
               where: { entity_id: { in: entityIds } }
             });
             break;
-          case 'GrowthEvent':
+          case 'growthevent':
+          case 'growth_event':
             entities = await this.db.prisma.growth_events.findMany({
               where: { entity_id: { in: entityIds } }
             });
             break;
-          case 'User':
+          case 'user':
             entities = await this.db.prisma.users.findMany({
               where: { user_id: { in: entityIds } }
             });
             break;
           default:
-            console.warn(`[CardRepository] Unknown entity type for batch loading: ${entityType}`);
+            console.warn(`[CardRepository] Unknown entity type for batch loading: ${entityType} (normalized: ${normalizedType})`);
             continue;
         }
         
         // Map entities by their ID for quick lookup
         entities.forEach(entity => {
           // For User entities, use user_id; for all others, use entity_id
-          const id = entityType === 'User' ? entity.user_id : entity.entity_id;
+          const id = normalizedType === 'user' ? entity.user_id : entity.entity_id;
           entityDataMap.set(id, entity);
         });
         

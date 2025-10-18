@@ -212,6 +212,51 @@ pnpm setup
 pnpm build
 ```
 
+### 4.1. Install Docker Compose (if not already installed)
+
+```bash
+# Update package list
+sudo apt update
+
+# Install docker-compose
+sudo apt install docker-compose -y
+
+# Verify installation
+docker-compose --version
+```
+
+### 4.2. Fix Docker Permissions
+
+**CRITICAL:** The default user needs permission to access Docker daemon.
+
+```bash
+# Add your user to the docker group
+sudo usermod -aG docker $USER
+
+# Apply the group changes (you can either logout/login or use newgrp)
+newgrp docker
+
+# Test if you can run docker without sudo
+docker ps
+```
+
+**If you still get permission errors:**
+```bash
+# Check if docker group exists
+getent group docker
+
+# Check your groups
+groups $USER
+
+# If docker group doesn't exist, create it
+sudo groupadd docker
+sudo usermod -aG docker $USER
+newgrp docker
+
+# Restart Docker daemon if needed
+sudo systemctl restart docker
+```
+
 ### 4.5. Initialize Databases
 
 **CRITICAL:** For a fresh deployment, the databases inside the Docker containers will be empty. You must initialize the PostgreSQL schema before starting the application services. This command is taken from `scripts/GUIDES/QUICK_CLEAN_START.md`.
