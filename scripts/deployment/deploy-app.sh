@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Simplified 2D1L Application Deployment Script
+# 2D1L Application Deployment Script
 # This script deploys the 2D1L application to the Compute Engine VM
 # Run this script ON the VM after VM setup is complete
 
@@ -26,18 +26,10 @@ echo ""
 VM_IP=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip -H "Metadata-Flavor: Google")
 echo -e "${GREEN}🌐 VM External IP: $VM_IP${NC}"
 
-# Install Docker if not present
-echo -e "${YELLOW}🐳 Installing Docker...${NC}"
-if ! command -v docker &> /dev/null; then
-    sudo apt-get update
-    sudo apt-get install -y docker.io
-    sudo systemctl start docker
-    sudo systemctl enable docker
-    sudo usermod -aG docker $USER
-    echo -e "${GREEN}✅ Docker installed${NC}"
-else
-    echo -e "${GREEN}✅ Docker already installed${NC}"
-fi
+# Initialize gcloud (if not already done)
+echo -e "${YELLOW}🔐 Initializing Google Cloud CLI...${NC}"
+gcloud auth login --no-launch-browser
+gcloud config set project $PROJECT_ID
 
 # Clone repository
 echo -e "${YELLOW}📥 Cloning repository...${NC}"
@@ -52,8 +44,10 @@ else
     git checkout $BRANCH
 fi
 
-# Create .env file with hardcoded values for now
-echo -e "${YELLOW}🔑 Creating environment file...${NC}"
+# Fetch secrets from Secret Manager
+echo -e "${YELLOW}🔑 Fetching secrets from Secret Manager...${NC}"
+
+# Create .env file with secrets
 cat > .env << EOF
 # === APPLICATION CONFIGURATION ===
 NODE_ENV=production
@@ -61,7 +55,7 @@ NODE_ENV=production
 # === DATABASE CONFIGURATIONS ===
 # PostgreSQL (Docker container on same VM)
 POSTGRES_USER=postgres
-POSTGRES_PASSWORD=password123
+POSTGRES_PASSWORD=$(gcloud secrets versions access latest --secret="POSTGRES_PASSWORD")
 POSTGRES_DB=twodots1line
 POSTGRES_HOST_PORT=5433
 
@@ -80,7 +74,7 @@ REDIS_HOST_PORT=6379
 
 # === CONNECTION URLS ===
 # Database URLs (localhost since Docker runs on same VM)
-DATABASE_URL=postgresql://postgres:password123@localhost:5433/twodots1line
+DATABASE_URL=postgresql://postgres:$(gcloud secrets versions access latest --secret="POSTGRES_PASSWORD")@localhost:5433/twodots1line
 REDIS_URL=redis://localhost:6379
 NEO4J_URI=bolt://localhost:7688
 NEO4J_URI_DOCKER=neo4j://neo4j:7687
@@ -96,12 +90,12 @@ NEXT_PUBLIC_API_BASE_URL=http://$VM_IP:3001
 NEXT_PUBLIC_WEAVIATE_URL=http://$VM_IP:8080
 
 # === SECURITY ===
-JWT_SECRET=your-super-secret-jwt-key-change-in-production
+JWT_SECRET=$(gcloud secrets versions access latest --secret="JWT_SECRET")
 JWT_EXPIRES_IN=1d
 
 # === AI PROVIDER KEYS ===
-GOOGLE_API_KEY=your-google-api-key-here
-PEXELS_API_KEY=your-pexels-api-key-here
+GOOGLE_API_KEY=$(gcloud secrets versions access latest --secret="GOOGLE_API_KEY")
+PEXELS_API_KEY=$(gcloud secrets versions access latest --secret="PEXELS_API_KEY")
 
 # === LLM MODEL CONFIGURATION ===
 LLM_CHAT_MODEL=gemini-2.5-flash
@@ -181,17 +175,88 @@ else
     exit 1
 fi
 
-# Start PM2 services
-echo -e "${YELLOW}🚀 Starting PM2 services...${NC}"
-pm2 start ecosystem.config.js
+# Start all services using production configuration
+echo -e "${YELLOW}🚀 Starting all services...${NC}"
+pnpm start:prod
 pm2 save
 
-# Start frontend in production mode
-echo -e "${YELLOW}🌐 Starting frontend...${NC}"
-cd apps/web-app
-pnpm build
-pm2 start "pnpm start" --name "web-app" --cwd /home/$USER/2D1L/apps/web-app
-pm2 save
+# Setup PM2 startup
+echo -e "${YELLOW}⚙️  Setting up PM2 startup...${NC}"
+pm2 startup systemd
+echo -e "${YELLOW}⚠️  Please run the command shown above to enable PM2 startup${NC}"
+
+# Create systemd service for Docker Compose
+echo -e "${YELLOW}⚙️  Creating systemd service for Docker Compose...${NC}"
+sudo tee /etc/systemd/system/2d1l-docker.service > /dev/null << EOF
+[Unit]
+Description=2D1L Docker Compose Services
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/home/$USER/2D1L
+ExecStart=/usr/bin/docker-compose -f docker-compose.dev.yml up -d
+ExecStop=/usr/bin/docker-compose -f docker-compose.dev.yml down
+User=$USER
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl enable 2d1l-docker.service
+sudo systemctl start 2d1l-docker.service
+
+# Setup log rotation
+echo -e "${YELLOW}📝 Setting up log rotation...${NC}"
+sudo tee /etc/logrotate.d/2d1l > /dev/null << EOF
+/home/$USER/2D1L/logs/*.log {
+    daily
+    rotate 7
+    compress
+    missingok
+    notifempty
+}
+EOF
+
+# Create health check script
+echo -e "${YELLOW}🏥 Creating health check script...${NC}"
+cat > /home/$USER/scripts/deployment/health-check.sh << 'EOF'
+#!/bin/bash
+# Health check script for 2D1L services
+
+# Check API Gateway
+if ! curl -f http://localhost:3001/api/v1/health > /dev/null 2>&1; then
+    echo "$(date): API Gateway health check failed, restarting..."
+    pm2 restart api-gateway
+fi
+
+# Check frontend
+if ! curl -f http://localhost:3000 > /dev/null 2>&1; then
+    echo "$(date): Frontend health check failed, restarting..."
+    pm2 restart web-app
+fi
+
+# Check Docker containers
+if ! docker ps | grep -q "postgres-2d1l"; then
+    echo "$(date): PostgreSQL container not running, restarting Docker services..."
+    cd /home/$USER/2D1L
+    docker-compose -f docker-compose.dev.yml up -d postgres
+fi
+
+if ! docker ps | grep -q "redis-2d1l"; then
+    echo "$(date): Redis container not running, restarting Docker services..."
+    cd /home/$USER/2D1L
+    docker-compose -f docker-compose.dev.yml up -d redis
+fi
+EOF
+
+chmod +x /home/$USER/scripts/deployment/health-check.sh
+
+# Add health check to crontab
+echo -e "${YELLOW}⏰ Adding health check to crontab...${NC}"
+(crontab -l 2>/dev/null; echo "*/5 * * * * /home/$USER/scripts/deployment/health-check.sh") | crontab -
 
 # Final verification
 echo -e "${YELLOW}🔍 Final verification...${NC}"
@@ -233,3 +298,5 @@ echo "  pm2 status          # Check PM2 processes"
 echo "  pm2 logs            # View PM2 logs"
 echo "  docker ps           # Check Docker containers"
 echo "  docker-compose logs # View Docker logs"
+echo ""
+echo -e "${YELLOW}⚠️  Don't forget to run the PM2 startup command shown above!${NC}"

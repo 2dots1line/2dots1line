@@ -22,7 +22,7 @@ COPY services/ ./services/
 COPY workers/ ./workers/
 COPY apps/ ./apps/
 COPY config/ ./config/
-COPY ecosystem.config.js ./
+COPY scripts/deployment/ecosystem.config.js ./
 
 # Build the entire monorepo (just like local development)
 RUN pnpm build

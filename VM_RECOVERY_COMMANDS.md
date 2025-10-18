@@ -83,7 +83,7 @@ Expected output: All 28 packages should build successfully with no errors.
 
 ```bash
 # Start PM2 services
-pm2 start ecosystem.config.js
+pm2 start scripts/deployment/ecosystem.config.js
 
 # Save PM2 configuration
 pm2 save
@@ -123,7 +123,7 @@ If you want to run everything in sequence, here are the exact commands:
 
 ```bash
 # Connect and run all fixes in one go
-gcloud compute ssh twodots-vm --zone=us-central1-a --command="cd ~/2D1L/workers/graph-projection-worker && sed -i 's/import { Prisma } from '\''@prisma\/client'\'';/import { Prisma } from '\''@2dots1line\/database'\'';/' src/GraphProjectionWorker.ts && cd ~/2D1L/packages/ontology-core && rm -rf dist tsconfig.tsbuildinfo && pnpm build && cd ~/2D1L && pnpm install --force && pnpm build && pm2 start ecosystem.config.js && pm2 save && cd apps/web-app && pm2 start 'pnpm start' --name 'web-app' && pm2 save"
+gcloud compute ssh twodots-vm --zone=us-central1-a --command="cd ~/2D1L/workers/graph-projection-worker && sed -i 's/import { Prisma } from '\''@prisma\/client'\'';/import { Prisma } from '\''@2dots1line\/database'\'';/' src/GraphProjectionWorker.ts && cd ~/2D1L/packages/ontology-core && rm -rf dist tsconfig.tsbuildinfo && pnpm build && cd ~/2D1L && pnpm install --force && pnpm build && pm2 start scripts/deployment/ecosystem.config.js && pm2 save && cd apps/web-app && pm2 start 'pnpm start' --name 'web-app' && pm2 save"
 ```
 
 ### Verify Everything Works:
@@ -450,3 +450,81 @@ Total time to fix: ~5-10 minutes
 - Service startup: ~1-2 minutes
 - Database schema setup: ~1-2 minutes
 - Verification: ~1 minute
+
+## Latest Lessons Learned (October 2025)
+
+### **Critical Environment Variable Issues**
+
+#### **Problem: CORS Login Failures**
+- **Symptoms**: Frontend shows "Login failed" with CORS errors in console
+- **Console Error**: `Origin http://34.136.210.47:3000 is not allowed by Access-Control-Allow-Origin. XMLHttpRequest cannot load http://localhost:3001/api/v1/auth/login`
+- **Root Cause**: Frontend making API calls to `localhost:3001` instead of `34.136.210.47:3001`
+
+#### **Solution: Proper Environment File Management**
+1. **NEVER create `.env.local` files on the VM** - they override `.env` files
+2. **Use only `.env` files** in `apps/web-app/` directory
+3. **Ensure correct API URL**: `NEXT_PUBLIC_API_BASE_URL=http://34.136.210.47:3001`
+
+#### **Next.js Environment File Priority (CRITICAL)**
+Next.js loads environment files in this order (highest to lowest priority):
+1. `.env.local` (highest priority - **AVOID ON VM**)
+2. `.env` (use this)
+3. `.env.development` (avoid on VM)
+4. `.env.production` (avoid on VM)
+
+#### **Correct VM Environment Setup**
+```bash
+# In apps/web-app/.env (ONLY this file should exist)
+GOOGLE_API_KEY=your_key_here
+OPENAI_API_KEY=your_key_here
+PEXELS_API_KEY=your_key_here
+NEXT_PUBLIC_API_BASE_URL=http://34.136.210.47:3001
+```
+
+#### **What NOT to Do:**
+- ❌ Don't create `.env.local` files on the VM
+- ❌ Don't use `localhost` URLs in environment variables on VM
+- ❌ Don't mix environment files (`.env` + `.env.local`)
+
+#### **What TO Do:**
+- ✅ Use only `.env` files on the VM
+- ✅ Always use external IP addresses (`34.136.210.47`) in environment variables
+- ✅ Verify environment variables are loaded correctly: `- Environments: .env`
+
+#### **Verification Steps:**
+1. Check Next.js startup logs: Should show `- Environments: .env` (not `.env.local, .env`)
+2. Test API calls: Frontend should call `34.136.210.47:3001`, not `localhost:3001`
+3. Check browser console: No CORS errors
+4. Test login: Should work with proper credentials
+
+#### **Quick Fix for Environment Issues:**
+```bash
+# Remove conflicting environment files
+rm apps/web-app/.env.local
+rm apps/web-app/.env.development
+rm apps/web-app/.env.production
+
+# Ensure only .env exists with correct API URL
+echo "NEXT_PUBLIC_API_BASE_URL=http://34.136.210.47:3001" >> apps/web-app/.env
+
+# Restart web-app
+pkill -f next
+cd apps/web-app && pnpm dev
+```
+
+### **Test User Creation**
+When testing login functionality:
+```bash
+# Create test user via API
+curl -X POST http://34.136.210.47:3001/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email": "testuser@example.com", "name": "Test User", "password": "testpassword123"}'
+
+# Test login
+curl -X POST http://34.136.210.47:3001/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "testuser@example.com", "password": "testpassword123"}'
+```
+
+### **Key Takeaway**
+**Environment variable conflicts are the #1 cause of VM deployment issues.** Always use a single `.env` file with external IP addresses, never create `.env.local` files on the VM.

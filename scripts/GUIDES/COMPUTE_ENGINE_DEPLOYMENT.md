@@ -6,8 +6,8 @@ This guide provides step-by-step instructions for deploying the 2D1L monorepo to
 
 **Single VM running:**
 - **Docker Compose**: PostgreSQL, Neo4j, Weaviate, Redis, Python Dimension Reducer (5 containers)
-- **PM2**: API Gateway + 11 workers (12 Node.js processes)
-- **Next.js**: Frontend (production build)
+- **PM2**: API Gateway + 10 workers + Web App (12 Node.js processes total)
+- **Environment**: Production mode with optimized configurations
 
 **Cost**: ~$53/month (e2-standard-4: 4 vCPU, 16GB RAM, 100GB SSD)
 
@@ -25,7 +25,7 @@ This guide provides step-by-step instructions for deploying the 2D1L monorepo to
 Run the VM deployment script from your local machine:
 
 ```bash
-./deploy-vm.sh
+./scripts/deployment/deploy-vm.sh
 ```
 
 This script will:
@@ -43,7 +43,7 @@ SSH into the VM and run the application deployment script:
 gcloud compute ssh 2d1l-vm --zone=us-central1-a
 
 # On the VM, run the deployment script
-./deploy-app.sh
+./scripts/deployment/deploy-app.sh
 ```
 
 This script will:
@@ -52,8 +52,7 @@ This script will:
 - Create production `.env` file
 - Install dependencies and build the monorepo
 - Start Docker services (databases)
-- Start PM2 services (API Gateway + workers)
-- Start frontend in production mode
+- Start PM2 services (API Gateway + workers + Web App)
 - Configure auto-start services
 - Setup health monitoring
 
@@ -233,16 +232,37 @@ docker-compose -f docker-compose.dev.yml up -d
 # Wait for services to be ready
 sleep 30
 
-# Start PM2 services
-pm2 start ecosystem.config.js
-pm2 save
-
-# Start frontend
-cd apps/web-app
-pnpm build
-pm2 start "pnpm start" --name "web-app"
+# Start all services using production configuration
+pnpm start:prod
 pm2 save
 ```
+
+## PM2 Ecosystem Configurations
+
+The project uses three different PM2 ecosystem configurations:
+
+### 1. `scripts/deployment/ecosystem.config.js` (Original Full Configuration)
+- **Use for:** VM deployment with all services
+- **Services:** API Gateway + All Workers + Web App
+- **Environment:** Production
+- **Command:** `pnpm start:services`
+
+### 2. `scripts/deployment/ecosystem.dev.config.js` (Development Configuration)
+- **Use for:** Local development
+- **Services:** API Gateway + Web App (dev mode with hot reload)
+- **Environment:** Development with file watching
+- **Command:** `pnpm start:dev`
+
+### 3. `scripts/deployment/ecosystem.prod.config.js` (Production Configuration)
+- **Use for:** VM production deployment
+- **Services:** API Gateway + All Workers + Web App (production mode)
+- **Environment:** Production
+- **Command:** `pnpm start:prod`
+
+**For VM deployment, use `pnpm start:prod` which automatically:**
+- Starts Docker services
+- Starts all PM2 services using `ecosystem.prod.config.js`
+- Includes the Web App in production mode
 
 ## Environment Configuration
 
@@ -307,14 +327,14 @@ sudo systemctl start 2d1l-docker.service
 
 ### Health Check Script
 
-The `health-check.sh` script monitors all services and restarts them if needed:
+The `scripts/deployment/health-check.sh` script monitors all services and restarts them if needed:
 
 ```bash
 # Make executable
-chmod +x health-check.sh
+chmod +x scripts/deployment/health-check.sh
 
 # Add to crontab (runs every 5 minutes)
-(crontab -l 2>/dev/null; echo "*/5 * * * * /home/$USER/health-check.sh") | crontab -
+(crontab -l 2>/dev/null; echo "*/5 * * * * /home/$USER/scripts/deployment/health-check.sh") | crontab -
 ```
 
 ### Log Rotation
@@ -330,6 +350,74 @@ Create `/etc/logrotate.d/2d1l`:
     notifempty
 }
 ```
+
+## Branch Switching & Data Migration
+
+### Switching Branches on VM
+
+#### Automated Branch Switch
+```bash
+# Use the provided script for automated branch switching
+./scripts/migration/switch-vm-branch.sh <branch-name>
+
+# Example:
+./scripts/migration/switch-vm-branch.sh feature/new-feature
+```
+
+#### Manual Branch Switch
+```bash
+# SSH into VM
+gcloud compute ssh 2d1l-vm --zone=us-central1-a
+
+# Navigate to project directory
+cd ~/2D1L
+
+# Stop services to avoid conflicts
+pm2 stop all
+
+# Switch to new branch
+git fetch origin
+git checkout <new-branch-name>
+git pull origin <new-branch-name>
+
+# Install any new dependencies
+pnpm install
+
+# Rebuild if necessary
+pnpm build
+
+# Restart services
+pnpm start:prod
+```
+
+### Data Migration
+
+#### Export Local Data
+```bash
+# Export all local data for VM migration
+./scripts/migration/export-local-data.sh
+
+# This creates a timestamped backup directory with:
+# - PostgreSQL dump
+# - Neo4j dump
+# - Weaviate schema and data
+# - Application files (uploads, covers, videos)
+# - Configuration files
+```
+
+#### Import Data to VM
+```bash
+# Import exported data to VM
+./scripts/migration/import-to-vm.sh backup_20241018_143022
+
+# This will:
+# - Upload backup to VM
+# - Import all database data
+# - Copy application files
+# - Update configuration
+```
+
+For detailed migration procedures, see `scripts/migration/README.md`.
 
 ## Troubleshooting
 
@@ -352,7 +440,12 @@ pm2 logs
 docker ps
 docker-compose logs
 
-# Restart services
+# Restart services (using new commands)
+pnpm restart:services  # Restart all PM2 services
+pnpm stop:services     # Stop all PM2 services
+pnpm start:prod        # Start all services (Docker + PM2)
+
+# Alternative manual commands
 pm2 restart all
 docker-compose -f docker-compose.dev.yml restart
 
@@ -360,6 +453,13 @@ docker-compose -f docker-compose.dev.yml restart
 htop
 df -h
 free -h
+
+# Free up port conflicts
+lsof -ti:3000 | xargs -r kill -9  # Free port 3000
+lsof -ti:3001 | xargs -r kill -9  # Free port 3001
+
+# Complete system reset
+pnpm stop:services && docker-compose -f docker-compose.dev.yml down && pnpm start:prod
 ```
 
 ### Log Locations
@@ -419,6 +519,12 @@ For high availability, consider:
 4. **Monitoring**: Set up Cloud Monitoring alerts
 5. **CI/CD**: Automate deployments with Cloud Build
 
+## Related Documentation
+
+- **Deployment and Startup Guide**: `scripts/GUIDES/DEPLOYMENT_AND_STARTUP_GUIDE.md` - Comprehensive guide for local vs VM deployment
+- **Migration Scripts**: `scripts/migration/README.md` - Branch switching and data migration procedures
+- **VM Access Troubleshooting**: `scripts/GUIDES/20251018_VM_Access_Troubleshooting.md` - Specific VM access issues
+
 ## Support
 
 For issues or questions:
@@ -426,3 +532,4 @@ For issues or questions:
 2. Review this documentation
 3. Check Google Cloud Console for VM status
 4. Verify firewall rules and network connectivity
+5. Consult the related documentation above for specific procedures

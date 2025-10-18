@@ -12,6 +12,8 @@ scripts/
 ├── AUTOMATION/                 # 🤖 Automated scripts and tools
 ├── KNOWLEDGE_BASE/             # 🧠 Technical knowledge and best practices
 ├── CHANGE_MANAGEMENT/          # 🔄 Change control and architecture docs
+├── deployment/                 # 🚀 VM deployment and PM2 ecosystem configs
+├── migration/                  # 🔄 Branch switching and data migration
 └── archive/                    # 📦 Historical files and legacy documentation
 ```
 
@@ -27,6 +29,18 @@ scripts/
 
 # Daily development workflow
 ./AUTOMATION/systematic-audit.sh       # Health check and validation
+```
+
+### **For VM Deployment**
+```bash
+# Deploy to Google Cloud VM
+./deployment/deploy-vm.sh              # Create and configure VM
+./deployment/deploy-app.sh             # Deploy application to VM
+
+# Branch switching and data migration
+./migration/switch-vm-branch.sh        # Switch VM to new branch
+./migration/export-local-data.sh       # Export local data
+./migration/import-to-vm.sh            # Import data to VM
 ```
 
 ### **For Daily Development**
@@ -103,6 +117,56 @@ AUTOMATION/
     ├── manage-gemini-models.sh # Gemini model configuration
     ├── README_MODEL_MANAGEMENT.md # Model management documentation
     └── test_gemini_models.js   # Model testing utilities
+```
+
+---
+
+## 🚀 **DEPLOYMENT DIRECTORY**
+
+*VM deployment scripts and PM2 ecosystem configurations*
+
+### **VM Deployment Scripts**
+- `deploy-vm.sh` - Creates and configures Google Cloud Compute Engine VM
+- `deploy-app.sh` - Deploys 2D1L application to configured VM
+- `deploy-app-simple.sh` - Simplified deployment script
+- `health-check.sh` - Service health monitoring and auto-restart
+
+### **PM2 Ecosystem Configurations**
+- `ecosystem.config.js` - Original full configuration (all services)
+- `ecosystem.dev.config.js` - Development configuration (hot reload)
+- `ecosystem.prod.config.js` - Production configuration (optimized)
+
+### **Usage**
+```bash
+# VM deployment
+./scripts/deployment/deploy-vm.sh
+./scripts/deployment/deploy-app.sh
+
+# Service management
+pnpm start:dev    # Uses ecosystem.dev.config.js
+pnpm start:prod   # Uses ecosystem.prod.config.js
+pnpm start:services # Uses ecosystem.config.js
+```
+
+---
+
+## 🔄 **MIGRATION DIRECTORY**
+
+*Branch switching and data migration tools*
+
+### **Migration Scripts**
+- `switch-vm-branch.sh` - Automated branch switching on VM
+- `export-local-data.sh` - Export local data for VM migration
+- `import-to-vm.sh` - Import data to VM from local backup
+
+### **Usage**
+```bash
+# Branch switching
+./scripts/migration/switch-vm-branch.sh feature/new-feature
+
+# Data migration
+./scripts/migration/export-local-data.sh
+./scripts/migration/import-to-vm.sh backup_20241018_143022
 ```
 
 ---
