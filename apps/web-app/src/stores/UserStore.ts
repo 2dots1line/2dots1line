@@ -509,6 +509,15 @@ export const useUserStore = create<UserState>()(
               isAuthenticated: false,
               error: null,
             });
+          } else {
+            // No token and not authenticated - ensure clean state
+            console.log('UserStore.initializeAuth - No token, setting clean state');
+            set({
+              user: null,
+              isAuthenticated: false,
+              isLoading: false,
+              error: null,
+            });
           }
         }
         
