@@ -177,5 +177,58 @@ module.exports = {
       out_file: path.join(__dirname, 'logs', 'video-generation-worker-out.log'),
       log_file: path.join(__dirname, 'logs', 'video-generation-worker-combined.log'),
     },
+    {
+      name: 'web-app',
+      script: 'pnpm',
+      args: 'start',
+      cwd: './apps/web-app',
+      instances: 1,
+      exec_mode: 'fork',
+      watch: false,
+      ...baseConfig,
+      env: {
+        ...baseEnv,
+        NEXT_PUBLIC_API_BASE_URL: 'http://34.136.210.47:3001',
+        NODE_ENV: 'production',
+      },
+      env_production: {
+        NODE_ENV: 'production',
+        ...baseEnv,
+        NEXT_PUBLIC_API_BASE_URL: 'http://34.136.210.47:3001',
+      },
+      env_development: {
+        NODE_ENV: 'development',
+        ...baseEnv,
+        NEXT_PUBLIC_API_BASE_URL: 'http://34.136.210.47:3001',
+      },
+      // Force individual logging to prevent shared context
+      error_file: path.join(__dirname, 'logs', 'web-app-error.log'),
+      out_file: path.join(__dirname, 'logs', 'web-app-out.log'),
+      log_file: path.join(__dirname, 'logs', 'web-app-combined.log'),
+    },
+    {
+      name: 'web-app-dev',
+      script: 'pnpm',
+      args: 'dev',
+      cwd: './apps/web-app',
+      instances: 1,
+      exec_mode: 'fork',
+      watch: false,
+      ...baseConfig,
+      env: {
+        ...baseEnv,
+        NEXT_PUBLIC_API_BASE_URL: 'http://34.136.210.47:3001',
+        NODE_ENV: 'development',
+      },
+      env_development: {
+        NODE_ENV: 'development',
+        ...baseEnv,
+        NEXT_PUBLIC_API_BASE_URL: 'http://34.136.210.47:3001',
+      },
+      // Force individual logging to prevent shared context
+      error_file: path.join(__dirname, 'logs', 'web-app-dev-error.log'),
+      out_file: path.join(__dirname, 'logs', 'web-app-dev-out.log'),
+      log_file: path.join(__dirname, 'logs', 'web-app-dev-combined.log'),
+    },
   ],
 }; 
