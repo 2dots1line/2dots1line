@@ -1,8 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { GlassButton } from '@2dots1line/ui-components';
-import { Download, X } from 'lucide-react';
+import React from 'react';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
