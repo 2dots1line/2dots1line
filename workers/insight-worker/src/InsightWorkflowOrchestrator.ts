@@ -99,6 +99,7 @@ export class InsightWorkflowOrchestrator {
     private cardQueue: Queue,
     private graphQueue: Queue,
     private embeddingQueue: Queue,
+    private notificationQueue: Queue,
     private promptCacheService?: PromptCacheService
   ) {
     // Initialize repositories
@@ -165,6 +166,27 @@ export class InsightWorkflowOrchestrator {
       });
 
       console.log(`[InsightWorkflowOrchestrator] Successfully completed strategic cycle for user ${userId}, created ${artifactsCreated + promptsCreated + growthEventsCreated + memoryProfileCreated + openingCreated} new entities`);
+      
+      // Send completion notification
+      try {
+        await this.notificationQueue.add('insight_generation_complete', {
+          type: 'insight_generation_complete',
+          userId,
+          cycleId,
+          artifactsCreated,
+          promptsCreated,
+          growthEventsCreated,
+          memoryProfileCreated,
+          openingCreated,
+          totalEntitiesCreated: artifactsCreated + promptsCreated + growthEventsCreated + memoryProfileCreated + openingCreated,
+          processingDurationMs: processingDuration,
+          message: `Insight generation completed! Created ${artifactsCreated + promptsCreated + growthEventsCreated + memoryProfileCreated + openingCreated} new insights and artifacts.`
+        });
+        console.log(`[InsightWorkflowOrchestrator] Sent completion notification for user ${userId}`);
+      } catch (notifyError) {
+        console.error(`[InsightWorkflowOrchestrator] Failed to send completion notification for user ${userId}:`, notifyError);
+        // Don't fail the job if notification fails
+      }
       
           return {
             cycleId,

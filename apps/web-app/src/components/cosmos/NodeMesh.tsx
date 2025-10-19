@@ -54,7 +54,19 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
     const loadTexture = async () => {
       let texturePath: string;
       
-      if (isSearchResult) {
+      if (isHighlighted) {
+        // Use bright star textures for highlighted nodes (selected + connected)
+        const highlightedTextures = [
+          '/textures/brightstar1.png',
+          '/textures/brightstar2.png', 
+          '/textures/brightstar3.png',
+          '/textures/brightstar4.png',
+          '/textures/giant_star.png'
+        ];
+        const randomIndex = Math.floor(Math.random() * highlightedTextures.length);
+        texturePath = highlightedTextures[randomIndex];
+        console.log('🌟 NodeMesh: Highlighted node using bright texture:', texturePath);
+      } else if (isSearchResult) {
         // Randomly assign from bright star textures and giant_star for search results
         const searchResultTextures = [
           '/textures/brightstar1.png',
@@ -91,7 +103,7 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
     };
 
     loadTexture();
-  }, [node.entityType, isSearchResult]);
+  }, [node.entityType, isSearchResult, isHighlighted]);
 
   // Calculate importance-based size
   const importance = node.importance || node.metadata?.importance_score || 0.5;
@@ -101,8 +113,22 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
   // Base sizing formula: keep original small size for regular CosmosScene
   let baseSize = Math.max(1.0 + normalizedImportance * 1.0, 0.8); // Original: minimum size of 0.8
   
-  // Make search results and quest entities larger and more prominent
-  if (isSearchResult) {
+  // Make highlighted nodes (selected + connected) larger and more prominent
+  if (isHighlighted) {
+    // For highlighted nodes: use much larger size
+    baseSize = Math.max(3.0 + normalizedImportance * 2.0, 4.0); // 3.0-5.0 range, minimum 4.0
+    console.log('🌟 NodeMesh: Highlighted entity detected:', {
+      nodeId: node.id,
+      title: node.title,
+      importance,
+      normalizedImportance,
+      baseSize,
+      isHighlighted
+    });
+  }
+  
+  // Make search results and quest entities larger and more prominent (for other views)
+  if (isSearchResult && !isHighlighted) {
     // For quest/search results: use much larger size
     baseSize = Math.max(3.0 + normalizedImportance * 2.0, 4.0); // 3.0-5.0 range, minimum 4.0
     console.log('🌟 NodeMesh: Quest/search entity detected:', {

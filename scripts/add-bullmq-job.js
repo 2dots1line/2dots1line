@@ -19,7 +19,7 @@ async function addJob() {
       password: process.env.REDIS_PASSWORD,
     };
 
-    const queue = new Queue('card-and-graph-queue', { connection: redisConnection });
+    const queue = new Queue('graph-queue', { connection: redisConnection });
     
     // Accept job data from command line
     const jobDataArg = process.argv[2];

@@ -14,6 +14,7 @@ import { EmbeddingController } from '../../controllers/embedding.controller';
 import { createAgentRoutes } from './agent.routes';
 import { createQuestRoutes } from './quest.routes';
 import { QuestController } from '../../controllers/quest.controller';
+import { InsightController } from '../../controllers/insight.controller';
 import { CosmosQuestAgent } from '@2dots1line/cosmos-quest-service';
 import dashboardRoutes from '../../routes/dashboard';
 
@@ -26,6 +27,7 @@ export function createV1Routes(
   mediaController: MediaController,
   hrtParametersController: HRTParametersController,
   embeddingController: EmbeddingController,
+  insightController: InsightController,
   cosmosQuestAgent: CosmosQuestAgent
 ): IRouter {
   const v1Router: IRouter = Router();
@@ -168,7 +170,8 @@ v1Router.get('/media/video-jobs/:jobId', authMiddleware, mediaController.getVide
 v1Router.get('/media/generated', authMiddleware, mediaController.getGeneratedMedia.bind(mediaController));
 v1Router.delete('/media/generated/:id', authMiddleware, mediaController.deleteGeneratedMedia.bind(mediaController));
 
-
+// --- Insight Routes (Authenticated) ---
+v1Router.post('/insights/trigger', authMiddleware, insightController.triggerInsightJob.bind(insightController));
 
 // --- HRT Parameters Routes (Authenticated) ---
 v1Router.post('/hrt/parameters', authMiddleware, hrtParametersController.saveParameters);

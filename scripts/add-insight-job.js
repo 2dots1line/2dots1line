@@ -19,7 +19,7 @@ async function addInsightJob() {
       password: process.env.REDIS_PASSWORD,
     };
 
-    const insightQueue = new Queue('insight', { connection: redisConnection });
+    const insightQueue = new Queue('insight-queue', { connection: redisConnection });
     
     // Add a job to trigger insight cycle
     const jobData = {

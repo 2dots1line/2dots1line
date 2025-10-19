@@ -157,6 +157,26 @@ const CosmosScene: React.FC = () => {
     };
   }, [graphData.nodes]);
 
+  // Listen for modal open requests from seed entity buttons
+  useEffect(() => {
+    const handleModalOpen = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const { entityId } = customEvent.detail || {};
+      
+      if (entityId) {
+        const node = graphData.nodes?.find(n => n.id === entityId);
+        if (node) {
+          setSelectedNode(node);
+        }
+      }
+    };
+
+    window.addEventListener('open-entity-modal', handleModalOpen);
+    return () => {
+      window.removeEventListener('open-entity-modal', handleModalOpen);
+    };
+  }, [graphData.nodes, setSelectedNode]);
+
   if (isLoading) {
     return <CosmosLoading />;
   }

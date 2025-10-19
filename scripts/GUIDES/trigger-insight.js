@@ -3,7 +3,7 @@
  * Insight Worker Job Trigger Script
  * 
  * This script manually triggers insight worker jobs for testing and development.
- * It creates a BullMQ job in the 'insight' queue with the specified user ID.
+ * It creates a BullMQ job in the 'insight-queue' with the specified user ID.
  * 
  * Usage:
  *   node scripts/GUIDES/trigger-insight.js [userId]
@@ -21,7 +21,7 @@ const { Queue } = require('bullmq');
 
 // Configuration
 const DEFAULT_USER_ID = 'dev-user-123';
-const QUEUE_NAME = 'insight';
+const QUEUE_NAME = 'insight-queue';
 const REDIS_CONFIG = {
   host: 'localhost',
   port: 6379

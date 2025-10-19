@@ -126,6 +126,20 @@ export interface VideoGenerationFailedPayload {
   message: string;
 }
 
+export interface InsightGenerationCompletePayload {
+  type: "insight_generation_complete";
+  userId: string;
+  cycleId: string;
+  artifactsCreated: number;
+  promptsCreated: number;
+  growthEventsCreated: number;
+  memoryProfileCreated: number;
+  openingCreated: number;
+  totalEntitiesCreated: number;
+  processingDurationMs: number;
+  message: string;
+}
+
 /**
  * SSE Message format for broadcasting to API Gateway
  */
@@ -142,7 +156,8 @@ export type NotificationJobPayload =
   | NewStarGeneratedPayload
   | VideoGenerationCompletePayload
   | ImageGenerationCompletePayload
-  | VideoGenerationFailedPayload;
+  | VideoGenerationFailedPayload
+  | InsightGenerationCompletePayload;
 
 // It seems the workers are importing `EmbeddingJob`, etc. directly.
 // Let's define these as the payload types for now.

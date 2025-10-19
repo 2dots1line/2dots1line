@@ -30,6 +30,7 @@ import { GraphController } from './controllers/graph.controller';
 import { MediaController } from './controllers/media.controller';
 import { HRTParametersController } from './controllers/hrtParameters.controller';
 import { EmbeddingController } from './controllers/embedding.controller';
+import { InsightController } from './controllers/insight.controller';
 
 async function createApp(): Promise<express.Application> {
   const app: express.Application = express();
@@ -114,8 +115,12 @@ async function createApp(): Promise<express.Application> {
   const embeddingController = new EmbeddingController(databaseService);
   console.log('✅ EmbeddingController initialized successfully');
 
+  console.log('🔧 Initializing InsightController...');
+  const insightController = new InsightController();
+  console.log('✅ InsightController initialized successfully');
+
   // Level 5: Mount controllers onto the Express app
-  app.use('/api/v1', createV1Routes(authController, userController, cardController, conversationController, graphController, mediaController, hrtParametersController, embeddingController, cosmosQuestAgent));
+  app.use('/api/v1', createV1Routes(authController, userController, cardController, conversationController, graphController, mediaController, hrtParametersController, embeddingController, insightController, cosmosQuestAgent));
 
   // Central Error Handler
   app.use(errorHandler);

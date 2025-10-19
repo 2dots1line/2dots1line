@@ -18,6 +18,17 @@ export const LookupCameraController: React.FC<LookupCameraControllerProps> = ({
   const [keys, setKeys] = useState({ w: false, a: false, s: false, d: false, shift: false, space: false });
   const initialTargetDistance = useRef<number>(initialDistance);
   
+  // Camera animation ref for smooth transitions
+  const cameraAnimationRef = useRef<{
+    startPosition: THREE.Vector3;
+    startTarget: THREE.Vector3;
+    endPosition: THREE.Vector3;
+    endTarget: THREE.Vector3;
+    progress: number;
+    duration: number;
+    startTime: number;
+  } | null>(null);
+  
   // Camera mode state - this is the key to solving all issues holistically
   const [cameraMode, setCameraMode] = useState<'orbit' | 'free'>('orbit');
   const [freeCameraTarget, setFreeCameraTarget] = useState<THREE.Vector3 | null>(null);
@@ -66,20 +77,22 @@ export const LookupCameraController: React.FC<LookupCameraControllerProps> = ({
       setCameraMode('orbit');
       
       if (controlsRef.current) {
-        // Set the target to the entity position
         const target = new THREE.Vector3(position.x, position.y, position.z);
-        controlsRef.current.target.copy(target);
-        
-        // Position camera to place entity in left 1/3 of screen
-        // This gives users time to observe the entity as clusters rotate left to right
-        // and avoids overlap with the chat modal on the right
-        const offset = new THREE.Vector3(-40, 20, 50); // Negative X to position entity on left side
+        const offset = new THREE.Vector3(-10, 20, 50); // Slightly negative X to position entity left of center
         const newPosition = target.clone().add(offset);
-        camera.position.copy(newPosition);
         
-        controlsRef.current.update();
+        // Store animation target for smooth transition
+        cameraAnimationRef.current = {
+          startPosition: camera.position.clone(),
+          startTarget: controlsRef.current.target.clone(),
+          endPosition: newPosition,
+          endTarget: target,
+          progress: 0,
+          duration: 1000, // 1 second
+          startTime: Date.now()
+        };
         
-        console.log('🎥 LookupCameraController: Camera focused on entity at:', position, 'with left-positioning offset');
+        console.log('🎥 LookupCameraController: Starting smooth camera animation to entity at:', position);
       }
     };
 
@@ -89,6 +102,37 @@ export const LookupCameraController: React.FC<LookupCameraControllerProps> = ({
       window.removeEventListener('camera-focus-request', handleCameraFocus as EventListener);
     };
   }, [camera]);
+
+  // Animation frame handler for smooth camera transitions
+  useFrame(() => {
+    if (cameraAnimationRef.current && controlsRef.current) {
+      const elapsed = Date.now() - cameraAnimationRef.current.startTime;
+      const progress = Math.min(elapsed / cameraAnimationRef.current.duration, 1);
+      
+      // Easing function for smooth animation
+      const eased = 1 - Math.pow(1 - progress, 3); // Cubic ease-out
+      
+      // Interpolate camera position and target
+      camera.position.lerpVectors(
+        cameraAnimationRef.current.startPosition,
+        cameraAnimationRef.current.endPosition,
+        eased
+      );
+      
+      controlsRef.current.target.lerpVectors(
+        cameraAnimationRef.current.startTarget,
+        cameraAnimationRef.current.endTarget,
+        eased
+      );
+      
+      controlsRef.current.update();
+      
+      // Clear animation when complete
+      if (progress >= 1) {
+        cameraAnimationRef.current = null;
+      }
+    }
+  });
 
   // Keyboard event handlers for WASD controls with mode management
   useEffect(() => {

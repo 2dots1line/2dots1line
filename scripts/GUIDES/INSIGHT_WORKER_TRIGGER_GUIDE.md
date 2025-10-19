@@ -55,7 +55,7 @@ scripts/trigger-insight.js
 ```
 
 #### **What It Does**
-- Creates a BullMQ job in the 'insight' queue
+- Creates a BullMQ job in the 'insight-queue'
 - Uses `dev-user-123` as the default user ID
 - Automatically closes the queue connection
 - Shows job ID and queue status
@@ -85,7 +85,7 @@ node
 
 # In the REPL:
 const { Queue } = require('bullmq');
-const queue = new Queue('insight', {
+const queue = new Queue('insight-queue', {
   connection: { host: 'localhost', port: 6379 }
 });
 

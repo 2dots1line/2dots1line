@@ -32,7 +32,7 @@ const execAsync = promisify(exec);
 
 // Configuration
 const DEFAULT_USER_ID = 'dev-user-123';
-const QUEUE_NAME = 'insight';
+const QUEUE_NAME = 'insight-queue';
 const REDIS_CONFIG = {
   host: 'localhost',
   port: 6379

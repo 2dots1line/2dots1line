@@ -303,8 +303,8 @@ export class NotificationWorker {
         return;
       }
 
-      // Handle immediate notifications (video/image generation complete)
-      if (type === 'video_generation_complete' || type === 'image_generation_complete' || type === 'video_generation_failed') {
+      // Handle immediate notifications (video/image/insight generation complete)
+      if (type === 'video_generation_complete' || type === 'image_generation_complete' || type === 'video_generation_failed' || type === 'insight_generation_complete') {
         console.log(`[NotificationWorker] Sending immediate ${type} notification to user ${userId}`);
         if (this.io) {
           this.io.to(`user:${userId}`).emit(type, job.data);

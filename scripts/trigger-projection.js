@@ -1,7 +1,7 @@
 const { Queue } = require('bullmq');
 
 async function triggerProjection() {
-  const queue = new Queue('card-and-graph-queue', {
+  const queue = new Queue('graph-queue', {
     connection: {
       host: 'localhost',
       port: 6379

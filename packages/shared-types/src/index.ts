@@ -109,7 +109,8 @@ export type {
   NewCardAvailablePayload,
   GraphProjectionUpdatedPayload,
   SSEMessage,
-  NotificationJobPayload
+  NotificationJobPayload,
+  InsightGenerationCompletePayload
 } from './ai/job.types';
 
 // === ENTITY TYPES ===

@@ -85,6 +85,7 @@ async function main() {
     const cardQueue = new Queue('card-queue', { connection: redisConnection });
     const graphQueue = new Queue('graph-queue', { connection: redisConnection });
     const embeddingQueue = new Queue('embedding-queue', { connection: redisConnection });
+    const notificationQueue = new Queue('notification-queue', { connection: redisConnection });
     console.log('[InsightWorker] BullMQ queues initialized');
 
     // 5. Instantiate the InsightWorkflowOrchestrator with its dependencies
@@ -97,6 +98,7 @@ async function main() {
       cardQueue,
       graphQueue,
       embeddingQueue,
+      notificationQueue,
       promptCacheService
     );
 
@@ -104,7 +106,7 @@ async function main() {
 
     // 5. Create and start the BullMQ worker
     const worker = new Worker<InsightJobData>(
-      'insight',
+      'insight-queue',
       async (job) => {
         console.log(`[InsightWorker] Processing job ${job.id}: ${job.data.userId}`);
         try {
@@ -129,7 +131,7 @@ async function main() {
 
     // Configure queue-level retry settings for BullMQ v4+
     // DISABLED: BullMQ retries are disabled - only LLM retries are handled by LLMRetryHandler
-    const insightQueue = new Queue('insight', { 
+    const insightQueue = new Queue('insight-queue', { 
       connection: redisConnection,
       defaultJobOptions: {
         attempts: 1, // NO BULLMQ RETRIES - LLM retries handled by LLMRetryHandler only

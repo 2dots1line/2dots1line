@@ -33,6 +33,9 @@ const SeedEntitiesDisplay: React.FC<SeedEntitiesDisplayProps> = ({
     const entity = entities.find(e => e.id === entityId);
     const entityName = entity?.title || entity?.type || `Entity ${entityId.slice(-6)}`;
     
+    // Check if clicking the same entity that's already selected
+    const isAlreadySelected = selectedEntityId === entityId;
+    
     // Track entity capsule button click
     trackEvent({
       type: 'click',
@@ -43,13 +46,22 @@ const SeedEntitiesDisplay: React.FC<SeedEntitiesDisplayProps> = ({
         entityId: entityId,
         entityTitle: entity?.title,
         entityType: entity?.type,
-        action: 'capsule_button_click',
+        action: isAlreadySelected ? 'capsule_button_modal_open' : 'capsule_button_click',
         source: 'seed_entities_display'
       }
     });
 
-    // Call original handler
-    onEntityClick?.(entityId);
+    if (isAlreadySelected) {
+      // Second click on same entity - open modal
+      // Dispatch event to open modal
+      const modalEvent = new CustomEvent('open-entity-modal', {
+        detail: { entityId, entity }
+      });
+      window.dispatchEvent(modalEvent);
+    } else {
+      // First click - focus camera
+      onEntityClick?.(entityId);
+    }
   };
 
   return (

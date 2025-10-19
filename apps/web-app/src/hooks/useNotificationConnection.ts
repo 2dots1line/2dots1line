@@ -118,6 +118,75 @@ export const useNotificationConnection = () => {
       window.dispatchEvent(event);
       return;
     }
+    
+    // Handle insight generation completion
+    if (data.type === 'insight_generation_complete') {
+      const notification = {
+        id: `insight-complete-${Date.now()}`,
+        type: 'new_star_generated' as const,
+        title: 'Insights Generated',
+        description: data.message || 'New insights have been generated! Check your dashboard and cards for updates.',
+        timestamp: new Date(),
+        isRead: false,
+        userId: user.user_id,
+        metadata: {
+          cycleId: data.cycleId,
+          totalEntitiesCreated: data.totalEntitiesCreated,
+          processingDurationMs: data.processingDurationMs
+        }
+      };
+      
+      console.log('[Socket.IO] 🎉 Adding insight completion notification:', notification);
+      addNotification(notification);
+      
+      // 🔥 PROACTIVE DATA REFRESH: Automatically refresh all dashboard data
+      console.log('[Socket.IO] 🔄 Triggering proactive dashboard data refresh...');
+      
+      // Refresh cards to show new insights
+      import('../stores/CardStore').then(({ useCardStore }) => {
+        const { refreshCards } = useCardStore.getState();
+        console.log('[Socket.IO] 📋 Refreshing cards after insight generation');
+        refreshCards();
+      });
+      
+      // Refresh graph projection for new entities
+      import('../services/cosmosService').then(({ cosmosService }) => {
+        import('../stores/CosmosStore').then(({ useCosmosStore }) => {
+          const { setGraphData, setLoading, setError } = useCosmosStore.getState();
+          console.log('[Socket.IO] 🌌 Refreshing graph data after insight generation');
+          
+          // Fetch fresh graph data
+          setLoading(true);
+          cosmosService.getGraphProjection().then(response => {
+            if (response.success) {
+              setGraphData(response.data);
+              console.log('[Socket.IO] 🌌 Graph data refreshed successfully');
+            } else {
+              setError(response.error?.message || 'Failed to refresh graph data');
+              console.error('[Socket.IO] 🌌 Failed to refresh graph data:', response.error);
+            }
+          }).catch(error => {
+            setError(error.message || 'Failed to refresh graph data');
+            console.error('[Socket.IO] 🌌 Error refreshing graph data:', error);
+          }).finally(() => {
+            setLoading(false);
+          });
+        });
+      });
+      
+      // Dispatch custom event to trigger dashboard refresh
+      console.log('[Socket.IO] 📊 Dispatching dashboard refresh event');
+      window.dispatchEvent(new CustomEvent('dashboard-refresh-required', {
+        detail: {
+          reason: 'insight_generation_complete',
+          cycleId: data.cycleId,
+          totalEntitiesCreated: data.totalEntitiesCreated,
+          timestamp: new Date().toISOString()
+        }
+      }));
+      
+      return;
+    }
             
             // Handle consolidated updates from notification worker
             if (data.newCards !== undefined || data.graphUpdates !== undefined || data.insights !== undefined) {
@@ -181,6 +250,15 @@ export const useNotificationConnection = () => {
             console.log('[Socket.IO] 🎉 Adding notification to store:', notification);
             addNotification(notification);
 
+            // Special handling for new_card_available - refresh cards immediately
+            if (mappedType === 'new_card_available') {
+              console.log('[Socket.IO] 🆕 New card available, refreshing card store');
+              import('../stores/CardStore').then(({ useCardStore }) => {
+                const { refreshCards } = useCardStore.getState();
+                refreshCards();
+              });
+            }
+
             // Special handling for coordinates_updated - trigger Cosmos refresh
             if (mappedType === 'coordinates_updated') {
               console.log('[Socket.IO] 🌌 Coordinates updated, triggering Cosmos refresh');
@@ -199,7 +277,7 @@ export const useNotificationConnection = () => {
         };
 
         // Listen to all notification events
-        ['notification', 'new_star', 'new_card', 'graph_updated', 'new_card_available', 'graph_projection_updated', 'consolidated_update', 'hrt_seed_entities'].forEach((eventName) => {
+        ['notification', 'new_star', 'new_card', 'graph_updated', 'new_card_available', 'graph_projection_updated', 'consolidated_update', 'hrt_seed_entities', 'insight_generation_complete'].forEach((eventName) => {
           console.log('[Socket.IO] Adding listener for event:', eventName);
           socket.on(eventName, handleNotification);
         });
