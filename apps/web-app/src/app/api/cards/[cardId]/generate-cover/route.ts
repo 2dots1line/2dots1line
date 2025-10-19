@@ -101,7 +101,8 @@ export async function POST(req: Request, { params }: { params: { cardId: string 
     fs.writeFileSync(filePath, buffer);
 
     // URL consumed by the client and also stored in Postgres via cardService
-    const image_url = `/covers/${filename}`;
+    // Use API route for serving covers to ensure proper static file serving
+    const image_url = `/api/covers/${filename}`;
 
     // Save to database if userId was extracted
     if (userId) {

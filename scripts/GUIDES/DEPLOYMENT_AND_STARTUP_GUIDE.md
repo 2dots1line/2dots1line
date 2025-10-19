@@ -161,6 +161,8 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:3001
 NEXT_PUBLIC_NOTIFICATION_SERVICE_URL=http://localhost:3002
 ```
 
+**CRITICAL**: The `NEXT_PUBLIC_NOTIFICATION_SERVICE_URL` is essential for Socket.IO connections and real-time features like HRT seed entities, video notifications, and insight generation notifications.
+
 #### VM Production Environment Variables
 
 **Root `.env` file** (backend services):
@@ -184,6 +186,8 @@ PEXELS_API_KEY=your_pexels_api_key
 NEXT_PUBLIC_API_BASE_URL=http://34.136.210.47:3001
 NEXT_PUBLIC_NOTIFICATION_SERVICE_URL=http://34.136.210.47:3002
 ```
+
+**CRITICAL**: The `NEXT_PUBLIC_NOTIFICATION_SERVICE_URL` is essential for Socket.IO connections and real-time features like HRT seed entities, video notifications, and insight generation notifications.
 
 ---
 
@@ -259,9 +263,11 @@ Root `.env` contains database URLs and API keys used by backend services.
 When deploying to a new environment:
 
 - [ ] Ensure `apps/web-app/.env` exists with correct `NEXT_PUBLIC_*` variables for that environment
+- [ ] **For VM deployments**: Create firewall rule for port 3002: `gcloud compute firewall-rules create allow-notification-2d1l --allow tcp:3002 --source-ranges 0.0.0.0/0 --target-tags twodots-server`
 - [ ] Rebuild Next.js application: `cd apps/web-app && pnpm build`
 - [ ] Verify environment variables in browser console: `console.log(process.env.NEXT_PUBLIC_API_BASE_URL)`
 - [ ] Check Socket.IO connection: Look for "[Socket.IO] ✅ Connection established successfully" in browser console
+- [ ] Test HRT seed entities: Send message "search memory" in Cosmos view and verify seed entities appear
 
 ---
 
@@ -545,11 +551,14 @@ pm2 logs api-gateway
 
 **Common Causes:**
 - Missing `NEXT_PUBLIC_NOTIFICATION_SERVICE_URL` in `apps/web-app/.env`
+- Missing firewall rule for port 3002 (VM deployments)
 - Notification worker not running
 - Next.js not rebuilt after environment variable changes
 - User authentication not completed
 
 **Solutions:**
+
+**For Local Development:**
 ```bash
 # 1. Verify apps/web-app/.env has NEXT_PUBLIC_NOTIFICATION_SERVICE_URL
 cat apps/web-app/.env | grep NEXT_PUBLIC_NOTIFICATION_SERVICE_URL
@@ -568,9 +577,42 @@ pm2 restart web-app
 # 5. Verify notification-worker is running
 pm2 list | grep notification-worker
 curl -s http://localhost:3002/health
+```
 
-# 6. Check browser console for Socket.IO connection
+**For VM Production:**
+```bash
+# 1. Check if firewall rule exists for port 3002
+gcloud compute firewall-rules list --filter="name~notification" --format="table(name,allowed[].map().firewall_rule().list():label=ALLOW)"
+
+# 2. Create firewall rule if missing
+gcloud compute firewall-rules create allow-notification-2d1l \
+    --direction=INGRESS \
+    --priority=1000 \
+    --network=default \
+    --action=ALLOW \
+    --rules=tcp:3002 \
+    --source-ranges=0.0.0.0/0 \
+    --target-tags=twodots-server \
+    --description="Allow external access to notification worker on port 3002"
+
+# 3. SSH into VM and verify environment variables
+gcloud compute ssh twodots-vm --zone=us-central1-a --command="cd ~/2D1L && cat apps/web-app/.env | grep NEXT_PUBLIC_NOTIFICATION_SERVICE_URL"
+
+# 4. Add missing environment variable if needed
+gcloud compute ssh twodots-vm --zone=us-central1-a --command="cd ~/2D1L && echo 'NEXT_PUBLIC_NOTIFICATION_SERVICE_URL=http://[VM_IP]:3002' >> apps/web-app/.env"
+
+# 5. Rebuild and restart on VM
+gcloud compute ssh twodots-vm --zone=us-central1-a --command="cd ~/2D1L && cd apps/web-app && pnpm build && cd ../.. && pm2 restart web-app"
+```
+
+**Verification Steps:**
+```bash
+# 1. Test notification worker accessibility
+curl -v http://[VM_IP]:3002/health
+
+# 2. Check browser console for Socket.IO connection
 # Should see: "[Socket.IO] ✅ Connection established successfully"
+# NOT: "WebSocket connection to 'ws://[VM_IP]:3002/socket.io/...' failed"
 ```
 
 **Verification in Browser Console:**
@@ -578,9 +620,15 @@ curl -s http://localhost:3002/health
 // Check if environment variable is set
 console.log(process.env.NEXT_PUBLIC_NOTIFICATION_SERVICE_URL);
 
-// Should output: "http://localhost:3002" (or VM URL in production)
+// Should output: "http://localhost:3002" (local) or "http://[VM_IP]:3002" (VM)
 // If undefined, rebuild is needed
 ```
+
+**Test HRT Seed Entities:**
+1. Navigate to Cosmos view: `http://[VM_IP]:3000/cosmos`
+2. Send message: "search memory" or "tell me about my childhood"
+3. Check if seed entities appear at bottom of cosmos view
+4. If not working, check browser console for Socket.IO errors
 
 #### 6. Build Failures
 
@@ -808,6 +856,12 @@ gcloud compute ssh twodots-vm --zone=us-central1-a --command="cd ~/2D1L && pm2 s
 
 # View VM logs
 gcloud compute ssh twodots-vm --zone=us-central1-a --command="cd ~/2D1L && pm2 logs web-app --lines 20"
+
+# Test Socket.IO connection (CRITICAL for real-time features)
+curl -v http://[VM_IP]:3002/health
+
+# Verify firewall rule exists
+gcloud compute firewall-rules list --filter="name~notification"
 ```
 
 ## **Branch Switching & Data Migration**

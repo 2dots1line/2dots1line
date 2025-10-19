@@ -82,6 +82,8 @@ Access your application via the VM's external IP:
 
 **IMPORTANT**: The most important verification is to **create a new user account** via the sign-up page and test the login and chat functionality. The commands above only verify that the services are running, not that they are working together correctly. See the "Post-Deployment Verification" section below for more detailed checks.
 
+**CRITICAL**: After deployment, you must verify that Socket.IO connections are working for real-time features like HRT seed entities. See the "Socket.IO Connection Verification" section below.
+
 ## Post-Deployment Verification (Data Consistency)
 
 After creating a new user (e.g., `test@example.com`), you can use these commands on the VM to verify that the data has been correctly written to the databases, adapting them from the `DATA_CONSISTENCY_CHECK_GUIDE.md`.
@@ -112,6 +114,111 @@ USER_ID=$(docker exec postgres-2d1l psql -U [USER] -d [DB] -t -c "SELECT user_id
 
 # Then, query Weaviate for items associated with that user_id
 curl -s -X POST "http://localhost:8080/v1/graphql" -H "Content-Type: application/json" -d "{\"query\": \"{ Get { UserKnowledgeItem(where: { path: [\\\"userId\\\"], operator: Equal, valueString: \\\"$USER_ID\\\" }) { _additional { id }, title, userId } } }\"}" | jq
+```
+
+## Socket.IO Connection Verification
+
+**CRITICAL**: After deployment, you must verify that Socket.IO connections are working for real-time features like HRT seed entities, video notifications, and insight generation notifications.
+
+### 1. Verify Notification Worker is Accessible
+
+```bash
+# Test notification worker health endpoint from external access
+curl -v http://[VM_IP]:3002/health
+
+# Should return:
+# {"status":"healthy","service":"notification-worker","timestamp":"...","uptime":...}
+```
+
+### 2. Verify Frontend Environment Variables
+
+```bash
+# SSH into VM and check apps/web-app/.env
+gcloud compute ssh twodots-vm --zone=us-central1-a --command="cd ~/2D1L && cat apps/web-app/.env | grep NEXT_PUBLIC_NOTIFICATION_SERVICE_URL"
+
+# Should show:
+# NEXT_PUBLIC_NOTIFICATION_SERVICE_URL=http://[VM_IP]:3002
+```
+
+### 3. Test Socket.IO Connection in Browser
+
+1. Open the VM's frontend: `http://[VM_IP]:3000`
+2. Open browser developer console (F12)
+3. Check for Socket.IO connection logs:
+   - ✅ **Success**: `[Socket.IO] ✅ Connection established successfully`
+   - ❌ **Failure**: `WebSocket connection to 'ws://[VM_IP]:3002/socket.io/...' failed`
+
+### 4. Test HRT Seed Entities
+
+1. Navigate to the Cosmos view: `http://[VM_IP]:3000/cosmos`
+2. Send a message like "search memory" or "tell me about my childhood"
+3. Check if seed entities appear at the bottom of the cosmos view
+4. If not working, check browser console for Socket.IO errors
+
+### 5. Verify Firewall Rules
+
+```bash
+# List all firewall rules for the VM
+gcloud compute firewall-rules list --filter="name~2d1l OR name~notification" --format="table(name,direction,priority,sourceRanges.list():label=SRC_RANGES,allowed[].map().firewall_rule().list():label=ALLOW,targetTags.list():label=TARGET_TAGS)"
+
+# Should include:
+# allow-notification-2d1l  INGRESS  1000  0.0.0.0/0  tcp:3002  twodots-server
+```
+
+### Common Socket.IO Issues and Solutions
+
+#### Issue: "WebSocket connection failed: WebSocket is closed before the connection is established"
+
+**Root Cause**: Missing firewall rule for port 3002
+
+**Solution**:
+```bash
+# Create the missing firewall rule
+gcloud compute firewall-rules create allow-notification-2d1l \
+    --direction=INGRESS \
+    --priority=1000 \
+    --network=default \
+    --action=ALLOW \
+    --rules=tcp:3002 \
+    --source-ranges=0.0.0.0/0 \
+    --target-tags=twodots-server \
+    --description="Allow external access to notification worker on port 3002"
+```
+
+#### Issue: "NEXT_PUBLIC_NOTIFICATION_SERVICE_URL is undefined"
+
+**Root Cause**: Missing environment variable in `apps/web-app/.env`
+
+**Solution**:
+```bash
+# SSH into VM
+gcloud compute ssh twodots-vm --zone=us-central1-a
+
+# Add missing environment variable
+cd ~/2D1L
+echo "NEXT_PUBLIC_NOTIFICATION_SERVICE_URL=http://[VM_IP]:3002" >> apps/web-app/.env
+
+# Rebuild Next.js (REQUIRED after env var changes)
+cd apps/web-app
+pnpm build
+cd ../..
+
+# Restart web-app
+pm2 restart web-app
+```
+
+#### Issue: Notification worker not running
+
+**Solution**:
+```bash
+# Check if notification worker is running
+pm2 list | grep notification-worker
+
+# If not running, start it
+pm2 start scripts/deployment/ecosystem.prod.config.js --only notification-worker
+
+# Check logs
+pm2 logs notification-worker --lines 20
 ```
 
 ## Manual Deployment Steps
@@ -156,6 +263,12 @@ gcloud compute firewall-rules create allow-frontend-2d1l \
 # Allow API Gateway
 gcloud compute firewall-rules create allow-api-2d1l \
     --allow tcp:3001 \
+    --source-ranges 0.0.0.0/0 \
+    --target-tags 2d1l-server
+
+# Allow Notification Worker (Socket.IO) - CRITICAL for real-time features
+gcloud compute firewall-rules create allow-notification-2d1l \
+    --allow tcp:3002 \
     --source-ranges 0.0.0.0/0 \
     --target-tags 2d1l-server
 ```
@@ -516,7 +629,7 @@ pnpm stop:services && docker-compose -f docker-compose.dev.yml down && pnpm star
 
 ## Security Considerations
 
-1. **Firewall**: Only necessary ports are exposed (80, 443, 3000, 3001)
+1. **Firewall**: Only necessary ports are exposed (80, 443, 3000, 3001, 3002)
 2. **Secrets**: All sensitive data stored in Google Secret Manager
 3. **Updates**: Regular system updates via `apt-get upgrade`
 4. **Monitoring**: Health checks and log rotation configured
