@@ -137,39 +137,131 @@ The project uses three different PM2 ecosystem configurations:
 
 ### Environment Variables
 
-#### Local Development (.env)
-```bash
-# Frontend Configuration
-FRONTEND_URL=http://localhost:3000
-NEXT_PUBLIC_API_BASE_URL=http://localhost:3001
+#### Local Development Environment Variables
 
+**Root `.env` file** (backend services):
+```bash
 # Database URLs (local Docker)
 DATABASE_URL=postgresql://danniwang:MaxJax2023@@localhost:5433/twodots1line
 NEO4J_URI=neo4j://localhost:7688
 WEAVIATE_URL=http://localhost:8080
 REDIS_URL=redis://localhost:6379
 
+# Service URLs
+NOTIFICATION_SERVICE_URL=http://localhost:3002
+
 # API Keys
 GOOGLE_API_KEY=your_google_api_key
 PEXELS_API_KEY=your_pexels_api_key
 ```
 
-#### VM Production (.env)
+**`apps/web-app/.env` file** (frontend client-side variables - REQUIRED):
 ```bash
-# Frontend Configuration
-FRONTEND_URL=http://34.136.210.47:3000
-NEXT_PUBLIC_API_BASE_URL=http://34.136.210.47:3001
+NEXT_PUBLIC_API_BASE_URL=http://localhost:3001
+NEXT_PUBLIC_NOTIFICATION_SERVICE_URL=http://localhost:3002
+```
 
+#### VM Production Environment Variables
+
+**Root `.env` file** (backend services):
+```bash
 # Database URLs (VM Docker)
 DATABASE_URL=postgresql://postgres:password@localhost:5433/twodots1line
 NEO4J_URI=neo4j://localhost:7688
 WEAVIATE_URL=http://localhost:8080
 REDIS_URL=redis://localhost:6379
 
+# Service URLs
+NOTIFICATION_SERVICE_URL=http://34.136.210.47:3002
+
 # API Keys (same as local)
 GOOGLE_API_KEY=your_google_api_key
 PEXELS_API_KEY=your_pexels_api_key
 ```
+
+**`apps/web-app/.env` file** (frontend client-side variables - REQUIRED):
+```bash
+NEXT_PUBLIC_API_BASE_URL=http://34.136.210.47:3001
+NEXT_PUBLIC_NOTIFICATION_SERVICE_URL=http://34.136.210.47:3002
+```
+
+---
+
+## Next.js Environment Variables (CRITICAL)
+
+### Understanding Next.js Environment Variable Requirements
+
+**CRITICAL**: Environment variables for Next.js frontend must follow special rules that differ from backend services:
+
+#### Client-Side Variables (Browser JavaScript)
+
+Variables that need to be accessible in the browser (client-side React components):
+
+- **MUST** be prefixed with `NEXT_PUBLIC_`
+- **MUST** be defined in `apps/web-app/.env` file
+- Are embedded into the JavaScript bundle at **build time**
+- **Cannot** be changed at runtime without rebuilding
+- PM2 environment variables do **NOT** affect client-side code directly
+
+**Example**: `NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_NOTIFICATION_SERVICE_URL`
+
+#### Server-Side Variables (Next.js API Routes)
+
+Variables only needed for server-side Next.js API routes:
+
+- Can use any name (no prefix required)
+- Available from PM2 ecosystem config
+- Can be overridden at runtime
+- Not included in client-side bundle
+
+#### Required Frontend Environment Variables
+
+The following variables **MUST** be present in `apps/web-app/.env`:
+
+1. `NEXT_PUBLIC_API_BASE_URL` - API Gateway URL for backend communication
+2. `NEXT_PUBLIC_NOTIFICATION_SERVICE_URL` - Socket.IO/Notification service URL for real-time features
+
+### Why Can't I Delete apps/web-app/.env?
+
+Unlike backend services which get all environment variables from PM2's ecosystem config, Next.js has special requirements:
+
+1. **Build-time embedding**: Variables prefixed with `NEXT_PUBLIC_` are embedded into the client-side JavaScript bundle during the build process
+2. **Not runtime-configurable**: These variables cannot be changed after build without rebuilding the entire application
+3. **PM2 limitation**: PM2 environment variables only affect Node.js server-side code, not browser JavaScript
+4. **Source of truth**: The `.env` file in `apps/web-app/` is the definitive source for client-side environment variables
+
+**Therefore**: `apps/web-app/.env` must exist and contain all `NEXT_PUBLIC_*` variables needed by the frontend.
+
+### Environment Variable Configuration by Environment
+
+#### Local Development
+
+`apps/web-app/.env`:
+```bash
+NEXT_PUBLIC_API_BASE_URL=http://localhost:3001
+NEXT_PUBLIC_NOTIFICATION_SERVICE_URL=http://localhost:3002
+```
+
+Root `.env` contains database URLs and API keys used by backend services.
+
+#### VM Production
+
+`apps/web-app/.env`:
+```bash
+NEXT_PUBLIC_API_BASE_URL=http://34.136.210.47:3001
+NEXT_PUBLIC_NOTIFICATION_SERVICE_URL=http://34.136.210.47:3002
+```
+
+Root `.env` contains database URLs and API keys used by backend services.
+
+### Deployment Checklist
+
+When deploying to a new environment:
+
+- [ ] Ensure `apps/web-app/.env` exists with correct `NEXT_PUBLIC_*` variables for that environment
+- [ ] Rebuild Next.js application: `cd apps/web-app && pnpm build`
+- [ ] Verify environment variables in browser console: `console.log(process.env.NEXT_PUBLIC_API_BASE_URL)`
+- [ ] Check Socket.IO connection: Look for "[Socket.IO] ✅ Connection established successfully" in browser console
 
 ---
 
@@ -334,6 +426,25 @@ gcloud compute ssh twodots-vm --zone=us-central1-a --command="cd ~/2D1L && pm2 s
 gcloud compute ssh twodots-vm --zone=us-central1-a --command="cd ~/2D1L && pm2 start ecosystem.prod.config.js"
 ```
 
+### If modified dimension reducer, run the following in vm
+# 1. Pull latest changes
+git reset --hard origin/compute-engine-deployment
+git pull origin compute-engine-deployment
+
+# 2. Install Node.js dependencies
+pnpm install
+
+# 3. Build Node.js packages
+pnpm build
+
+# 4. Rebuild the dimension-reducer Docker container
+docker-compose -f docker-compose.dev.yml build dimension-reducer
+
+# 5. Restart the dimension-reducer container
+docker-compose -f docker-compose.dev.yml up -d dimension-reducer
+
+# 6. Restart PM2 services
+pm2 restart all
 ---
 
 ## Troubleshooting Guide
@@ -428,7 +539,50 @@ pm2 logs api-gateway
 # Use: dev-user-123 / dev-token for testing
 ```
 
-#### 5. Build Failures
+#### 5. Socket.IO Connection Issues
+
+**Problem:** Socket.IO not connecting, real-time features not working (seed entities not appearing, no video notifications, etc.)
+
+**Common Causes:**
+- Missing `NEXT_PUBLIC_NOTIFICATION_SERVICE_URL` in `apps/web-app/.env`
+- Notification worker not running
+- Next.js not rebuilt after environment variable changes
+- User authentication not completed
+
+**Solutions:**
+```bash
+# 1. Verify apps/web-app/.env has NEXT_PUBLIC_NOTIFICATION_SERVICE_URL
+cat apps/web-app/.env | grep NEXT_PUBLIC_NOTIFICATION_SERVICE_URL
+
+# 2. Add if missing (local dev)
+echo "NEXT_PUBLIC_NOTIFICATION_SERVICE_URL=http://localhost:3002" >> apps/web-app/.env
+
+# 3. Rebuild Next.js (REQUIRED after env var changes)
+cd apps/web-app
+pnpm build
+cd ../..
+
+# 4. Restart web-app
+pm2 restart web-app
+
+# 5. Verify notification-worker is running
+pm2 list | grep notification-worker
+curl -s http://localhost:3002/health
+
+# 6. Check browser console for Socket.IO connection
+# Should see: "[Socket.IO] ✅ Connection established successfully"
+```
+
+**Verification in Browser Console:**
+```javascript
+// Check if environment variable is set
+console.log(process.env.NEXT_PUBLIC_NOTIFICATION_SERVICE_URL);
+
+// Should output: "http://localhost:3002" (or VM URL in production)
+// If undefined, rebuild is needed
+```
+
+#### 6. Build Failures
 
 **Problem:** `pnpm build` fails
 
@@ -448,7 +602,7 @@ pnpm lint
 pnpm install
 ```
 
-#### 6. Docker Permission Errors
+#### 7. Docker Permission Errors
 
 **Problem:** `PermissionError: [Errno 13] Permission denied` when running docker-compose
 
@@ -475,7 +629,7 @@ newgrp docker
 sudo systemctl restart docker
 ```
 
-#### 7. PM2 Process Management Issues
+#### 8. PM2 Process Management Issues
 
 **Problem:** PM2 processes not starting or crashing
 

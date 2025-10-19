@@ -64,7 +64,11 @@ export class NotificationWorker {
     if (httpServer) {
       this.io = new SocketIOServer(httpServer, {
         cors: {
-          origin: environmentLoader.get('FRONTEND_URL') || 'http://localhost:3000',
+          origin: [
+            environmentLoader.get('FRONTEND_URL') || 'http://localhost:3000',
+            'http://localhost:3000',
+            'http://34.136.210.47:3000'
+          ],
           methods: ['GET', 'POST'],
           credentials: true,
         },

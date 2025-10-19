@@ -169,12 +169,14 @@ module.exports = {
       env: {
         ...baseEnv,
         NEXT_PUBLIC_API_BASE_URL: 'http://localhost:3001',
+        NEXT_PUBLIC_NOTIFICATION_SERVICE_URL: 'http://localhost:3002',
         NODE_ENV: 'development',
       },
       env_development: {
         NODE_ENV: 'development',
         ...baseEnv,
         NEXT_PUBLIC_API_BASE_URL: 'http://localhost:3001',
+        NEXT_PUBLIC_NOTIFICATION_SERVICE_URL: 'http://localhost:3002',
       },
       error_file: path.join(__dirname, 'logs', 'web-app-dev-error.log'),
       out_file: path.join(__dirname, 'logs', 'web-app-dev-out.log'),

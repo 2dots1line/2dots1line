@@ -107,12 +107,14 @@ if (require.main === module) {
         }
       });
 
-      // Start HTTP server
-      httpServer.listen(port, () => {
-        console.log(`🚀 Notification Worker running on port ${port}`);
+      // Start HTTP server - listen on all interfaces (0.0.0.0) to accept external connections
+      const host = process.env.NOTIFICATION_SERVICE_HOST || '0.0.0.0';
+      httpServer.listen(port, host, () => {
+        console.log(`🚀 Notification Worker running on ${host}:${port}`);
         console.log(`📡 Socket.IO server ready for connections`);
         console.log(`⚡ BullMQ worker ready for notification jobs`);
         console.log(`🔗 Frontend URL: ${process.env.FRONTEND_URL || "http://localhost:3000"}`);
+        console.log(`🌐 External access: http://${host === '0.0.0.0' ? 'YOUR_EXTERNAL_IP' : host}:${port}`);
       });
 
       // Start the worker
