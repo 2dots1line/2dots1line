@@ -1,20 +1,14 @@
 'use client';
 
-import React from 'react';
-
-interface BeforeInstallPromptEvent extends Event {
-  prompt(): Promise<void>;
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
-}
+import { useState, useEffect } from 'react';
 
 const PWAInstallPrompt = () => {
-  const [deferredPrompt, setDeferredPrompt] = React.useState<any>(null);
-  const [showInstallButton, setShowInstallButton] = React.useState(false);
+  const [showInstallButton, setShowInstallButton] = useState(false);
   
   // Debug logging
-  console.log('PWAInstallPrompt render: FULL VERSION');
+  console.log('PWAInstallPrompt render: SIMPLE VERSION');
   
-  React.useEffect(() => {
+  useEffect(() => {
     // Register service worker
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js')
@@ -26,57 +20,25 @@ const PWAInstallPrompt = () => {
         });
     }
     
-    // Listen for beforeinstallprompt event (Chrome/Edge only)
-    const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setShowInstallButton(true);
-      console.log('beforeinstallprompt event fired - PWA is installable');
-    };
-    
-    // Listen for appinstalled event
-    const handleAppInstalled = () => {
-      console.log('PWA was installed');
-      setShowInstallButton(false);
-      setDeferredPrompt(null);
-    };
-    
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    window.addEventListener('appinstalled', handleAppInstalled);
-    
     // For Safari, always show install button since there's no beforeinstallprompt
     const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
     if (isSafari) {
       setShowInstallButton(true);
     }
-    
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      window.removeEventListener('appinstalled', handleAppInstalled);
-    };
   }, []);
   
-  const handleInstall = async () => {
+  const handleInstall = () => {
     console.log('Install button clicked!');
     
-    if (deferredPrompt) {
-      // Chrome/Edge: Use the deferred prompt
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      console.log('User choice:', outcome);
-      setDeferredPrompt(null);
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    const isMacOS = /Mac|Macintosh|MacIntel|MacPPC|Mac68K/i.test(navigator.platform);
+    
+    if (isSafari && isMacOS) {
+      alert('To install this app on Safari (macOS):\n\n1. Click the Share button (square with arrow up)\n2. Click "Add to Dock"\n3. Click "Add" to confirm\n\nThis will install the app in your Dock!');
+    } else if (isSafari) {
+      alert('To install this app on Safari (iOS):\n\n1. Tap the Share button (square with arrow up)\n2. Scroll down and tap "Add to Home Screen"\n3. Tap "Add" to confirm\n\nThis will install the app on your home screen!');
     } else {
-      // Safari: Show instructions
-      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-      const isMacOS = /Mac|Macintosh|MacIntel|MacPPC|Mac68K/i.test(navigator.platform);
-      
-      if (isSafari && isMacOS) {
-        alert('To install this app on Safari (macOS):\n\n1. Click the Share button (square with arrow up)\n2. Click "Add to Dock"\n3. Click "Add" to confirm\n\nThis will install the app in your Dock!');
-      } else if (isSafari) {
-        alert('To install this app on Safari (iOS):\n\n1. Tap the Share button (square with arrow up)\n2. Scroll down and tap "Add to Home Screen"\n3. Tap "Add" to confirm\n\nThis will install the app on your home screen!');
-      } else {
-        alert('To install this app:\n\nLook for the install icon in your browser\'s address bar or use the browser menu to add to home screen.');
-      }
+      alert('To install this app:\n\nLook for the install icon in your browser\'s address bar or use the browser menu to add to home screen.');
     }
   };
   
