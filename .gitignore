@@ -82,6 +82,7 @@ dist/*.tsbuildinfo
 
 # Generated media files
 covers/
+!apps/web-app/src/app/api/covers/
 apps/web-app/public/images/
 apps/web-app/public/videos/generated/
 
