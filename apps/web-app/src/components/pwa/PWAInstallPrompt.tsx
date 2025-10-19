@@ -11,6 +11,15 @@ const PWAInstallPrompt = () => {
   // Debug logging
   console.log('PWAInstallPrompt render: SIMPLE VERSION');
   
+  const handleInstall = () => {
+    console.log('Install button clicked!');
+    alert('PWA Install clicked!');
+  };
+  
+  const handleDismiss = () => {
+    console.log('Dismiss button clicked!');
+  };
+  
   return (
     <div className="fixed bottom-4 left-4 right-4 z-50 pointer-events-none">
       <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-4 pointer-events-auto">
@@ -26,14 +35,14 @@ const PWAInstallPrompt = () => {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => alert('PWA Install clicked!')}
-              className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-sm font-medium rounded-lg"
+              onClick={handleInstall}
+              className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-sm font-medium rounded-lg cursor-pointer"
             >
               Install
             </button>
             <button
-              onClick={() => console.log('Dismiss clicked')}
-              className="p-2 hover:bg-white/20 text-white/70 rounded-lg"
+              onClick={handleDismiss}
+              className="p-2 hover:bg-white/20 text-white/70 rounded-lg cursor-pointer"
             >
               ✕
             </button>
