@@ -18,13 +18,17 @@ export default function RootLayout({
         
         {/* Apple-specific meta tags for PWA standalone mode */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="2D1L" />
         <meta name="apple-touch-fullscreen" content="yes" />
         
         {/* Additional PWA meta tags */}
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="application-name" content="2D1L" />
+        
+        {/* Safari specific meta tags for macOS */}
+        <meta name="format-detection" content="telephone=no" />
+        <meta name="msapplication-tap-highlight" content="no" />
       </head>
       <body>
         {/* Engagement tracking */}

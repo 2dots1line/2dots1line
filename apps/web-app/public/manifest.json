@@ -2,7 +2,7 @@
   "name": "2D1L - Your Reflection Companion",
   "short_name": "2D1L",
   "description": "A cosmic journey of self-discovery and reflection",
-  "display": "fullscreen",
+  "display": "standalone",
   "start_url": "/",
   "scope": "/",
   "orientation": "any",
