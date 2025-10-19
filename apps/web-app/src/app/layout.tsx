@@ -11,6 +11,21 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#000000" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+        
+        {/* Apple-specific meta tags for PWA standalone mode */}
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="2D1L" />
+        <meta name="apple-touch-fullscreen" content="yes" />
+        
+        {/* Additional PWA meta tags */}
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="application-name" content="2D1L" />
+      </head>
       <body>
         {/* Engagement tracking */}
         <ViewTracker />
