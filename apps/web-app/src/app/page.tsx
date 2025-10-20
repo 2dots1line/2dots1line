@@ -19,6 +19,7 @@ import { useEngagementStore } from '../stores/EngagementStore';
 import { useCardsViewStore } from '../stores/CardsViewStore';
 import { cardService } from '../services/cardService';
 import { useViewTransitionContent } from '../hooks/useViewTransitionContent';
+import PWAInstallPrompt from '../components/pwa/PWAInstallPrompt';
 
 function HomePage() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
@@ -777,6 +778,9 @@ function HomePage() {
       <LoginModal isOpen={isLoginModalOpen} onClose={closeModals} onSwitchToSignup={openSignupModal} />
 
       <SignupModal isOpen={isSignupModalOpen} onClose={closeModals} onSwitchToLogin={openLoginModal} />
+
+      {/* PWA Install Prompt - Layer 7 (highest) */}
+      <PWAInstallPrompt />
     </div>
   );
 }

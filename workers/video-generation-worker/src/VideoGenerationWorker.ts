@@ -187,7 +187,7 @@ export class VideoGenerationWorker {
           const filePath = path.join(videoDir, filename);
           fs.writeFileSync(filePath, videoBuffer);
           
-          const publicUrl = `/videos/generated/${filename}`;
+          const publicUrl = `/api/videos/generated/${filename}`;
           
           console.log(`[VideoGenerationWorker] Video saved to: ${publicUrl}`);
           

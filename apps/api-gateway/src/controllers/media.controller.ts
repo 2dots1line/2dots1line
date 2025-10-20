@@ -297,7 +297,7 @@ export class MediaController {
 
       const filename = `img-${timestamp}.png`;
       const filePath = path.join(userDir, filename);
-      const publicUrl = `/images/generated/${userId}/${filename}`;
+      const publicUrl = `/api/images/generated/${userId}/${filename}`;
 
       // Convert base64 to buffer and save
       const base64Data = imageUrl.replace(/^data:image\/\w+;base64,/, '');
