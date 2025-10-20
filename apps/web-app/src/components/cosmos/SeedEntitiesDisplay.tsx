@@ -3,6 +3,7 @@
 import React from 'react';
 import { GlassmorphicPanel, GlassButton } from '@2dots1line/ui-components';
 import { useEngagementStore } from '../../stores/EngagementStore';
+import CapsulePill from '../shared/CapsulePill';
 
 interface SeedEntity {
   id: string;
@@ -78,37 +79,16 @@ const SeedEntitiesDisplay: React.FC<SeedEntitiesDisplayProps> = ({
             const displayTitle = entity?.title || entity?.type || `Entity ${entityId.slice(-6)}`;
             
             return (
-              <GlassButton
+              <CapsulePill
                 key={entityId}
-                onClick={() => handleEntityClick(entityId)}
-                variant="default"
-                size="sm"
-                className={`group relative ${
-                  selectedEntityId === entityId 
-                    ? 'ring-2 ring-green-400 ring-opacity-50 bg-green-500/20' 
-                    : ''
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                  <span className="truncate max-w-32">
-                    {displayTitle}
-                  </span>
-                </div>
-                
-                {/* Hover tooltip */}
-                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
-                  <div className="bg-black/80 backdrop-blur-sm rounded-lg px-2 py-1 text-xs text-white/90 whitespace-nowrap">
-                    ID: {entityId}
-                    {entity?.type && (
-                      <div className="text-white/60 text-xs">
-                        Type: {entity.type}
-                      </div>
-                    )}
-                  </div>
-                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-black/80"></div>
-                </div>
-              </GlassButton>
+                type="entity"
+                entityId={entityId}
+                displayText={displayTitle}
+                entityType={entity?.type as any}
+                variant="block"
+                isSelected={selectedEntityId === entityId}
+                onEntityClick={onEntityClick}
+              />
             );
           })}
         </div>

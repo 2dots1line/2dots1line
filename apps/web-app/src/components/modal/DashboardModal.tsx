@@ -1,6 +1,7 @@
 'use client';
 
 import { GlassmorphicPanel, GlassButton, MarkdownRenderer, CardTile } from '@2dots1line/ui-components';
+import { EntityDetailModal } from './EntityDetailModal';
 import { useCardStore } from '../../stores/CardStore';
 import { useHUDStore } from '../../stores/HUDStore';
 import { useEngagementStore } from '../../stores/EngagementStore';
@@ -71,6 +72,8 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
   } | null>(null);
   const [activeTab, setActiveTab] = useState<'opening' | 'dynamic' | 'growth-trajectory' | 'activity'>('opening');
   const [proactiveGreeting, setProactiveGreeting] = useState<string | null>(null);
+  const [selectedEntity, setSelectedEntity] = useState<any>(null);
+  const [entityModalOpen, setEntityModalOpen] = useState(false);
   const [userMetrics, setUserMetrics] = useState<{
     memory_units_count: number;
     concepts_count: number;
@@ -102,6 +105,40 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
       return () => clearTimeout(loadTimeout);
     }
   }, [isOpen]);
+
+  // Listen for entity modal open requests from inline capsules
+  useEffect(() => {
+    const handleEntityModalOpen = async (event: Event) => {
+      const { entityId, entityType, displayText } = (event as CustomEvent).detail || {};
+      if (entityId && entityType) {
+        console.log('Open entity modal:', { entityId, entityType, displayText });
+        
+        try {
+          // Create a basic entity object that matches the expected format
+          // Use the same structure as Cards and Cosmos nodes
+          const entity = {
+            id: entityId,
+            entity_id: entityId,
+            type: entityType,
+            entity_type: entityType,
+            title: displayText || entityId,
+            name: displayText || entityId,
+            // Add source entity fields to match card format
+            source_entity_id: entityId,
+            source_entity_type: entityType
+          };
+          
+          console.log('Created entity object for modal:', entity);
+          setSelectedEntity(entity);
+          setEntityModalOpen(true);
+        } catch (error) {
+          console.error('Error opening entity modal:', error);
+        }
+      }
+    };
+    window.addEventListener('open-entity-modal', handleEntityModalOpen);
+    return () => window.removeEventListener('open-entity-modal', handleEntityModalOpen);
+  }, []);
 
   // Cards are loaded automatically when user is authenticated via useAutoLoadCards hook above
 
@@ -330,7 +367,13 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
           {sectionData.items.slice(0, config.max_items || 3).map((item) => (
             <div key={item.id} className="p-3 bg-white/10 rounded-lg">
               <div className="text-sm font-medium text-white/90 mb-2">{item.title}</div>
-              <div className="text-xs text-white/70 leading-relaxed whitespace-pre-wrap">{item.content}</div>
+              <div className="text-xs text-white/70 leading-relaxed">
+                <MarkdownRenderer 
+                  content={item.content}
+                  variant="dashboard"
+                  className="text-xs text-white/70 leading-relaxed"
+                />
+              </div>
               {item.confidence && (
                 <div className="text-xs text-white/50 mt-2">
                   Confidence: {Math.round(item.confidence * 100)}%
@@ -732,7 +775,11 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                                                   {row.cells[column.key].events.slice(0, 2).map((event: any) => (
                                                     <div key={event.entity_id} className="bg-white/10 rounded-lg p-3">
                                                       <div className="text-sm text-white/90">
-                                                        {event.content}
+                                                        <MarkdownRenderer 
+                                                          content={event.content}
+                                                          variant="dashboard"
+                                                          className="text-sm text-white/90"
+                                                        />
                                                       </div>
                                                     </div>
                                                   ))}
@@ -766,6 +813,18 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
       </GlassmorphicPanel>
 
       {/* Card Detail Modal is handled by ModalContainer */}
+      
+      {/* Entity Detail Modal for capsule clicks */}
+      {selectedEntity && (
+        <EntityDetailModal
+          entity={selectedEntity}
+          isOpen={entityModalOpen}
+          onClose={() => {
+            setEntityModalOpen(false);
+            setSelectedEntity(null);
+          }}
+        />
+      )}
     </div>
   );
 };

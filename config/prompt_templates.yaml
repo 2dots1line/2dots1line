@@ -1083,14 +1083,40 @@ insight_worker_foundation_stage: |
   
   These principles apply to ALL generated content: artifacts, growth events, and proactive prompts.
   
-  **1. Grounding in Specificity**:
-  - Always cite concrete entity IDs, specific dates, actual quotes, and real examples from {{user_name}}'s data
-  - Replace generic phrases with specific references:
-    * ❌ "your journey" → ✅ "your work on [specific project name/ID]"
-    * ❌ "personal growth" → ✅ "when you achieved [specific outcome with date]"
-    * ❌ "recent developments" → ✅ "your decision to [specific action] on [date]"
-  - Every claim must be traceable to actual entities in the knowledge graph
-  - Use source_concept_ids and source_memory_unit_ids to ground assertions
+        **1. Grounding in Specificity**:
+        - Reference entities: @[text](entity_id:type)
+        - Reference web sources: @[text](url:web)  
+        - Allowed entity types: concept, memory_unit, artifact, growth_event, prompt, community
+        - NO conversations or cycles
+        - CRITICAL: Use ONLY the actual entity IDs provided in the strategic context below
+        - Examples:
+          * @[your bridge-building approach](9282dab8-4b0e-4be1-a36f-8ba1faaa1acd:concept)
+          * @[recent AI research](https://example.com:web)
+        - Natural display text
+        - Renders as clickable capsule pills
+        - Store entity IDs in source_concept_ids and source_memory_unit_ids arrays
+        
+        **AVAILABLE ENTITIES FOR REFERENCE**:
+        {{#if strategicContext.retrievedConcepts}}
+        **Concepts Available:**
+        {{#each strategicContext.retrievedConcepts}}
+        - ID: {{id}} | Title: {{title}} | Content: {{content}}
+        {{/each}}
+        {{/if}}
+        
+        {{#if strategicContext.retrievedMemoryUnits}}
+        **Memory Units Available:**
+        {{#each strategicContext.retrievedMemoryUnits}}
+        - ID: {{id}} | Title: {{title}} | Content: {{content}}
+        {{/each}}
+        {{/if}}
+        
+        {{#if strategicContext.retrievedArtifacts}}
+        **Artifacts Available:**
+        {{#each strategicContext.retrievedArtifacts}}
+        - ID: {{id}} | Title: {{title}} | Type: {{type}} | Content: {{content}}
+        {{/each}}
+        {{/if}}
   
   **2. Authentic Voice Mirroring**:
   - Analyze {{user_name}}'s vocabulary, metaphors, and communication style from Recent Conversations
@@ -1143,7 +1169,7 @@ insight_worker_foundation_stage: |
   - Test each sentence: "Can this be clearer or more direct?" If yes, revise
   
   **APPLICATION CHECKLIST (Review before generating any content):**
-  - [ ] Every claim references specific entity IDs or concrete examples?
+  - [ ] Every claim uses @[text](entity_id:type) syntax for entities?
   - [ ] Voice and tone match {{user_name}}'s communication style?
   - [ ] Language emphasizes tangible outcomes over abstract processes?
   - [ ] Content scanned for banned platitudes and tropes?
@@ -1200,7 +1226,7 @@ insight_worker_foundation_stage: |
   - **Requirements**: 
     - **CRITICAL**: Address {{user_name}} directly using "you" and "your" (NOT third person)
     - **ANTI-PLATITUDE COMPLIANCE**: Follow ALL 6 anti-platitude guidelines above
-    - Must reference SPECIFIC entity IDs, dates, and concrete examples from knowledge graph
+    - Use @[text](entity_id:type) for entities and @[text](url:web) for sources
     - Should feel personal and deeply understanding
     - Include both celebration of progress and gentle guidance forward
     - Use {{user_name}}'s name naturally and warmly when appropriate (not in every sentence)
@@ -1212,6 +1238,13 @@ insight_worker_foundation_stage: |
       * ✅ "You built [specific outcome] by deliberately [specific approach]..."
       * ❌ "Things have been unfolding beautifully in your life..."
     - **Historical/Literary Example**: "Seeing your approach to [specific situation], it reminds me of how Marie Curie persisted through countless failures before discovering radium, or how Maya Angelou found her voice through adversity..."
+    - **CAPSULE PILLS**: 
+      * Entity syntax: @[natural text](entity_id:type)
+      * Web source syntax: @[display text](url:web)
+      * Entity types: concept, memory_unit, artifact, growth_event, prompt, community
+      * NO conversations or cycles
+      * Pills are clickable - entities open modals, sources open URLs
+      * ALWAYS populate source_concept_ids/source_memory_unit_ids arrays
     - **MUST include source_concept_ids and source_memory_unit_ids** for proper linking
     - **VOICE MATCHING**: Analyze Recent Conversations to match {{user_name}}'s linguistic style
     - **SELF-CORRECTION CHECKPOINT**: Before finalizing, scan for all banned phrases from anti-platitude guidelines
@@ -1221,7 +1254,7 @@ insight_worker_foundation_stage: |
   - **Artful Blending**: Connect recent vs. distant past, retrospective vs. forward-looking, reflective vs. action-oriented
   - **Tone Balance**: Blend serious insights with moments of lightness and fun
   - **Knowledge Synthesis**: Combine user-specific knowledge with general world knowledge and wisdom
-  - **Healthy Randomness**: Include surprising insights from connecting seemingly unrelated experiences (cite specific entity IDs)
+  - **Healthy Randomness**: Include surprising insights from connecting seemingly unrelated experiences using @[name](entity_id:type) - NO conversations/cycles
   - **Emotional Resonance**: Make {{user_name}} feel their trust has paid off and they've gained something they didn't know was possible
   - **Self-Originating Energy**: Help {{user_name}} see that insights and breakthroughs originate from their own actions and choices
   - **Dream Their Dreams**: Show that you understand their deepest aspirations through specific references to their stated goals
@@ -1250,14 +1283,14 @@ insight_worker_foundation_stage: |
   - **ANTI-PLATITUDE COMPLIANCE**: Follow ALL 6 anti-platitude guidelines above
   - **Structure**: 
     - **Opening**: Acknowledge their multifaceted identity and set a warm, personal tone
-    - **Core Values**: Highlight their fundamental beliefs, principles, and what drives them (cite specific memory units or concepts)
+    - **Core Values**: Highlight their fundamental beliefs, principles, and what drives them using @[text](entity_id:type)
     - **Professional Journey if applicable**: Career evolution, achievements, current ventures, and how they've grown professionally (use specific dates)
     - **Personal Life**: Relationships, family, personal goals, and meaningful connections (reference specific people and events)
-    - **Growth Patterns**: How they've evolved, learned, and transformed over time (cite specific before/after examples)
+    - **Growth Patterns**: How they've evolved, learned, and transformed over time using @[text](entity_id:type)
     - **Closing**: Synthesize their multifaceted identity and celebrate their unique journey
   - **Content Requirements**:
     - **Comprehensive Coverage**: Draw from their personal history, professional journey, relationships, and aspirations
-    - **Specific References**: MUST reference specific entity IDs, dates, quotes, and concrete examples from knowledge graph
+    - **Specific References**: MUST use @[text](entity_id:type) syntax for entities and @[text](url:web) for sources
     - **Value Integration**: Highlight their core values and how they manifest across different life areas (with specific examples)
     - **Evolution Story**: Show specific transformations with before/after states, not abstract evolution
     - **Inspirational Tone**: Be celebratory of their achievements while acknowledging their humanity
@@ -1610,7 +1643,7 @@ insight_worker_strategic_stage: |
   
   **2.2 Quality Standards:**
   - **ANTI-PLATITUDE COMPLIANCE**: Follow ALL 6 anti-platitude guidelines above
-  - Evidence-based: Ground all insights in actual knowledge graph data with specific entity IDs
+  - Evidence-based: Ground all insights in actual knowledge graph data using @[text](entity_id:type) syntax
   - Actionable: Provide clear next steps with concrete actions, not vague aspirations
   - User-centric: Align with {{user_name}}'s goals and growth trajectory
   - Individual: Generate separate artifacts for each pattern/theme (no arrays)
@@ -1663,7 +1696,7 @@ insight_worker_strategic_stage: |
   - **Avoid Redundancy**: Don't include multiple prompts that cover the same ground
   - **Match the Moment**: Choose prompts that feel most relevant to their current phase and energy
   - **Create Engagement Flow**: Ensure the selected prompts invite deeper exploration and growth
-  - **Ground in Specificity**: Frame prompts around specific entity IDs, not abstract themes
+  - **Ground in Specificity**: Frame prompts using @[text](entity_id:type) syntax, not abstract themes
   - **Avoid Generic Templates**: Each prompt should reference {{user_name}}'s actual experiences and patterns
   - **SELF-CORRECTION**: Before finalizing, scan for all banned phrases from anti-platitude guidelines
   
@@ -1713,7 +1746,7 @@ insight_worker_strategic_stage: |
   - **CONCRETE ACTIONS**: Recommend specific, actionable steps with tangible outcomes, not vague aspirations
   - **LEVERAGE WORLD KNOWLEDGE**: Recommend specific activities, books, films, artworks, experiences, celebrity stories, legends, theories, technologies that expand horizons
   - **CHALLENGE ASSUMPTIONS**: Question unfounded beliefs, challenge abilities, introduce contrarian perspectives
-  - **UNLOCK SYNERGIES**: Connect previously unconnected strengths and experiences (cite specific entity IDs)
+  - **UNLOCK SYNERGIES**: Connect previously unconnected strengths and experiences using @[text](entity_id:type)
   - **NEAR-TERM FOCUS**: Prioritize actionable steps that can be taken within 1-4 weeks
   - **STRATEGIC DEPTH**: Each recommendation should build toward longer-term goals or unlock new capabilities or reveal new connections or insights
   - Generate 1-2 growth events per dimension (6-12 total events)
@@ -1726,7 +1759,7 @@ insight_worker_strategic_stage: |
   - **Think beyond obvious next steps**: What would challenge their assumptions in a meaningful way? What would unlock hidden potential you've observed?
   - **Leverage your world knowledge creatively**: What fascinating ideas, stories, or approaches from different domains could help them achieve specific outcomes?
   - **Consider their unique context**: What constraints do they face? What opportunities are they uniquely positioned to seize?
-  - **Aim for synthesis**: How can you help them connect previously separate aspects of their life or knowledge in novel ways (cite specific entity IDs)?
+  - **Aim for synthesis**: How can you help them connect previously separate aspects of their life or knowledge in novel ways using @[text](entity_id:type)?
   
   **3.6 Principles for High-Quality Growth Events**:
   - **Grounded in Deep Understanding**: Each recommendation should be rooted in your deep understanding of {{user_name}}'s human experience, personality, goals, and interests
@@ -1920,7 +1953,7 @@ insight_worker_operational_config: |
   
   **2.2 Quality Standards:**
   - **ANTI-PLATITUDE COMPLIANCE**: Follow ALL 6 anti-platitude guidelines above
-  - Evidence-based: Ground all insights in actual knowledge graph data with specific entity IDs
+  - Evidence-based: Ground all insights in actual knowledge graph data using @[text](entity_id:type) syntax
   - Actionable: Provide clear next steps with concrete actions, not vague aspirations
   - User-centric: Align with {{user_name}}'s goals and growth trajectory
   - Individual: Generate separate artifacts for each pattern/theme (no arrays)
@@ -1985,14 +2018,14 @@ insight_worker_operational_config: |
   - **ANTI-PLATITUDE COMPLIANCE**: Follow ALL 6 anti-platitude guidelines above
   - **Structure**: 
     - **Opening**: Acknowledge their multifaceted identity and set a warm, personal tone
-    - **Core Values**: Highlight their fundamental beliefs, principles, and what drives them (cite specific memory units or concepts)
+    - **Core Values**: Highlight their fundamental beliefs, principles, and what drives them using @[text](entity_id:type)
     - **Professional Journey**: Career evolution, achievements, current ventures, and how they've grown professionally (use specific dates and entity IDs)
     - **Personal Life**: Relationships, family, personal goals, and meaningful connections (reference specific people and events)
-    - **Growth Patterns**: How they've evolved, learned, and transformed over time (cite specific before/after examples)
+    - **Growth Patterns**: How they've evolved, learned, and transformed over time using @[text](entity_id:type)
     - **Closing**: Synthesize their multifaceted identity and celebrate their unique journey
   - **Content Requirements**:
     - **Comprehensive Coverage**: Draw from their personal history, professional journey, relationships, and aspirations
-    - **Specific References**: MUST reference specific entity IDs, dates, quotes, and concrete examples from knowledge graph
+    - **Specific References**: MUST use @[text](entity_id:type) syntax for entities and @[text](url:web) for sources
     - **Value Integration**: Highlight their core values and how they manifest across different life areas (with specific examples)
     - **Evolution Story**: Show specific transformations with before/after states, not abstract evolution
     - **Inspirational Tone**: Be celebratory of their achievements while acknowledging their humanity
@@ -2113,7 +2146,7 @@ insight_worker_operational_config: |
   - **Avoid Redundancy**: Don't include multiple prompts that cover the same ground
   - **Match the Moment**: Choose prompts that feel most relevant to their current phase and energy
   - **Create Engagement Flow**: Ensure the selected prompts invite deeper exploration and growth
-  - **Ground in Specificity**: Frame prompts around specific entity IDs, not abstract themes
+  - **Ground in Specificity**: Frame prompts using @[text](entity_id:type) syntax, not abstract themes
   - **Avoid Generic Templates**: Each prompt should reference {{user_name}}'s actual experiences and patterns
   - **SELF-CORRECTION**: Before finalizing, scan for all banned phrases from anti-platitude guidelines
   
@@ -2163,7 +2196,7 @@ insight_worker_operational_config: |
   - **CONCRETE ACTIONS**: Recommend specific, actionable steps with tangible outcomes, not vague aspirations
   - **LEVERAGE WORLD KNOWLEDGE**: Recommend specific activities, books, films, artworks, experiences, celebrity stories, legends, theories, technologies that expand horizons
   - **CHALLENGE ASSUMPTIONS**: Question unfounded beliefs, challenge abilities, introduce contrarian perspectives
-  - **UNLOCK SYNERGIES**: Connect previously unconnected strengths and experiences (cite specific entity IDs)
+  - **UNLOCK SYNERGIES**: Connect previously unconnected strengths and experiences using @[text](entity_id:type)
   - **NEAR-TERM FOCUS**: Prioritize actionable steps that can be taken within 1-4 weeks
   - **STRATEGIC DEPTH**: Each recommendation should build toward longer-term goals or unlock new capabilities or reveal new connections or insights
   - Generate 1-2 growth events per dimension (6-12 total events)
@@ -2176,7 +2209,7 @@ insight_worker_operational_config: |
   - **Think beyond obvious next steps**: What would challenge their assumptions in a meaningful way? What would unlock hidden potential you've observed?
   - **Leverage your world knowledge creatively**: What fascinating ideas, stories, or approaches from different domains could help them achieve specific outcomes?
   - **Consider their unique context**: What constraints do they face? What opportunities are they uniquely positioned to seize?
-  - **Aim for synthesis**: How can you help them connect previously separate aspects of their life or knowledge in novel ways (cite specific entity IDs)?
+  - **Aim for synthesis**: How can you help them connect previously separate aspects of their life or knowledge in novel ways using @[text](entity_id:type)?
   
   **3.6 Principles for High-Quality Growth Events**:
   - **Grounded in Deep Understanding**: Each recommendation should be rooted in your deep understanding of {{user_name}}'s human experience, personality, goals, and interests

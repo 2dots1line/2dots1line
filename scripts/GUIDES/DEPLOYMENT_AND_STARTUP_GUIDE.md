@@ -1,3 +1,38 @@
+# 1. Stop all processes
+pm2 stop all
+
+# 2. Kill any lingering Next.js processes
+pkill -f next && sleep 2
+
+# 3. Build everything fresh
+pnpm build
+
+# 4. Start using the development ecosystem config
+pm2 start scripts/deployment/ecosystem.dev.config.js
+
+# 5. Verify everything is working
+pm2 status
+curl -s http://localhost:3000 | head -3
+curl -s http://localhost:3001/api/v1/health
+
+# 1. Stop everything
+pm2 delete all
+
+# 2. Kill all processes
+pkill -f next && pkill -f node
+
+# 3. Wait
+sleep 3
+
+# 4. Build fresh
+pnpm build
+
+# 5. Start fresh
+pm2 start scripts/deployment/ecosystem.dev.config.js
+
+
+# ALWAYS do this sequence:
+pkill -f next && sleep 2 && pnpm build && pm2 restart web-app
 # 2D1L Deployment and Startup Guide
 
 ## Overview

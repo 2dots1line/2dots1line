@@ -292,26 +292,15 @@ export class GraphController {
         return;
       }
       
-      // Fetch entity details using generic approach (standardized field names)
+      // Fetch entity details using generic approach with flexible ID/title lookup
       entityData = await this.fetchEntityByType(entityTypeMapping.tableName, nodeId, userId);
       
-      if (!entityData) {
-        res.status(400).json({
-          success: false,
-          error: {
-            code: 'INVALID_ENTITY_TYPE',
-            message: `Unsupported entity type: ${entityType}`
-          }
-        } as TApiResponse<any>);
-        return;
-      }
-
       if (!entityData) {
         res.status(404).json({
           success: false,
           error: {
             code: 'ENTITY_NOT_FOUND',
-            message: `Entity not found: ${nodeId}`
+            message: `Entity not found: ${nodeId} (type: ${entityType}). Tried both entity ID and title matching.`
           }
         } as TApiResponse<any>);
         return;
@@ -472,13 +461,15 @@ export class GraphController {
   };
 
   /**
-   * Generic method to fetch entity by type using standardized field names
+   * Generic method to fetch entity by type using standardized field names with flexible ID/title lookup
    * This replaces the need for separate switch cases since all entities now use:
    * - entity_id (primary key)
    * - user_id (for filtering)
    * - title, content, created_at, updated_at (standardized fields)
+   * 
+   * Enhanced to support both entity IDs (UUIDs) and entity titles with fuzzy matching
    */
-  private async fetchEntityByType(tableName: string, entityId: string, userId: string): Promise<any> {
+  private async fetchEntityByType(tableName: string, identifier: string, userId: string): Promise<any> {
     const prisma = this.databaseService.prisma;
     
     // Map table names to Prisma model accessors
@@ -496,13 +487,23 @@ export class GraphController {
       return null;
     }
 
-    // Fetch entity data
-    const entityData = await model.findFirst({
-      where: {
-        entity_id: entityId,
-        user_id: userId
-      }
-    });
+    // Determine if identifier is a UUID (entity_id) or a title
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+    
+    let entityData: any = null;
+
+    if (isUUID) {
+      // Direct entity_id lookup
+      entityData = await model.findFirst({
+        where: {
+          entity_id: identifier,
+          user_id: userId
+        }
+      });
+    } else {
+      // Title-based lookup with fuzzy matching
+      entityData = await this.findEntityByTitle(model, identifier, userId);
+    }
 
     if (!entityData) {
       return null;
@@ -511,7 +512,7 @@ export class GraphController {
     // Also fetch associated card data if exists (for background_image_url)
     const cardData = await prisma.cards.findFirst({
       where: {
-        source_entity_id: entityId,
+        source_entity_id: entityData.entity_id,
         user_id: userId
       },
       select: {
@@ -528,6 +529,139 @@ export class GraphController {
       background_image_url: cardData?.background_image_url,
       card_status: cardData?.status
     };
+  }
+
+  /**
+   * Find entity by title with fuzzy matching
+   * Handles variations in naming and partial matches
+   */
+  private async findEntityByTitle(model: any, title: string, userId: string): Promise<any> {
+    // Clean and normalize the title for matching
+    const normalizedTitle = title.trim().toLowerCase();
+    
+    // Try multiple matching strategies in order of preference
+    
+    // 1. Exact match (case-insensitive)
+    let entity = await model.findFirst({
+      where: {
+        title: {
+          equals: title,
+          mode: 'insensitive'
+        },
+        user_id: userId
+      }
+    });
+
+    if (entity) return entity;
+
+    // 2. Fuzzy match using ILIKE with wildcards
+    entity = await model.findFirst({
+      where: {
+        title: {
+          contains: title,
+          mode: 'insensitive'
+        },
+        user_id: userId
+      }
+    });
+
+    if (entity) return entity;
+
+    // 3. Partial word matching (for multi-word titles)
+    const words = normalizedTitle.split(/\s+/).filter(word => word.length > 2);
+    if (words.length > 1) {
+      // Try to find entities that contain all the significant words
+      const wordConditions = words.map(word => ({
+        title: {
+          contains: word,
+          mode: 'insensitive' as const
+        }
+      }));
+
+      entity = await model.findFirst({
+        where: {
+          AND: [
+            { user_id: userId },
+            ...wordConditions
+          ]
+        }
+      });
+
+      if (entity) return entity;
+    }
+
+    // 4. Levenshtein distance-based fuzzy matching for very similar titles
+    // This is a fallback for cases where the title is close but not exact
+    const allEntities = await model.findMany({
+      where: {
+        user_id: userId
+      },
+      select: {
+        entity_id: true,
+        title: true,
+        content: true,
+        type: true,
+        created_at: true,
+        updated_at: true,
+        status: true,
+        importance_score: true,
+        position_x: true,
+        position_y: true,
+        position_z: true
+      }
+    });
+
+    // Find the best match using simple string similarity
+    let bestMatch = null;
+    let bestScore = 0;
+    const threshold = 0.6; // Minimum similarity threshold
+
+    for (const candidate of allEntities) {
+      const similarity = this.calculateStringSimilarity(normalizedTitle, candidate.title.toLowerCase());
+      if (similarity > bestScore && similarity >= threshold) {
+        bestScore = similarity;
+        bestMatch = candidate;
+      }
+    }
+
+    return bestMatch;
+  }
+
+  /**
+   * Calculate string similarity using a simple algorithm
+   * Returns a score between 0 and 1
+   */
+  private calculateStringSimilarity(str1: string, str2: string): number {
+    const longer = str1.length > str2.length ? str1 : str2;
+    const shorter = str1.length > str2.length ? str2 : str1;
+    
+    if (longer.length === 0) return 1.0;
+    
+    const editDistance = this.levenshteinDistance(longer, shorter);
+    return (longer.length - editDistance) / longer.length;
+  }
+
+  /**
+   * Calculate Levenshtein distance between two strings
+   */
+  private levenshteinDistance(str1: string, str2: string): number {
+    const matrix = Array(str2.length + 1).fill(null).map(() => Array(str1.length + 1).fill(null));
+    
+    for (let i = 0; i <= str1.length; i++) matrix[0][i] = i;
+    for (let j = 0; j <= str2.length; j++) matrix[j][0] = j;
+    
+    for (let j = 1; j <= str2.length; j++) {
+      for (let i = 1; i <= str1.length; i++) {
+        const indicator = str1[i - 1] === str2[j - 1] ? 0 : 1;
+        matrix[j][i] = Math.min(
+          matrix[j][i - 1] + 1,     // deletion
+          matrix[j - 1][i] + 1,     // insertion
+          matrix[j - 1][i - 1] + indicator // substitution
+        );
+      }
+    }
+    
+    return matrix[str2.length][str1.length];
   }
 
   /**

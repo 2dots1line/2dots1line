@@ -6,6 +6,7 @@
 import React from 'react';
 
 import { cn } from '../../utils/cn';
+import './markdown.styles.css';
 
 export interface MarkdownRendererProps {
   content: string;
@@ -32,6 +33,53 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   
   const compactClasses = compact ? "markdown-compact" : "";
   
+  // Add click handlers for capsule pills
+  React.useEffect(() => {
+    const handleCapsuleClick = (event: Event) => {
+      const target = event.target as HTMLElement;
+      
+      // Check if the clicked element or its parent is a capsule pill
+      const capsulePill = target.closest('.capsule-pill') as HTMLElement;
+      if (capsulePill) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        console.log('Capsule pill clicked:', capsulePill);
+        
+        if (capsulePill.classList.contains('web-source')) {
+          // Open web source in new tab
+          const url = capsulePill.getAttribute('data-url');
+          console.log('Opening web source:', url);
+          if (url) {
+            window.open(url, '_blank', 'noopener,noreferrer');
+          }
+        } else if (capsulePill.classList.contains('entity')) {
+          // Dispatch custom event for entity modal
+          const entityId = capsulePill.getAttribute('data-entity-id');
+          const entityType = capsulePill.getAttribute('data-entity-type');
+          const displayText = capsulePill.getAttribute('data-display-text');
+          
+          console.log('Opening entity modal:', { entityId, entityType, displayText });
+          
+          if (entityId && entityType) {
+            const customEvent = new CustomEvent('open-entity-modal', {
+              detail: { entityId, entityType, displayText }
+            });
+            window.dispatchEvent(customEvent);
+          }
+        }
+      }
+    };
+    
+    // Add event listener to the document with capture to ensure it runs early
+    document.addEventListener('click', handleCapsuleClick, true);
+    
+    // Cleanup
+    return () => {
+      document.removeEventListener('click', handleCapsuleClick, true);
+    };
+  }, []);
+  
   return (
     <div 
       className={cn(baseClasses, variantClasses[variant], compactClasses, className)}
@@ -49,8 +97,11 @@ function formatMarkdownContent(text: string): string {
 
   let formattedText = text;
 
+  // Phase 0.5: Convert literal \n strings to actual newlines
+  formattedText = formattedText.replace(/\\n/g, '\n');
+
   // Phase 1: Split text into paragraphs and process each one
-  const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+  const paragraphs = formattedText.split(/\n\s*\n/).filter(p => p.trim().length > 0);
   
   if (paragraphs.length === 0) return '';
   
@@ -72,6 +123,23 @@ function formatMarkdownContent(text: string): string {
   // Convert remaining single line breaks to <br>
   formattedText = formattedText.replace(/\n/g, '<br>');
   formattedText = formattedText.replace(/"message-list">/g, '');
+
+  // Phase 0: Extract capsule pills (after paragraph processing)
+  const capsulePlaceholders: Array<{ placeholder: string; html: string }> = [];
+  formattedText = formattedText.replace(
+    /@\[([^\]]+)\]\(([^:)]+):([^)]+)\)/g,
+    (match, displayText, identifier, typeOrWeb) => {
+      const placeholder = `__CAPSULE_${capsulePlaceholders.length}__`;
+      const isWebSource = typeOrWeb === 'web';
+      
+      const pillHtml = isWebSource
+        ? `<span class="capsule-pill web-source" data-url="${identifier}" data-display-text="${displayText}">${displayText}</span>`
+        : `<span class="capsule-pill entity" data-entity-id="${identifier}" data-entity-type="${typeOrWeb}" data-display-text="${displayText}">${displayText}</span>`;
+      
+      capsulePlaceholders.push({ placeholder, html: pillHtml });
+      return placeholder;
+    }
+  );
 
   // Phase 2: Process Lists
   formattedText = processLists(formattedText);
@@ -101,6 +169,11 @@ function formatMarkdownContent(text: string): string {
   // Clean up empty paragraphs
   formattedText = formattedText.replace(/<p><\/p>/g, '');
   formattedText = formattedText.replace(/<p>\s*<\/p>/g, '');
+
+  // Phase 5: Restore capsule pills
+  capsulePlaceholders.forEach(({ placeholder, html }) => {
+    formattedText = formattedText.replace(placeholder, html);
+  });
 
   return formattedText;
 }

@@ -434,9 +434,9 @@ ${context.userMemoryProfile || 'No memory profile available'}
 - Growth Events: ${context.templateRequests?.growth_events?.join(', ') || 'None'}
 
 **3.5 Strategic Context (HRT Retrieved):**
-- Retrieved Memory Units (${context.strategicContext?.retrievedMemoryUnits?.length || 0}): ${context.strategicContext?.retrievedMemoryUnits?.map((m: any) => `${m.title} (score: ${m.finalScore})`).join(', ') || 'None'}
-- Retrieved Concepts (${context.strategicContext?.retrievedConcepts?.length || 0}): ${context.strategicContext?.retrievedConcepts?.map((c: any) => `${c.title} (score: ${c.finalScore})`).join(', ') || 'None'}
-- Retrieved Artifacts (${context.strategicContext?.retrievedArtifacts?.length || 0}): ${context.strategicContext?.retrievedArtifacts?.map((a: any) => `${a.title} (${a.type}, score: ${a.finalScore})`).join(', ') || 'None'}
+- Retrieved Memory Units (${context.strategicContext?.retrievedMemoryUnits?.length || 0}): ${context.strategicContext?.retrievedMemoryUnits?.map((m: any) => `${m.title} (ID: ${m.id}, score: ${m.finalScore})`).join(', ') || 'None'}
+- Retrieved Concepts (${context.strategicContext?.retrievedConcepts?.length || 0}): ${context.strategicContext?.retrievedConcepts?.map((c: any) => `${c.title} (ID: ${c.id}, score: ${c.finalScore})`).join(', ') || 'None'}
+- Retrieved Artifacts (${context.strategicContext?.retrievedArtifacts?.length || 0}): ${context.strategicContext?.retrievedArtifacts?.map((a: any) => `${a.title} (ID: ${a.id}, type: ${a.type}, score: ${a.finalScore})`).join(', ') || 'None'}
 
 **3.6 Previous Key Phrases:**
 ${context.previousKeyPhrases?.map((kp: any) => `${kp.category}: [${kp.phrases.join(', ')}]`).join('; ') || 'None'}`;

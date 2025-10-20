@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { ExternalLink, ChevronDown, ChevronUp, Globe } from 'lucide-react';
 import { GlassmorphicPanel } from '@2dots1line/ui-components';
+import CapsulePill from '../shared/CapsulePill';
 
 interface GroundingMetadataProps {
   metadata: {
@@ -52,17 +53,13 @@ export const GroundingMetadata: React.FC<GroundingMetadataProps> = ({ metadata }
             : getDomainName(chunk.web_url);
           
           return (
-            <a
+            <CapsulePill
               key={idx}
-              href={chunk.web_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-400/30 hover:border-blue-400/50 rounded-full text-xs text-blue-300 hover:text-blue-200 transition-all group"
-              title={chunk.title || chunk.web_url}
-            >
-              <span className="font-medium">{displayName}</span>
-              <ExternalLink size={11} className="opacity-60 group-hover:opacity-100" />
-            </a>
+              type="web_source"
+              displayText={displayName}
+              url={chunk.web_url}
+              variant="inline"
+            />
           );
         })}
         {metadata.grounding_chunks.length > 5 && (
