@@ -5,6 +5,7 @@ import { HUDContainer } from '../../components/hud/HUDContainer';
 import { MediumChat, MiniChat } from '../../components/chat';
 import { useHUDStore } from '../../stores/HUDStore';
 import CosmosScene from './CosmosScene';
+import PWAInstallPrompt from '../../components/pwa/PWAInstallPrompt';
 
 const CosmosPage: React.FC = () => {
   const { cosmosChatOpen, cosmosChatSize, setCosmosChatSize } = useHUDStore();
@@ -32,6 +33,9 @@ const CosmosPage: React.FC = () => {
       
       {/* Navigation HUD - Consistent across 2D and 3D views */}
       <HUDContainer />
+      
+      {/* PWA Install Prompt */}
+      <PWAInstallPrompt />
     </div>
   );
 };
