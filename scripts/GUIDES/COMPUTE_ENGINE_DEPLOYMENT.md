@@ -155,6 +155,13 @@ gcloud compute ssh twodots-vm --zone=us-central1-a --command="cd ~/2D1L && cat a
 3. Check if seed entities appear at the bottom of the cosmos view
 4. If not working, check browser console for Socket.IO errors
 
+**Test Card Cover Generation:**
+1. Navigate to any card or entity detail modal
+2. Click "Generate Cover" button
+3. Verify cover image appears instead of question mark placeholder
+4. Check browser console for 404 errors on cover image URLs
+5. If 404 errors, verify API route is working: `curl -I http://[VM_IP]:3000/api/covers/[filename].png`
+
 ### 5. Verify Firewall Rules
 
 ```bash
@@ -220,6 +227,167 @@ pm2 start scripts/deployment/ecosystem.prod.config.js --only notification-worker
 # Check logs
 pm2 logs notification-worker --lines 20
 ```
+
+#### Issue: Card Cover Images Return 404 (Generated but Not Accessible)
+
+**Problem**: Card cover generation works (files are created), but images return 404 when accessed via browser
+
+**Root Causes**:
+1. **Missing Images on VM**: Generated images only exist locally, not deployed to VM
+2. **Nginx Routing Issue**: `/api/covers/` routes incorrectly sent to API Gateway instead of Next.js app
+3. **Cloudflare Caching**: 404 responses cached by Cloudflare CDN
+
+**Symptoms**:
+- Console shows: `Failed to load resource: the server responded with a status of 404 (Not Found)`
+- URLs like: `https://2d1l.com/api/covers/cardId-timestamp.png` return 404
+- Files exist locally in `apps/web-app/public/covers/` directory but not on VM
+- Question mark placeholders appear instead of cover images
+
+**Complete Solution**:
+
+**Step 1: Deploy Generated Images to VM**
+```bash
+# 1. Allow covers directory in .gitignore
+# Edit .gitignore to include: !apps/web-app/public/covers/
+
+# 2. Add images to git and commit
+git add apps/web-app/public/covers/
+git add .gitignore
+git commit -m "feat: include generated cover images in deployment"
+git push origin compute-engine-deployment
+
+# 3. Deploy to VM
+gcloud compute ssh twodots-vm --zone=us-central1-a --command="cd ~/2D1L && git pull origin compute-engine-deployment"
+```
+
+**Step 2: Fix Nginx Configuration**
+```bash
+# Update Nginx to route /api/covers/ to Next.js app (not API Gateway)
+sudo tee /etc/nginx/sites-available/2d1l > /dev/null << 'EOF'
+server {
+    server_name 2d1l.com www.2d1l.com;
+
+    # Image API routes (Next.js app) - MUST come before general /api/ route
+    location /api/covers/ {
+        proxy_pass http://localhost:3000/api/covers/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # Other API routes (API Gateway)
+    location /api/ {
+        proxy_pass http://localhost:3001/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # Frontend (Next.js app)
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    listen 443 ssl;
+    ssl_certificate /etc/letsencrypt/live/2d1l.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/2d1l.com/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+}
+EOF
+
+# Test and reload Nginx
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+**Step 3: Rebuild and Restart Services**
+```bash
+# Rebuild Next.js app on VM
+gcloud compute ssh twodots-vm --zone=us-central1-a --command="cd ~/2D1L && pnpm install && cd apps/web-app && pnpm build && cd ../.. && pm2 restart web-app"
+```
+
+**Step 4: Verify Fix**
+```bash
+# Test with cache-busting parameter to bypass Cloudflare cache
+curl -I "https://2d1l.com/api/covers/[filename].png?v=$(date +%s)"
+
+# Should return: HTTP/2 200 with content-type: image/png
+```
+
+**Why This Happens**:
+- **Local Development**: Next.js dev server automatically serves static files from `public` directory
+- **VM Production**: Generated images must be deployed to VM, and Nginx must route correctly
+- **Generated Files**: Cover images are created at runtime, not at build time, so they need custom serving logic
+- **Nginx Priority**: More specific routes (`/api/covers/`) must come before general routes (`/api/`)
+
+**Prevention**: 
+1. **Persistent Fix**: The `.gitignore` change ensures images are always deployed
+2. **Nginx Config**: The updated configuration is persistent and will work on rebuilds
+3. **API Route**: The custom API route at `/api/covers/[filename]` ensures proper serving
+
+## Key Lessons Learned: VM vs Local Development Differences
+
+### Critical VM-Specific Issues
+
+Both the Socket.IO connection issue and card cover serving issue highlight important differences between local development and VM production deployments:
+
+#### 1. Network Configuration
+- **Local**: Services bind to `localhost` by default
+- **VM**: Services must bind to `0.0.0.0` to accept external connections
+- **Firewall**: Google Cloud requires explicit firewall rules for external access
+
+#### 2. Static File Serving & Generated Content
+- **Local**: Next.js dev server automatically serves static files from `public` directory
+- **VM**: Next.js production build requires explicit API routes for runtime-generated files
+- **Generated Content**: Files created at runtime need custom serving logic
+- **Deployment**: Generated images must be committed to git and deployed to VM
+- **Nginx Routing**: Specific routes (`/api/covers/`) must come before general routes (`/api/`)
+
+#### 3. Environment Variables
+- **Local**: Development mode is more forgiving with missing variables
+- **VM**: Production mode requires all `NEXT_PUBLIC_*` variables to be properly configured
+- **Build Time**: Next.js embeds client-side variables at build time, not runtime
+
+### Prevention Checklist for New VM Deployments
+
+When setting up a new VM environment, always verify:
+
+- [ ] **Firewall Rules**: All required ports (3000, 3001, 3002) are open
+- [ ] **Network Binding**: Services bind to `0.0.0.0` not `localhost`
+- [ ] **Environment Variables**: All `NEXT_PUBLIC_*` variables are in `apps/web-app/.env`
+- [ ] **Static File Serving**: Custom API routes exist for runtime-generated content
+- [ ] **Image Deployment**: Generated images are committed to git and deployed to VM
+- [ ] **Nginx Configuration**: `/api/covers/` routes to Next.js app, not API Gateway
+- [ ] **Socket.IO Connection**: Test real-time features work end-to-end
+- [ ] **Cover Generation**: Test AI-generated content displays properly
+
+### Debugging Strategy
+
+When features work locally but fail on VM:
+
+1. **Check Network Access**: Test external connectivity to all services
+2. **Verify File Serving**: Ensure static files are accessible via HTTP
+3. **Test Real-time Features**: Verify Socket.IO connections work
+4. **Check Environment Variables**: Confirm all required variables are set
+5. **Review Build Output**: Ensure all API routes are included in production build
 
 ## Manual Deployment Steps
 
@@ -669,13 +837,153 @@ For high availability, consider:
 3. **Code backups**: Git repository serves as code backup
 4. **Configuration backups**: Backup `.env` and systemd service files
 
+## HTTPS and PWA Setup
+
+### HTTPS Configuration (Completed)
+
+The application now runs with HTTPS using a self-signed certificate and Nginx reverse proxy:
+
+**Configuration:**
+- **Nginx**: Reverse proxy handling HTTPS termination
+- **SSL Certificate**: Self-signed certificate (valid for testing)
+- **Ports**: HTTP (80) redirects to HTTPS (443)
+- **Services**: All services accessible via HTTPS without port numbers
+
+**Access URLs:**
+- **Frontend**: `https://34.136.210.47`
+- **API**: `https://34.136.210.47/api/`
+- **Socket.IO**: `https://34.136.210.47/socket.io/`
+
+**Benefits:**
+- ✅ No more "Not secure" browser warnings
+- ✅ Full PWA functionality enabled
+- ✅ Professional appearance
+- ✅ Secure data transmission
+
+### PWA (Progressive Web App) Features
+
+**Implemented Features:**
+- **Web App Manifest**: Full-screen app experience
+- **Install Prompt**: Automatic installation prompt for mobile users
+- **App Icons**: Custom 192x192 and 512x512 icons
+- **Theme Colors**: Black theme matching the cosmic aesthetic
+- **Offline Ready**: PWA foundation for future offline features
+
+**Mobile Benefits:**
+- **Full-screen experience**: No browser UI on mobile
+- **App-like feel**: Native mobile app experience
+- **Home screen installation**: One-tap install from browser
+- **Maximum screen space**: Perfect for cosmic backgrounds
+
+### Production SSL Certificate (Optional)
+
+For production use, replace the self-signed certificate with a Let's Encrypt certificate:
+
+```bash
+# Note: Requires a domain name (Let's Encrypt doesn't support IP addresses)
+sudo certbot --nginx -d your-domain.com --non-interactive --agree-tos --email your-email@example.com
+```
+
+## Persistent Fixes Applied
+
+### Image Loading Fix (Permanent)
+
+The following fixes have been applied to ensure image loading works correctly on VM rebuilds:
+
+1. **`.gitignore` Updated**: Added `!apps/web-app/public/covers/` to include generated images in git
+2. **Nginx Configuration**: Updated to route `/api/covers/` to Next.js app before general `/api/` routes
+3. **API Route**: Custom `/api/covers/[filename]` route ensures proper image serving
+
+### Deployment Script for New VMs
+
+To ensure these fixes are applied to new VM deployments, use this script:
+
+```bash
+#!/bin/bash
+# scripts/deployment/setup-vm-with-fixes.sh
+
+echo "🚀 Setting up VM with persistent fixes..."
+
+# 1. Clone repository
+git clone https://github.com/2dots1line/2dots1line.git 2D1L
+cd 2D1L
+git checkout compute-engine-deployment
+
+# 2. Install dependencies
+pnpm install
+pnpm build
+
+# 3. Setup Nginx with correct configuration
+sudo tee /etc/nginx/sites-available/2d1l > /dev/null << 'EOF'
+server {
+    server_name 2d1l.com www.2d1l.com;
+
+    # Image API routes (Next.js app) - MUST come before general /api/ route
+    location /api/covers/ {
+        proxy_pass http://localhost:3000/api/covers/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # Other API routes (API Gateway)
+    location /api/ {
+        proxy_pass http://localhost:3001/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # Frontend (Next.js app)
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    listen 443 ssl;
+    ssl_certificate /etc/letsencrypt/live/2d1l.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/2d1l.com/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+}
+EOF
+
+# 4. Enable site and test configuration
+sudo ln -sf /etc/nginx/sites-available/2d1l /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+
+# 5. Start services
+docker-compose -f docker-compose.dev.yml up -d
+sleep 30
+pnpm start:prod
+
+echo "✅ VM setup complete with all fixes applied!"
+```
+
 ## Next Steps
 
-1. **Domain setup**: Configure custom domain and SSL certificates
-2. **Nginx reverse proxy**: For proper HTTPS and load balancing
-3. **Cloud Logging**: Ship logs to Google Cloud Logging
-4. **Monitoring**: Set up Cloud Monitoring alerts
-5. **CI/CD**: Automate deployments with Cloud Build
+1. **Domain setup**: Configure custom domain and SSL certificates (optional)
+2. **Cloud Logging**: Ship logs to Google Cloud Logging
+3. **Monitoring**: Set up Cloud Monitoring alerts
+4. **CI/CD**: Automate deployments with Cloud Build
+5. **Mobile optimization**: Implement mobile-specific UI improvements
 
 ## Related Documentation
 
