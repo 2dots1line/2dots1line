@@ -115,16 +115,7 @@ export const OntologyStageOutputSchema = z.object({
       target_entity_id_or_name: z.string().optional(),
       source_id: z.string().optional(),
       target_id: z.string().optional(),
-      relationship_type: z.enum([
-        'IS_A_TYPE_OF', 'IS_PART_OF', 'IS_INSTANCE_OF',
-        'CAUSES', 'INFLUENCES', 'ENABLES', 'PREVENTS', 'CONTRIBUTES_TO',
-        'PRECEDES', 'FOLLOWS', 'CO_OCCURS_WITH',
-        'IS_SIMILAR_TO', 'IS_OPPOSITE_OF', 'IS_ANALOGOUS_TO',
-        'INSPIRES', 'SUPPORTS_VALUE', 'EXEMPLIFIES_TRAIT', 'IS_MILESTONE_FOR',
-        'IS_METAPHOR_FOR', 'REPRESENTS_SYMBOLICALLY', 'RELATED_TO',
-        // Custom relationship types that LLM generates
-        'STRATEGIC_ALIGNMENT', 'KNOWLEDGE_BRIDGE', 'GROWTH_CATALYST', 'SYNERGY_POTENTIAL'
-      ]),
+      relationship_type: z.string().min(1), // Changed from strict enum to flexible string - relationship types are illustrative examples
       relationship_description: z.string().optional(),
       strength: z.number().min(0.0).max(1.0).optional(),
       strategic_value: z.string().optional()
@@ -175,15 +166,7 @@ export const StrategicRelationshipSchema = z.object({
   target_entity_id_or_name: z.string().optional(),
   source_id: z.string().optional(),
   target_id: z.string().optional(),
-  relationship_type: z.enum([
-    'IS_A_TYPE_OF', 'IS_PART_OF', 'IS_INSTANCE_OF',
-    'CAUSES', 'INFLUENCES', 'ENABLES', 'PREVENTS', 'CONTRIBUTES_TO',
-    'PRECEDES', 'FOLLOWS', 'CO_OCCURS_WITH',
-    'IS_SIMILAR_TO', 'IS_OPPOSITE_OF', 'IS_ANALOGOUS_TO',
-    'INSPIRES', 'SUPPORTS_VALUE', 'EXEMPLIFIES_TRAIT', 'IS_MILESTONE_FOR',
-    'IS_METAPHOR_FOR', 'REPRESENTS_SYMBOLICALLY', 'RELATED_TO',
-    'STRATEGIC_ALIGNMENT', 'KNOWLEDGE_BRIDGE', 'GROWTH_CATALYST', 'SYNERGY_POTENTIAL'
-  ]),
+  relationship_type: z.string().min(1), // Changed from strict enum to flexible string - relationship types are illustrative examples
   relationship_description: z.string().optional(),
   strength: z.number().min(0.0).max(1.0).optional(),
   strategic_value: z.string().optional()

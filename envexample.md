@@ -157,4 +157,12 @@ WEAVIATE_HOST_DOCKER=weaviate:8080 # 'weaviate' is service name, 8080 is interna
 REDIS_HOST_DOCKER=redis # 'redis' is service name
 REDIS_PORT_FOR_APP_IN_DOCKER=6379 # Standard internal Redis port
 
+# === DIMENSION REDUCER CONFIGURATION ===
+# Port on your Mac for Dimension Reducer (Python UMAP service)
+DIMENSION_REDUCER_HOST_PORT=5001 # Python Service
+# Connection URL for applications running on host machine
+DIMENSION_REDUCER_URL=http://localhost:5001
+# Connection URL for applications running inside Docker
+DIMENSION_REDUCER_URL_DOCKER=http://dimension-reducer:5001
+
 # Ensure this .env file is in your .gitignore

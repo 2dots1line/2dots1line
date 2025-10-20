@@ -123,12 +123,11 @@ export class GraphProjectionWorker {
       ...config
     };
 
-    // Log the new dynamic UMAP behavior
-    console.log(`[GraphProjectionWorker] V11.0 Dynamic UMAP Learning Configuration:`);
-    console.log(`[GraphProjectionWorker] - Early graphs (2-9 nodes): Every 2-3 nodes`);
-    console.log(`[GraphProjectionWorker] - Growing graphs (10-100 nodes): Every 3-10 nodes`);
-    console.log(`[GraphProjectionWorker] - Large graphs (100+ nodes): Every 10-500 nodes (capped)`);
-    console.log(`[GraphProjectionWorker] - Function: interval = min(500, max(2, floor(sqrt(nodes))))`);
+    // Log the new simple UMAP behavior
+    console.log(`[GraphProjectionWorker] V11.0 Simple UMAP Learning Configuration:`);
+    console.log(`[GraphProjectionWorker] - Small graphs (< 100 nodes): Always learn (100% chance)`);
+    console.log(`[GraphProjectionWorker] - Medium graphs (100-1000 nodes): Learn when total ends with 0 or 5 (20% chance)`);
+    console.log(`[GraphProjectionWorker] - Large graphs (> 1000 nodes): Learn when total ends with 0 (10% chance)`);
 
     // Validate configuration
     this.validateConfiguration();
@@ -419,31 +418,26 @@ export class GraphProjectionWorker {
   }
 
   /**
-   * V11.0: Check if UMAP learning should run based on dynamic interval calculation
-   * Uses square root function: more frequent learning early, less frequent for large graphs
+   * V11.0: Simple and predictable UMAP learning trigger logic
+   * - < 100 nodes: Always use learning mode (100% chance)
+   * - 101-1000 nodes: Learning when total ends with 0 or 5 (20% chance)
+   * - > 1000 nodes: Learning when total ends with 0 (10% chance)
    */
   private shouldRunUMAP(totalNodes: number): boolean {
     // Don't learn with 0 or 1 nodes
     if (totalNodes < 2) return false;
     
-    const interval = this.calculateLearningInterval(totalNodes);
-    return totalNodes % interval === 0;
-  }
-
-  /**
-   * V11.0: Calculate learning interval using square root function
-   * - Early graphs (2-9 nodes): Every 2-3 nodes
-   * - Growing graphs (10-100 nodes): Every 3-10 nodes  
-   * - Large graphs (100+ nodes): Every 10-500 nodes (capped)
-   */
-  private calculateLearningInterval(nodeCount: number): number {
-    if (nodeCount < 2) return 2; // Clean edge case handling
-    
-    // Square root scaling: interval grows as sqrt(nodes)
-    const baseInterval = Math.floor(Math.sqrt(nodeCount));
-    
-    // Apply practical bounds: Min 2, Max 500
-    return Math.max(2, Math.min(baseInterval, 500));
+    if (totalNodes < 100) {
+      // Small graphs: Always learn for best quality
+      return true;
+    } else if (totalNodes <= 1000) {
+      // Medium graphs: Learn when total ends with 0 or 5 (20% chance)
+      const lastDigit = totalNodes % 10;
+      return lastDigit === 0 || lastDigit === 5;
+    } else {
+      // Large graphs: Learn when total ends with 0 (10% chance)
+      return totalNodes % 10 === 0;
+    }
   }
 
   /**

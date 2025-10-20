@@ -72,6 +72,40 @@ pnpm build
 pnpm start:dev
 ```
 
+#### 5. Set Up Frontend Environment (CRITICAL - One-time setup)
+
+**CRITICAL**: The frontend requires specific environment variables to function properly:
+
+```bash
+# Create web app environment file
+cd apps/web-app
+echo "NEXT_PUBLIC_API_BASE_URL=http://localhost:3001" > .env
+echo "NEXT_PUBLIC_NOTIFICATION_SERVICE_URL=http://localhost:3002" >> .env
+cd ../..
+
+# Rebuild web app with environment variables
+cd apps/web-app && pnpm build && cd ../..
+pm2 restart web-app
+```
+
+#### 6. Create Test User (One-time setup)
+
+```bash
+# Register test user for development
+curl -X POST http://localhost:3001/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username": "dev-user-123", "email": "dev@example.com", "password": "password123"}'
+```
+
+#### 7. Access the Application
+
+```bash
+# Open browser to clear cache and login
+open http://localhost:3000/clear-cache.html
+# Then go to: http://localhost:3000
+# Login with: dev@example.com / password123
+```
+
 ### VM Production Setup
 
 #### 1. VM Initial Setup
@@ -91,13 +125,29 @@ pnpm install
 pnpm --filter=@2dots1line/database db:generate
 ```
 
-#### 2. VM Environment Configuration
+#### 2. VM Environment Configuration (STANDARDIZED)
 
+**CRITICAL**: Use the automated environment setup script to ensure consistency:
+
+```bash
+# Run the standardized environment setup
+./scripts/deployment/setup-vm-environment.sh
+
+# This script will:
+# - Create .env from envexample.md template
+# - Validate all critical environment variables
+# - Ensure port consistency (DIMENSION_REDUCER_HOST_PORT=5001)
+# - Create environment validation script
+```
+
+**Manual Configuration (if needed):**
 ```bash
 # Edit environment variables for VM production
 # Key variables to set:
 # - FRONTEND_URL=http://34.136.210.47:3000
 # - NEXT_PUBLIC_API_BASE_URL=http://34.136.210.47:3001
+# - DIMENSION_REDUCER_HOST_PORT=5001
+# - DIMENSION_REDUCER_URL=http://localhost:5001
 # - Database connection strings for VM Docker services
 ```
 
@@ -106,6 +156,9 @@ pnpm --filter=@2dots1line/database db:generate
 ```bash
 # Start database services
 docker-compose -f docker-compose.dev.yml up -d
+
+# Validate environment (optional but recommended)
+./scripts/deployment/validate-environment.sh
 
 # Build and start in production mode
 pnpm build
@@ -321,14 +374,20 @@ When deploying to a new environment:
 
 ```bash
 # 1. Start database services
-pnpm start:db
+docker-compose -f docker-compose.dev.yml up -d
 
-# 2. Start application in development mode
-pnpm start:dev
+# 2. Start application services
+pm2 start scripts/deployment/ecosystem.dev.config.js
 
 # 3. Verify everything is running
-pnpm status
+pm2 status
+curl -s http://localhost:3001/api/v1/health
 ```
+
+**Note**: If this is your first time starting the app, you'll also need to:
+1. Set up frontend environment variables (see First-Time Setup section)
+2. Create a test user
+3. Clear authentication cache if needed
 
 #### Making Changes
 
@@ -343,10 +402,10 @@ pm2 restart api-gateway
 
 ```bash
 # Stop all services
-pnpm stop:services
+pm2 delete all
 
 # Stop database services
-pnpm stop:db
+docker-compose -f docker-compose.dev.yml down
 ```
 
 ### VM Production
@@ -1220,6 +1279,91 @@ This script automatically applies all persistent fixes including:
 - Correct Nginx configuration for image routing
 - Proper service startup sequence
 - All required environment configurations
+
+---
+
+## **Complete Startup Commands Reference**
+
+### **First-Time Setup (Complete Process)**
+
+```bash
+# 1. Navigate to project directory
+cd /Users/danniwang/Documents/GitHub/202506062D1L/2D1L
+
+# 2. Start database services
+docker-compose -f docker-compose.dev.yml up -d
+
+# 3. Build all packages
+pnpm build
+
+# 4. Start application services
+pm2 start scripts/deployment/ecosystem.dev.config.js
+
+# 5. Set up frontend environment (CRITICAL)
+cd apps/web-app
+echo "NEXT_PUBLIC_API_BASE_URL=http://localhost:3001" > .env
+echo "NEXT_PUBLIC_NOTIFICATION_SERVICE_URL=http://localhost:3002" >> .env
+cd ../..
+cd apps/web-app && pnpm build && cd ../..
+pm2 restart web-app
+
+# 6. Create test user
+curl -X POST http://localhost:3001/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username": "dev-user-123", "email": "dev@example.com", "password": "password123"}'
+
+# 7. Access application
+open http://localhost:3000/clear-cache.html
+# Then go to: http://localhost:3000
+# Login with: dev@example.com / password123
+```
+
+### **Daily Startup (After Initial Setup)**
+
+```bash
+# 1. Start databases
+docker-compose -f docker-compose.dev.yml up -d
+
+# 2. Start services
+pm2 start scripts/deployment/ecosystem.dev.config.js
+
+# 3. Check status
+pm2 status
+```
+
+### **Stop Commands**
+
+```bash
+# Stop all services
+pm2 delete all
+
+# Stop databases
+docker-compose -f docker-compose.dev.yml down
+```
+
+### **Troubleshooting Commands**
+
+```bash
+# If frontend stuck on "Verifying your session"
+open http://localhost:3000/clear-cache.html
+
+# If services fail to start
+pm2 logs
+
+# Complete reset
+pkill -f next && sleep 2 && pnpm build && pm2 restart web-app
+
+# Check service status
+pm2 status
+curl -s http://localhost:3001/api/v1/health
+```
+
+### **Quick Reference URLs**
+
+- **Frontend**: http://localhost:3000
+- **API Gateway**: http://localhost:3001
+- **Clear Cache**: http://localhost:3000/clear-cache.html
+- **Test User**: dev@example.com / password123
 
 ---
 

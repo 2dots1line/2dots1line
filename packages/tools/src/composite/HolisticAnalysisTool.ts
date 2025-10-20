@@ -35,14 +35,7 @@ export const HolisticAnalysisOutputSchema = z.object({
     new_relationships: z.array(z.object({
       source_entity_id_or_name: z.string().min(1),
       target_entity_id_or_name: z.string().min(1),
-      relationship_type: z.enum([
-        'IS_A_TYPE_OF', 'IS_PART_OF', 'IS_INSTANCE_OF',
-        'CAUSES', 'INFLUENCES', 'ENABLES', 'PREVENTS', 'CONTRIBUTES_TO',
-        'PRECEDES', 'FOLLOWS', 'CO_OCCURS_WITH',
-        'IS_SIMILAR_TO', 'IS_OPPOSITE_OF', 'IS_ANALOGOUS_TO',
-        'INSPIRES', 'SUPPORTS_VALUE', 'EXEMPLIFIES_TRAIT', 'IS_MILESTONE_FOR',
-        'IS_METAPHOR_FOR', 'REPRESENTS_SYMBOLICALLY', 'RELATED_TO'
-      ]),
+      relationship_type: z.string().min(1), // Changed from strict enum to flexible string - relationship types are illustrative examples
       relationship_description: z.string().min(1), // Removed max limit to allow detailed descriptions
       strength: z.number().min(0.0).max(1.0) // Relationship strength (0.0-1.0)
     })), // Remove array size limit to allow flexible LLM responses

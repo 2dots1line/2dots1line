@@ -205,7 +205,17 @@ USER'S ORIGINAL QUESTION: ${finalInputText}`;
       console.log(`[${executionId}] Decision: Respond Directly. Turn complete.`);
       
       // Handle new JSON structure where direct_response_text is at root level
-      const directResponseText = llmResponse.direct_response_text || 'I apologize, but I encountered an issue processing your request.';
+      let directResponseText = llmResponse.direct_response_text || 'I apologize, but I encountered an issue processing your request.';
+      
+      // Unescape JSON escape sequences in the final response text
+      if (typeof directResponseText === 'string') {
+        directResponseText = directResponseText
+          .replace(/\\"/g, '"')
+          .replace(/\\n/g, '\n')
+          .replace(/\\r/g, '\r')
+          .replace(/\\t/g, '\t')
+          .replace(/\\\\/g, '\\');
+      }
       
       // Debug: Log the actual direct_response_text value
       console.log(`[${executionId}] DEBUG: direct_response_text value:`, JSON.stringify(directResponseText));
@@ -870,8 +880,8 @@ USER'S ORIGINAL QUESTION: ${finalInputText}`;
   }
 
   /**
-   * Simple LLM response parser using Gemini's native JSON capabilities.
-   * Clean and reliable - no complex fallback strategies.
+   * Robust LLM response parser with 2025 Gemini best practices.
+   * Handles malformed JSON responses and provides intelligent fallbacks.
    */
   private parseLLMResponse(llmResult: any, enableGrounding?: boolean): any {
     const rawText = llmResult.result.text;
@@ -905,24 +915,23 @@ USER'S ORIGINAL QUESTION: ${finalInputText}`;
       return parsed;
     }
     
-    // JSON MODE: Parse structured JSON response
+    // JSON MODE: Parse structured JSON response with robust error handling
     try {
-      // Enhanced JSON extraction with markdown handling
-      let cleaned = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+      // Enhanced JSON extraction with multiple cleaning strategies
+      let cleaned = this.cleanJsonResponse(rawText);
       
-      // Find JSON object boundaries
-      const firstBrace = cleaned.indexOf('{');
-      const lastBrace = cleaned.lastIndexOf('}');
+      // Try multiple parsing strategies
+      let parsed = this.tryParseJson(cleaned);
       
-      if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
-        throw new Error("No valid JSON found in LLM response");
+      // If parsing failed, try fallback strategies
+      if (!parsed) {
+        console.warn('DialogueAgent - Primary JSON parsing failed, trying fallback strategies...');
+        parsed = this.tryFallbackParsing(rawText);
       }
       
-      const jsonText = cleaned.substring(firstBrace, lastBrace + 1).trim();
-      console.log('DialogueAgent - Extracted JSON:', jsonText.substring(0, 100) + '...');
-      
-      // Parse the JSON directly
-      const parsed = JSON.parse(jsonText);
+      if (!parsed) {
+        throw new Error("All JSON parsing strategies failed");
+      }
       
       // Map ui_action_hints to ui_actions with two-button pattern for frontend compatibility
       if (parsed.ui_action_hints && Array.isArray(parsed.ui_action_hints)) {
@@ -980,6 +989,133 @@ USER'S ORIGINAL QUESTION: ${finalInputText}`;
       console.error('DialogueAgent - Raw LLM response:', llmResult.result.text);
       throw new Error("LLM returned malformed JSON.");
     }
+  }
+
+  /**
+   * Clean JSON response using multiple strategies based on 2025 Gemini best practices
+   */
+  private cleanJsonResponse(rawText: string): string {
+    let cleaned = rawText;
+    
+    // Strategy 1: Remove markdown code fences
+    cleaned = cleaned.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+    
+    // Strategy 2: Remove common Gemini artifacts
+    cleaned = cleaned.replace(/Here is the JSON requested:\s*/gi, '');
+    cleaned = cleaned.replace(/Here's the JSON:\s*/gi, '');
+    cleaned = cleaned.replace(/Here is the response:\s*/gi, '');
+    
+    // Strategy 3: Handle responses that start with field names instead of JSON
+    if (cleaned.trim().startsWith('thought_process') && !cleaned.trim().startsWith('{')) {
+      // Wrap in JSON structure if it starts with a field name
+      cleaned = `{\n${cleaned}\n}`;
+    }
+    
+    // Strategy 4: Remove trailing content after JSON
+    const firstBrace = cleaned.indexOf('{');
+    const lastBrace = cleaned.lastIndexOf('}');
+    
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      // Extract only the JSON portion
+      cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+    }
+    
+    return cleaned.trim();
+  }
+
+  /**
+   * Try to parse JSON with multiple strategies
+   */
+  private tryParseJson(jsonText: string): any | null {
+    try {
+      // Strategy 1: Direct parsing
+      return JSON.parse(jsonText);
+    } catch (e) {
+      console.log('DialogueAgent - Direct JSON parsing failed:', e instanceof Error ? e.message : String(e));
+    }
+    
+    try {
+      // Strategy 2: Fix common JSON issues
+      let fixed = jsonText;
+      
+      // Fix unescaped quotes in strings
+      fixed = fixed.replace(/"([^"]*)"([^"]*)"([^"]*)":/g, '"$1\\"$2\\"$3":');
+      
+      // Fix missing quotes around field names
+      fixed = fixed.replace(/(\w+):/g, '"$1":');
+      
+      // Fix trailing commas
+      fixed = fixed.replace(/,(\s*[}\]])/g, '$1');
+      
+      return JSON.parse(fixed);
+    } catch (e) {
+      console.log('DialogueAgent - Fixed JSON parsing failed:', e instanceof Error ? e.message : String(e));
+    }
+    
+    return null;
+  }
+
+  /**
+   * Fallback parsing strategies for severely malformed responses
+   */
+  private tryFallbackParsing(rawText: string): any | null {
+    try {
+      // Strategy 1: Extract text content and wrap in minimal structure
+      if (rawText.includes('thought_process') || rawText.includes('direct_response_text')) {
+        console.log('DialogueAgent - Attempting fallback: extracting content from malformed response');
+        
+        // Extract direct_response_text if present
+        let directResponseText = '';
+        const directResponseMatch = rawText.match(/direct_response_text["\s]*:["\s]*([^"]*)/i);
+        if (directResponseMatch) {
+          directResponseText = directResponseMatch[1].trim();
+        } else {
+          // If no direct_response_text found, use the entire text as response
+          directResponseText = rawText.replace(/^(thought_process|response_plan|turn_context_package)[\s\S]*?:\s*/i, '').trim();
+        }
+        
+        return {
+          thought_process: "Fallback parsing: LLM response was malformed",
+          response_plan: {
+            decision: "respond_directly",
+            key_phrases_for_retrieval: null
+          },
+          turn_context_package: {
+            suggested_next_focus: "Continue conversation",
+            emotional_tone_to_adopt: "Supportive",
+            flags_for_ingestion: ["fallback_parsing"]
+          },
+          direct_response_text: directResponseText || "I apologize, but I encountered an issue processing your request. Could you please try rephrasing your question?",
+          ui_action_hints: [],
+          ui_actions: []
+        };
+      }
+      
+      // Strategy 2: If it's just plain text, wrap it properly
+      if (!rawText.includes('{') && !rawText.includes('}')) {
+        console.log('DialogueAgent - Attempting fallback: treating as plain text response');
+        return {
+          thought_process: "Plain text response detected",
+          response_plan: {
+            decision: "respond_directly",
+            key_phrases_for_retrieval: null
+          },
+          turn_context_package: {
+            suggested_next_focus: "Continue conversation",
+            emotional_tone_to_adopt: "Supportive",
+            flags_for_ingestion: ["plain_text_response"]
+          },
+          direct_response_text: rawText.trim(),
+          ui_action_hints: [],
+          ui_actions: []
+        };
+      }
+      
+    } catch (e) {
+      console.error('DialogueAgent - Fallback parsing failed:', e);
+    }
+    
+    return null;
   }
 
 

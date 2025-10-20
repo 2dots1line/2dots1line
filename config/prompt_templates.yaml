@@ -258,6 +258,14 @@ operational_config_section: |
      - turn_context_package (third)
      - ui_action_hints (fourth, optional - empty array [] if no suggestions)
      - direct_response_text (last - final field)
+  
+  **2025 GEMINI JSON BEST PRACTICES:**
+  - Start your response with { and end with }
+  - Do NOT include "Here is the JSON requested:" or similar text
+  - Do NOT include markdown code fences (```json)
+  - Ensure all field names are properly quoted
+  - Use proper JSON escaping for special characters
+  - Validate your JSON structure before responding
 
   AVOID FORMULAIC PATTERNS:
   ❌ "Oh, [name], that's [adjective]! [Paraphrase what user said]. [Question]"

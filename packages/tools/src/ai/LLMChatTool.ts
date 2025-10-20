@@ -309,10 +309,11 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
             maxOutputTokens: input.payload.maxTokens || 50000,
           };
           
-          // Only add JSON mode if grounding is NOT enabled
+          // Enhanced JSON mode configuration based on 2025 Gemini best practices
           if (!input.payload.enableGrounding && input.payload.enforceJsonMode !== false) {
+            // Use responseMimeType for JSON mode (responseSchema not supported in current Gemini API version)
             generationConfig.responseMimeType = 'application/json';
-            console.log(`📝 LLMChatTool: Using JSON mode`);
+            console.log(`📝 LLMChatTool: Using JSON mode with responseMimeType`);
           } else {
             console.log(`📝 LLMChatTool: Using PLAIN TEXT mode (grounding=${input.payload.enableGrounding})`);
           }
@@ -528,6 +529,8 @@ ${input.payload.systemPrompt}`;
                     const unescapedNewContent = contentToProcess
                       .replace(/\\"/g, '"')
                       .replace(/\\n/g, '\n')
+                      .replace(/\\r/g, '\r')
+                      .replace(/\\t/g, '\t')
                       .replace(/\\\\/g, '\\');
                     
                     if (unescapedNewContent.length > 0) {
@@ -536,6 +539,8 @@ ${input.payload.systemPrompt}`;
                       text = fullResponseText.substring(0, lastStreamedLength)
                         .replace(/\\"/g, '"')
                         .replace(/\\n/g, '\n')
+                        .replace(/\\r/g, '\r')
+                        .replace(/\\t/g, '\t')
                         .replace(/\\\\/g, '\\');
                       hasStreamedAnyContent = true;
                       
