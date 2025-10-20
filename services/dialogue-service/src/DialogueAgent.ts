@@ -217,11 +217,8 @@ USER'S ORIGINAL QUESTION: ${finalInputText}`;
           .replace(/\\\\/g, '\\');
       }
       
-      // Debug: Log the actual direct_response_text value
-      console.log(`[${executionId}] DEBUG: direct_response_text value:`, JSON.stringify(directResponseText));
-      console.log(`[${executionId}] DEBUG: direct_response_text type:`, typeof directResponseText);
-      console.log(`[${executionId}] DEBUG: direct_response_text is null:`, directResponseText === null);
-      console.log(`[${executionId}] DEBUG: direct_response_text is undefined:`, directResponseText === undefined);
+      // Log response text for monitoring
+      console.log(`[${executionId}] Response text length: ${directResponseText?.length || 0} characters`);
       
       // Include grounding metadata if present
       const metadata: any = {
@@ -280,6 +277,15 @@ USER'S ORIGINAL QUESTION: ${finalInputText}`;
         artifacts: augmentedContext.retrievedArtifacts?.length || 0,
         hasContext: !!augmentedContext
       });
+
+      // Check if memory retrieval returned meaningful results
+      const hasMemoryContent = (augmentedContext.retrievedMemoryUnits?.length || 0) > 0 || 
+                              (augmentedContext.retrievedConcepts?.length || 0) > 0 || 
+                              (augmentedContext.retrievedArtifacts?.length || 0) > 0;
+      
+      if (!hasMemoryContent) {
+        console.warn(`[${executionId}] ⚠️ Memory retrieval returned no meaningful results for key phrases:`, keyPhrases);
+      }
 
       // B. Make the second, context-aware LLM call with streaming
       console.log(`[${executionId}] 🤖 Making second LLM call with augmented memory context`);
@@ -438,6 +444,15 @@ USER'S ORIGINAL QUESTION: ${finalInputText}`;
         artifacts: augmentedContext.retrievedArtifacts?.length || 0,
         hasContext: !!augmentedContext
       });
+
+      // Check if memory retrieval returned meaningful results
+      const hasMemoryContent = (augmentedContext.retrievedMemoryUnits?.length || 0) > 0 || 
+                              (augmentedContext.retrievedConcepts?.length || 0) > 0 || 
+                              (augmentedContext.retrievedArtifacts?.length || 0) > 0;
+      
+      if (!hasMemoryContent) {
+        console.warn(`[${executionId}] ⚠️ Memory retrieval returned no meaningful results for key phrases:`, keyPhrases);
+      }
 
       // B. Make the second, context-aware LLM call
       console.log(`[${executionId}] 🤖 Making second LLM call with augmented memory context`);
@@ -887,6 +902,7 @@ USER'S ORIGINAL QUESTION: ${finalInputText}`;
     const rawText = llmResult.result.text;
     console.log('DialogueAgent - Raw LLM response:', rawText.substring(0, 200) + '...');
     
+    
     // GROUNDING MODE: Plain text response, wrap it in expected structure
     if (enableGrounding) {
       console.log('DialogueAgent - Grounding mode: wrapping plain text response');
@@ -1005,13 +1021,14 @@ USER'S ORIGINAL QUESTION: ${finalInputText}`;
     cleaned = cleaned.replace(/Here's the JSON:\s*/gi, '');
     cleaned = cleaned.replace(/Here is the response:\s*/gi, '');
     
-    // Strategy 3: Handle responses that start with field names instead of JSON
+    
+    // Strategy 4: Handle responses that start with field names instead of JSON
     if (cleaned.trim().startsWith('thought_process') && !cleaned.trim().startsWith('{')) {
       // Wrap in JSON structure if it starts with a field name
       cleaned = `{\n${cleaned}\n}`;
     }
     
-    // Strategy 4: Remove trailing content after JSON
+    // Strategy 5: Remove trailing content after JSON
     const firstBrace = cleaned.indexOf('{');
     const lastBrace = cleaned.lastIndexOf('}');
     
@@ -1060,40 +1077,9 @@ USER'S ORIGINAL QUESTION: ${finalInputText}`;
    */
   private tryFallbackParsing(rawText: string): any | null {
     try {
-      // Strategy 1: Extract text content and wrap in minimal structure
-      if (rawText.includes('thought_process') || rawText.includes('direct_response_text')) {
-        console.log('DialogueAgent - Attempting fallback: extracting content from malformed response');
-        
-        // Extract direct_response_text if present
-        let directResponseText = '';
-        const directResponseMatch = rawText.match(/direct_response_text["\s]*:["\s]*([^"]*)/i);
-        if (directResponseMatch) {
-          directResponseText = directResponseMatch[1].trim();
-        } else {
-          // If no direct_response_text found, use the entire text as response
-          directResponseText = rawText.replace(/^(thought_process|response_plan|turn_context_package)[\s\S]*?:\s*/i, '').trim();
-        }
-        
-        return {
-          thought_process: "Fallback parsing: LLM response was malformed",
-          response_plan: {
-            decision: "respond_directly",
-            key_phrases_for_retrieval: null
-          },
-          turn_context_package: {
-            suggested_next_focus: "Continue conversation",
-            emotional_tone_to_adopt: "Supportive",
-            flags_for_ingestion: ["fallback_parsing"]
-          },
-          direct_response_text: directResponseText || "I apologize, but I encountered an issue processing your request. Could you please try rephrasing your question?",
-          ui_action_hints: [],
-          ui_actions: []
-        };
-      }
-      
-      // Strategy 2: If it's just plain text, wrap it properly
+      // If it's just plain text, wrap it properly
       if (!rawText.includes('{') && !rawText.includes('}')) {
-        console.log('DialogueAgent - Attempting fallback: treating as plain text response');
+        console.log('DialogueAgent - Treating as plain text response');
         return {
           thought_process: "Plain text response detected",
           response_plan: {
@@ -1106,6 +1092,40 @@ USER'S ORIGINAL QUESTION: ${finalInputText}`;
             flags_for_ingestion: ["plain_text_response"]
           },
           direct_response_text: rawText.trim(),
+          ui_action_hints: [],
+          ui_actions: []
+        };
+      }
+
+      // For malformed JSON, this should rarely happen now since LLMChatTool
+      // returns structured responses for query_memory decisions
+      console.log('DialogueAgent - Malformed JSON detected, attempting basic extraction');
+      
+      // Try to extract the decision from the raw text
+      const decisionMatch = rawText.match(/"decision"\s*:\s*"([^"]*)"/);
+      if (decisionMatch) {
+        const extractedDecision = decisionMatch[1];
+        console.log(`DialogueAgent - Extracted decision from malformed JSON: ${extractedDecision}`);
+        
+        // If it's query_memory, this shouldn't happen with our fix, but handle gracefully
+        if (extractedDecision === "query_memory") {
+          console.warn('DialogueAgent - Unexpected: query_memory decision in malformed JSON (should be handled by LLMChatTool)');
+          return null; // Let the system handle it as query_memory
+        }
+        
+        // For respond_directly, provide minimal fallback
+        return {
+          thought_process: "Malformed JSON response detected",
+          response_plan: {
+            decision: extractedDecision,
+            key_phrases_for_retrieval: null
+          },
+          turn_context_package: {
+            suggested_next_focus: "Continue conversation",
+            emotional_tone_to_adopt: "Supportive",
+            flags_for_ingestion: ["malformed_json_fallback"]
+          },
+          direct_response_text: "I apologize, but I encountered an issue processing your request. Could you please try rephrasing your question?",
           ui_action_hints: [],
           ui_actions: []
         };

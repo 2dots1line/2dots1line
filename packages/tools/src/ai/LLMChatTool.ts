@@ -395,10 +395,15 @@ ${input.payload.systemPrompt}`;
                 const chunkText = chunk.text();
                 accumulatedText += chunkText;
                 
-                // Stream directly to frontend without JSON parsing
-                if (chunkText.length > 0) {
+                // Stream directly to frontend without JSON parsing, but filter out malformed content
+                if (chunkText.length > 0 && 
+                    chunkText.trim() !== 'null' && 
+                    chunkText.trim() !== 'null\n}' && 
+                    chunkText.trim() !== 'null}') {
                   input.payload.onChunk!(chunkText);
                   console.log(`🌊 LLMChatTool: ✅ Streamed grounding chunk (${chunkText.length} chars)`);
+                } else {
+                  console.log(`🌊 LLMChatTool: ⚠️ Filtered out malformed grounding chunk: "${chunkText}"`);
                 }
               }
               
@@ -415,6 +420,7 @@ ${input.payload.systemPrompt}`;
               let responsePlanStart = -1;
               let hasStreamedAnyContent = false;
               let isRespondDirectlyDecision = false;
+              let isQueryMemoryDecision = false;
               
               for await (const chunk of stream) {
                 const chunkText = chunk.text();
@@ -452,16 +458,25 @@ ${input.payload.systemPrompt}`;
                     const queryMemoryMatch = responsePlanSection.match(/"decision"\s*:\s*"query_memory"/);
                     if (queryMemoryMatch) {
                       console.log(`🌊 LLMChatTool: ⏭️ Detected "query_memory" decision - skipping streaming`);
+                      isQueryMemoryDecision = true; // Track this decision for structured response
                       // Send decision information to frontend before skipping
                       if (input.payload.onChunk) {
                         input.payload.onChunk('DECISION:query_memory');
                       }
                       continue; // Skip this chunk and all subsequent chunks for this response
+                    } else {
+                      // CRITICAL: If we can't parse the decision, prohibit streaming to prevent malformed JSON
+                      console.log(`🌊 LLMChatTool: ⚠️ Cannot parse decision from response - prohibiting streaming to prevent malformed content`);
+                      if (input.payload.onChunk) {
+                        input.payload.onChunk('DECISION:unknown');
+                      }
+                      continue; // Skip streaming for unparseable responses
                     }
                   }
                 }
                 
-                // Only proceed with streaming if we have a "respond_directly" decision
+                // CRITICAL: Only proceed with streaming if we have a confirmed "respond_directly" decision
+                // Prohibit streaming by default to prevent malformed JSON from being streamed
                 if (isRespondDirectlyDecision && !inDirectResponseText) {
                   // Look for direct_response_text field (now at the root level, not in response_plan)
                   const directResponseMatch = accumulatedText.match(/"direct_response_text"\s*:\s*"/);
@@ -544,9 +559,15 @@ ${input.payload.systemPrompt}`;
                         .replace(/\\\\/g, '\\');
                       hasStreamedAnyContent = true;
                       
-                      // Stream the new content to frontend
-                      input.payload.onChunk!(unescapedNewContent);
-                      console.log(`🌊 LLMChatTool: ✅ Streamed clean response chunk (${unescapedNewContent.length} chars): "${unescapedNewContent.substring(0, 100)}${unescapedNewContent.length > 100 ? '...' : ''}"`);
+                      // Stream the new content to frontend, but filter out obviously malformed content
+                      if (unescapedNewContent.trim() !== 'null' && 
+                          unescapedNewContent.trim() !== 'null\n}' && 
+                          unescapedNewContent.trim() !== 'null}') {
+                        input.payload.onChunk!(unescapedNewContent);
+                        console.log(`🌊 LLMChatTool: ✅ Streamed clean response chunk (${unescapedNewContent.length} chars): "${unescapedNewContent.substring(0, 100)}${unescapedNewContent.length > 100 ? '...' : ''}"`);
+                      } else {
+                        console.log(`🌊 LLMChatTool: ⚠️ Filtered out malformed content: "${unescapedNewContent}"`);
+                      }
                     }
                     
                     if (isEndOfResponse) {
@@ -586,7 +607,47 @@ ${input.payload.systemPrompt}`;
               
               // For streaming mode, we need to return the full accumulated text for parsing
               // The backend gets the complete JSON, frontend only got the clean direct_response_text
-              text = accumulatedText; // Use the full JSON for parsing
+              
+              // CRITICAL FIX: If we detected "query_memory" decision, return structured response
+              // instead of malformed JSON to prevent parsing errors
+              if (isQueryMemoryDecision) {
+                console.log(`🌊 LLMChatTool: 🔄 Returning structured response for query_memory decision`);
+                
+                // Extract key phrases from the accumulated text
+                let keyPhrases: string[] = [];
+                try {
+                  const keyPhrasesMatch = accumulatedText.match(/"key_phrases_for_retrieval"\s*:\s*\[(.*?)\]/s);
+                  if (keyPhrasesMatch) {
+                    const keyPhrasesText = keyPhrasesMatch[1];
+                    // Simple extraction of quoted strings
+                    const phraseMatches = keyPhrasesText.match(/"([^"]*)"/g);
+                    if (phraseMatches) {
+                      keyPhrases = phraseMatches.map(phrase => phrase.replace(/"/g, ''));
+                    }
+                  }
+                } catch (e) {
+                  console.warn('LLMChatTool: Failed to extract key phrases:', e);
+                }
+                
+                // Return structured response instead of malformed JSON
+                text = JSON.stringify({
+                  thought_process: "Memory retrieval requested by user",
+                  response_plan: {
+                    decision: "query_memory",
+                    key_phrases_for_retrieval: keyPhrases
+                  },
+                  turn_context_package: {
+                    suggested_next_focus: "Memory retrieval",
+                    emotional_tone_to_adopt: "Supportive",
+                    flags_for_ingestion: ["memory_retrieval_request"]
+                  },
+                  direct_response_text: null,
+                  ui_action_hints: [],
+                  ui_actions: []
+                });
+              } else {
+                text = accumulatedText; // Use the full JSON for parsing
+              }
             } // End of JSON mode else block
           } else {
             // Non-streaming mode (existing behavior)
