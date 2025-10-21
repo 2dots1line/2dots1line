@@ -6,7 +6,21 @@ export NEXT_PUBLIC_API_BASE_URL=http://34.136.210.47:3001
 export NEXT_PUBLIC_NOTIFICATION_SERVICE_URL=http://34.136.210.47:3002
 
 # Change to project root directory (where .next is located)
-cd /Users/danniwang/Documents/GitHub/202506062D1L/2D1L
+cd /home/danniwang/2D1L
+
+# CRITICAL: Clean up any existing Next.js processes before starting
+pkill -f "next-server" 2>/dev/null || true
+pkill -f "next start" 2>/dev/null || true
+
+# Kill any processes using port 3000
+sudo fuser -k 3000/tcp 2>/dev/null || true
+
+# Wait for cleanup
+sleep 2
 
 # Start the Next.js production server from the web-app directory
-cd apps/web-app && exec pnpm start
+cd apps/web-app
+
+# Use exec to replace the shell process with next start
+# This ensures PM2 can properly manage the process tree
+exec pnpm start

@@ -163,6 +163,9 @@ module.exports = {
       instances: 1,
       exec_mode: 'fork',
       watch: false,
+      kill_timeout: 10000, // Give more time for graceful shutdown
+      wait_ready: true, // Wait for the process to signal it's ready
+      listen_timeout: 10000, // Timeout for wait_ready
       ...baseConfig,
       env: {
         ...baseEnv,
