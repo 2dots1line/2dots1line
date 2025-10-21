@@ -38,7 +38,7 @@ const CapsulePill: React.FC<CapsulePillProps> = ({
       trackEvent({
         type: 'click',
         target: displayText,
-        targetType: 'web_source',
+        targetType: 'entity',
         view: variant === 'block' ? 'cosmos' : 'dashboard',
         metadata: { url, source: variant === 'block' ? 'seed_entities' : 'insight_worker' }
       });

@@ -5,8 +5,8 @@ const nextConfig = {
   
   webpack: (config, { dev }) => {
     if (dev) {
-      // Use faster source maps in development to avoid performance warnings
-      config.devtool = 'cheap-module-source-map';
+      // Disable source maps in development
+      config.devtool = false;
     }
     return config;
   },

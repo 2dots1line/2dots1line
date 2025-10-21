@@ -94,7 +94,7 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
     // Track navigation click for other views
     trackEvent({
       type: 'click',
-      target: viewId,
+      target: viewId || 'unknown',
       targetType: 'button',
       view: currentView,
       metadata: {

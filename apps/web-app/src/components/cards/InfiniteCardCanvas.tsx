@@ -1,6 +1,6 @@
 import { Shuffle } from 'lucide-react';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { useEngagementStore } from '../engagement/EngagementStore';
+import { useEngagementStore } from '../../stores/EngagementStore';
 
 import './InfiniteCardCanvas.css';
 

@@ -47,8 +47,7 @@ export const useNotificationConnection = () => {
           timeout: 20000,
           reconnection: true,
           reconnectionDelay: 1000,
-          reconnectionAttempts: 5,
-          maxReconnectionAttempts: 5
+          reconnectionAttempts: 5
         });
 
         socket.on('connect', () => {
@@ -64,15 +63,15 @@ export const useNotificationConnection = () => {
         socket.on('video_generation_complete', (data: any) => {
           console.log('[Socket.IO] Video generation complete:', data);
           addNotification({
-            type: 'success',
+            type: 'new_star_generated',
             title: '🎬 Video Ready!',
-            message: data.message || 'Your background video is ready!',
+            description: data.message || 'Your background video is ready!',
             duration: 8000,
+            userId: 'current-user', // TODO: Get actual user ID
             metadata: {
-              videoUrl: data.videoUrl,
-              viewContext: data.viewContext,
-              cost: data.cost,
-              model: data.model
+              starId: data.videoUrl,
+              starType: 'video',
+              cardId: data.viewContext
             }
           });
           
@@ -93,10 +92,11 @@ export const useNotificationConnection = () => {
         socket.on('video_generation_failed', (data: any) => {
           console.log('[Socket.IO] Video generation failed:', data);
           addNotification({
-            type: 'error',
+            type: 'new_star_generated',
             title: '❌ Video Generation Failed',
-            message: data.message || 'Video generation failed. Please try again.',
-            duration: 5000
+            description: data.message || 'Video generation failed. Please try again.',
+            duration: 5000,
+            userId: 'current-user' // TODO: Get actual user ID
           });
         });
 
@@ -130,9 +130,9 @@ export const useNotificationConnection = () => {
         isRead: false,
         userId: user.user_id,
         metadata: {
-          cycleId: data.cycleId,
-          totalEntitiesCreated: data.totalEntitiesCreated,
-          processingDurationMs: data.processingDurationMs
+          starId: data.cycleId,
+          starType: 'insight',
+          cardId: data.totalEntitiesCreated
         }
       };
       
@@ -200,10 +200,9 @@ export const useNotificationConnection = () => {
                 isRead: false,
                 userId: user.user_id,
                 metadata: {
-                  newCards: data.newCards || 0,
-                  graphUpdates: data.graphUpdates || 0,
-                  insights: data.insights || 0,
-                  isConsolidated: true
+                  starId: data.newCards?.toString(),
+                  starType: 'consolidated',
+                  cardId: data.graphUpdates?.toString()
                 }
               };
 
@@ -213,13 +212,13 @@ export const useNotificationConnection = () => {
             }
             
             // Handle individual notifications
-            const typeMap: Record<string, 'new_star_generated' | 'new_card_available' | 'graph_projection_updated' | 'coordinates_updated'> = {
+            const typeMap: Record<string, 'new_star_generated' | 'new_card_available' | 'graph_projection_updated'> = {
               new_star: 'new_star_generated',
               new_card: 'new_card_available',
               new_card_available: 'new_card_available',
               graph_updated: 'graph_projection_updated',
               graph_projection_updated: 'graph_projection_updated',
-              coordinates_updated: 'coordinates_updated'
+              coordinates_updated: 'graph_projection_updated'
             };
 
             const mappedType = typeMap[data.type] || data.type;
@@ -231,7 +230,7 @@ export const useNotificationConnection = () => {
             if (!title && mappedType === 'graph_projection_updated') {
               title = 'Graph projection updated';
               description = `Nodes: ${data.nodeCount ?? '—'}, Edges: ${data.edgeCount ?? '—'}`;
-            } else if (!title && mappedType === 'coordinates_updated') {
+            } else if (!title && data.type === 'coordinates_updated') {
               title = '3D coordinates updated';
               description = `Updated coordinates for ${data.coordinateUpdate?.nodeCount ?? '—'} nodes using ${data.coordinateUpdate?.method ?? 'hybrid UMAP'}`;
             }
@@ -260,7 +259,7 @@ export const useNotificationConnection = () => {
             }
 
             // Special handling for coordinates_updated - trigger Cosmos refresh
-            if (mappedType === 'coordinates_updated') {
+            if (data.type === 'coordinates_updated') {
               console.log('[Socket.IO] 🌌 Coordinates updated, triggering Cosmos refresh');
               // Dispatch custom event for Cosmos to listen to
               window.dispatchEvent(new CustomEvent('cosmos-coordinates-updated', {

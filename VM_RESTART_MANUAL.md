@@ -234,14 +234,16 @@ gcloud compute ssh twodots-vm --zone=us-central1-a --command="cd ~/2D1L && git f
 
 1. **CRITICAL: Use git fetch + pull**: Simple `git pull` sometimes fails to fetch latest changes. Always use `git fetch origin && git pull origin compute-engine-deployment`
 2. **CRITICAL: Use fuser for port cleanup**: `sudo fuser -k 3000/tcp` is essential for killing zombie processes that `lsof` and `pkill` miss
-3. **Install Dependencies**: Run `pnpm install` after pulling new code
-4. **Build All Packages**: Run `pnpm build` from project root first
-5. **Build Location Matters**: Next.js must build from `apps/web-app` directory, not project root
-6. **Complete Cleanup First**: Always kill all processes before starting fresh - use BOTH fuser AND lsof methods
-7. **Sequential Startup**: Docker → Build → PM2 → Verify
-8. **Verify Everything**: Don't assume success, test each component
-9. **Check Git Status**: Always verify `git status` and `git log --oneline -3` to confirm changes were pulled
-10. **Web-App Crash Prevention**: The combination of `fuser -k` + `lsof` + `pkill` prevents the web-app crash loop
+3. **CRITICAL: Check IP Address Changes**: When Google Cloud restarts your VM (memory changes, machine type changes, etc.), it may assign a NEW external IP address. This will break your domain if DNS isn't updated.
+4. **DNS Update Required**: If your external IP changes, you MUST update your Cloudflare DNS A records to point to the new IP address
+5. **Install Dependencies**: Run `pnpm install` after pulling new code
+6. **Build All Packages**: Run `pnpm build` from project root first
+7. **Build Location Matters**: Next.js must build from `apps/web-app` directory, not project root
+8. **Complete Cleanup First**: Always kill all processes before starting fresh - use BOTH fuser AND lsof methods
+9. **Sequential Startup**: Docker → Build → PM2 → Verify
+10. **Verify Everything**: Don't assume success, test each component
+11. **Check Git Status**: Always verify `git status` and `git log --oneline -3` to confirm changes were pulled
+12. **Web-App Crash Prevention**: The combination of `fuser -k` + `lsof` + `pkill` prevents the web-app crash loop
 
 ---
 
@@ -309,6 +311,24 @@ pm2 start scripts/deployment/start-nextjs-direct.js --name web-app
 # Or manually clean and restart
 sudo fuser -k 3000/tcp
 pm2 restart web-app
+```
+
+### If Login Fails After VM Restart (IP Address Change):
+```bash
+# Check current external IP
+curl -s ifconfig.me
+
+# Check what your domain resolves to
+nslookup 2d1l.com
+
+# If IPs don't match, update Cloudflare DNS:
+# 1. Go to Cloudflare Dashboard → DNS → Records
+# 2. Update A record for 2d1l.com to new IP
+# 3. Update A record for www to new IP
+# 4. Ensure both records are "Proxied" (orange cloud)
+
+# Verify DNS propagation (may take a few minutes)
+nslookup 2d1l.com
 ```
 
 ---

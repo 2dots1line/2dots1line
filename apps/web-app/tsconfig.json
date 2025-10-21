@@ -8,11 +8,13 @@
     "strict": true,
     "noEmit": true,
     "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "module": "esnext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
+    "jsxImportSource": "react",
     "incremental": true,
     "plugins": [
       {
@@ -20,7 +22,14 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@2dots1line/shared-types": ["../../packages/shared-types/src"],
+      "@2dots1line/database": ["../../packages/database/src"],
+      "@2dots1line/ai-clients": ["../../packages/ai-clients/src"],
+      "@2dots1line/core-utils": ["../../packages/core-utils/dist"],
+      "@2dots1line/tool-registry": ["../../packages/tool-registry/src"],
+      "@2dots1line/tools": ["../../packages/tools/src"],
+      "@2dots1line/ui-components": ["../../packages/ui-components/src"]
     },
     "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
   },

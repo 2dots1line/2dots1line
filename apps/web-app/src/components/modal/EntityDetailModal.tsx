@@ -80,7 +80,7 @@ export const EntityDetailModal: React.FC<EntityDetailModalProps> = ({
   const entityType = isCard ? currentEntity.source_entity_type : currentEntity?.entity_type || currentEntity?.type;
 
   // Get background image URL - prioritize entityDetails if available (for fresh data after generation)
-  const backgroundImageUrl = entityDetails?.metadata?.background_image_url || currentEntity?.background_image_url || null;
+  const backgroundImageUrl = (entityDetails?.metadata as any)?.background_image_url || (currentEntity as any)?.background_image_url || null;
 
   const handleRefresh = async () => {
     await refetch();

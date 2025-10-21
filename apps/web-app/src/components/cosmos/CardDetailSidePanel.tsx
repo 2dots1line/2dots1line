@@ -230,11 +230,11 @@ export const CardDetailSidePanel: React.FC<CardDetailSidePanelProps> = ({
                     )}
                   </div>
 
-                  {cardData.description && (
+                  {cardData.content && (
                     <div>
                       <h4 className="text-sm font-medium text-white/80 mb-2">Description</h4>
                       <p className="text-sm text-white/70 leading-relaxed">
-                        {cardData.description}
+                        {cardData.content}
                       </p>
                     </div>
                   )}
@@ -243,7 +243,7 @@ export const CardDetailSidePanel: React.FC<CardDetailSidePanelProps> = ({
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
                       <span className="text-white/60">Type:</span>
-                      <span className="text-white ml-2">{cardData.card_type}</span>
+                      <span className="text-white ml-2">{cardData.entity_type}</span>
                     </div>
                     <div>
                       <span className="text-white/60">Status:</span>

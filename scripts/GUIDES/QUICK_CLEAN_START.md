@@ -104,7 +104,7 @@ pm2 start ecosystem.config.js
 # Start frontend development server
 cd apps/web-app && pnpm dev &
 cd ../..
-
+curl -s http://localhost:3000 | grep -o "page\.css[^\"]*" | head -3
 # Start Prisma Studio
 npx prisma studio --schema=./packages/database/prisma/schema.prisma
 ```

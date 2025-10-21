@@ -41,7 +41,7 @@ class NodeCardMappingService {
         this.mappingCache.set(node.id, {
           nodeId: node.id,
           cardId: directCard.card_id,
-          cardType: directCard.card_type,
+          cardType: directCard.entity_type,
           confidence: 1.0
         });
         return directCard.card_id;
@@ -54,7 +54,7 @@ class NodeCardMappingService {
           this.mappingCache.set(node.id, {
             nodeId: node.id,
             cardId: titleCard.card_id,
-            cardType: titleCard.card_type,
+            cardType: titleCard.entity_type,
             confidence: 0.8
           });
           return titleCard.card_id;
@@ -68,7 +68,7 @@ class NodeCardMappingService {
           this.mappingCache.set(node.id, {
             nodeId: node.id,
             cardId: contentCard.card_id,
-            cardType: contentCard.card_type,
+            cardType: contentCard.entity_type,
             confidence: 0.6
           });
           return contentCard.card_id;
@@ -169,7 +169,7 @@ class NodeCardMappingService {
       
       // Find card with similar content
       const contentMatch = cards.find(card => 
-        card.description?.toLowerCase().includes(content.toLowerCase()) ||
+        card.content?.toLowerCase().includes(content.toLowerCase()) ||
         card.title?.toLowerCase().includes(content.toLowerCase())
       );
       

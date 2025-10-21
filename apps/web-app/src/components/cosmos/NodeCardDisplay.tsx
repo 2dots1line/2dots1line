@@ -33,8 +33,8 @@ export const NodeCardDisplay: React.FC<NodeCardDisplayProps> = ({
 
   // Fallback to node data if card is not available
   const displayTitle = card?.title || node?.properties?.title || node?.name || 'Untitled Node';
-  const displayContent = card?.description || node?.properties?.content || 'No description available';
-  const displayType = card?.card_type || node?.properties?.type || 'Unknown';
+  const displayContent = card?.content || node?.properties?.content || 'No description available';
+  const displayType = card?.entity_type || node?.properties?.type || 'Unknown';
   const displayStatus = card?.status || 'active';
   const displayCreatedAt = card?.created_at || node?.properties?.metadata?.createdAt;
   const displayImportance = node?.properties?.importance || 0.5;

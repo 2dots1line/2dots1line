@@ -49,7 +49,7 @@ export const CardModal: React.FC<CardModalProps> = ({
           {/* Header */}
           <div className="card-modal-header">
             <h2 className="card-modal-title">
-              {typeof selectedCard.display_data?.title === 'string' ? selectedCard.display_data.title : (typeof selectedCard.card_type === 'string' ? selectedCard.card_type.replace(/_/g, ' ') : 'Card Details')}
+              {selectedCard.title || selectedCard.entity_type?.replace(/_/g, ' ') || 'Card Details'}
             </h2>
             <GlassButton
               onClick={handleClose}
@@ -64,14 +64,14 @@ export const CardModal: React.FC<CardModalProps> = ({
             {/* Card Type */}
             <div className="card-modal-section">
               <div className="card-modal-label">Type</div>
-              <div className="card-modal-value">{typeof selectedCard.card_type === 'string' ? selectedCard.card_type.replace(/_/g, ' ') : 'Unknown'}</div>
+              <div className="card-modal-value">{selectedCard.entity_type?.replace(/_/g, ' ') || 'Unknown'}</div>
             </div>
             
             {/* Card Description */}
-            {typeof selectedCard.display_data?.preview === 'string' && (
+            {selectedCard.content && (
               <div className="card-modal-section">
                 <div className="card-modal-label">Description</div>
-                <div className="card-modal-value">{selectedCard.display_data.preview}</div>
+                <div className="card-modal-value">{selectedCard.content}</div>
               </div>
             )}
             
