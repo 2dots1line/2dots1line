@@ -230,20 +230,148 @@ gcloud compute ssh twodots-vm --zone=us-central1-a --command="cd ~/2D1L && git f
 
 ---
 
+## **VM Configuration Changes & IP Management**
+
+### **When VM Configuration Changes (Machine Type, Memory, etc.)**
+
+**⚠️ CRITICAL:** VM configuration changes (machine type, memory, disk size) will cause Google Cloud to assign a NEW external IP address. This breaks your domain and requires immediate updates.
+
+#### **Step 1: Check Current VM Configuration**
+```bash
+# Check current machine type and IP
+gcloud compute instances describe twodots-vm --zone=us-central1-a --format="table(name,machineType.basename(),status,networkInterfaces[0].accessConfigs[0].natIP)"
+
+# Check current costs and usage
+gcloud compute instances describe twodots-vm --zone=us-central1-a --format="table(name,machineType.basename(),status,creationTimestamp,lastStartTimestamp)"
+```
+
+#### **Step 2: Update VM Configuration (If Needed)**
+```bash
+# Stop VM before making changes
+gcloud compute instances stop twodots-vm --zone=us-central1-a
+
+# Change machine type (example: reduce from 4 vCPUs to 2 vCPUs)
+gcloud compute instances set-machine-type twodots-vm --zone=us-central1-a --machine-type=e2-standard-2
+
+# Start VM (will get new IP)
+gcloud compute instances start twodots-vm --zone=us-central1-a
+```
+
+#### **Step 3: Get New IP Address**
+```bash
+# Get the new external IP
+gcloud compute instances describe twodots-vm --zone=us-central1-a --format="value(networkInterfaces[0].accessConfigs[0].natIP)"
+```
+
+#### **Step 4: Update Environment Files on VM**
+```bash
+# SSH into VM
+gcloud compute ssh twodots-vm --zone=us-central1-a
+
+# Update main environment file
+cd ~/2D1L
+sed -i 's/OLD_IP_ADDRESS/NEW_IP_ADDRESS/g' .env
+
+# Update web-app environment file
+cd apps/web-app
+sed -i 's/OLD_IP_ADDRESS/NEW_IP_ADDRESS/g' .env
+cd ../..
+
+# Restart PM2 services to pick up new environment variables
+pm2 restart all
+```
+
+#### **Step 5: Update DNS Records**
+```bash
+# Check current DNS resolution
+nslookup 2d1l.com
+
+# Update Cloudflare DNS:
+# 1. Go to Cloudflare Dashboard → DNS → Records
+# 2. Update A record for 2d1l.com to new IP
+# 3. Update A record for www to new IP
+# 4. Ensure both records are "Proxied" (orange cloud)
+
+# Verify DNS propagation (may take a few minutes)
+nslookup 2d1l.com
+```
+
+#### **Step 6: Test Services with New IP**
+```bash
+# Test API health
+curl -s http://NEW_IP_ADDRESS:3001/api/v1/health
+
+# Test frontend
+curl -s http://NEW_IP_ADDRESS:3000 | head -3
+
+# Test from external (if DNS updated)
+curl -s https://2d1l.com/api/v1/health
+```
+
+---
+
+## **Cost Monitoring & VM Optimization**
+
+### **Check Current VM Costs**
+```bash
+# Get current machine type and estimated costs
+gcloud compute instances describe twodots-vm --zone=us-central1-a --format="table(name,machineType.basename(),status,creationTimestamp)"
+
+# Check current resource usage
+gcloud compute ssh twodots-vm --zone=us-central1-a --command="top -bn1 | head -10"
+
+# Check memory usage
+gcloud compute ssh twodots-vm --zone=us-central1-a --command="free -h"
+
+# Check PM2 process resource usage
+gcloud compute ssh twodots-vm --zone=us-central1-a --command="pm2 status"
+```
+
+### **Cost Optimization Commands**
+```bash
+# Check if you can reduce machine type
+gcloud compute ssh twodots-vm --zone=us-central1-a --command="top -bn1 | head -5"
+
+# If CPU usage is consistently low (<50%), consider reducing vCPUs
+# Example: e2-standard-4 (4 vCPU, 16GB) → e2-standard-2 (2 vCPU, 8GB)
+# This can save ~$27/month (49% reduction)
+
+# Check Docker container resource usage
+gcloud compute ssh twodots-vm --zone=us-central1-a --command="docker stats --no-stream"
+```
+
+### **VM Performance Monitoring**
+```bash
+# Check load average and CPU usage
+gcloud compute ssh twodots-vm --zone=us-central1-a --command="uptime && top -bn1 | head -5"
+
+# Check disk usage
+gcloud compute ssh twodots-vm --zone=us-central1-a --command="df -h"
+
+# Check network usage
+gcloud compute ssh twodots-vm --zone=us-central1-a --command="netstat -i"
+```
+
+---
+
 ## **Key Lessons Learned**
 
 1. **CRITICAL: Use git fetch + pull**: Simple `git pull` sometimes fails to fetch latest changes. Always use `git fetch origin && git pull origin compute-engine-deployment`
 2. **CRITICAL: Use fuser for port cleanup**: `sudo fuser -k 3000/tcp` is essential for killing zombie processes that `lsof` and `pkill` miss
 3. **CRITICAL: Check IP Address Changes**: When Google Cloud restarts your VM (memory changes, machine type changes, etc.), it may assign a NEW external IP address. This will break your domain if DNS isn't updated.
 4. **DNS Update Required**: If your external IP changes, you MUST update your Cloudflare DNS A records to point to the new IP address
-5. **Install Dependencies**: Run `pnpm install` after pulling new code
-6. **Build All Packages**: Run `pnpm build` from project root first
-7. **Build Location Matters**: Next.js must build from `apps/web-app` directory, not project root
-8. **Complete Cleanup First**: Always kill all processes before starting fresh - use BOTH fuser AND lsof methods
-9. **Sequential Startup**: Docker → Build → PM2 → Verify
-10. **Verify Everything**: Don't assume success, test each component
-11. **Check Git Status**: Always verify `git status` and `git log --oneline -3` to confirm changes were pulled
-12. **Web-App Crash Prevention**: The combination of `fuser -k` + `lsof` + `pkill` prevents the web-app crash loop
+5. **Environment File Updates**: Always update both `~/2D1L/.env` and `~/2D1L/apps/web-app/.env` with new IP addresses
+6. **PM2 Restart Required**: After IP changes, restart PM2 services to pick up new environment variables
+7. **Install Dependencies**: Run `pnpm install` after pulling new code
+8. **Build All Packages**: Run `pnpm build` from project root first
+9. **Build Location Matters**: Next.js must build from `apps/web-app` directory, not project root
+10. **Complete Cleanup First**: Always kill all processes before starting fresh - use BOTH fuser AND lsof methods
+11. **Sequential Startup**: Docker → Build → PM2 → Verify
+12. **Verify Everything**: Don't assume success, test each component
+13. **Check Git Status**: Always verify `git status` and `git log --oneline -3` to confirm changes were pulled
+14. **Web-App Crash Prevention**: The combination of `fuser -k` + `lsof` + `pkill` prevents the web-app crash loop
+15. **Cost Optimization**: Monitor CPU usage - if consistently low, consider reducing machine type for significant savings
+16. **IP Change Workflow**: VM config change → Get new IP → Update env files → Update DNS → Test services
 
 ---
 
@@ -343,10 +471,58 @@ nslookup 2d1l.com
 
 ---
 
-**Last Updated:** October 20, 2025  
-**Tested On:** VM deployment with capsule implementation, git sync fix, and web-app crash prevention  
+---
+
+## **Quick Reference Commands**
+
+### **VM Status & Configuration**
+```bash
+# Check VM status and IP
+gcloud compute instances describe twodots-vm --zone=us-central1-a --format="table(name,machineType.basename(),status,networkInterfaces[0].accessConfigs[0].natIP)"
+
+# Get current external IP
+gcloud compute instances describe twodots-vm --zone=us-central1-a --format="value(networkInterfaces[0].accessConfigs[0].natIP)"
+
+# Check VM resource usage
+gcloud compute ssh twodots-vm --zone=us-central1-a --command="top -bn1 | head -5 && free -h"
+```
+
+### **Cost Monitoring**
+```bash
+# Check current machine type and costs
+gcloud compute instances describe twodots-vm --zone=us-central1-a --format="table(name,machineType.basename(),status,creationTimestamp)"
+
+# Check resource usage for optimization
+gcloud compute ssh twodots-vm --zone=us-central1-a --command="pm2 status && docker stats --no-stream"
+```
+
+### **IP Address Management**
+```bash
+# Update IP in environment files (replace OLD_IP with NEW_IP)
+gcloud compute ssh twodots-vm --zone=us-central1-a --command="cd ~/2D1L && sed -i 's/OLD_IP/NEW_IP/g' .env && sed -i 's/OLD_IP/NEW_IP/g' apps/web-app/.env && pm2 restart all"
+
+# Test services with new IP
+curl -s http://NEW_IP:3001/api/v1/health
+curl -s http://NEW_IP:3000 | head -3
+```
+
+### **DNS Verification**
+```bash
+# Check current DNS resolution
+nslookup 2d1l.com
+
+# Test external access
+curl -s https://2d1l.com/api/v1/health
+```
+
+---
+
+**Last Updated:** October 21, 2025  
+**Tested On:** VM deployment with capsule implementation, git sync fix, web-app crash prevention, and VM configuration changes  
 **Status:** ✅ Proven to work consistently  
 **Critical Fixes:** 
 - Added `git fetch origin` before `git pull` to prevent sync issues
 - Added `sudo fuser -k 3000/tcp` to prevent web-app crash loops
 - Combined multiple cleanup methods for bulletproof port clearing
+- Added VM configuration change workflow with IP address management
+- Added cost monitoring and optimization commands
