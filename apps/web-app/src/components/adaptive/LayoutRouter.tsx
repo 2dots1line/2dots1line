@@ -6,7 +6,6 @@ import { useHUDStore } from '../../stores/HUDStore';
 import DesktopLayout from '../layouts/DesktopLayout';
 import { MobilePreviewToggle } from '../dev/MobilePreviewToggle';
 import { MobileHUDContainer } from '../hud/MobileHUDContainer';
-import { MobileChatOverlay } from '../chat/MobileChatOverlay';
 import { MobileChatView } from '../chat/MobileChatView';
 
 export const LayoutRouter: React.FC = () => {
@@ -72,13 +71,6 @@ export const LayoutRouter: React.FC = () => {
                 {/* Mobile HUD - replaces desktop HUD */}
                 <MobileHUDContainer />
                 
-                {/* Mobile Chat Overlay - for Cards/Cosmos views */}
-                {activeView === 'cards' || activeView === 'cosmos' ? (
-                  <MobileChatOverlay 
-                    isOpen={true} // Always open on mobile for these views
-                    onClose={() => {}}
-                  />
-                ) : null}
                 
                 {/* Mobile Chat View - for dedicated chat view */}
                 {activeView === 'chat' && (

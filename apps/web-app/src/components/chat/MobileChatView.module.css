@@ -98,3 +98,21 @@
 .mobileChatContainer :global(.flex.gap-2.items-center) {
   margin-bottom: 20px !important; /* Minimal space above mobile HUD */
 }
+
+/* Allow agent messages to use more width on mobile */
+.mobileChatContainer :global(.justify-start .max-w-\[70\%\]) {
+  max-width: 85% !important; /* Allow agent messages to use 90% width instead of 70% */
+}
+
+/* Ensure user messages still stay compact on the right */
+.mobileChatContainer :global(.justify-end .max-w-\[70\%\]) {
+  max-width: 70% !important; /* Keep user messages at 70% for balance */
+}
+
+/* Ensure the wider agent messages still have proper glassmorphic styling */
+.mobileChatContainer :global(.justify-start .max-w-\[70\%\] .glass-panel) {
+  background-color: rgba(var(--sys-color-glass-background-rgb), 0.25) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(var(--sys-color-glass-border-rgb), 0.2) !important;
+}

@@ -44,6 +44,7 @@ interface CardTileProps {
   style?: React.CSSProperties; // Support for absolute positioning in infinite grid
   optimizeForInfiniteGrid?: boolean; // Performance optimizations for infinite grid
   useResponsiveSizing?: boolean; // Use responsive breakpoints instead of fixed sizes
+  mobileMode?: boolean; // Apple-style mobile layout with title underneath
 }
 
 export const CardTile: React.FC<CardTileProps> = ({
@@ -63,6 +64,7 @@ export const CardTile: React.FC<CardTileProps> = ({
   style, // Positioning styles for infinite grid
   optimizeForInfiniteGrid = false, // Performance optimization flag
   useResponsiveSizing = false, // Use responsive breakpoints instead of fixed sizes
+  mobileMode = false, // Apple-style mobile layout with title underneath
 }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -116,6 +118,58 @@ export const CardTile: React.FC<CardTileProps> = ({
     return 'hover:scale-[1.03]';
   };
   
+  // Mobile mode: Apple-style layout with title underneath
+  if (mobileMode) {
+    return (
+      <div className={cn('flex flex-col items-center', className)}>
+        {/* Card icon - square like iOS app icons */}
+        <div
+          ref={cardRef}
+          className={cn(
+            'card-tile',
+            'relative rounded-2xl overflow-hidden ring-1 ring-white/10 bg-white/5 backdrop-blur-md transition-all duration-300 ease-out',
+            'w-16 h-16', // Fixed size for mobile (64px like iOS icons)
+            isSelected && 'ring-2 ring-primary ring-offset-2 ring-offset-transparent',
+            isHovered && 'scale-105 z-10',
+            'active:scale-95' // iOS-style press animation
+          )}
+          style={style}
+          onClick={(e) => handleCardClick(card, e)}
+          onMouseEnter={(e) => handleCardHover(card, e)}
+          onMouseLeave={handleCardHoverEnd}
+        >
+          {/* Background image */}
+          {card.background_image_url ? (
+            <img
+              src={card.background_image_url}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover"
+              onLoad={handleImageLoad}
+              onError={handleImageError}
+            />
+          ) : (
+            <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-white/5" />
+          )}
+          
+          {/* Loading overlay */}
+          {isCardLoading(card.card_id) && (
+            <div className="absolute inset-0 bg-black/20 flex items-center justify-center rounded-xl">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            </div>
+          )}
+        </div>
+        
+        {/* Title underneath - Apple style */}
+        <div className="mt-1 text-center">
+          <div className="text-xs text-white/90 font-medium truncate max-w-[60px] leading-tight">
+            {displayTitle}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Desktop mode: Original layout
   return (
     <div
       ref={cardRef}

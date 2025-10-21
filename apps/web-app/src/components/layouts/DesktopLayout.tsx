@@ -617,8 +617,8 @@ function DesktopLayout() {
             </div>
           ) : (
             <>
-              {/* Manual-only toolbar for Cards view */}
-              <div className="fixed z-40 top-4 left-4">
+              {/* Manual-only toolbar for Cards view - Hidden on mobile */}
+              <div className="fixed z-40 top-4 left-4 hidden md:block">
                 <GlassmorphicPanel variant="glass-panel" rounded="lg" padding="sm">
                   <div className="flex items-center gap-3">
                     {/* removed: <span ref={anchorElRef} style={{ display: 'inline-block', width: 0, height: 0 }} /> */}
@@ -723,9 +723,9 @@ function DesktopLayout() {
                     <div className="flex flex-wrap justify-center
                                     gap-[48px]
                                     max-[1600px]:gap-[43px]
-                                    max-[1200px]:gap_[37px]
-                                    max-[768px]:gap_[32px]
-                                    max-[480px]:gap_[27px]">
+                                    max-[1200px]:gap-[37px]
+                                    max-[768px]:gap-[32px]
+                                    max-[480px]:gap-[27px]">
                       {visibleCards.map((card: any, idx: number) => (
                         <CardTile
                           key={String(card.card_id ?? card.id ?? idx)}
