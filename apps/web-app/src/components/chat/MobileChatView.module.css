@@ -8,20 +8,31 @@
   box-shadow: none !important;
 }
 
-/* Target the main GlassmorphicPanel container (the big background panel) */
-.mobileChatContainer :global(.glass-panel) {
+/* Target ONLY the main GlassmorphicPanel container (the big background panel) */
+/* We need to be very specific to avoid affecting message bubbles and input area */
+.mobileChatContainer > :global(.glass-panel.rounded-xl) {
   background: transparent !important;
   backdrop-filter: none !important;
   border: none !important;
   box-shadow: none !important;
 }
 
-/* More specific targeting for the main chat container */
-.mobileChatContainer :global(.glass-panel.rounded-xl) {
-  background: transparent !important;
-  backdrop-filter: none !important;
-  border: none !important;
-  box-shadow: none !important;
+/* Ensure message bubbles keep their glassmorphic styling */
+.mobileChatContainer :global(.space-y-4 .glass-panel),
+.mobileChatContainer :global(.max-w-\[70\%\] .glass-panel) {
+  background-color: rgba(var(--sys-color-glass-background-rgb), 0.25) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(var(--sys-color-glass-border-rgb), 0.2) !important;
+}
+
+/* Ensure input area keeps its glassmorphic styling */
+.mobileChatContainer :global(.border-t.border-white\/20 .glass-panel),
+.mobileChatContainer :global(.flex.flex-col.gap-3.glass-panel) {
+  background-color: rgba(var(--sys-color-glass-background-rgb), 0.25) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(var(--sys-color-glass-border-rgb), 0.2) !important;
 }
 
 /* Remove header completely (Layer 3) */
