@@ -13,6 +13,7 @@ node_modules
 # If you have build outputs you don't want in the context (though multi-stage builds handle this better)
 dist
 archive/
+deploy
 # .next
 # coverage
 postgres_data/
@@ -20,3 +21,6 @@ neo4j_data/
 weaviate_data/
 redis_data/
 apps/archive/
+DevLog/
+docs/
+3d-assets/

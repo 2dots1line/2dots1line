@@ -1,0 +1,30 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      [
+        'build',
+        '-f', 'Dockerfile',
+        '-t', 'us-east1-docker.pkg.dev/gen-lang-client-0355191808/cloud-run-source-deploy/api-gateway',
+        '--build-arg', 'APP_NAME=api-gateway',
+        '.'
+      ]
+  - name: 'gcr.io/cloud-builders/docker'
+    id: build-web-app
+    args:
+      [
+        'build',
+        '-f',
+        'Dockerfile.web.dev',
+        '-t',
+        'us-east1-docker.pkg.dev/gen-lang-client-0355191808/cloud-run-source-deploy/web-app:latest',
+        '.',
+      ]
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      [
+        'push',
+        'us-east1-docker.pkg.dev/gen-lang-client-0355191808/cloud-run-source-deploy/web-app:latest',
+      ]
+images:
+  - 'us-east1-docker.pkg.dev/gen-lang-client-0355191808/cloud-run-source-deploy/api-gateway'
+  - 'us-east1-docker.pkg.dev/gen-lang-client-0355191808/cloud-run-source-deploy/web-app:latest'

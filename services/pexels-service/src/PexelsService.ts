@@ -21,24 +21,19 @@ export class PexelsService {
   };
 
   constructor(config?: Partial<PexelsServiceConfig>) {
-    this.apiKey = config?.apiKey || environmentLoader.get('PEXELS_API_KEY') || '';
-    this.baseUrl = config?.baseUrl || 'https://api.pexels.com/v1';
-    this.rateLimit = config?.rateLimit || {
-      requestsPerHour: 200,
-      requestsPerMinute: 10
-    };
-
-    if (!this.apiKey) {
+    const apiKey = process.env.PEXELS_API_KEY ?? environmentLoader.get('PEXELS_API_KEY');
+    if (!apiKey) {
       throw new Error('Pexels API key is required. Set PEXELS_API_KEY environment variable.');
     }
 
+    this.apiKey = apiKey;
+    this.baseUrl = config?.baseUrl ?? 'https://api.pexels.com/v1';
+    this.rateLimit = config?.rateLimit ?? { requestsPerHour: 200, requestsPerMinute: 60 };
     this.client = axios.create({
       baseURL: this.baseUrl,
       headers: {
-        'Authorization': this.apiKey,
-        'Content-Type': 'application/json'
-      },
-      timeout: 10000
+        Authorization: this.apiKey
+      }
     });
   }
 

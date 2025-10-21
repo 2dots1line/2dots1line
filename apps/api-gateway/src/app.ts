@@ -30,11 +30,22 @@ import { MediaController } from './controllers/media.controller';
 
 async function createApp(): Promise<express.Application> {
   const app: express.Application = express();
-  app.use(cors({
-    origin: 'http://localhost:3000',
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control']
-  }));
+  const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+          return callback(null, true);
+        }
+        return callback(new Error('Not allowed by CORS'), false);
+      },
+      credentials: true,
+    })
+  );
+  
+  app.get('/health', (_req, res) => {
+    res.status(200).json({ status: 'ok' });
+  });
   app.use(express.json());
 
   // --- COMPOSITION ROOT ---
@@ -99,4 +110,4 @@ async function createApp(): Promise<express.Application> {
   return app;
 }
 
-export { createApp }; 
+export { createApp };

@@ -1,0 +1,11 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-f', 'Dockerfile.workers', '-t', 'gcr.io/$PROJECT_ID/workers:latest', '.']
+    timeout: '1200s'
+
+images:
+  - 'gcr.io/$PROJECT_ID/workers:latest'
+
+options:
+  machineType: 'E2_HIGHCPU_8'
+  diskSizeGb: '100'

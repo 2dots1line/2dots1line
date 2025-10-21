@@ -1,0 +1,56 @@
+# syntax=docker/dockerfile:1
+
+# ===================================================================
+# V11.3 Monorepo Root Dockerfile (Optimized)
+# ===================================================================
+
+# --- Stage 1: Builder ---
+FROM node:20-slim AS builder
+WORKDIR /app
+
+# Enable corepack and pin pnpm version
+RUN corepack enable && corepack prepare pnpm@9.12.2 --activate
+
+# Copy workspace manifests first for better caching
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+
+# Copy the rest of the monorepo source code
+COPY . .
+
+# Install workspace dependencies using the lockfile
+# The build will fail here if pnpm-lock.yaml is not up-to-date
+RUN pnpm install --frozen-lockfile
+
+# Build all workspace packages
+RUN pnpm -r run build
+
+# Create a pruned, self-contained deploy output for the api-gateway app
+RUN pnpm deploy --filter ./apps/api-gateway --prod /app/deploy
+
+# Copy the Prisma schema into the deployed output
+RUN mkdir -p /app/deploy/prisma \
+ && cp ./packages/database/prisma/schema.prisma /app/deploy/prisma/schema.prisma
+
+# The prisma CLI is a dev dependency and was pruned by `pnpm deploy`.
+# We need to install it here to run `prisma generate`.
+WORKDIR /app/deploy
+RUN pnpm add prisma
+
+# Run Prisma generate inside the deploy directory
+# This generates the client into /app/deploy/node_modules/@prisma/client
+ENV PRISMA_GENERATE_SKIP_AUTOINSTALL=1
+RUN npx prisma generate --schema /app/deploy/prisma/schema.prisma
+
+# --- Stage 2: Runner ---
+FROM node:20-slim AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=8080
+
+# Copy only the self-contained deploy output from the builder stage
+COPY --from=builder /app/deploy /app
+
+EXPOSE 8080
+
+# Start the api-gateway service
+CMD ["node", "dist/server.js"]

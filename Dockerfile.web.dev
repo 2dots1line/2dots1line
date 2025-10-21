@@ -1,0 +1,35 @@
+# Base image
+FROM node:20-slim AS base
+ENV NODE_ENV=development
+WORKDIR /repo
+RUN corepack enable && corepack prepare pnpm@9.12.2 --activate
+
+# Build the web app from the full monorepo
+FROM base AS builder
+WORKDIR /repo
+# Copy workspace manifests first for efficient caching
+COPY pnpm-lock.yaml pnpm-lock.yaml
+COPY pnpm-workspace.yaml pnpm-workspace.yaml
+COPY package.json package.json
+
+# Copy full monorepo for deterministic builds
+COPY . .
+
+# Install ALL dependencies (dev + prod)
+ENV NODE_ENV=development
+ENV NPM_CONFIG_PRODUCTION=false
+RUN pnpm -w install --frozen-lockfile
+
+# Build only the required packages (not the web-app to avoid SSR issues)
+RUN pnpm --filter "@2dots1line/shared-types" run build && \
+    pnpm --filter "@2dots1line/ui-components" run build
+
+# Development runner
+FROM node:20-slim AS runner
+WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@9.12.2 --activate
+ENV NODE_ENV=development
+# Copy EVERYTHING from builder (source, dist, node_modules)
+COPY --from=builder /repo /app
+EXPOSE 3000
+CMD ["pnpm", "-C", "apps/web-app", "run", "dev"]

@@ -8,8 +8,7 @@
     "build": "pnpm clean && tsc -p tsconfig.build.json",
     "lint": "eslint src --ext .ts,.tsx",
     "test": "jest",
-    "clean": "rimraf dist tsconfig.build.tsbuildinfo",
-    "clean:all": "rimraf dist node_modules tsconfig.build.tsbuildinfo"
+    "clean": "node -e \"const fs=require('fs'); try{fs.rmSync('dist',{recursive:true,force:true})}catch{}; try{fs.rmSync('tsconfig.build.tsbuildinfo',{force:true})}catch{}\""
   },
   "dependencies": {
     "date-fns": "^2.30.0",
@@ -21,7 +20,7 @@
     "@types/jest": "^29.5.0",
     "@types/node": "^20.17.0",
     "@types/uuid": "^9.0.7",
-    "rimraf": "^5.0.1",
+    "rimraf": "^6.0.1",
     "typescript": "^5.8.3"
   }
 }

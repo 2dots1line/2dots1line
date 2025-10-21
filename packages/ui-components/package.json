@@ -2,14 +2,20 @@
   "name": "@2dots1line/ui-components",
   "version": "0.1.0",
   "description": "Shared UI components for 2dots1line applications",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && npm run copy:css",
-    "copy:css": "copyfiles 'src/**/*.css' dist --up 1",
+    "build": "pnpm exec tsc -p tsconfig.build.json && pnpm run copy:css",
+    "copy:css": "copyfiles \"src/**/*.css\" dist --up 1",
     "dev": "tsc --watch",
     "lint": "eslint src --max-warnings 0",
     "test": "jest"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "keywords": [
     "ui",
@@ -40,9 +46,5 @@
     "copyfiles": "^2.4.1",
     "react": "^18.3.1",
     "typescript": "^5.8.3"
-  },
-  "peerDependencies": {
-    "react": ">=18.0.0",
-    "react-dom": ">=18.0.0"
   }
 }

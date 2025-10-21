@@ -11,6 +11,8 @@
     "test": "jest"
   },
   "dependencies": {
+    "@google-cloud/secret-manager": "^6.1.0",
+    "@prisma/client": "^6.16.1",
     "@2dots1line/config-service": "workspace:*",
     "@2dots1line/core-utils": "workspace:*",
     "@2dots1line/database": "workspace:*",
@@ -43,5 +45,9 @@
     "ts-jest": "^29.1.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.8.3"
-  }
+  },
+  "files": [
+    "dist",
+    "package.json"
+  ]
 }

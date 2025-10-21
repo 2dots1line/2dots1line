@@ -5,14 +5,14 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "clean": "rimraf dist src/generated",
+    "clean": "node -e \"const fs=require('fs'); try{fs.rmSync('dist',{recursive:true,force:true})}catch{}; try{fs.rmSync('src/generated',{recursive:true,force:true})}catch{}\"",
     "generate": "node ./scripts/generate-shaders.js",
     "build": "pnpm generate && tsc -p tsconfig.build.json",
     "lint": "eslint src --ext .ts",
     "test": "echo \"No tests for shader-lib yet\" && exit 0"
   },
   "dependencies": {
-    "fs-extra": "^11.2.0",
+    "fs-extra": "^11.1.1",
     "glob": "^10.3.10"
   },
   "devDependencies": {

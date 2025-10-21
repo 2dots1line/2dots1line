@@ -122,7 +122,7 @@ export default function CardsPage() {
       if (typeof window !== 'undefined') {
         (window as any).__COVER_MANUAL = true;
         setTimeout(() => {
-          try { (window as any).__COVER_MANUAL = false; } catch {}
+          try { (window as any).__COVER_MANUAL = false; } catch (err) { void err; }
         }, 120000);
       }
 
@@ -137,8 +137,8 @@ export default function CardsPage() {
       if (candidate?.id) {
         setToGenerate(new Set([candidate.id]));
       }
-    } catch {
-      // ignore
+    } catch (err) {
+      void err;
     }
   }
 

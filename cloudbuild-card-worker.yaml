@@ -1,0 +1,5 @@
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-f', 'workers/card-worker/Dockerfile', '-t', 'gcr.io/gen-lang-client-0355191808/card-worker', '.']
+options:
+  machineType: 'E2_HIGHCPU_8'

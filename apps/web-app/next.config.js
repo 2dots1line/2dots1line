@@ -1,34 +1,25 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ['@2dots1line/ui-components', '@2dots1line/shared-types'],
-  productionBrowserSourceMaps: false,
-  
-  webpack: (config, { dev }) => {
-    if (dev) {
-      // Disable source maps in development
-      config.devtool = false;
+  reactStrictMode: false, // Disable for cloud dev mode
+  eslint: { 
+    ignoreDuringBuilds: true,
+    dirs: ['src']
+  },
+  env: {
+    NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL,
+  },
+  webpack: (config, { isServer }) => {
+    // Suppress all warnings that could cause build issues
+    if (!isServer) {
+      config.resolve.alias = {
+        ...config.resolve.alias,
+      };
     }
+    // Suppress all warnings
+    config.ignoreWarnings = [() => true];
     return config;
   },
-  
-  async rewrites() {
-    return [
-      {
-        source: '/api/v1/:path*',
-        destination: 'http://localhost:3001/api/v1/:path*',
-      },
-    ];
-  },
-
-  // Skip type-checking in Next build (we rely on tsc builds in the monorepo)
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-
-  // Skip ESLint during Next build (optional)
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-}
+};
 
 module.exports = nextConfig

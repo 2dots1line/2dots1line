@@ -5,7 +5,7 @@ import { io, Socket } from 'socket.io-client';
 import { useNotificationStore } from '../stores/NotificationStore';
 import { useUserStore } from '../stores/UserStore';
 
-export const useNotificationConnection = () => {
+export function useNotificationConnection() {
   const { user } = useUserStore();
   const { connectSSE, disconnectSSE, addNotification } = useNotificationStore();
   const socketRef = useRef<Socket | null>(null);
@@ -43,12 +43,13 @@ export const useNotificationConnection = () => {
             token: token,
             userId: user.user_id
           },
-          transports: ['websocket', 'polling'], // Fallback to polling if WebSocket fails
+          transports: ['websocket', 'polling'],
           timeout: 20000,
           reconnection: true,
           reconnectionDelay: 1000,
-          reconnectionAttempts: 5,
-          maxReconnectionAttempts: 5
+          reconnectionDelayMax: 5000,
+          reconnectionAttempts: 5
+          // removed: maxReconnectionAttempts (not a valid Socket.IO option)
         });
 
         socket.on('connect', () => {
@@ -64,32 +65,24 @@ export const useNotificationConnection = () => {
         const handleNotification = (data: any) => {
           try {
             console.log('[Socket.IO] 📨 Event received:', data);
-            
-            // Handle consolidated updates from notification worker
+
             if (data.newCards !== undefined || data.graphUpdates !== undefined || data.insights !== undefined) {
-              // This is a consolidated update
-              const notification = {
-                id: `consolidated-${Date.now()}`,
-                type: 'new_card_available' as const, // Use a default type for consolidated updates
+              const consolidatedDescription =
+                data.message ||
+                `Cards: ${data.newCards ?? 0}, Graph updates: ${data.graphUpdates ?? 0}, Insights: ${data.insights ?? 0}`;
+
+              const consolidatedPayload = {
+                type: 'new_card_available' as const,
                 title: 'Updates Available',
-                description: data.message || 'New updates are available',
-                timestamp: new Date(data.timestamp || Date.now()),
-                isRead: false,
-                userId: user.user_id,
-                metadata: {
-                  newCards: data.newCards || 0,
-                  graphUpdates: data.graphUpdates || 0,
-                  insights: data.insights || 0,
-                  isConsolidated: true
-                }
+                description: consolidatedDescription,
+                userId: user.user_id
               };
 
-              console.log('[Socket.IO] 🎉 Adding consolidated notification to store:', notification);
-              addNotification(notification);
+              console.log('[Socket.IO] 🎉 Adding consolidated notification to store:', consolidatedPayload);
+              addNotification(consolidatedPayload);
               return;
             }
-            
-            // Handle individual notifications
+
             const typeMap: Record<string, 'new_star_generated' | 'new_card_available' | 'graph_projection_updated'> = {
               new_star: 'new_star_generated',
               new_card: 'new_card_available',
@@ -100,7 +93,6 @@ export const useNotificationConnection = () => {
 
             const mappedType = typeMap[data.type] || data.type;
 
-            // Build title/description with good fallbacks
             let title = data.title ?? data.display_data?.title;
             let description = data.description ?? data.display_data?.description;
 
@@ -109,19 +101,24 @@ export const useNotificationConnection = () => {
               description = `Nodes: ${data.nodeCount ?? '—'}, Edges: ${data.edgeCount ?? '—'}`;
             }
 
-            const notification = {
-              id: data.id || `notification-${Date.now()}`,
+            const metadataCandidate = {
+              starId: data.metadata?.starId,
+              cardId: data.metadata?.cardId,
+              starType: data.metadata?.starType
+            };
+
+            const payload = {
               type: mappedType,
               title: title ?? 'Notification',
               description: description ?? '',
-              timestamp: new Date(data.timestamp || Date.now()),
-              isRead: false,
               userId: user.user_id,
-              metadata: data.metadata
+              ...(metadataCandidate.starId || metadataCandidate.cardId || metadataCandidate.starType
+                ? { metadata: metadataCandidate }
+                : {})
             };
 
-            console.log('[Socket.IO] 🎉 Adding notification to store:', notification);
-            addNotification(notification);
+            console.log('[Socket.IO] 🎉 Adding notification to store:', payload);
+            addNotification(payload);
           } catch (error) {
             console.error('[Socket.IO] Error processing notification:', error);
           }

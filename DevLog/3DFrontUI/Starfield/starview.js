@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, Text, PerspectiveCamera, Html } from '@react-three/drei';
+import React, { useRef, useMemo, useEffect, useState } from 'react';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { Stars, PerspectiveCamera } from '@react-three/drei';
 import * as THREE from 'three';
 import { neo4jService } from '../services/neo4j.service';
 import './StarView.css';
@@ -534,4 +534,4 @@ const StarView = () => {
   );
 };
 
-export default StarView; 
+export default StarView;

@@ -63,7 +63,11 @@ export const AdaptiveCardTile: React.FC<AdaptiveCardTileProps> = ({ card: cardPr
         } catch (e) {
           console.error('Failed to persist generated cover for card', idStr, e);
           if (w && w.__coverSaved) {
-            try { delete w.__coverSaved[saveKey]; } catch {}
+            try {
+              delete w.__coverSaved[saveKey];
+            } catch (clearErr) {
+              console.warn('Failed to clear coverSaved flag for', idStr, clearErr);
+            }
           }
         }
       })();

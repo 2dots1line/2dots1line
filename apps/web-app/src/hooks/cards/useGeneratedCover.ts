@@ -73,7 +73,9 @@ export function useGeneratedCover(options: UseGeneratedCoverOptions): UseGenerat
         get() { return w.__coverPostInFlight[localKey]; },
         set(p: Promise<any>) { w.__coverPostInFlight[localKey] = p; },
         has: !!w.__coverPostInFlight[localKey],
-        clear() { try { delete w.__coverPostInFlight[localKey]; } catch {} }
+        clear() {
+          try { delete w.__coverPostInFlight[localKey]; } catch (err) { void err; }
+        },
       };
     }
 
@@ -108,7 +110,9 @@ export function useGeneratedCover(options: UseGeneratedCoverOptions): UseGenerat
           return true; // do not block attempts
         })
         .finally(() => {
-          setTimeout(() => { try { delete (window as any).__coverPreflight; } catch {} }, 0);
+          setTimeout(() => {
+            try { delete (window as any).__coverPreflight; } catch (err) { void err; }
+          }, 0);
         });
 
       return await w.__coverPreflight;

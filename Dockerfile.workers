@@ -1,0 +1,43 @@
+# syntax=docker/dockerfile:1
+
+# ===================================================================
+# All Workers Dockerfile for Google Cloud Run Jobs
+# Builds all workers into one image and starts them together
+# ===================================================================
+
+FROM node:20-slim
+
+WORKDIR /app
+
+# Enable corepack and pin pnpm version
+RUN corepack enable && corepack prepare pnpm@9.12.2 --activate
+
+# Copy workspace configuration files
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY turbo.json tsconfig.base.json ./
+
+# Copy all necessary directories
+COPY packages ./packages
+COPY services ./services
+COPY workers ./workers
+
+# Install dependencies (including devDependencies for building)
+RUN pnpm install --frozen-lockfile
+
+# Build all workers and their dependencies
+RUN pnpm exec turbo run build --filter='./workers/*'
+
+# Generate Prisma client
+RUN pnpm --filter database exec prisma generate
+
+# Remove devDependencies to reduce image size
+RUN pnpm prune --prod
+
+# Set production environment
+ENV NODE_ENV=production
+
+# Copy the workers startup script
+COPY start-workers.js ./
+
+# Start all workers
+CMD ["node", "start-workers.js"]

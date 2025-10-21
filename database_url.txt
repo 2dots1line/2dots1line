@@ -1,0 +1,1 @@
+postgresql://appuser:BBCkk8888@/twodots1line?host=/cloudsql/gen-lang-client-0355191808:us-east1:twodots1line-pg
