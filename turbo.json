@@ -10,7 +10,7 @@
   "remoteCache": {
     "enabled": false
   },
-  "concurrency": "20",
+  "concurrency": "24",
   "tasks": {
     "build": {
       "dependsOn": [

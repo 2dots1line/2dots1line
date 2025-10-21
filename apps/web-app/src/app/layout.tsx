@@ -3,6 +3,7 @@ import './globals.css';
 import NotificationRoot from '../components/notifications/NotificationRoot';
 import { ViewTracker } from '../components/engagement/ViewTracker';
 import { EngagementDebugger } from '../components/engagement/EngagementDebugger';
+import { DeviceDetectionProvider } from '../components/adaptive/DeviceDetectionProvider';
 
 export default function RootLayout({
   children,
@@ -31,13 +32,15 @@ export default function RootLayout({
         <meta name="msapplication-tap-highlight" content="no" />
       </head>
       <body>
-        {/* Engagement tracking */}
-        <ViewTracker />
-        {/* Engagement debugger (development only) - HIDDEN */}
-        {/* <EngagementDebugger /> */}
-        {/* Notification layer */}
-        <NotificationRoot />
-        {children}
+        <DeviceDetectionProvider>
+          {/* Engagement tracking */}
+          <ViewTracker />
+          {/* Engagement debugger (development only) - HIDDEN */}
+          {/* <EngagementDebugger /> */}
+          {/* Notification layer */}
+          <NotificationRoot />
+          {children}
+        </DeviceDetectionProvider>
       </body>
     </html>
   );
