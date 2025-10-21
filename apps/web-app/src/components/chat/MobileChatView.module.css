@@ -1,0 +1,89 @@
+/* Mobile Chat View - Surgical CSS approach */
+
+.mobileChatContainer {
+  /* Remove all glassmorphic container styling from the main container */
+  background: transparent !important;
+  backdrop-filter: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Target the main GlassmorphicPanel container (the big background panel) */
+.mobileChatContainer :global(.glass-panel) {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* More specific targeting for the main chat container */
+.mobileChatContainer :global(.glass-panel.rounded-xl) {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Remove header completely (Layer 3) */
+.mobileChatContainer :global(.flex.items-center.justify-between) {
+  display: none !important;
+}
+
+/* Remove the border from input area since we're removing the main container */
+.mobileChatContainer :global(.border-t.border-white\/20) {
+  border: none !important;
+}
+
+/* Ensure messages area uses full height */
+.mobileChatContainer :global(.flex-1.overflow-y-auto) {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+/* Hide scrollbar for cleaner look */
+.mobileChatContainer :global(.custom-scrollbar) {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.mobileChatContainer :global(.custom-scrollbar::-webkit-scrollbar) {
+  display: none !important;
+}
+
+/* Remove instruction text at bottom to save space */
+.mobileChatContainer :global(.text-xs.text-white\/40) {
+  display: none !important;
+}
+
+/* Ensure full height usage */
+.mobileChatContainer :global(.h-\[85vh\]),
+.mobileChatContainer :global(.h-\[70vh\]) {
+  height: 100vh !important;
+}
+
+/* Remove any remaining margins/padding from messages area */
+.mobileChatContainer :global(.space-y-4) {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Make sure messages start from top */
+.mobileChatContainer :global(.pt-4) {
+  padding-top: 0 !important;
+}
+
+/* Move input area up slightly to avoid HUD overlap */
+.mobileChatContainer :global(.pb-20) {
+  padding-bottom: 20px !important; /* Minimal space above mobile HUD */
+}
+
+/* Target the input area specifically to add minimal bottom spacing */
+.mobileChatContainer :global(.border-t.border-white\/20) {
+  border: none !important;
+  padding-bottom: 50px !important; /* Minimal space above mobile HUD */
+}
+
+/* Ensure input buttons are visible and not overlapping */
+.mobileChatContainer :global(.flex.gap-2.items-center) {
+  margin-bottom: 20px !important; /* Minimal space above mobile HUD */
+}

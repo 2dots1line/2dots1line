@@ -5,6 +5,7 @@ import React from 'react';
 import { useHUDStore } from '../../stores/HUDStore';
 import { useCardStore } from '../../stores/CardStore';
 import { useChatStore } from '../../stores/ChatStore';
+import { useDeviceStore } from '../../stores/DeviceStore';
 
 import { EntityDetailModal } from './EntityDetailModal';
 import { ChatModal } from '../chat';
@@ -23,6 +24,7 @@ export const ModalContainer: React.FC<ModalContainerProps> = ({
   const { activeView, setActiveView, cardDetailModalOpen, setCardDetailModalOpen, showGlobalSettings, setShowGlobalSettings, pexelsModalView, setPexelsModalView } = useHUDStore();
   const { selectedCard } = useCardStore();
   const { showHistoryModal, setShowHistoryModal } = useChatStore();
+  const { deviceInfo } = useDeviceStore();
   
   const handleClose = () => {
     setActiveView(null);
@@ -35,16 +37,20 @@ export const ModalContainer: React.FC<ModalContainerProps> = ({
   return (
     <div className={className}>
       {/* Main View Modals - Only show when not in cards view and not settings (mutually exclusive) */}
+      {/* Hide desktop chat on mobile - mobile chat is handled by LayoutRouter */}
       {activeView && activeView !== 'cards' && activeView !== 'settings' && (
         <>
           <DashboardModal 
             isOpen={activeView === 'dashboard'} 
             onClose={handleClose} 
           />
-          <ChatModal 
-            isOpen={activeView === 'chat'} 
-            onClose={handleClose} 
-          />
+          {/* Only show desktop chat on desktop */}
+          {!deviceInfo.isMobile && (
+            <ChatModal 
+              isOpen={activeView === 'chat'} 
+              onClose={handleClose} 
+            />
+          )}
         </>
       )}
       

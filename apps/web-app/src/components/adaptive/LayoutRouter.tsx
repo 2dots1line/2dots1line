@@ -2,12 +2,16 @@
 
 import React from 'react';
 import { useDeviceStore } from '../../stores/DeviceStore';
+import { useHUDStore } from '../../stores/HUDStore';
 import DesktopLayout from '../layouts/DesktopLayout';
-import MobileLayout from '../layouts/MobileLayout';
 import { MobilePreviewToggle } from '../dev/MobilePreviewToggle';
+import { MobileHUDContainer } from '../hud/MobileHUDContainer';
+import { MobileChatOverlay } from '../chat/MobileChatOverlay';
+import { MobileChatView } from '../chat/MobileChatView';
 
 export const LayoutRouter: React.FC = () => {
   const { deviceInfo } = useDeviceStore();
+  const { activeView } = useHUDStore();
   const [isClient, setIsClient] = React.useState(false);
   const [isHydrated, setIsHydrated] = React.useState(false);
   const [hasError, setHasError] = React.useState(false);
@@ -55,10 +59,35 @@ export const LayoutRouter: React.FC = () => {
     );
   }
 
-  return (
-    <>
-      <MobilePreviewToggle />
-      {deviceInfo.isMobile ? <MobileLayout /> : <DesktopLayout />}
-    </>
-  );
+        return (
+          <>
+            <MobilePreviewToggle />
+            
+            {/* Always use DesktopLayout for background and main content */}
+            <DesktopLayout />
+            
+            {/* Mobile-specific overlays */}
+            {deviceInfo.isMobile && (
+              <>
+                {/* Mobile HUD - replaces desktop HUD */}
+                <MobileHUDContainer />
+                
+                {/* Mobile Chat Overlay - for Cards/Cosmos views */}
+                {activeView === 'cards' || activeView === 'cosmos' ? (
+                  <MobileChatOverlay 
+                    isOpen={true} // Always open on mobile for these views
+                    onClose={() => {}}
+                  />
+                ) : null}
+                
+                {/* Mobile Chat View - for dedicated chat view */}
+                {activeView === 'chat' && (
+                  <div className="fixed inset-0 z-30">
+                    <MobileChatView onBack={() => {}} />
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        );
 };
