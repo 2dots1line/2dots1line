@@ -594,7 +594,7 @@ function DesktopLayout() {
         )}
       </main>
 
-      {/* Navigation HUD - Layer 3 */}
+      {/* Navigation HUD - Layer 3 - Desktop only */}
       {isAuthenticated && <HUDContainer />}
 
       {/* Conversation History Panel - Layer 3 - Only show in chat view */}

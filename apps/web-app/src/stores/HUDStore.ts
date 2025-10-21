@@ -11,6 +11,9 @@ interface HUDState {
   isDragging: boolean;
   position: { x: number; y: number };
   
+  // Mobile HUD state
+  mobileHudVisible: boolean;
+  
   // Navigation state
   isNavigatingFromCosmos: boolean;
   
@@ -40,6 +43,9 @@ interface HUDState {
   setCardDetailModalOpen: (open: boolean) => void;
   setIsNavigatingFromCosmos: (navigating: boolean) => void;
   
+  // Mobile HUD actions
+  setMobileHudVisible: (visible: boolean) => void;
+  
   // Chat actions
   setCardsChatOpen: (open: boolean) => void;
   setCosmosChatOpen: (open: boolean) => void;
@@ -68,6 +74,9 @@ export const useHUDStore = create<HUDState>()(
       position: DEFAULT_POSITION,
       isNavigatingFromCosmos: false,
       cardDetailModalOpen: false,
+      
+      // Mobile HUD state
+      mobileHudVisible: true, // Start visible for testing
       
       // Chat states - mini chat always open by default in cards/cosmos
       cardsChatOpen: true,
@@ -125,6 +134,11 @@ export const useHUDStore = create<HUDState>()(
 
       setIsNavigatingFromCosmos: (navigating: boolean) => {
         set({ isNavigatingFromCosmos: navigating });
+      },
+
+      // Mobile HUD actions
+      setMobileHudVisible: (visible: boolean) => {
+        set({ mobileHudVisible: visible });
       },
 
       // Chat actions

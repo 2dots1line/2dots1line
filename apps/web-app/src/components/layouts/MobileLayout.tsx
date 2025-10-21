@@ -3,6 +3,7 @@
 import React from 'react';
 import { DynamicBackground } from '../DynamicBackground';
 import { useUserStore } from '../../stores/UserStore';
+import { MobileHUDContainer } from '../hud/MobileHUDContainer';
 
 function MobileLayout() {
   const { isAuthenticated, hasHydrated } = useUserStore();
@@ -37,6 +38,9 @@ function MobileLayout() {
           </p>
         </div>
       </main>
+
+      {/* Mobile HUD - Show for testing (remove isAuthenticated check for now) */}
+      <MobileHUDContainer />
     </div>
   );
 }
