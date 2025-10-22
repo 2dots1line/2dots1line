@@ -26,6 +26,12 @@ interface HUDState {
   cardsChatSize: 'medium' | 'mini';
   cosmosChatSize: 'medium' | 'mini';
   
+  // Mobile mini chat states
+  mobileCardsChatOpen: boolean;
+  mobileCosmosChatOpen: boolean;
+  mobileCardsChatExpanded: boolean;
+  mobileCosmosChatExpanded: boolean;
+  
   // Global settings modal state
   showGlobalSettings: boolean;
   
@@ -51,6 +57,12 @@ interface HUDState {
   setCosmosChatOpen: (open: boolean) => void;
   setCardsChatSize: (size: 'medium' | 'mini') => void;
   setCosmosChatSize: (size: 'medium' | 'mini') => void;
+  
+  // Mobile mini chat actions
+  setMobileCardsChatOpen: (open: boolean) => void;
+  setMobileCosmosChatOpen: (open: boolean) => void;
+  setMobileCardsChatExpanded: (expanded: boolean) => void;
+  setMobileCosmosChatExpanded: (expanded: boolean) => void;
   
   // Settings actions
   setShowSettings: (show: boolean) => void;
@@ -83,6 +95,12 @@ export const useHUDStore = create<HUDState>()(
       cosmosChatOpen: true,
       cardsChatSize: 'mini',
       cosmosChatSize: 'mini',
+      
+      // Mobile mini chat states
+      mobileCardsChatOpen: false,
+      mobileCosmosChatOpen: false,
+      mobileCardsChatExpanded: false,
+      mobileCosmosChatExpanded: false,
       
       // Global settings modal state
       showGlobalSettings: false,
@@ -158,6 +176,23 @@ export const useHUDStore = create<HUDState>()(
         set({ cosmosChatSize: size });
       },
 
+      // Mobile mini chat actions
+      setMobileCardsChatOpen: (open: boolean) => {
+        set({ mobileCardsChatOpen: open });
+      },
+
+      setMobileCosmosChatOpen: (open: boolean) => {
+        set({ mobileCosmosChatOpen: open });
+      },
+
+      setMobileCardsChatExpanded: (expanded: boolean) => {
+        set({ mobileCardsChatExpanded: expanded });
+      },
+
+      setMobileCosmosChatExpanded: (expanded: boolean) => {
+        set({ mobileCosmosChatExpanded: expanded });
+      },
+
       // Settings actions
       setShowSettings: (show: boolean) => {
         set({ showSettings: show });
@@ -189,6 +224,10 @@ export const useHUDStore = create<HUDState>()(
           cosmosChatOpen: true,
           cardsChatSize: 'mini',
           cosmosChatSize: 'mini',
+          mobileCardsChatOpen: false,
+          mobileCosmosChatOpen: false,
+          mobileCardsChatExpanded: false,
+          mobileCosmosChatExpanded: false,
           showGlobalSettings: false,
         });
       },

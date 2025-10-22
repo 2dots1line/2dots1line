@@ -3,14 +3,28 @@
 import React from 'react';
 import { useDeviceStore } from '../../stores/DeviceStore';
 import { useHUDStore } from '../../stores/HUDStore';
-import DesktopLayout from '../layouts/DesktopLayout';
+import Layout from '../layouts/Layout';
 import { MobilePreviewToggle } from '../dev/MobilePreviewToggle';
 import { MobileHUDContainer } from '../hud/MobileHUDContainer';
 import { MobileChatView } from '../chat/MobileChatView';
+import { MobileMiniChat } from '../chat/MobileMiniChat';
+import { ContextualSettings } from '../settings/ContextualSettings';
 
 export const LayoutRouter: React.FC = () => {
   const { deviceInfo } = useDeviceStore();
-  const { activeView } = useHUDStore();
+  const { 
+    activeView,
+    showSettings,
+    mobileCardsChatOpen,
+    mobileCosmosChatOpen,
+    mobileCardsChatExpanded,
+    mobileCosmosChatExpanded,
+    setMobileCardsChatOpen,
+    setMobileCosmosChatOpen,
+    setMobileCardsChatExpanded,
+    setMobileCosmosChatExpanded,
+    toggleSettings
+  } = useHUDStore();
   const [isClient, setIsClient] = React.useState(false);
   const [isHydrated, setIsHydrated] = React.useState(false);
   const [hasError, setHasError] = React.useState(false);
@@ -62,8 +76,8 @@ export const LayoutRouter: React.FC = () => {
           <>
             <MobilePreviewToggle />
             
-            {/* Always use DesktopLayout for background and main content */}
-            <DesktopLayout />
+            {/* Always use Layout for background and main content */}
+            <Layout />
             
             {/* Mobile-specific overlays */}
             {deviceInfo.isMobile && (
@@ -76,6 +90,44 @@ export const LayoutRouter: React.FC = () => {
                 {activeView === 'chat' && (
                   <div className="fixed inset-0 z-30">
                     <MobileChatView onBack={() => {}} />
+                  </div>
+                )}
+                
+                {/* Mobile Mini Chat for Cosmos View */}
+                {activeView === 'cosmos' && mobileCosmosChatOpen && (
+                  <MobileMiniChat
+                    isOpen={mobileCosmosChatOpen}
+                    onClose={() => setMobileCosmosChatOpen(false)}
+                    onExpand={() => setMobileCosmosChatExpanded(true)}
+                    viewContext="cosmos"
+                  />
+                )}
+                
+                {/* Mobile Mini Chat for Cards View */}
+                {activeView === 'cards' && mobileCardsChatOpen && (
+                  <MobileMiniChat
+                    isOpen={mobileCardsChatOpen}
+                    onClose={() => setMobileCardsChatOpen(false)}
+                    onExpand={() => setMobileCardsChatExpanded(true)}
+                    viewContext="cards"
+                  />
+                )}
+                
+                {/* Mobile Settings Panel */}
+                {showSettings && (
+                  <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm">
+                    <div className="fixed bottom-0 left-0 right-0 bg-black/80 backdrop-blur-xl border-t border-white/20 rounded-t-2xl p-6 max-h-[80vh] overflow-y-auto">
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-lg font-semibold text-white">Settings</h2>
+                        <button
+                          onClick={() => toggleSettings()}
+                          className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/30 transition-colors"
+                        >
+                          ×
+                        </button>
+                      </div>
+                      <ContextualSettings />
+                    </div>
                   </div>
                 )}
               </>

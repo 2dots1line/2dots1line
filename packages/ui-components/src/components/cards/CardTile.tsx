@@ -19,13 +19,13 @@ const SIZE_CLASSES: Record<CardSize, string> = {
 };
 
 // Responsive sizing matching sorted view breakpoints
-const RESPONSIVE_SIZE_CLASSES = {
-  base: 'w-[200px] h-[200px]',
-  'max-[1600px]': 'max-[1600px]:w-[180px] max-[1600px]:h-[180px]',
-  'max-[1200px]': 'max-[1200px]:w-[160px] max-[1200px]:h-[160px]',
-  'max-[768px]': 'max-[768px]:w-[140px] max-[768px]:h-[140px]',
-  'max-[480px]': 'max-[480px]:w-[120px] max-[480px]:h-[120px]'
-};
+  const RESPONSIVE_SIZE_CLASSES = {
+    base: 'w-[200px] h-[200px]',
+    'max-[1600px]': 'max-[1600px]:w-[180px] max-[1600px]:h-[180px]',
+    'max-[1200px]': 'max-[1200px]:w-[160px] max-[1200px]:h-[160px]',
+    'max-[768px]': 'max-[768px]:w-[80px] max-[768px]:h-[80px]', // Readable size for mobile
+    'max-[480px]': 'max-[480px]:w-[70px] max-[480px]:h-[70px]'  // Still readable for small screens
+  };
 
 interface CardTileProps {
   card: DisplayCard;
@@ -103,7 +103,11 @@ export const CardTile: React.FC<CardTileProps> = ({
   // Animation and sizing helpers
   const getSizeClasses = () => {
     if (useResponsiveSizing) {
-      return Object.values(RESPONSIVE_SIZE_CLASSES).join(' ');
+      // Return the base size and all responsive breakpoints
+      return `${RESPONSIVE_SIZE_CLASSES.base} ${Object.entries(RESPONSIVE_SIZE_CLASSES)
+        .filter(([key]) => key !== 'base')
+        .map(([_, value]) => value)
+        .join(' ')}`;
     }
     return !optimizeForInfiniteGrid ? SIZE_CLASSES[size] : '';
   };

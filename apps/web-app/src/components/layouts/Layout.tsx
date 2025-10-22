@@ -17,14 +17,17 @@ import { useBackgroundVideoStore } from '../../stores/BackgroundVideoStore';
 import { useEngagementStore } from '../../stores/EngagementStore';
 import { useCardsViewStore } from '../../stores/CardsViewStore';
 import { cardService } from '../../services/cardService';
+import styles from './Layout.module.css';
 import { useViewTransitionContent } from '../../hooks/useViewTransitionContent';
 import PWAInstallPrompt from '../pwa/PWAInstallPrompt';
 import { useDeviceStore } from '../../stores/DeviceStore';
+import { useDynamicCardSizing } from '../../hooks/useDynamicCardSizing';
 
-function DesktopLayout() {
+function Layout() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isSignupModalOpen, setIsSignupModalOpen] = useState(false);
   const { deviceInfo } = useDeviceStore();
+  const { cardSize, gapSize } = useDynamicCardSizing(3);
 
   const { user, isAuthenticated, logout, hasHydrated } = useUserStore();
   const { 
@@ -114,7 +117,7 @@ function DesktopLayout() {
       !isLoading &&
       !hasInitializedCards.current
     ) {
-      console.log('[DesktopLayout] Initial load - Creating loader with current UI state:', {
+      console.log('[Layout] Initial load - Creating loader with current UI state:', {
         sortKey,
         hasCoverFirst
       });
@@ -130,7 +133,7 @@ function DesktopLayout() {
 
   // Debug: Log when loader changes
   useEffect(() => {
-    console.log('[DesktopLayout] Loader state changed:', {
+    console.log('[Layout] Loader state changed:', {
       hasLoader: !!sortedLoader,
       cards: cards.length,
       sortKey,
@@ -142,7 +145,7 @@ function DesktopLayout() {
   // Clear cards only when switching to heavy views (cosmos) to prevent memory issues
   useEffect(() => {
     if (isAuthenticated && activeView === 'cosmos') {
-      console.log('[DesktopLayout] Switching to cosmos view - clearing cards to prevent memory issues');
+      console.log('[Layout] Switching to cosmos view - clearing cards to prevent memory issues');
       clearCards();
     }
   }, [isAuthenticated, activeView, clearCards]);
@@ -171,14 +174,14 @@ function DesktopLayout() {
     const isNearBottom = scrollTop + clientHeight >= scrollHeight - 100; // 100px threshold
     
     if (isNearBottom && hasMore && !isLoading && viewMode === 'sorted') {
-      console.log('[DesktopLayout] Near bottom - triggering load more');
+      console.log('[Layout] Near bottom - triggering load more');
       handleLoadMore();
     }
   }, [hasMore, isLoading, viewMode, handleLoadMore]);
 
   // Initialize authentication state ONCE on component mount
   useEffect(() => {
-    console.log('=== DesktopLayout useEffect MOUNT - Calling initializeAuth ===');
+    console.log('=== Layout useEffect MOUNT - Calling initializeAuth ===');
     // Call initializeAuth directly from store to avoid subscribing to store updates
     useUserStore.getState().initializeAuth();
     
@@ -186,7 +189,7 @@ function DesktopLayout() {
     const hydrationTimeout = setTimeout(() => {
       const currentHasHydrated = useUserStore.getState().hasHydrated;
       if (!currentHasHydrated) {
-        console.log('DesktopLayout - Forcing hydration due to timeout');
+        console.log('Layout - Forcing hydration due to timeout');
         useUserStore.getState().setHasHydrated(true);
       }
     }, 2000);
@@ -196,7 +199,7 @@ function DesktopLayout() {
 
   // Separate effect to log auth state changes for debugging (optional)
   useEffect(() => {
-    console.log('DesktopLayout - Auth state changed:', { user: user?.user_id, isAuthenticated, hasHydrated });
+    console.log('Layout - Auth state changed:', { user: user?.user_id, isAuthenticated, hasHydrated });
   }, [user, isAuthenticated, hasHydrated]);
 
   // Load video preferences when user is authenticated
@@ -718,14 +721,22 @@ function DesktopLayout() {
                   className="fixed inset-0 z-30 pt-28 pb-8 overflow-y-auto"
                   onScroll={handleSortedScroll}
                 >
-                  <div className="w-full px-[12px]">
+                  <div className="w-full px-[12px] max-[768px]:px-[4px]">
                     {/* Auto-wrap with responsive tile size and gap; centered with small symmetric gutters */}
-                    <div className="flex flex-wrap justify-center
-                                    gap-[48px]
-                                    max-[1600px]:gap-[43px]
-                                    max-[1200px]:gap-[37px]
-                                    max-[768px]:gap-[32px]
-                                    max-[480px]:gap-[27px]">
+                    <div 
+                      className={`flex flex-wrap justify-center
+                                  gap-[48px]
+                                  max-[1600px]:gap-[43px]
+                                  max-[1200px]:gap-[37px]
+                                  max-[768px]:justify-start
+                                  max-[768px]:px-2
+                                  ${styles.mobileSortedCards}`}
+                      style={{
+                        gap: deviceInfo.isMobile ? `${gapSize}px` : undefined,
+                        '--mobile-card-size': deviceInfo.isMobile ? `${cardSize}px` : undefined,
+                        '--mobile-gap-size': deviceInfo.isMobile ? `${gapSize}px` : undefined,
+                      } as React.CSSProperties}
+                    >
                       {visibleCards.map((card: any, idx: number) => (
                         <CardTile
                           key={String(card.card_id ?? card.id ?? idx)}
@@ -753,8 +764,8 @@ function DesktopLayout() {
             </>
           )}
 
-          {/* Chat Components for Cards View */}
-          {isAuthenticated && activeView === 'cards' && cardsChatOpen && (
+          {/* Chat Components for Cards View - Desktop only */}
+          {isAuthenticated && !deviceInfo.isMobile && activeView === 'cards' && cardsChatOpen && (
             <div className="fixed inset-0 z-[1010] pointer-events-none">
               {cardsChatSize === 'medium' ? (
                 <MediumChat 
@@ -786,4 +797,4 @@ function DesktopLayout() {
   );
 }
 
-export default DesktopLayout;
+export default Layout;

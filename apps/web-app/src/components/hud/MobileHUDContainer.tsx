@@ -28,6 +28,9 @@ const MOBILE_HUD_BUTTONS: Array<{ id: ViewType; label: string; icon: React.Compo
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
+// Separate chat button for mini chat
+const MOBILE_CHAT_BUTTON = { id: 'mini-chat', label: 'Mini Chat', icon: MessageCircle };
+
 export const MobileHUDContainer: React.FC<MobileHUDContainerProps> = ({
   onViewSelect,
   className,
@@ -43,14 +46,19 @@ export const MobileHUDContainer: React.FC<MobileHUDContainerProps> = ({
     showSettings,
     isNavigatingFromCosmos,
     mobileHudVisible,
+    mobileCardsChatOpen,
+    mobileCosmosChatOpen,
     setActiveView,
     setIsNavigatingFromCosmos,
     toggleSettings,
     setMobileHudVisible,
+    setMobileCardsChatOpen,
+    setMobileCosmosChatOpen,
   } = useHUDStore();
   
   // Use store state for visibility instead of local state
-  const isVisible = mobileHudVisible;
+  // Hide HUD when mobile chat is open
+  const shouldShowHUD = mobileHudVisible && !mobileCardsChatOpen && !mobileCosmosChatOpen;
   
   const { logout } = useUserStore();
   const { trackEvent, currentView } = useEngagementStore();
@@ -101,7 +109,7 @@ export const MobileHUDContainer: React.FC<MobileHUDContainerProps> = ({
     }
     
     const timer = setTimeout(() => {
-      setIsVisible(false);
+      setMobileHudVisible(false);
     }, 3000); // 3 seconds
     
     setAutoHideTimer(timer);
@@ -131,8 +139,49 @@ export const MobileHUDContainer: React.FC<MobileHUDContainerProps> = ({
     }
   };
 
+  // Handle mobile mini chat toggle for cosmos/cards
+  const handleMobileChatToggle = (viewId: 'cosmos' | 'cards') => {
+    if (viewId === 'cosmos') {
+      setMobileCosmosChatOpen(!mobileCosmosChatOpen);
+    } else if (viewId === 'cards') {
+      setMobileCardsChatOpen(!mobileCardsChatOpen);
+    }
+    
+    trackEvent({
+      type: 'click',
+      target: 'mobile_chat_toggle',
+      targetType: 'button',
+      view: currentView,
+      metadata: {
+        action: 'toggle_mobile_chat',
+        view: viewId,
+        isOpen: viewId === 'cosmos' ? !mobileCosmosChatOpen : !mobileCardsChatOpen
+      }
+    });
+  };
+
   // Handle view button click
-  const handleButtonClick = (viewId: ViewType) => {
+  const handleButtonClick = (viewId: ViewType | 'mini-chat') => {
+    // Special handling for mini-chat button
+    if (viewId === 'mini-chat') {
+      if (activeView === 'cards') {
+        handleMobileChatToggle('cards');
+      } else if (activeView === 'cosmos' || pathname === '/cosmos') {
+        handleMobileChatToggle('cosmos');
+      }
+      trackEvent({
+        type: 'click',
+        target: 'mini_chat',
+        targetType: 'button',
+        view: currentView,
+        metadata: {
+          action: 'toggle_mobile_chat',
+          view: activeView
+        }
+      });
+      return;
+    }
+
     // Special handling for Settings button - just toggle inline settings panel
     if (viewId === 'settings') {
       toggleSettings();
@@ -162,8 +211,26 @@ export const MobileHUDContainer: React.FC<MobileHUDContainerProps> = ({
     });
 
     if (viewId === 'cosmos') {
-      // Navigate to cosmos page
-      router.push('/cosmos');
+      if (pathname === '/cosmos') {
+        // We're already on cosmos page, toggle mobile mini chat
+        handleMobileChatToggle('cosmos');
+      } else {
+        // Navigate to cosmos page
+        router.push('/cosmos');
+      }
+    } else if (viewId === 'cards') {
+      // For cards view, just set active view (don't auto-open chat)
+      setActiveView(viewId);
+      onViewSelect?.(viewId);
+    } else if (viewId === 'chat') {
+      // For chat view, set active view (full screen chat)
+      setActiveView(viewId);
+      onViewSelect?.(viewId);
+    } else if (viewId === 'cards' && pathname === '/') {
+      // If we're on main page and cards is active, show mini chat
+      if (activeView === 'cards') {
+        handleMobileChatToggle('cards');
+      }
     } else {
       // For other views, navigate back to main page and set the active view
       if (pathname === '/cosmos') {
@@ -201,17 +268,11 @@ export const MobileHUDContainer: React.FC<MobileHUDContainerProps> = ({
 
   return (
     <>
-      {/* Touch indicator when HUD is hidden */}
-      {!isVisible && (
-        <div className="fixed top-0 left-0 right-0 h-10 z-40 bg-gradient-to-b from-black/30 to-transparent backdrop-blur-sm flex items-center justify-center">
-          <div className="text-white/60 text-xs">Tap top or bottom edge to show navigation</div>
-        </div>
-      )}
       
       <div
         ref={hudRef}
         className={`fixed bottom-0 left-0 right-0 z-50 transition-transform duration-300 ease-in-out ${
-          isVisible ? 'translate-y-0' : 'translate-y-full'
+          shouldShowHUD ? 'translate-y-0' : 'translate-y-full'
         } ${className}`}
       >
         {/* Mobile HUD - Horizontal row with gradient background */}
@@ -245,6 +306,23 @@ export const MobileHUDContainer: React.FC<MobileHUDContainerProps> = ({
               </button>
             );
           })}
+          
+          {/* Mini Chat button - only show when on cards or cosmos view */}
+          {(activeView === 'cards' || activeView === 'cosmos' || pathname === '/cosmos') && (
+            <button
+              onClick={() => handleButtonClick('mini-chat')}
+              className="w-12 h-12 rounded-full flex items-center justify-center
+                         text-white/80 hover:text-white hover:bg-white/20
+                         transition-all duration-200"
+              title="Open mini chat"
+            >
+              <MessageCircle 
+                size={20} 
+                className="stroke-current opacity-90" 
+                strokeWidth={1.5}
+              />
+            </button>
+          )}
           
           {/* Logout button */}
           <button

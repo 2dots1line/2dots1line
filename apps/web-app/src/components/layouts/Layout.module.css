@@ -1,0 +1,21 @@
+/* Mobile Sorted Cards Layout - Dynamic Sizing for 3 cards per row */
+.mobileSortedCards {
+  /* CSS custom properties will be set dynamically via JavaScript */
+  --mobile-card-size: 80px; /* fallback */
+  --mobile-gap-size: 12px; /* fallback */
+}
+
+@media (max-width: 768px) {
+  .mobileSortedCards {
+    gap: var(--mobile-gap-size);
+  }
+  
+  .mobileSortedCards > * {
+    width: var(--mobile-card-size) !important;
+    height: var(--mobile-card-size) !important;
+    min-width: var(--mobile-card-size) !important;
+    min-height: var(--mobile-card-size) !important;
+    max-width: var(--mobile-card-size) !important;
+    max-height: var(--mobile-card-size) !important;
+  }
+}

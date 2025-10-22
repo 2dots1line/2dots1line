@@ -291,11 +291,39 @@
   }
 }
 
+@media (max-width: 768px) {
+  :root {
+    --icon-size: 50px;
+    --card-gap: 16px;
+    --container-size: 50px;
+  }
+  
+  /* Force mobile card sizes for breathing room */
+  .card-item {
+    width: 50px !important;
+    height: 50px !important;
+    min-width: 50px !important;
+    min-height: 50px !important;
+    max-width: 50px !important;
+    max-height: 50px !important;
+  }
+}
+
 @media (max-width: 480px) {
   :root {
-    --icon-size: 100px;
-    --card-gap: 27px;
-    --container-size: 120px;
+    --icon-size: 45px;
+    --card-gap: 12px;
+    --container-size: 45px;
+  }
+  
+  /* Force small mobile card sizes for breathing room */
+  .card-item {
+    width: 45px !important;
+    height: 45px !important;
+    min-width: 45px !important;
+    min-height: 45px !important;
+    max-width: 45px !important;
+    max-height: 45px !important;
   }
   
   .card-content {

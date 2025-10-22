@@ -1,0 +1,215 @@
+/* Mobile Mini Chat - Optimized for mobile screens */
+
+/* Mobile-specific background panel - provides the sliding glassmorphic background */
+.mobileMiniChatPanel {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s ease-out;
+  position: relative;
+}
+
+.mobileMiniChatContainer {
+  /* Inner container styling - now just for layout */
+  width: 100%;
+  max-width: 100vw;
+  background: transparent;
+  transition: height 0.3s ease-out;
+}
+
+/* Collapsed state - just input area */
+.mobileMiniChatPanel.collapsed {
+  height: auto;
+  max-height: 80px; /* Just enough for input area */
+}
+
+/* Expanded state - 1/3 of screen height */
+.mobileMiniChatPanel.expanded {
+  height: 40vh; /* Increased to 40% of viewport height for better readability */
+  max-height: 40vh;
+  min-height: 250px; /* Increased minimum height */
+}
+
+/* Swipe indicator */
+.swipeIndicator {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+  z-index: 10;
+}
+
+/* Expanded state indicator */
+.mobileMiniChatPanel.expanded .swipeIndicator {
+  background: rgba(255, 255, 255, 0.6);
+  width: 50px;
+  height: 5px;
+}
+
+/* Chat interface styling - let ChatInterface handle its own layout */
+.chatInterface {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: transparent; /* Let the mobile panel handle background */
+}
+
+/* Messages area should be scrollable */
+.chatInterface :global(.flex-1.overflow-y-auto) {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  max-height: calc(100% - 80px); /* Leave space for input area */
+}
+
+/* Ensure messages have proper spacing */
+.chatInterface :global(.space-y-4) {
+  padding-bottom: 16px;
+}
+
+/* Remove header completely */
+.chatInterface :global(.flex.items-center.justify-between) {
+  display: none !important;
+}
+
+/* Remove the main glassmorphic container styling from ChatInterface */
+.chatInterface :global(.glass-panel.rounded-xl) {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Ensure message bubbles keep their glassmorphic styling */
+.chatInterface :global(.space-y-4 .glass-panel),
+.chatInterface :global(.max-w-\[70\%\] .glass-panel) {
+  background-color: rgba(var(--sys-color-glass-background-rgb), 0.25) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(var(--sys-color-glass-border-rgb), 0.2) !important;
+}
+
+/* Ensure input area keeps its glassmorphic styling */
+.chatInterface :global(.border-t.border-white\/20 .glass-panel),
+.chatInterface :global(.flex.flex-col.gap-3.glass-panel) {
+  background-color: rgba(var(--sys-color-glass-background-rgb), 0.25) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(var(--sys-color-glass-border-rgb), 0.2) !important;
+}
+
+/* Remove the border from input area */
+.chatInterface :global(.border-t.border-white\/20) {
+  border: none !important;
+}
+
+/* Messages area styling */
+.chatInterface :global(.flex-1.overflow-y-auto) {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* Hide scrollbar for cleaner look */
+.chatInterface :global(.custom-scrollbar) {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.chatInterface :global(.custom-scrollbar::-webkit-scrollbar) {
+  display: none !important;
+}
+
+/* Remove instruction text at bottom to save space */
+.chatInterface :global(.text-xs.text-white\/40) {
+  display: none !important;
+}
+
+/* Touch-friendly button sizing for input area buttons */
+.chatInterface :global(.flex.gap-2.items-center button) {
+  min-height: 44px !important;
+  min-width: 44px !important;
+  padding: 8px !important;
+}
+
+/* Ensure inline action buttons (Yes/Later) are visible and properly sized */
+.chatInterface :global(.inline-flex.items-center.gap-2.ml-2) {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  margin-top: 8px !important;
+}
+
+.chatInterface :global(.inline-flex.items-center.gap-2.ml-2 button) {
+  min-height: 36px !important;
+  min-width: 60px !important;
+  padding: 8px 12px !important;
+  font-size: 14px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* Input area padding adjustments */
+.chatInterface :global(.border-t.border-white\/20) {
+  padding: 16px !important;
+  border: none !important;
+}
+
+/* Message area padding */
+.chatInterface :global(.space-y-4) {
+  padding: 16px !important;
+  margin: 0 !important;
+}
+
+/* Allow agent messages to use more width on mobile */
+.chatInterface :global(.justify-start .max-w-\[70\%\]) {
+  max-width: 85% !important;
+}
+
+/* Keep user messages compact */
+.chatInterface :global(.justify-end .max-w-\[70\%\]) {
+  max-width: 70% !important;
+}
+
+/* Ensure wider agent messages have proper styling */
+.chatInterface :global(.justify-start .max-w-\[70\%\] .glass-panel) {
+  background-color: rgba(var(--sys-color-glass-background-rgb), 0.25) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(var(--sys-color-glass-border-rgb), 0.2) !important;
+}
+
+/* Smooth transitions for expand/collapse */
+.mobileMiniChatPanel {
+  transition: height 0.3s ease-out, max-height 0.3s ease-out;
+}
+
+/* Handle safe area for devices with notches */
+.mobileMiniChatPanel {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Optimize for mobile viewport */
+@media (max-height: 600px) {
+  .mobileMiniChatPanel.expanded {
+    height: 40vh; /* Use more space on smaller screens */
+    max-height: 40vh;
+  }
+}
+
+@media (max-height: 500px) {
+  .mobileMiniChatPanel.expanded {
+    height: 50vh; /* Use even more space on very small screens */
+    max-height: 50vh;
+  }
+}
