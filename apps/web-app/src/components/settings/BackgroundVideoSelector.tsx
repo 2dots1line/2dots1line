@@ -43,7 +43,7 @@ export const BackgroundVideoSelector: React.FC<BackgroundVideoSelectorProps> = (
   };
   
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
         <label className="text-xs font-medium text-white/70 flex items-center gap-1">
           <Video size={12} className="opacity-70" />
@@ -61,7 +61,7 @@ export const BackgroundVideoSelector: React.FC<BackgroundVideoSelectorProps> = (
       </div>
       
       {/* Current selection display */}
-      <div className="text-xs text-white/60 mb-1">
+      <div className="text-sm font-brand text-white/90 mb-2">
         Currently: {getCurrentDisplayName()}
       </div>
       
@@ -110,10 +110,13 @@ export const BackgroundVideoSelector: React.FC<BackgroundVideoSelectorProps> = (
       <GlassButton
         onClick={() => setPexelsModalView(view)}
         size="sm"
-        className="w-full justify-center"
+        className="w-full justify-center px-3 py-2"
       >
-        Search Pexels
+        <span className="text-sm font-brand">Search Pexels</span>
       </GlassButton>
+      <p className="text-xs text-white/50 mt-2">
+        Browse and select from Pexels video library
+      </p>
     </div>
   );
 };

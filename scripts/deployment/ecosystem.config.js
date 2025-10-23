@@ -204,6 +204,14 @@ module.exports = {
         NEXT_PUBLIC_API_BASE_URL: 'http://localhost:3001',
         NEXT_PUBLIC_NOTIFICATION_SERVICE_URL: 'http://localhost:3002',
       },
+      env_mobile: {
+        NODE_ENV: 'development',
+        ...baseEnv,
+        FRONTEND_URL: 'http://192.168.68.63:3000',
+        NOTIFICATION_SERVICE_URL: 'http://192.168.68.63:3002',
+        NEXT_PUBLIC_API_BASE_URL: 'http://192.168.68.63:3001',
+        NEXT_PUBLIC_NOTIFICATION_SERVICE_URL: 'http://192.168.68.63:3002',
+      },
       // Force individual logging to prevent shared context
       error_file: path.join(__dirname, 'logs', 'web-app-error.log'),
       out_file: path.join(__dirname, 'logs', 'web-app-out.log'),

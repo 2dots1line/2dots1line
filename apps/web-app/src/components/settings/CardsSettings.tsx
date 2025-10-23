@@ -27,13 +27,13 @@ export const CardsSettings: React.FC = () => {
   const { initializeSortedLoader } = useCardStore();
   
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <BackgroundVideoSelector view="cards" />
       
-      <div className="pt-2 border-t border-white/20 space-y-3">
+      <div className="pt-3 border-t border-white/20 space-y-4">
         {/* View Mode Toggle */}
         <div>
-          <label className="text-xs font-medium text-white/70 mb-2 block">View Mode</label>
+          <label className="text-xs font-medium text-white/70 block mb-2">View Mode</label>
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => setViewMode('infinite')}
@@ -60,36 +60,45 @@ export const CardsSettings: React.FC = () => {
               <span>Sorted</span>
             </button>
           </div>
+          <p className="text-xs text-white/50 mt-2">
+            Choose how cards are displayed and organized
+          </p>
         </div>
         
         {/* Covers First Toggle */}
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-medium text-white/70 flex items-center gap-1">
+        <div>
+          <label className="text-xs font-medium text-white/70 block mb-2 flex items-center gap-1">
             <Star size={12} />
             Covers First
-          </span>
-          <button
-            onClick={async () => {
-              const newValue = !hasCoverFirst;
-              setHasCoverFirst(newValue);
-              // Reinitialize loader with new cover setting
-              if (viewMode === 'sorted') {
-                await initializeSortedLoader(sortKey, newValue, true);
-              }
-            }}
-            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-              hasCoverFirst ? 'bg-blue-600' : 'bg-white/20'
-            }`}
-          >
-            <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
-              hasCoverFirst ? 'translate-x-5' : 'translate-x-1'
-            }`} />
-          </button>
+          </label>
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-brand text-white/90">Show covers first</span>
+            <button
+              onClick={async () => {
+                const newValue = !hasCoverFirst;
+                setHasCoverFirst(newValue);
+                // Reinitialize loader with new cover setting
+                if (viewMode === 'sorted') {
+                  await initializeSortedLoader(sortKey, newValue, true);
+                }
+              }}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                hasCoverFirst ? 'bg-blue-600' : 'bg-white/20'
+              }`}
+            >
+              <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                hasCoverFirst ? 'translate-x-5' : 'translate-x-1'
+              }`} />
+            </button>
+          </div>
+          <p className="text-xs text-white/50 mt-2">
+            Display card covers before other content
+          </p>
         </div>
         
         {/* Sort By */}
         <div>
-          <label className="text-xs font-medium text-white/70 mb-2 block">Sort By</label>
+          <label className="text-xs font-medium text-white/70 block mb-2">Sort By</label>
           <select
             value={sortKey}
             onChange={async (e) => {
@@ -107,11 +116,14 @@ export const CardsSettings: React.FC = () => {
             <option value="title_asc" className="bg-gray-900 text-white">Title (A-Z)</option>
             <option value="title_desc" className="bg-gray-900 text-white">Title (Z-A)</option>
           </select>
+          <p className="text-xs text-white/50 mt-2">
+            How cards are ordered in sorted view
+          </p>
         </div>
 
         {/* Default Cover Style */}
         <div>
-          <label className="text-xs font-medium text-white/70 mb-2 flex items-center gap-1 block">
+          <label className="text-xs font-medium text-white/70 block mb-2 flex items-center gap-1">
             <Palette size={12} />
             Default Cover Style
           </label>
@@ -127,7 +139,7 @@ export const CardsSettings: React.FC = () => {
               </option>
             ))}
           </select>
-          <p className="text-xs text-white/50 mt-1">
+          <p className="text-xs text-white/50 mt-2">
             Applied when generating new card covers
           </p>
         </div>

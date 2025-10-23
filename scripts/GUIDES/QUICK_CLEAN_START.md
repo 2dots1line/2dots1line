@@ -105,6 +105,38 @@ pm2 start ecosystem.config.js
 cd apps/web-app && pnpm dev &
 cd ../..
 curl -s http://localhost:3000 | grep -o "page\.css[^\"]*" | head -3
+
+# Mobile dev
+ Mobile Access Now Works:
+🌐 Mobile URL: http://192.168.68.63:3000
+Test Credentials:
+Email: test@example.com | Password: testpass123
+Email: dev@example.com | Password: password123
+🎯 How to Use Different Environments:
+
+
+For Local Development (Laptop only):
+pm2 start ecosystem.config.js --env development
+
+For Mobile Development (Laptop + Mobile):
+# Start backend services
+pm2 start ecosystem.config.js
+
+# Start web app with mobile environment
+cd apps/web-app
+FRONTEND_URL=http://192.168.68.63:3000 \
+NOTIFICATION_SERVICE_URL=http://192.168.68.63:3002 \
+NEXT_PUBLIC_API_BASE_URL=http://192.168.68.63:3001 \
+NEXT_PUBLIC_NOTIFICATION_SERVICE_URL=http://192.168.68.63:3002 \
+pnpm dev
+
+
+
+
+
+
+
+
 # Start Prisma Studio
 npx prisma studio --schema=./packages/database/prisma/schema.prisma
 ```

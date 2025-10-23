@@ -33,4 +33,7 @@ export { CardTile } from './cards/CardTile';
 export type { CardSize } from './cards/CardTile';
 export { InfiniteCardCanvas } from './cards/InfiniteCardCanvas';
 
+// Mobile Components
+export * from './mobile';
+
 // Add other component exports here 

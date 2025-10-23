@@ -11,7 +11,7 @@ interface GlassmorphicPanelProps {
   border?: boolean;
   borderOpacity?: number;
   rounded?: 'none' | 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full';
-  padding?: 'none' | 'sm' | 'md' | 'lg' | 'xl';
+  padding?: 'none' | 'sm' | 'md' | 'lg' | 'xl' | 'mobile';
   shadow?: 'none' | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
 }
 
@@ -45,6 +45,7 @@ const GlassmorphicPanel: React.FC<GlassmorphicPanelProps> = ({
       md: 'p-4',
       lg: 'p-6',
       xl: 'p-8',
+      mobile: 'p-1',
     };
 
     return (
@@ -86,6 +87,7 @@ const GlassmorphicPanel: React.FC<GlassmorphicPanelProps> = ({
     md: 'p-4',
     lg: 'p-6',
     xl: 'p-8',
+    mobile: 'p-1',
   };
 
   const shadowClasses = {

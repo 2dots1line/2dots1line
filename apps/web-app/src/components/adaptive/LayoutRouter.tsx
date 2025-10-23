@@ -7,8 +7,8 @@ import Layout from '../layouts/Layout';
 import { MobilePreviewToggle } from '../dev/MobilePreviewToggle';
 import { MobileHUDContainer } from '../hud/MobileHUDContainer';
 import { MobileChatView } from '../chat/MobileChatView';
-import { MobileMiniChat } from '../chat/MobileMiniChat';
 import { ContextualSettings } from '../settings/ContextualSettings';
+import { MobileNavigationContainer } from '../mobile/MobileNavigationContainer';
 
 export const LayoutRouter: React.FC = () => {
   const { deviceInfo } = useDeviceStore();
@@ -82,8 +82,10 @@ export const LayoutRouter: React.FC = () => {
             {/* Mobile-specific overlays */}
             {deviceInfo.isMobile && (
               <>
-                {/* Mobile HUD - replaces desktop HUD */}
-                <MobileHUDContainer />
+                {/* Mobile Navigation Container - replaces MobileHUDContainer */}
+                <MobileNavigationContainer>
+                  {/* Mobile HUD - legacy, will be removed */}
+                  {/* <MobileHUDContainer /> */}
                 
                 
                 {/* Mobile Chat View - for dedicated chat view */}
@@ -93,25 +95,6 @@ export const LayoutRouter: React.FC = () => {
                   </div>
                 )}
                 
-                {/* Mobile Mini Chat for Cosmos View */}
-                {activeView === 'cosmos' && mobileCosmosChatOpen && (
-                  <MobileMiniChat
-                    isOpen={mobileCosmosChatOpen}
-                    onClose={() => setMobileCosmosChatOpen(false)}
-                    onExpand={() => setMobileCosmosChatExpanded(true)}
-                    viewContext="cosmos"
-                  />
-                )}
-                
-                {/* Mobile Mini Chat for Cards View */}
-                {activeView === 'cards' && mobileCardsChatOpen && (
-                  <MobileMiniChat
-                    isOpen={mobileCardsChatOpen}
-                    onClose={() => setMobileCardsChatOpen(false)}
-                    onExpand={() => setMobileCardsChatExpanded(true)}
-                    viewContext="cards"
-                  />
-                )}
                 
                 {/* Mobile Settings Panel */}
                 {showSettings && (
@@ -130,6 +113,7 @@ export const LayoutRouter: React.FC = () => {
                     </div>
                   </div>
                 )}
+                </MobileNavigationContainer>
               </>
             )}
           </>

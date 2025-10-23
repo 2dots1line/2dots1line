@@ -66,10 +66,11 @@
   display: none !important;
 }
 
-/* Ensure full height usage */
+/* Ensure full height usage with safe area support */
 .mobileChatContainer :global(.h-\[85vh\]),
 .mobileChatContainer :global(.h-\[70vh\]) {
-  height: 100vh !important;
+  height: calc(100vh - env(safe-area-inset-bottom, 0px)) !important;
+  max-height: calc(100vh - env(safe-area-inset-bottom, 0px)) !important;
 }
 
 /* Remove any remaining margins/padding from messages area */
@@ -83,20 +84,30 @@
   padding-top: 0 !important;
 }
 
-/* Move input area up slightly to avoid HUD overlap */
-.mobileChatContainer :global(.pb-20) {
-  padding-bottom: 20px !important; /* Minimal space above mobile HUD */
-}
+/* Move input area up slightly to avoid HUD overlap - removed since we use mobile component padding */
+/* .mobileChatContainer :global(.pb-20) {
+  padding-bottom: 20px !important; 
+} */
 
-/* Target the input area specifically to add minimal bottom spacing */
+/* Target the input area specifically - ensure it stays within viewport */
 .mobileChatContainer :global(.border-t.border-white\/20) {
   border: none !important;
-  padding-bottom: 50px !important; /* Minimal space above mobile HUD */
+  /* Position input area to stay within visible viewport */
+  position: sticky !important;
+  bottom: 0 !important;
+  z-index: 10 !important;
+  /* Add safe area padding for devices with home indicators */
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)) !important;
+  /* Add padding between input and bottom of screen */
+  margin-bottom: 8px !important;
+  /* Ensure input area is always visible */
+  background: transparent !important;
 }
 
 /* Ensure input buttons are visible and not overlapping */
 .mobileChatContainer :global(.flex.gap-2.items-center) {
-  margin-bottom: 20px !important; /* Minimal space above mobile HUD */
+  /* Input buttons styling handled by mobile component padding */
+  display: flex;
 }
 
 /* Allow agent messages to use more width on mobile */

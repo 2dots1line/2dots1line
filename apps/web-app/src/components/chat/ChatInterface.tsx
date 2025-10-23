@@ -5,8 +5,7 @@ import {
   GlassButton, 
   MarkdownRenderer, 
   FileAttachment,
-  useVoiceRecording,
-  VoiceRecordingIndicator
+  useVoiceRecording
 } from '@2dots1line/ui-components';
 import { GroundingMetadata } from './GroundingMetadata';
 import { 
@@ -951,7 +950,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
           <MarkdownRenderer 
             content={msg.content}
             variant="chat"
-            className={`text-sm leading-relaxed ${
+            className={`text-base leading-relaxed ${
               msg.content === 'thinking...' || msg.content === 'recollecting memory...' || msg.content === 'searching the web...'
                 ? 'text-white/60 italic animate-pulse' 
                 : 'text-white/90'
@@ -1093,14 +1092,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
   return (
     <div className={`${config.containerClass} ${className}`}>
-      {/* Voice Recording Indicator (only for full and medium) */}
-      {size !== 'mini' && (
-        <VoiceRecordingIndicator
-          isRecording={isRecording}
-          interimTranscript={interimTranscript}
-          error={voiceError ?? undefined}
-        />
-      )}
+      {/* Voice Recording Indicator removed - using direct dictation instead */}
 
       {/* Modal Content */}
       <GlassmorphicPanel
@@ -1244,7 +1236,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         )}
 
         {/* Input Area */}
-        <div className={`${config.inputPadding} border-t border-white/20`}>
+        <div className={`${embedded && size === 'full' ? 'p-1' : config.inputPadding} border-t border-white/20`}>
           {/* File attachment preview */}
           {currentAttachment && currentAttachment.type && currentAttachment.name && (
             <div className="mb-4">
@@ -1259,11 +1251,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
           <GlassmorphicPanel
             variant="glass-panel"
             rounded="lg"
-            padding="sm"
-            className="flex flex-col gap-3"
+            padding={embedded && size === 'full' ? 'none' : 'sm'}
+            className={`flex flex-col ${embedded && size === 'full' ? 'gap-0.5' : 'gap-3'}`}
           >
             {/* Message Input - Full width above buttons */}
-            <div className="w-full">
+            <div className={`w-full ${embedded && size === 'full' ? 'px-1 pt-1' : ''}`}>
               <textarea
                 ref={messageInputRef}
                 value={message}
@@ -1273,18 +1265,18 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 }}
                 onKeyPress={handleKeyPress}
                 placeholder="Ask anything"
-                className="
+                className={`
                   w-full bg-transparent text-white placeholder-white/50 
-                  resize-none outline-none text-sm leading-relaxed
-                  min-h-[32px] max-h-[120px] py-2
-                "
+                  resize-none outline-none text-base leading-relaxed
+                  ${embedded && size === 'full' ? 'min-h-[16px] max-h-[80px] py-2 px-3' : 'min-h-[32px] max-h-[120px] py-2'}
+                `}
                 rows={1}
                 disabled={isLoading}
               />
             </div>
 
             {/* All Buttons in One Row */}
-            <div className="flex gap-2 items-center">
+            <div className={`flex gap-2 items-center ${embedded && size === 'full' ? 'px-1 pb-1' : ''}`}>
               <GlassButton
                 onClick={handleImageUpload}
                 className="p-2 hover:bg-white/20"

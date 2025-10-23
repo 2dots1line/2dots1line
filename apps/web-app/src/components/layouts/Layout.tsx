@@ -602,8 +602,8 @@ function Layout() {
       {/* Navigation HUD - Layer 3 - Desktop only */}
       {isAuthenticated && !deviceInfo.isMobile && <HUDContainer />}
 
-      {/* Conversation History Panel - Layer 3 - Only show in chat view */}
-      {isAuthenticated && activeView === 'chat' && <ConversationHistoryPanel />}
+      {/* Conversation History Panel - Layer 3 - Only show in chat view on desktop */}
+      {isAuthenticated && activeView === 'chat' && !deviceInfo.isMobile && <ConversationHistoryPanel />}
 
       {/* Main Views - Layer 4 (z-30) - Mutually Exclusive */}
       {isAuthenticated && activeView === 'cards' && (

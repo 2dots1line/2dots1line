@@ -20,26 +20,13 @@ export const VoiceRecordingIndicator: React.FC<VoiceRecordingIndicatorProps> = (
   interimTranscript,
   className = ''
 }) => {
-  if (!isRecording && !error && !interimTranscript) {
+  if (!error && !interimTranscript) {
     return null;
   }
 
   return (
     <div className={`voice-recording-indicator ${className}`}>
-      {/* Recording Status */}
-      {isRecording && (
-        <div className="recording-status">
-          <div className="recording-dot-container">
-            <div className="recording-dot" />
-            <div className="recording-pulse" />
-          </div>
-          <span className="recording-text">
-            {isListening ? 'Listening...' : 'Recording...'}
-          </span>
-        </div>
-      )}
-
-      {/* Interim Transcript */}
+      {/* Interim Transcript - Only show when there's actual transcription */}
       {interimTranscript && (
         <div className="interim-transcript">
           <span className="transcript-label">Hearing:</span>

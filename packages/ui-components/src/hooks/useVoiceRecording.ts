@@ -191,9 +191,8 @@ export function useVoiceRecording(
               isRetryable = true;
               break;
             case 'aborted':
-              errorMessage = 'Recording was aborted. Please try again.';
-              isRetryable = true;
-              break;
+              // Don't show error for user-initiated stops - this is normal behavior
+              return;
             case 'service-not-allowed':
               errorMessage = 'Speech recognition service is not allowed. Please enable it in browser settings.';
               break;
