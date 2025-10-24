@@ -36,4 +36,7 @@ export { InfiniteCardCanvas } from './cards/InfiniteCardCanvas';
 // Mobile Components
 export * from './mobile';
 
+// Page Components
+export * from './pages';
+
 // Add other component exports here 

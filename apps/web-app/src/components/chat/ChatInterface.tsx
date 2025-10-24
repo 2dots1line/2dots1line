@@ -48,6 +48,8 @@ interface ChatInterfaceProps {
   onSizeChange?: (size: 'medium' | 'mini') => void;
   className?: string;
   embedded?: boolean; // Whether this is embedded in another view (cards/cosmos)
+  messagesContainerRef?: React.RefObject<HTMLDivElement>; // For scroll tracking
+  inputOpacity?: number; // Dynamic opacity for input area
 }
 
 const ChatInterface: React.FC<ChatInterfaceProps> = ({ 
@@ -56,7 +58,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   onClose, 
   onSizeChange,
   className = '',
-  embedded = false
+  embedded = false,
+  messagesContainerRef,
+  inputOpacity = 1.0
 }) => {
   const [message, setMessage] = useState('');
   const [currentAttachment, setCurrentAttachment] = useState<File | null>(null);
@@ -1241,7 +1245,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
         {/* Messages Area */}
         {config.showMessages && (
-          <div className={`flex-1 overflow-y-auto ${config.messagesPadding} space-y-4 custom-scrollbar`}>
+          <div 
+            ref={messagesContainerRef}
+            className={`flex-1 overflow-y-auto ${config.messagesPadding} space-y-4 custom-scrollbar`}
+          >
             {displayMessages.map((msg) => (
               <div
                 key={msg.id}
@@ -1284,7 +1291,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         )}
 
         {/* Input Area */}
-        <div className={`${embedded && size === 'full' ? 'p-1' : config.inputPadding} border-t border-white/20`}>
+        <div 
+          className={`${embedded && size === 'full' ? 'p-1' : config.inputPadding} border-t border-white/20 transition-opacity duration-300`}
+          style={{ opacity: inputOpacity }}
+        >
           {/* File attachment preview */}
           {currentAttachment && currentAttachment.type && currentAttachment.name && (
             <div className="mb-4">

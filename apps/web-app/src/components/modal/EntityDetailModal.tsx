@@ -4,7 +4,7 @@
  * Supports both card and node contexts (ice/water states)
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { X, RefreshCw, AlertCircle, Wand2, Palette } from 'lucide-react';
 import { GlassmorphicPanel, GlassButton } from '@2dots1line/ui-components';
 import { useEntityDetails } from '../../hooks/cosmos/useEntityDetails';
@@ -12,6 +12,7 @@ import { useRelatedEntities } from '../../hooks/useRelatedEntities';
 import { cardService } from '../../services/cardService';
 import { useCardStore } from '../../stores/CardStore';
 import { useCardsViewStore } from '../../stores/CardsViewStore';
+import { useDeviceDetection } from '../../hooks/useDeviceDetection';
 
 interface EntityDetailModalProps {
   entity: any; // Can be card or node
@@ -39,6 +40,7 @@ export const EntityDetailModal: React.FC<EntityDetailModalProps> = ({
   
   const { updateCardBackground } = useCardStore();
   const { defaultCoverStyle } = useCardsViewStore();
+  const { isMobile } = useDeviceDetection();
   
   // Use global default style, can be overridden per-generation
   const [selectedStyle, setSelectedStyle] = useState<string>(defaultCoverStyle);
@@ -67,6 +69,51 @@ export const EntityDetailModal: React.FC<EntityDetailModalProps> = ({
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
   }, [showStyleDropdown]);
+
+  // Mobile swipe gesture handlers - only for header section
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState(0);
+
+  const handleHeaderTouchStart = useCallback((e: React.TouchEvent) => {
+    if (!isMobile) return;
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientY);
+    setIsDragging(false);
+    setDragOffset(0);
+  }, [isMobile]);
+
+  const handleHeaderTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isMobile || !touchStart) return;
+    
+    const currentTouch = e.targetTouches[0].clientY;
+    const diff = touchStart - currentTouch;
+    
+    // Only start dragging if moving down significantly
+    if (diff < -10) {
+      setIsDragging(true);
+      setDragOffset(Math.min(diff, 0)); // Only allow downward movement
+    }
+    
+    setTouchEnd(currentTouch);
+  }, [isMobile, touchStart]);
+
+  const handleHeaderTouchEnd = useCallback(() => {
+    if (!isMobile || !touchStart || !touchEnd) return;
+    
+    const distance = touchStart - touchEnd;
+    const isDownwardSwipe = distance < -80; // Increased threshold for header-only swipe
+    
+    if (isDownwardSwipe && isDragging) {
+      onClose();
+    }
+    
+    setTouchStart(null);
+    setTouchEnd(null);
+    setIsDragging(false);
+    setDragOffset(0);
+  }, [isMobile, touchStart, touchEnd, isDragging, onClose]);
 
   const { entityDetails, isLoading, error, refetch } = useEntityDetails(currentEntity);
   const { relatedEntities, isLoadingRelated } = useRelatedEntities(
@@ -240,9 +287,20 @@ export const EntityDetailModal: React.FC<EntityDetailModalProps> = ({
         rounded="xl"
         padding="none"
         className="relative w-full max-w-3xl max-h-[90vh] overflow-hidden border border-white/20 pointer-events-auto"
+        style={{
+          transform: isDragging ? `translateY(${Math.max(dragOffset, -20)}px)` : 'translateY(0px)',
+          transition: isDragging ? 'none' : 'transform 0.2s ease-out'
+        }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-white/20">
+        <div 
+          className={`flex items-center justify-between p-4 border-b border-white/20 ${
+            isDragging ? 'bg-white/5' : ''
+          }`}
+          onTouchStart={isMobile ? handleHeaderTouchStart : undefined}
+          onTouchMove={isMobile ? handleHeaderTouchMove : undefined}
+          onTouchEnd={isMobile ? handleHeaderTouchEnd : undefined}
+        >
           <div className="flex items-center gap-2">
             {isLoading && (
               <div className="flex items-center gap-2 text-white/60">
