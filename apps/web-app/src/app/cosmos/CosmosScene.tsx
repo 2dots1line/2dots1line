@@ -354,6 +354,10 @@ const CosmosScene: React.FC = () => {
         onEntityClick={(entityId) => {
           selectEntity(entityId, graphData, POSITION_SCALE);
         }}
+        onClose={() => {
+          setSeedEntityIds([]);
+          setSeedEntities([]);
+        }}
       />
       
       {/* Background Loading Overlay */}
