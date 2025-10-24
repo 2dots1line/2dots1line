@@ -10,11 +10,13 @@ import {
 } from '@2dots1line/ui-components';
 import type { NavigationItem } from '@2dots1line/ui-components';
 import { ContextualSettings } from '../settings/ContextualSettings';
+import { MobileChatView } from '../chat/MobileChatView';
 import { 
   Home, 
   MessageCircle, 
   CreditCard, 
-  Network 
+  Network,
+  ArrowLeft
 } from 'lucide-react';
 
 export interface MobileNavigationContainerProps {
@@ -32,7 +34,13 @@ export const MobileNavigationContainer: React.FC<MobileNavigationContainerProps>
   
   const router = useRouter();
   const pathname = usePathname();
-  const { activeView, setActiveView, toggleSettings } = useHUDStore();
+  const { 
+    activeView, 
+    setActiveView, 
+    toggleSettings,
+    mobileCosmosChatOpen,
+    setMobileCosmosChatOpen
+  } = useHUDStore();
   const { 
     sessionHistory, 
     setSessionHistory, 
@@ -93,6 +101,33 @@ export const MobileNavigationContainer: React.FC<MobileNavigationContainerProps>
     setIsMenuOpen(false);
     setExpandedSection(null);
   };
+
+  const handleCosmosChatOpen = () => {
+    // Check if there's transition content waiting to be displayed (without consuming it)
+    const { ViewTransitionService } = require('../../services/viewTransitionService');
+    const transitionData = sessionStorage.getItem(ViewTransitionService.STORAGE_KEY || 'view_transition_content');
+    
+    let hasTransitionContent = false;
+    if (transitionData) {
+      try {
+        const content = JSON.parse(transitionData);
+        hasTransitionContent = content.targetView === 'cosmos';
+      } catch (error) {
+        // Invalid data, ignore
+      }
+    }
+    
+    if (hasTransitionContent) {
+      // There's transition content - don't start fresh chat, let it display
+      console.log('🎬 MobileNavigationContainer: Transition content detected, preserving chat continuity');
+      setMobileCosmosChatOpen(true);
+    } else {
+      // No transition content - start fresh chat
+      console.log('🎬 MobileNavigationContainer: No transition content, starting fresh chat');
+      startNewChat();
+      setMobileCosmosChatOpen(true);
+    }
+  };
   
   const handleSettings = () => {
     if (expandedSection === 'settings') {
@@ -125,18 +160,28 @@ export const MobileNavigationContainer: React.FC<MobileNavigationContainerProps>
   
   return (
     <>
-      {/* Hamburger Button */}
-      <button
-        onClick={() => setIsMenuOpen(true)}
-        className="fixed top-4 left-3 z-50 w-9 h-9 bg-black/60 backdrop-blur-sm rounded-full border border-white/20 flex items-center justify-center text-white/80 hover:bg-black/80 transition-all"
-        title="Menu"
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <line x1="3" y1="6" x2="21" y2="6"/>
-          <line x1="3" y1="12" x2="21" y2="12"/>
-          <line x1="3" y1="18" x2="21" y2="18"/>
-        </svg>
-      </button>
+      {/* Hamburger Button / Back Button - Show back button when cosmos chat is open */}
+      {pathname === '/cosmos' && mobileCosmosChatOpen ? (
+        <button
+          onClick={() => setMobileCosmosChatOpen(false)}
+          className="fixed top-4 left-3 z-50 w-9 h-9 bg-black/60 backdrop-blur-sm rounded-full border border-white/20 flex items-center justify-center text-white/80 hover:bg-black/80 transition-all"
+          title="Back to cosmos"
+        >
+          <ArrowLeft size={16} />
+        </button>
+      ) : (
+        <button
+          onClick={() => setIsMenuOpen(true)}
+          className="fixed top-4 left-3 z-50 w-9 h-9 bg-black/60 backdrop-blur-sm rounded-full border border-white/20 flex items-center justify-center text-white/80 hover:bg-black/80 transition-all"
+          title="Menu"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <line x1="3" y1="12" x2="21" y2="12"/>
+            <line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+        </button>
+      )}
       
       {/* Hamburger Menu */}
       <MobileHamburgerMenu
@@ -163,6 +208,24 @@ export const MobileNavigationContainer: React.FC<MobileNavigationContainerProps>
       <div className={className}>
         {children}
       </div>
+      
+      {/* Mobile Cosmos Chat Toggle Button - Only show on cosmos page when chat is closed */}
+      {pathname === '/cosmos' && !mobileCosmosChatOpen && (
+        <button
+          onClick={handleCosmosChatOpen}
+          className="fixed bottom-4 left-4 z-40 w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 flex items-center justify-center text-white/80 hover:bg-white/20 hover:scale-105 transition-all duration-200 shadow-lg"
+          title="Ask about your cosmos"
+        >
+          <MessageCircle size={18} />
+        </button>
+      )}
+      
+      {/* Mobile Cosmos Chat */}
+      {pathname === '/cosmos' && mobileCosmosChatOpen && (
+        <MobileChatView
+          onBack={() => setMobileCosmosChatOpen(false)}
+        />
+      )}
     </>
   );
 };

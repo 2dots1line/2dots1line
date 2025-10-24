@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useChatStore } from '../stores/ChatStore';
 import { useHUDStore } from '../stores/HUDStore';
+import { useDeviceStore } from '../stores/DeviceStore';
 import { ViewTransitionService } from '../services/viewTransitionService';
 import type { ChatMessage } from '../services/chatService';
 
@@ -18,7 +19,8 @@ export const useViewTransitionContent = (
   isReady: boolean
 ) => {
   const { addMessage, setChatSize } = useChatStore();
-  const { setCosmosChatSize, setCardsChatSize } = useHUDStore();
+  const { setCosmosChatSize, setCardsChatSize, setMobileCosmosChatOpen, setMobileCardsChatOpen } = useHUDStore();
+  const { deviceInfo } = useDeviceStore();
 
   useEffect(() => {
     // Wait for view to be fully loaded before displaying content
@@ -38,6 +40,17 @@ export const useViewTransitionContent = (
       };
       addMessage(mainMessage);
       
+      // Auto-open mobile chat if on mobile device
+      if (deviceInfo.isMobile) {
+        if (currentView === 'cosmos') {
+          setMobileCosmosChatOpen(true);
+          console.log(`🎬 useViewTransitionContent: Auto-opened mobile cosmos chat`);
+        } else if (currentView === 'cards') {
+          setMobileCardsChatOpen(true);
+          console.log(`🎬 useViewTransitionContent: Auto-opened mobile cards chat`);
+        }
+      }
+      
       // Set chat size using the appropriate method for each view
       if (currentView === 'cosmos') {
         setCosmosChatSize(transitionContent.targetChatSize as 'mini' | 'medium');
@@ -51,6 +64,6 @@ export const useViewTransitionContent = (
         console.log(`🎬 useViewTransitionContent: Chat size set to ${transitionContent.targetChatSize} for ${currentView}`);
       }
     }
-  }, [isLoading, isReady, addMessage, setChatSize, setCosmosChatSize, setCardsChatSize, currentView]);
+  }, [isLoading, isReady, addMessage, setChatSize, setCosmosChatSize, setCardsChatSize, setMobileCosmosChatOpen, setMobileCardsChatOpen, deviceInfo.isMobile, currentView]);
 };
 

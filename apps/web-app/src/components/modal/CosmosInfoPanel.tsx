@@ -1,8 +1,15 @@
 import React from 'react';
 import { useCosmosStore } from '../../stores/CosmosStore';
+import { useDeviceDetection } from '../../hooks/useDeviceDetection';
 
 const CosmosInfoPanel: React.FC = () => {
   const { graphData } = useCosmosStore();
+  const { isMobile } = useDeviceDetection();
+
+  // Hide the panel on mobile devices to avoid blocking thumb reachable area
+  if (isMobile) {
+    return null;
+  }
 
   return (
     <div

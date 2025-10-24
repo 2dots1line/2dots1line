@@ -1,4 +1,5 @@
 import React from 'react';
+import { useDeviceDetection } from '../../hooks/useDeviceDetection';
 
 interface QuestInfoPanelProps {
   nodeCount: number;
@@ -6,6 +7,13 @@ interface QuestInfoPanelProps {
 }
 
 const QuestInfoPanel: React.FC<QuestInfoPanelProps> = ({ nodeCount, edgeCount }) => {
+  const { isMobile } = useDeviceDetection();
+
+  // Hide the panel on mobile devices to avoid blocking thumb reachable area
+  if (isMobile) {
+    return null;
+  }
+
   return (
     <div
       style={{
