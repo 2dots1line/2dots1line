@@ -1,10 +1,11 @@
 'use client';
 
-import { GlassmorphicPanel, GlassButton, MarkdownRenderer, CardTile, useTextToSpeech } from '@2dots1line/ui-components';
+import { GlassmorphicPanel, GlassButton, MarkdownRenderer, CardTile, useTextToSpeech, HeroAudioCard, PortraitInsightCard, GrowthEventCard, ProactivePromptCard } from '@2dots1line/ui-components';
 import { EntityDetailModal } from './EntityDetailModal';
 import { useCardStore } from '../../stores/CardStore';
 import { useHUDStore } from '../../stores/HUDStore';
 import { useEngagementStore } from '../../stores/EngagementStore';
+import { useDeviceStore } from '../../stores/DeviceStore';
 import { useAutoLoadCards } from '../hooks/useAutoLoadCards';
 import { 
   X, 
@@ -42,6 +43,7 @@ interface DashboardModalProps {
 
 const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
   const [isLoading, setIsLoading] = useState(true);
+  const [isClient, setIsClient] = useState(false);
   const [userData, setUserData] = useState<{ name: string; email: string; memberSince: string } | null>(null);
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [dynamicDashboardData, setDynamicDashboardData] = useState<DynamicDashboardData | null>(null);
@@ -49,6 +51,12 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
   const { cards, setSelectedCard, isLoading: cardsLoading, error: cardsError } = useCardStore();
   const { setCardDetailModalOpen } = useHUDStore();
   const { trackEvent } = useEngagementStore();
+  const { deviceInfo } = useDeviceStore();
+  
+  // Handle client-side hydration
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
   
   // Ensure cards are loaded when dashboard opens
   useAutoLoadCards();
@@ -60,6 +68,135 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
     volume: 0.9, // Clear volume
     onEnd: () => console.log('Finished reading opening words')
   });
+
+  // Data transformation functions for mobile dashboard
+  const transformDashboardData = (dynamicData: DynamicDashboardData) => {
+    // Get all available sections like desktop version does
+    const allSections = Object.entries(dynamicData.sections || {})
+      .filter(([sectionKey, sectionData]) => 
+        sectionData && 
+        sectionData.items && 
+        sectionData.items.length > 0 &&
+        // Exclude growth_dimensions, opening_words, and recent_cards as they belong to other tabs
+        sectionKey !== 'growth_dimensions' &&
+        sectionKey !== 'opening_words' &&
+        sectionKey !== 'recent_cards'
+      );
+
+    // Get insights from all available sections (same logic as desktop)
+    const insights = allSections.flatMap(([sectionKey, sectionData]) => 
+      sectionData.items.map(item => ({
+        id: item.id,
+        title: item.title,
+        content: item.content,
+        cardCover: item.background_image_url,
+        videoBackground: undefined,
+        backgroundType: item.background_image_url ? 'image' : 'solid' as const
+      }))
+    );
+
+    // Get growth events - use mobile-specific section
+    const growthEvents = (() => {
+      const sectionData = (dynamicData.sections as any).mobile_growth_events;
+      if (!sectionData || !sectionData.items) {
+        console.log('[Mobile Dashboard] No mobile_growth_events section found');
+        return [];
+      }
+      
+      console.log('[Mobile Dashboard] Found mobile_growth_events section with', sectionData.items.length, 'dimensions');
+      
+      const events: any[] = [];
+      
+      // Extract events from each dimension
+      sectionData.items.forEach((dimensionItem: any) => {
+        const dimension = dimensionItem.metadata?.dimension;
+        const dimensionEvents = dimensionItem.metadata?.events || [];
+        
+        console.log(`[Mobile Dashboard] Dimension ${dimension} has ${dimensionEvents.length} events`);
+        
+        dimensionEvents.forEach((event: any) => {
+          events.push({
+            id: event.entity_id || `${dimension}-${Math.random()}`,
+            title: event.content?.substring(0, 50) + '...' || dimensionItem.title,
+            content: event.content || '',
+            growthDimension: dimension,
+            cardCover: undefined // Growth events don't have card covers
+          });
+        });
+      });
+      
+      console.log('[Mobile Dashboard] Total growth events extracted:', events.length);
+      console.log('[Mobile Dashboard] Sample transformed events:', events.slice(0, 2));
+      return events;
+    })();
+
+    // Get prompts from all prompt sections
+    const promptSections = [
+      'reflection_prompts',
+      'exploration_prompts', 
+      'goal_setting_prompts',
+      'skill_development_prompts',
+      'creative_expression_prompts'
+    ];
+    
+    const prompts = promptSections.flatMap(sectionKey => 
+      (dynamicData.sections[sectionKey as keyof typeof dynamicData.sections]?.items || []).map((item: any) => ({
+        id: item.id,
+        title: item.title,
+        content: item.content,
+        cardCover: item.background_image_url,
+        videoBackground: undefined,
+        backgroundType: item.background_image_url ? 'image' : 'solid' as const
+      }))
+    );
+
+    return {
+      openingContent: {
+        title: dynamicData.sections.opening_words?.items?.[0]?.title || "Welcome to Your Journey",
+        content: dynamicData.sections.opening_words?.items?.[0]?.content || "Your personalized dashboard where we'll explore your recent insights, growth milestones, and proactive suggestions."
+      },
+      insights,
+      growthEvents,
+      prompts
+    };
+  };
+
+  // TTS handlers for mobile dashboard
+  const handleTTSPlay = (type: string, id: string) => {
+    const transformedData = dynamicDashboardData ? transformDashboardData(dynamicDashboardData) : null;
+    if (!transformedData) return;
+
+    let content = '';
+    switch (type) {
+      case 'opening':
+        content = `${transformedData.openingContent.title}. ${transformedData.openingContent.content}`;
+        break;
+      case 'insight':
+        const insight = transformedData.insights.find(i => i.id === id);
+        content = insight ? `${insight.title}. ${insight.content}` : '';
+        break;
+      case 'growth':
+        const growthEvent = transformedData.growthEvents.find(g => g.id === id);
+        content = growthEvent ? `${growthEvent.title}. ${growthEvent.content}` : '';
+        break;
+      case 'prompt':
+        const prompt = transformedData.prompts.find(p => p.id === id);
+        content = prompt ? `${prompt.title}. ${prompt.content}` : '';
+        break;
+    }
+    
+    if (content) {
+      speak(content);
+    }
+  };
+
+  const handleTTSPause = () => {
+    stop();
+  };
+
+  const isCurrentlyPlaying = (type: string, id: string) => {
+    return isSpeaking;
+  };
   const [dashboardConfig, setDashboardConfig] = useState<{
     dashboard_sections: Record<string, {
       title: string;
@@ -227,6 +364,13 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
   const loadDashboardData = async () => {
     setIsLoading(true);
     try {
+      console.log('[DashboardModal] Starting to load dashboard data...');
+      
+      // Check authentication
+      const token = localStorage.getItem('auth_token');
+      console.log('[DashboardModal] Auth token exists:', !!token);
+      console.log('[DashboardModal] Auth token length:', token?.length || 0);
+      
       // Load all dashboard data
       const [legacyResponse, dynamicResponse, configResponse, greetingResponse, metricsResponse] = await Promise.all([
         dashboardService.getDashboardData(),
@@ -248,6 +392,9 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
       }
 
       if (dynamicResponse.success && dynamicResponse.data) {
+        console.log('[DashboardModal] Dynamic dashboard data loaded successfully');
+        console.log('[DashboardModal] Available sections:', Object.keys(dynamicResponse.data.sections));
+        console.log('[DashboardModal] Mobile growth events section:', dynamicResponse.data.sections.mobile_growth_events);
         setDynamicDashboardData(dynamicResponse.data);
       } else {
         console.error('Failed to load dynamic dashboard data:', dynamicResponse.error);
@@ -404,6 +551,231 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
 
   if (!isOpen) return null;
 
+  // Show loading state during hydration
+  if (!isClient) {
+    return (
+      <div className="fixed inset-0 z-40 pointer-events-auto">
+        <div className="flex items-center justify-center h-full">
+          <div className="text-white/60">Loading...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Mobile Dashboard - Direct overlay on video background using mobile-specific page templates
+  // Only render on client side to prevent hydration mismatch
+  if (deviceInfo.isMobile && dynamicDashboardData) {
+    console.log('[Mobile Dashboard] Rendering mobile dashboard with data');
+    const transformedData = transformDashboardData(dynamicDashboardData);
+    
+    // Show loading state if data is still being processed
+    if (isLoading) {
+      return (
+        <div className="fixed inset-0 z-40 pointer-events-auto">
+          <div className="flex items-center justify-center h-full">
+            <div className="text-white/60">Loading growth data...</div>
+          </div>
+        </div>
+      );
+    }
+    
+    return (
+      <div className="fixed inset-0 z-40 pointer-events-auto">
+        {/* Mobile Navigation */}
+        <div className="absolute top-4 left-20 right-4 z-50">
+          <div className="flex gap-2 mb-4">
+            {[
+              { key: 'opening', label: 'Opening' },
+              { key: 'dynamic', label: 'Insights' },
+              { key: 'growth-trajectory', label: 'Growth' }
+            ].map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key as any)}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
+                  activeTab === tab.key 
+                    ? 'bg-white/20 text-white' 
+                    : 'text-white/70 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Mobile Content with 40% top spacing */}
+        <div className="pt-96 px-4 pb-4 h-full overflow-y-auto">
+          {/* Opening Section - Use same approach as desktop with MarkdownRenderer */}
+          {activeTab === 'opening' && (
+            <div className="max-w-4xl mx-auto">
+              <GlassmorphicPanel
+                variant="glass-panel"
+                rounded="xl"
+                padding="lg"
+                className="hover:bg-white/15 transition-all duration-200"
+              >
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-2xl sm:text-3xl font-semibold text-white/90">
+                      {transformedData.openingContent.title}
+                    </h2>
+                  </div>
+                  {isSupported && (
+                    <GlassButton
+                      onClick={() => {
+                        const textToSpeak = `${transformedData.openingContent.title}. ${transformedData.openingContent.content}`;
+                        if (isSpeaking) {
+                          stop();
+                        } else {
+                          speak(textToSpeak);
+                        }
+                      }}
+                      variant="default"
+                      size="lg"
+                      className="flex items-center gap-2 sm:gap-3 px-4 sm:px-6 py-2 sm:py-3"
+                    >
+                      {isSpeaking ? (
+                        <>
+                          <Pause size={18} className="stroke-current" strokeWidth={1.5} />
+                          <span className="text-sm sm:text-lg">Pause</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play size={18} className="stroke-current" strokeWidth={1.5} />
+                          <span className="text-sm sm:text-lg">Listen</span>
+                        </>
+                      )}
+                    </GlassButton>
+                  )}
+                </div>
+                <div className="prose prose-invert max-w-none text-left" style={{ textAlign: 'left' }}>
+                  <MarkdownRenderer 
+                    content={transformedData.openingContent.content}
+                    variant="dashboard"
+                    className="prose prose-invert max-w-none text-left"
+                  />
+                </div>
+              </GlassmorphicPanel>
+            </div>
+          )}
+
+          {/* Insights Section - Use PortraitInsightCard */}
+          {activeTab === 'dynamic' && (
+            <div className="max-w-6xl mx-auto">
+              <div className="space-y-4">
+                {transformedData.insights.map((insight) => (
+                  <PortraitInsightCard
+                    key={insight.id}
+                    title={insight.title}
+                    content={insight.content}
+                    cardCover={insight.cardCover}
+                    videoBackground={insight.videoBackground}
+                    backgroundType={insight.backgroundType as "image" | "solid" | "video" | undefined}
+                    onPlay={() => handleTTSPlay('insight', insight.id)}
+                    onPause={handleTTSPause}
+                    isPlaying={isCurrentlyPlaying('insight', insight.id)}
+                    isSupported={isSupported}
+                    className="w-full"
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Growth Section - 6 rows by growth dimension with horizontal scroll */}
+          {activeTab === 'growth-trajectory' && (
+            <div className="max-w-6xl mx-auto">
+              <div className="space-y-6">
+                {(() => {
+                  console.log('[Mobile Dashboard] Rendering growth section with', transformedData.growthEvents.length, 'events');
+                  
+                  // Group growth events by dimension
+                  const eventsByDimension = transformedData.growthEvents.reduce((acc, event) => {
+                    const dimension = event.growthDimension || 'unknown';
+                    if (!acc[dimension]) {
+                      acc[dimension] = [];
+                    }
+                    acc[dimension].push(event);
+                    return acc;
+                  }, {} as Record<string, any[]>);
+                  
+                  console.log('[Mobile Dashboard] Events grouped by dimension:', Object.keys(eventsByDimension).map(key => `${key}: ${eventsByDimension[key].length}`));
+
+                  // Define the 6 growth dimensions in order - FIXED to match actual data keys
+                  const growthDimensions = [
+                    'know_self', 'act_self', 'show_self', 
+                    'know_world', 'act_world', 'show_world'
+                  ];
+
+                  return growthDimensions.map((dimension) => {
+                    const events = eventsByDimension[dimension] || [];
+                    const dimensionDisplayName = {
+                      'know_self': 'Self Knowledge',
+                      'act_self': 'Self Action', 
+                      'show_self': 'Self Expression',
+                      'know_world': 'World Knowledge',
+                      'act_world': 'World Action',
+                      'show_world': 'World Expression'
+                    }[dimension] || dimension;
+
+                    console.log(`[Mobile Dashboard] Rendering dimension ${dimension} (${dimensionDisplayName}) with ${events.length} events`);
+
+                    return (
+                      <div key={dimension} className="space-y-3">
+                        <h3 className="text-lg font-semibold text-white/90 px-2">
+                          {dimensionDisplayName}
+                        </h3>
+                        <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+                          {events.length > 0 ? (
+                            events.map((event: any) => (
+                              <div key={event.id} className="flex-shrink-0 w-80">
+                                <GrowthEventCard
+                                  title={event.title}
+                                  content={event.content}
+                                  growthDimension={event.growthDimension}
+                                  cardCover={event.cardCover}
+                                  className="w-full"
+                                />
+                              </div>
+                            ))
+                          ) : (
+                            <div className="flex-shrink-0 w-80 h-32 flex items-center justify-center text-white/60 text-sm">
+                              No events for {dimensionDisplayName}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+          )}
+
+        </div>
+
+        {/* Auto-rotation indicator */}
+        <div className="fixed bottom-4 right-4 text-white/60 text-sm">
+          Auto-rotating in 8s
+        </div>
+
+        {/* Entity Detail Modal for capsule clicks */}
+        {selectedEntity && (
+          <EntityDetailModal
+            entity={selectedEntity}
+            isOpen={entityModalOpen}
+            onClose={() => {
+              setEntityModalOpen(false);
+              setSelectedEntity(null);
+            }}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // Desktop Dashboard - Modal container
   return (
     <div className="fixed inset-4 z-40 flex items-center justify-center pointer-events-none">
       <GlassmorphicPanel
@@ -666,21 +1038,21 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                           </GlassButton>
                         )}
                       </div>
-                      <div className="prose prose-invert max-w-none">
+                      <div className="prose prose-invert max-w-none text-left" style={{ textAlign: 'left' }}>
                         {(() => {
                           const openingWords = dynamicDashboardData?.sections?.opening_words?.items?.[0];
                           
                           if (openingWords) {
                             return (
                               <>
-                                <h1 className="text-4xl font-bold text-white mb-6 leading-tight">
+                                <h1 className="text-4xl font-bold text-white mb-6 leading-tight text-left">
                                   {openingWords.title}
                                 </h1>
-                                <div className="text-lg text-white/90 leading-relaxed">
+                                <div className="text-lg text-white/90 leading-relaxed text-left" style={{ textAlign: 'left' }}>
                                   <MarkdownRenderer 
                                     content={openingWords.content} 
                                     variant="dashboard"
-                                    className="prose prose-invert max-w-none"
+                                    className="prose prose-invert max-w-none text-left"
                                   />
                                 </div>
                               </>

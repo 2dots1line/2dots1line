@@ -297,6 +297,14 @@
         ]
       }
     },
+    "mobile_growth_events": {
+      "title": "Mobile Growth Events",
+      "icon": "📱",
+      "description": "Growth events optimized for mobile display",
+      "max_items": 6,
+      "priority": 1,
+      "category": "growth"
+    },
     "growth_insights": {
       "title": "Growth Insights",
       "icon": "🔍",

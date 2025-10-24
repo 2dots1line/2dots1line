@@ -102,6 +102,7 @@ export interface DynamicDashboardData {
     recent_cards: DashboardSection;
     opening_words: DashboardSection;
     growth_dimensions: DashboardSection;
+    mobile_growth_events: DashboardSection;
     growth_insights: DashboardSection;
     growth_focus_areas: DashboardSection;
   };

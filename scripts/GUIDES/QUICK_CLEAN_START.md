@@ -119,6 +119,8 @@ For Local Development (Laptop only):
 pm2 start ecosystem.config.js --env development
 
 For Mobile Development (Laptop + Mobile):
+
+## Home WiFi Network (192.168.68.63):
 # Start backend services
 pm2 start ecosystem.config.js
 
@@ -129,6 +131,40 @@ NOTIFICATION_SERVICE_URL=http://192.168.68.63:3002 \
 NEXT_PUBLIC_API_BASE_URL=http://192.168.68.63:3001 \
 NEXT_PUBLIC_NOTIFICATION_SERVICE_URL=http://192.168.68.63:3002 \
 pnpm dev
+
+## Mobile Hotspot Network (172.20.10.3):
+# Start backend services
+pm2 start ecosystem.config.js
+
+# Start web app with mobile hotspot environment
+cd apps/web-app
+FRONTEND_URL=http://172.20.10.3:3000 \
+NOTIFICATION_SERVICE_URL=http://172.20.10.3:3002 \
+NEXT_PUBLIC_API_BASE_URL=http://172.20.10.3:3001 \
+NEXT_PUBLIC_NOTIFICATION_SERVICE_URL=http://172.20.10.3:3002 \
+pnpm dev
+
+## Auto-detect IP Address:
+# Get your current IP address
+CURRENT_IP=$(ifconfig en0 | grep "inet " | awk '{print $2}' | head -1)
+echo "Current IP: $CURRENT_IP"
+
+# Start web app with auto-detected IP
+cd apps/web-app
+FRONTEND_URL=http://$CURRENT_IP:3000 \
+NOTIFICATION_SERVICE_URL=http://$CURRENT_IP:3002 \
+NEXT_PUBLIC_API_BASE_URL=http://$CURRENT_IP:3001 \
+NEXT_PUBLIC_NOTIFICATION_SERVICE_URL=http://$CURRENT_IP:3002 \
+pnpm dev
+
+## After changing IP addresses, restart API Gateway:
+# Stop and restart API gateway with new environment variables
+pm2 stop api-gateway
+FRONTEND_URL=http://172.20.10.3:3000 pm2 start api-gateway
+
+## Login Credentials for Mobile Development:
+# Email: dev@example.com
+# Password: dev-token
 
 
 

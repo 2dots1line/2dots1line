@@ -1,6 +1,7 @@
 import React from 'react';
 import GlassmorphicPanel from '../GlassmorphicPanel';
 import GlassButton from '../GlassButton';
+import MarkdownRenderer from '../markdown/MarkdownRenderer';
 import { Play, Pause, Volume2, TrendingUp, Calendar } from 'lucide-react';
 
 export interface GrowthEventCardProps {
@@ -50,13 +51,17 @@ export const GrowthEventCard: React.FC<GrowthEventCardProps> = ({
         }}
       >
         <GlassmorphicPanel
-          variant="glass-panel"
+          variant="custom"
           rounded="lg"
           padding="lg"
-          className="hover:bg-white/15 transition-all duration-200 h-full relative"
+          blur="sm"
+          opacity={10}
+          border={false}
+          borderOpacity={5}
+          className="h-full relative"
         >
-        {/* Gradient overlay for text readability */}
-        <div className="absolute inset-0 bg-gradient-to-br from-black/70 via-black/50 to-transparent" />
+        {/* Light to dark gradient for translucency */}
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/5 to-black/30 rounded-lg" />
         
         <div className="relative z-10 flex flex-col h-full">
           <div className="flex items-center justify-between mb-4">
@@ -92,13 +97,17 @@ export const GrowthEventCard: React.FC<GrowthEventCardProps> = ({
           </div>
           
           <div className="flex-1 flex flex-col justify-end">
-            <div className="text-sm leading-relaxed text-white/90 mb-4">
-              {content}
+            <div className="text-sm leading-relaxed text-white/90 mb-4 text-left">
+              <MarkdownRenderer 
+                content={content}
+                variant="dashboard"
+                className="text-sm text-white/90 leading-relaxed text-left"
+              />
             </div>
             
             {/* Growth Dimension */}
             {growthDimension && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 text-left">
                 <div className="w-2 h-2 bg-green-400 rounded-full" />
                 <span className="text-xs text-white/80 font-medium">{getGrowthDimensionDisplayName(growthDimension)}</span>
               </div>

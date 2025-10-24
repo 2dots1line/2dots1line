@@ -43,7 +43,7 @@ export const ProactivePromptCard: React.FC<ProactivePromptCardProps> = ({
       case 'solid':
       default:
         return {
-          backgroundColor: '#1a1a2e' // Dark purple fallback
+          backgroundColor: 'transparent' // Transparent background
         };
     }
   };
@@ -115,7 +115,7 @@ export const ProactivePromptCard: React.FC<ProactivePromptCardProps> = ({
                 </GlassButton>
               )}
             </div>
-            <p className="text-sm leading-relaxed text-white/80 mb-4 flex-grow">{content}</p>
+            <p className="text-sm leading-relaxed text-white/80 mb-4 flex-grow text-left">{content}</p>
           </div>
         </GlassmorphicPanel>
       </div>

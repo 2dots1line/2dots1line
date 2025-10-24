@@ -107,7 +107,7 @@
 .markdown-dashboard p {
   margin: 0 0 1.75rem 0;
   line-height: 1.8;
-  text-align: justify;
+  text-align: left;
 }
 
 .markdown-dashboard p:last-child {

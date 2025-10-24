@@ -1,6 +1,7 @@
 import React from 'react';
 import GlassmorphicPanel from '../GlassmorphicPanel';
 import GlassButton from '../GlassButton';
+import MarkdownRenderer from '../markdown/MarkdownRenderer';
 import { Play, Pause, Volume2, Lightbulb } from 'lucide-react';
 
 export interface PortraitInsightCardProps {
@@ -43,7 +44,7 @@ export const PortraitInsightCard: React.FC<PortraitInsightCardProps> = ({
       case 'solid':
       default:
         return {
-          backgroundColor: '#1a1a2e' // Dark purple fallback
+          backgroundColor: 'transparent' // Transparent background
         };
     }
   };
@@ -75,13 +76,17 @@ export const PortraitInsightCard: React.FC<PortraitInsightCardProps> = ({
           </video>
         )}
         <GlassmorphicPanel
-          variant="glass-panel"
+          variant="custom"
           rounded="lg"
           padding="lg"
-          className="hover:bg-white/15 transition-all duration-200 h-full relative"
+          blur="sm"
+          opacity={10}
+          border={false}
+          borderOpacity={5}
+          className="h-full relative"
         >
-        {/* Gradient overlay for text readability */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+        {/* Light to dark gradient for translucency */}
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/5 to-black/30 rounded-lg" />
         
         <div className="relative z-10 flex flex-col h-full">
           <div className="flex items-center justify-between mb-4">
@@ -117,8 +122,12 @@ export const PortraitInsightCard: React.FC<PortraitInsightCardProps> = ({
           </div>
           
           <div className="flex-1 flex flex-col justify-end">
-            <div className="text-sm leading-relaxed text-white/90 mb-4">
-              {content}
+            <div className="text-sm leading-relaxed text-white/90 mb-4 text-left">
+              <MarkdownRenderer 
+                content={content}
+                variant="dashboard"
+                className="text-sm text-white/90 leading-relaxed text-left"
+              />
             </div>
           </div>
         </div>

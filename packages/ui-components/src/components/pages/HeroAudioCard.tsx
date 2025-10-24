@@ -73,8 +73,8 @@ export const HeroAudioCard: React.FC<HeroAudioCardProps> = ({
           )}
         </div>
         
-        <div className="prose prose-invert max-w-none">
-          <div className="text-base sm:text-lg leading-relaxed text-white/90 whitespace-pre-wrap">
+        <div className="prose prose-invert max-w-none text-left" style={{ textAlign: 'left' }}>
+          <div className="text-base sm:text-lg leading-relaxed text-white/90 whitespace-pre-wrap text-left" style={{ textAlign: 'left' }}>
             {displayContent}
           </div>
           

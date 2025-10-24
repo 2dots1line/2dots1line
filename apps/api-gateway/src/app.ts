@@ -35,7 +35,13 @@ import { InsightController } from './controllers/insight.controller';
 async function createApp(): Promise<express.Application> {
   const app: express.Application = express();
   app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: [
+      process.env.FRONTEND_URL || 'http://localhost:3000',
+      'http://172.20.10.3:3000',
+      'http://192.168.68.63:3000',
+      'http://localhost:3000',
+      'http://127.0.0.1:3000'
+    ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control']

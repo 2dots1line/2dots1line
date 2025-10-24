@@ -240,6 +240,8 @@ export class DashboardService {
           return [sectionKey, this.createOpeningWordsSection(sectionKey, openingArtifact)];
         } else if (sectionKey === 'growth_dimensions') {
           return [sectionKey, this.createGrowthDimensionsSection(sectionKey, growthEvents)];
+        } else if (sectionKey === 'mobile_growth_events') {
+          return [sectionKey, this.createMobileGrowthEventsSection(sectionKey, growthEvents)];
         } else if (sectionKey.startsWith('growth_')) {
           // Growth-specific sections
           const artifactType = sectionKey.replace('growth_', '');
@@ -761,5 +763,78 @@ export class DashboardService {
       console.error(`[DashboardService] Error getting user metrics for user ${userId}:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Create a mobile-specific growth events section
+   * Returns growth events grouped by dimension for mobile dashboard
+   */
+  private createMobileGrowthEventsSection(sectionType: string, growthEvents: any[]): DashboardSectionData {
+    console.log(`[DashboardService] DEBUG: ===== MOBILE GROWTH EVENTS METHOD CALLED =====`);
+    console.log(`[DashboardService] DEBUG: Section type: ${sectionType}`);
+    console.log(`[DashboardService] DEBUG: Growth events count: ${growthEvents.length}`);
+    
+    const dimensions = [
+      { key: 'know_self', name: 'Self Knowledge', icon: '🧠' },
+      { key: 'act_self', name: 'Self Action', icon: '⚡' },
+      { key: 'show_self', name: 'Self Expression', icon: '💬' },
+      { key: 'know_world', name: 'World Knowledge', icon: '🌍' },
+      { key: 'act_world', name: 'World Action', icon: '🌱' },
+      { key: 'show_world', name: 'World Expression', icon: '🎭' }
+    ];
+
+    console.log(`[DashboardService] DEBUG: Creating mobile growth events section with ${growthEvents.length} events`);
+    console.log(`[DashboardService] DEBUG: Sample event types:`, growthEvents.slice(0, 5).map(e => e.type));
+
+    // Group growth events by dimension
+    const eventsByDimension = growthEvents.reduce((acc, event) => {
+      const dimension = event.type || 'unknown';
+      if (!acc[dimension]) {
+        acc[dimension] = [];
+      }
+      acc[dimension].push(event);
+      return acc;
+    }, {} as Record<string, any[]>);
+
+    console.log(`[DashboardService] DEBUG: Events grouped by dimension:`, Object.keys(eventsByDimension).map(key => `${key}: ${eventsByDimension[key].length}`));
+
+    // Create items for each dimension
+    const items = dimensions.map(dimension => {
+      const events = eventsByDimension[dimension.key] || [];
+      
+      console.log(`[DashboardService] DEBUG: Dimension ${dimension.key} has ${events.length} events`);
+      
+      return {
+        id: `dimension-${dimension.key}`,
+        title: dimension.name,
+        content: events.length > 0 
+          ? events.slice(0, 3).map((event: any) => `• ${event.content}`).join('\n')
+          : 'No recent growth events',
+        created_at: events.length > 0 ? events[0].created_at.toISOString() : new Date().toISOString(),
+        metadata: {
+          dimension: dimension.key,
+          dimension_name: dimension.name,
+          icon: dimension.icon,
+          events_count: events.length,
+          events: events.slice(0, 5).map((event: any) => ({
+            entity_id: event.entity_id,
+            content: event.content,
+            delta_value: event.delta_value,
+            created_at: event.created_at.toISOString(),
+            source: event.source,
+            source_concept_ids: event.source_concept_ids,
+            source_memory_unit_ids: event.source_memory_unit_ids
+          }))
+        }
+      };
+    });
+
+    return {
+      section_type: sectionType,
+      title: 'Growth Events',
+      items: items,
+      total_count: growthEvents.length,
+      last_updated: growthEvents.length > 0 ? growthEvents[0].created_at.toISOString() : new Date().toISOString()
+    };
   }
 }
