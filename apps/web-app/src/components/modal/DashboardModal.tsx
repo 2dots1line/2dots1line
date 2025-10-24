@@ -1,6 +1,6 @@
 'use client';
 
-import { GlassmorphicPanel, GlassButton, MarkdownRenderer, CardTile } from '@2dots1line/ui-components';
+import { GlassmorphicPanel, GlassButton, MarkdownRenderer, CardTile, useTextToSpeech } from '@2dots1line/ui-components';
 import { EntityDetailModal } from './EntityDetailModal';
 import { useCardStore } from '../../stores/CardStore';
 import { useHUDStore } from '../../stores/HUDStore';
@@ -25,7 +25,10 @@ import {
   Sprout,
   User,
   Plus,
-  Sparkles
+  Sparkles,
+  Play,
+  Pause,
+  Volume2
 } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { dashboardService, type RecentActivity, type DynamicDashboardData, type DashboardSectionItem } from '../../services/dashboardService';
@@ -49,6 +52,14 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
   
   // Ensure cards are loaded when dashboard opens
   useAutoLoadCards();
+  
+  // Text-to-speech functionality
+  const { speak, stop, isSpeaking, isSupported } = useTextToSpeech({
+    rate: 0.8, // Slower, more natural pace
+    pitch: 1.0, // Natural pitch
+    volume: 0.9, // Clear volume
+    onEnd: () => console.log('Finished reading opening words')
+  });
   const [dashboardConfig, setDashboardConfig] = useState<{
     dashboard_sections: Record<string, {
       title: string;
@@ -618,9 +629,42 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                       padding="lg"
                       className="hover:bg-white/15 transition-all duration-200 h-full"
                     >
-                      <div className="flex items-center gap-3 mb-6">
-                        <BookOpen size={24} className="text-white/80 stroke-current" strokeWidth={1.5} />
-                        <h3 className="text-2xl font-semibold text-white/90">Editor&apos;s Note</h3>
+                      <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-3">
+                          <BookOpen size={24} className="text-white/80 stroke-current" strokeWidth={1.5} />
+                          <h3 className="text-2xl font-semibold text-white/90">Editor&apos;s Note</h3>
+                        </div>
+                        {isSupported && (
+                          <GlassButton
+                            onClick={() => {
+                              const openingWords = dynamicDashboardData?.sections?.opening_words?.items?.[0];
+                              const textToSpeak = openingWords ? 
+                                `${openingWords.title}. ${openingWords.content}` : 
+                                "Your Journey Through the Cosmos. Welcome to your personal cosmic journey. This month, we've witnessed remarkable growth across all dimensions of your being. Your conversations have revealed patterns of self-discovery that speak to a deeper understanding of your place in the universe.";
+                              
+                              if (isSpeaking) {
+                                stop();
+                              } else {
+                                speak(textToSpeak);
+                              }
+                            }}
+                            variant="default"
+                            size="sm"
+                            className="flex items-center gap-2"
+                          >
+                            {isSpeaking ? (
+                              <>
+                                <Pause size={16} className="stroke-current" strokeWidth={1.5} />
+                                <span>Pause</span>
+                              </>
+                            ) : (
+                              <>
+                                <Play size={16} className="stroke-current" strokeWidth={1.5} />
+                                <span>Listen</span>
+                              </>
+                            )}
+                          </GlassButton>
+                        )}
                       </div>
                       <div className="prose prose-invert max-w-none">
                         {(() => {

@@ -12,4 +12,6 @@ export const HOOKS_PLACEHOLDER = true;
  */
 
 export { default as useVoiceRecording } from './useVoiceRecording';
-export type { UseVoiceRecordingOptions } from './useVoiceRecording'; 
+export type { UseVoiceRecordingOptions } from './useVoiceRecording';
+export { default as useTextToSpeech } from './useTextToSpeech';
+export type { UseTextToSpeechOptions } from './useTextToSpeech'; 

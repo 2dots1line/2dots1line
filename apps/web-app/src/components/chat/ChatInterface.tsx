@@ -5,7 +5,8 @@ import {
   GlassButton, 
   MarkdownRenderer, 
   FileAttachment,
-  useVoiceRecording
+  useVoiceRecording,
+  useTextToSpeech
 } from '@2dots1line/ui-components';
 import { GroundingMetadata } from './GroundingMetadata';
 import { 
@@ -18,7 +19,10 @@ import {
   Plus,
   Globe,
   Maximize2,
-  Minimize2
+  Minimize2,
+  Play,
+  Pause,
+  Volume2
 } from 'lucide-react';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
@@ -146,6 +150,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     clearTranscript
   } = useVoiceRecording({
     onError: onVoiceError
+  });
+
+  // Text-to-speech functionality for bot messages
+  const { speak, stop, isSpeaking: isTTSPlaying, isSupported: isTTSSupported } = useTextToSpeech({
+    rate: 0.8, // Slower, more natural pace
+    pitch: 1.0, // Natural pitch
+    volume: 0.9, // Clear volume
+    onEnd: () => console.log('Finished reading bot message')
   });
 
   // Handle final transcripts from the hook
@@ -947,15 +959,51 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         )}
         
         {msg.content && (
-          <MarkdownRenderer 
-            content={msg.content}
-            variant="chat"
-            className={`text-base leading-relaxed ${
-              msg.content === 'thinking...' || msg.content === 'recollecting memory...' || msg.content === 'searching the web...'
-                ? 'text-white/60 italic animate-pulse' 
-                : 'text-white/90'
-            }`}
-          />
+          <div className="space-y-2">
+            <MarkdownRenderer 
+              content={msg.content}
+              variant="chat"
+              className={`text-base leading-relaxed ${
+                msg.content === 'thinking...' || msg.content === 'recollecting memory...' || msg.content === 'searching the web...'
+                  ? 'text-white/60 italic animate-pulse' 
+                  : 'text-white/90'
+              }`}
+            />
+            
+            {/* TTS button for bot messages */}
+            {msg.type === 'bot' && 
+             msg.content !== 'thinking...' && 
+             msg.content !== 'recollecting memory...' && 
+             msg.content !== 'searching the web...' && 
+             isTTSSupported && (
+              <div className="flex justify-start mt-2">
+                <GlassButton
+                  onClick={() => {
+                    if (isTTSPlaying) {
+                      stop();
+                    } else {
+                      speak(msg.content);
+                    }
+                  }}
+                  variant="default"
+                  size="sm"
+                  className="flex items-center gap-1 text-xs"
+                >
+                  {isTTSPlaying ? (
+                    <>
+                      <Pause size={12} className="stroke-current" strokeWidth={1.5} />
+                      <span>Pause</span>
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 size={12} className="stroke-current" strokeWidth={1.5} />
+                      <span>Listen</span>
+                    </>
+                  )}
+                </GlassButton>
+              </div>
+            )}
+          </div>
         )}
 
         {/* Live grounding sources (show while searching) */}
