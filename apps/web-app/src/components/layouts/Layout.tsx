@@ -22,6 +22,7 @@ import { useViewTransitionContent } from '../../hooks/useViewTransitionContent';
 import PWAInstallPrompt from '../pwa/PWAInstallPrompt';
 import { useDeviceStore } from '../../stores/DeviceStore';
 import { useDynamicCardSizing } from '../../hooks/useDynamicCardSizing';
+import { MobileCardSearchBar } from '../mobile/MobileCardSearchBar';
 
 function Layout() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
@@ -706,6 +707,29 @@ function Layout() {
                 </GlassmorphicPanel>
               </div>
 
+              {/* Mobile Search Bar for Cards view - Only show on mobile */}
+              {deviceInfo.isMobile && (
+                <MobileCardSearchBar
+                  searchQuery={searchQuery}
+                  onSearchChange={setSearchQuery}
+                  isSearching={isSearching}
+                  searchResultsCount={searchResults.length}
+                  sortKey={sortKey}
+                  onSortChange={async (newSortKey) => {
+                    setSortKey(newSortKey as any);
+                    setViewMode('sorted');
+                    await initializeSortedLoader(newSortKey as any, hasCoverFirst, true);
+                  }}
+                  hasCoverFirst={hasCoverFirst}
+                  onCoverFirstChange={async (newCoverFirst) => {
+                    setHasCoverFirst(newCoverFirst);
+                    setViewMode('sorted');
+                    await initializeSortedLoader(sortKey, newCoverFirst, true);
+                  }}
+                  scrollContainerRef={sortedViewRef}
+                />
+              )}
+
               {viewMode === 'infinite' ? (
                 <InfiniteCardCanvas
                   cards={infiniteCanvasCards}
@@ -718,7 +742,7 @@ function Layout() {
                 // Sorted View: Plain fixed overlay with its own scroll
                 <div 
                   ref={sortedViewRef}
-                  className="fixed inset-0 z-30 pt-28 pb-8 overflow-y-auto"
+                  className={`fixed inset-0 z-30 pb-8 overflow-y-auto ${deviceInfo.isMobile ? 'pt-32' : 'pt-28'}`}
                   onScroll={handleSortedScroll}
                 >
                   <div className="w-full px-[12px] max-[768px]:px-[4px]">
