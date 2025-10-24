@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useHUDStore } from '../../stores/HUDStore';
 import { useChatStore } from '../../stores/ChatStore';
 import { useUserStore } from '../../stores/UserStore';
+import { chatService } from '../../services/chatService';
 import { 
   MobileHamburgerMenu
 } from '@2dots1line/ui-components';
@@ -86,8 +87,35 @@ export const MobileNavigationContainer: React.FC<MobileNavigationContainerProps>
   
   const handleSessionSelect = async (sessionId: string) => {
     try {
-      // Use the existing loadSession method from ChatStore
-      await loadSession(sessionId);
+      // Load the session data from the API (same logic as desktop ConversationHistoryPanel)
+      const sessionData = await chatService.getSession(sessionId);
+      
+      // Set the session in the store
+      setCurrentSession(sessionId);
+      
+      // If the session has conversations, load ALL conversations and merge them chronologically
+      if (sessionData.conversations && sessionData.conversations.length > 0) {
+        // Load all conversations in the session
+        const allConversationData = await Promise.all(
+          sessionData.conversations.map(conv => chatService.getConversation(conv.id))
+        );
+        
+        // Merge all messages from all conversations chronologically
+        const allMessages = allConversationData
+          .flatMap(convData => convData.messages)
+          .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+        
+        // Set the most recent conversation ID (for new messages)
+        const mostRecentConversation = sessionData.conversations[0];
+        setCurrentConversation(mostRecentConversation.id);
+        
+        // Set all merged messages in the store
+        setMessages(allMessages);
+      } else {
+        // No conversations in this session yet, just set the session
+        setCurrentConversation(null);
+        setMessages([]);
+      }
       
       setIsMenuOpen(false);
       setExpandedSection(null);
