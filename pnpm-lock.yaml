@@ -683,6 +683,28 @@ importers:
         specifier: ^5.8.3
         version: 5.9.3
 
+  services/card-cover-assignment-service:
+    dependencies:
+      '@2dots1line/core-utils':
+        specifier: workspace:*
+        version: link:../../packages/core-utils
+      '@2dots1line/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      '@2dots1line/pexels-service':
+        specifier: workspace:*
+        version: link:../pexels-service
+    devDependencies:
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.23
+      ts-node:
+        specifier: ^10.0.0
+        version: 10.9.2(@types/node@20.19.23)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+
   services/card-service:
     dependencies:
       '@2dots1line/config-service':
@@ -934,6 +956,34 @@ importers:
         version: 2.0.0(@types/node@20.19.23)(typescript@5.9.3)
       typescript:
         specifier: ^5.8.3
+        version: 5.9.3
+
+  workers/card-cover-assignment-worker:
+    dependencies:
+      '@2dots1line/card-cover-assignment-service':
+        specifier: workspace:*
+        version: link:../../services/card-cover-assignment-service
+      '@2dots1line/core-utils':
+        specifier: workspace:*
+        version: link:../../packages/core-utils
+      '@2dots1line/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      bullmq:
+        specifier: ^4.0.0
+        version: 4.18.3
+      ioredis:
+        specifier: ^5.0.0
+        version: 5.8.2
+    devDependencies:
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.23
+      ts-node:
+        specifier: ^10.0.0
+        version: 10.9.2(@types/node@20.19.23)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.0.0
         version: 5.9.3
 
   workers/card-worker:
