@@ -1,18 +1,12 @@
 import React from 'react';
 import GlassmorphicPanel from '../GlassmorphicPanel';
-import GlassButton from '../GlassButton';
 import MarkdownRenderer from '../markdown/MarkdownRenderer';
-import { Play, Pause, Volume2, TrendingUp, Calendar } from 'lucide-react';
 
 export interface GrowthEventCardProps {
   title: string;
   content: string;
   growthDimension?: string; // One of the 6 growth dimensions: self_know, self_act, self_show, world_know, world_act, world_show
   cardCover?: string;
-  onPlay?: () => void;
-  onPause?: () => void;
-  isPlaying?: boolean;
-  isSupported?: boolean;
   className?: string;
 }
 
@@ -21,10 +15,6 @@ export const GrowthEventCard: React.FC<GrowthEventCardProps> = ({
   content,
   growthDimension,
   cardCover,
-  onPlay,
-  onPause,
-  isPlaying = false,
-  isSupported = true,
   className = ''
 }) => {
   // Helper function to get display name for growth dimensions
@@ -64,37 +54,6 @@ export const GrowthEventCard: React.FC<GrowthEventCardProps> = ({
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/5 to-black/30 rounded-lg" />
         
         <div className="relative z-10 flex flex-col h-full">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <h3 className="text-lg font-semibold text-white/90">{title}</h3>
-            </div>
-            {isSupported && (
-              <GlassButton
-                onClick={() => {
-                  if (isPlaying) {
-                    onPause?.();
-                  } else {
-                    onPlay?.();
-                  }
-                }}
-                variant="default"
-                size="sm"
-                className="flex items-center gap-2"
-              >
-                {isPlaying ? (
-                  <>
-                    <Pause size={14} className="stroke-current" strokeWidth={1.5} />
-                    <span className="text-sm">Pause</span>
-                  </>
-                ) : (
-                  <>
-                    <Play size={14} className="stroke-current" strokeWidth={1.5} />
-                    <span className="text-sm">Listen</span>
-                  </>
-                )}
-              </GlassButton>
-            )}
-          </div>
           
           <div className="flex-1 flex flex-col justify-end">
             <div className="text-sm leading-relaxed text-white/90 mb-4 text-left">

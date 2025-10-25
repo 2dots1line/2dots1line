@@ -240,10 +240,6 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                         content={event.content}
                         growthDimension={event.growthDimension}
                         cardCover={event.cardCover}
-                        onPlay={() => onPlay?.('growth', event.id)}
-                        onPause={() => onPause?.('growth', event.id)}
-                        isPlaying={isPlaying('growth', event.id)}
-                        isSupported={isSupported}
                       />
                     </div>
                   ))}

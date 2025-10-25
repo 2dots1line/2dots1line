@@ -77,10 +77,11 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
         sectionData && 
         sectionData.items && 
         sectionData.items.length > 0 &&
-        // Exclude growth_dimensions, opening_words, and recent_cards as they belong to other tabs
+        // Exclude growth_dimensions, opening_words, recent_cards, and mobile_growth_events as they belong to other tabs
         sectionKey !== 'growth_dimensions' &&
         sectionKey !== 'opening_words' &&
-        sectionKey !== 'recent_cards'
+        sectionKey !== 'recent_cards' &&
+        sectionKey !== 'mobile_growth_events'
       );
 
     // Get insights from all available sections (same logic as desktop)
@@ -91,7 +92,9 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
         content: item.content,
         cardCover: item.background_image_url,
         videoBackground: undefined,
-        backgroundType: item.background_image_url ? 'image' : 'solid' as const
+        backgroundType: item.background_image_url ? 'image' : 'solid' as const,
+        // Preserve section information for entity type determination
+        sectionKey: sectionKey
       }))
     );
 
@@ -103,7 +106,6 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
         return [];
       }
       
-      console.log('[Mobile Dashboard] Found mobile_growth_events section with', sectionData.items.length, 'dimensions');
       
       const events: any[] = [];
       
@@ -112,7 +114,6 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
         const dimension = dimensionItem.metadata?.dimension;
         const dimensionEvents = dimensionItem.metadata?.events || [];
         
-        console.log(`[Mobile Dashboard] Dimension ${dimension} has ${dimensionEvents.length} events`);
         
         dimensionEvents.forEach((event: any) => {
           events.push({
@@ -125,8 +126,6 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
         });
       });
       
-      console.log('[Mobile Dashboard] Total growth events extracted:', events.length);
-      console.log('[Mobile Dashboard] Sample transformed events:', events.slice(0, 2));
       return events;
     })();
 
@@ -152,8 +151,15 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
 
     return {
       openingContent: {
+        id: dynamicData.sections.opening_words?.items?.[0]?.id || 'opening-default',
         title: dynamicData.sections.opening_words?.items?.[0]?.title || "Welcome to Your Journey",
-        content: dynamicData.sections.opening_words?.items?.[0]?.content || "Your personalized dashboard where we'll explore your recent insights, growth milestones, and proactive suggestions."
+        content: dynamicData.sections.opening_words?.items?.[0]?.content || "Your personalized dashboard where we'll explore your recent insights, growth milestones, and proactive suggestions.",
+        // Add metadata for entity type determination
+        metadata: {
+          artifact_type: 'opening'
+        },
+        // Mark as derived artifact for entity type
+        sectionKey: 'opening_words'
       },
       insights,
       growthEvents,
@@ -192,6 +198,60 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
 
   const handleTTSPause = () => {
     stop();
+  };
+
+  // Handle card clicks to open entity detail modal
+  const handleCardClick = (entity: any) => {
+    console.log('handleCardClick called with entity:', entity);
+    
+    // Use the same pattern as CapsulePill and SeedEntitiesDisplay
+    // Dispatch custom event that the existing listener will handle
+    const entityId = entity.id || entity.entity_id;
+    
+    // Determine entity type based on section and context
+    let entityType = entity.metadata?.artifact_type || entity.type || entity.entity_type;
+    
+    // If no type found, determine based on section and context
+    if (!entityType) {
+      if (entity.growthDimension) {
+        // Growth events - this takes priority over section key
+        entityType = 'growthevent';
+      } else if (entity.sectionKey) {
+        // Determine based on section key
+        if (entity.sectionKey.endsWith('_prompts')) {
+          // Prompt sections come from proactive_prompts table
+          entityType = 'proactiveprompt';
+        } else {
+          // Regular artifact sections come from derived_artifacts table
+          entityType = 'derivedartifact';
+        }
+      } else {
+        // Default fallback
+        entityType = 'derivedartifact';
+      }
+    }
+    
+    // Override artifact_type if it's not a valid entity type for the API
+    if (entityType === 'opening' || entityType === 'insight' || entityType === 'pattern' || entityType === 'recommendation' || entityType === 'synthesis') {
+      entityType = 'derivedartifact';
+    }
+    
+    const displayText = entity.title || entity.name || 'Entity';
+    
+    console.log('Extracted entityId:', entityId);
+    console.log('Extracted entityType:', entityType);
+    console.log('Section key:', entity.sectionKey);
+    console.log('Display text:', displayText);
+    console.log('Full entity object:', JSON.stringify(entity, null, 2));
+    
+    if (entityId && entityType) {
+      console.log('Dispatching open-entity-modal event');
+      window.dispatchEvent(new CustomEvent('open-entity-modal', {
+        detail: { entityId, entityType, displayText }
+      }));
+    } else {
+      console.error('Missing entityId or entityType:', { entityId, entityType });
+    }
   };
 
   const isCurrentlyPlaying = (type: string, id: string) => {
@@ -604,49 +664,60 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
           </div>
         </div>
 
-        {/* Mobile Content with 40% top spacing */}
-        <div className="pt-96 px-4 pb-4 h-full overflow-y-auto">
+        {/* Mobile Content with reduced top spacing */}
+        <div className="pt-20 px-4 pb-4 h-full overflow-y-auto">
           {/* Opening Section - Use same approach as desktop with MarkdownRenderer */}
           {activeTab === 'opening' && (
             <div className="max-w-4xl mx-auto">
-              <GlassmorphicPanel
-                variant="glass-panel"
-                rounded="xl"
-                padding="lg"
-                className="hover:bg-white/15 transition-all duration-200"
+              <div 
+                className="cursor-pointer"
+                onClick={(e: React.MouseEvent) => {
+                  console.log('[Mobile Dashboard] Opening card clicked!', transformedData.openingContent);
+                  e.stopPropagation();
+                  handleCardClick(transformedData.openingContent);
+                }}
               >
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
+                <GlassmorphicPanel
+                  variant="glass-panel"
+                  rounded="xl"
+                  padding="lg"
+                  className="hover:bg-white/15 transition-all duration-200"
+                >
+                <div className="mb-6">
+                  <div className="flex items-center gap-3 mb-4">
                     <h2 className="text-2xl sm:text-3xl font-semibold text-white/90">
                       {transformedData.openingContent.title}
                     </h2>
                   </div>
                   {isSupported && (
-                    <GlassButton
-                      onClick={() => {
-                        const textToSpeak = `${transformedData.openingContent.title}. ${transformedData.openingContent.content}`;
-                        if (isSpeaking) {
-                          stop();
-                        } else {
-                          speak(textToSpeak);
-                        }
-                      }}
-                      variant="default"
-                      size="lg"
-                      className="flex items-center gap-2 sm:gap-3 px-4 sm:px-6 py-2 sm:py-3"
-                    >
-                      {isSpeaking ? (
-                        <>
-                          <Pause size={18} className="stroke-current" strokeWidth={1.5} />
-                          <span className="text-sm sm:text-lg">Pause</span>
-                        </>
-                      ) : (
-                        <>
-                          <Play size={18} className="stroke-current" strokeWidth={1.5} />
-                          <span className="text-sm sm:text-lg">Listen</span>
-                        </>
-                      )}
-                    </GlassButton>
+                    <div className="flex justify-end">
+                      <GlassButton
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const textToSpeak = `${transformedData.openingContent.title}. ${transformedData.openingContent.content}`;
+                          if (isSpeaking) {
+                            stop();
+                          } else {
+                            speak(textToSpeak);
+                          }
+                        }}
+                        variant="default"
+                        size="sm"
+                        className="flex items-center gap-2"
+                      >
+                        {isSpeaking ? (
+                          <>
+                            <Pause size={14} className="stroke-current" strokeWidth={1.5} />
+                            <span className="text-sm">Pause</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play size={14} className="stroke-current" strokeWidth={1.5} />
+                            <span className="text-sm">Listen</span>
+                          </>
+                        )}
+                      </GlassButton>
+                    </div>
                   )}
                 </div>
                 <div className="prose prose-invert max-w-none text-left" style={{ textAlign: 'left' }}>
@@ -657,6 +728,7 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                   />
                 </div>
               </GlassmorphicPanel>
+              </div>
             </div>
           )}
 
@@ -665,19 +737,24 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
             <div className="max-w-6xl mx-auto">
               <div className="space-y-4">
                 {transformedData.insights.map((insight) => (
-                  <PortraitInsightCard
-                    key={insight.id}
-                    title={insight.title}
-                    content={insight.content}
-                    cardCover={insight.cardCover}
-                    videoBackground={insight.videoBackground}
-                    backgroundType={insight.backgroundType as "image" | "solid" | "video" | undefined}
-                    onPlay={() => handleTTSPlay('insight', insight.id)}
-                    onPause={handleTTSPause}
-                    isPlaying={isCurrentlyPlaying('insight', insight.id)}
-                    isSupported={isSupported}
-                    className="w-full"
-                  />
+                  <div 
+                    onClick={() => handleCardClick(insight)}
+                    className="cursor-pointer hover:scale-[1.02] transition-transform duration-200"
+                  >
+                    <PortraitInsightCard
+                      key={insight.id}
+                      title={insight.title}
+                      content={insight.content}
+                      cardCover={insight.cardCover}
+                      videoBackground={insight.videoBackground}
+                      backgroundType={insight.backgroundType as "image" | "solid" | "video" | undefined}
+                      onPlay={() => handleTTSPlay('insight', insight.id)}
+                      onPause={handleTTSPause}
+                      isPlaying={isCurrentlyPlaying('insight', insight.id)}
+                      isSupported={isSupported}
+                      className="w-full"
+                    />
+                  </div>
                 ))}
               </div>
             </div>
@@ -688,7 +765,6 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
             <div className="max-w-6xl mx-auto">
               <div className="space-y-6">
                 {(() => {
-                  console.log('[Mobile Dashboard] Rendering growth section with', transformedData.growthEvents.length, 'events');
                   
                   // Group growth events by dimension
                   const eventsByDimension = transformedData.growthEvents.reduce((acc, event) => {
@@ -700,7 +776,6 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                     return acc;
                   }, {} as Record<string, any[]>);
                   
-                  console.log('[Mobile Dashboard] Events grouped by dimension:', Object.keys(eventsByDimension).map(key => `${key}: ${eventsByDimension[key].length}`));
 
                   // Define the 6 growth dimensions in order - FIXED to match actual data keys
                   const growthDimensions = [
@@ -719,7 +794,6 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                       'show_world': 'World Expression'
                     }[dimension] || dimension;
 
-                    console.log(`[Mobile Dashboard] Rendering dimension ${dimension} (${dimensionDisplayName}) with ${events.length} events`);
 
                     return (
                       <div key={dimension} className="space-y-3">
@@ -729,7 +803,11 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                         <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
                           {events.length > 0 ? (
                             events.map((event: any) => (
-                              <div key={event.id} className="flex-shrink-0 w-80">
+                              <div 
+                                key={event.id} 
+                                className="flex-shrink-0 w-80 cursor-pointer hover:scale-[1.02] transition-transform duration-200"
+                                onClick={() => handleCardClick(event)}
+                              >
                                 <GrowthEventCard
                                   title={event.title}
                                   content={event.content}
@@ -755,10 +833,6 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
 
         </div>
 
-        {/* Auto-rotation indicator */}
-        <div className="fixed bottom-4 right-4 text-white/60 text-sm">
-          Auto-rotating in 8s
-        </div>
 
         {/* Entity Detail Modal for capsule clicks */}
         {selectedEntity && (

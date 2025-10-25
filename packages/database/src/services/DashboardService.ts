@@ -191,11 +191,6 @@ export class DashboardService {
       orderBy: { created_at: 'desc' }
     });
 
-    console.log(`[DashboardService] DEBUG: Found ${growthEvents.length} growth events for user ${userId}`);
-    console.log(`[DashboardService] DEBUG: Growth events by source:`, growthEvents.reduce((acc: Record<string, number>, event: any) => {
-      acc[event.source] = (acc[event.source] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>));
 
     // Get recent cards for the magazine tab
     const recentCards = await this.db.prisma.cards.findMany({
