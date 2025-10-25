@@ -67,6 +67,9 @@ export class NotificationWorker {
           origin: [
             environmentLoader.get('FRONTEND_URL') || 'http://localhost:3000',
             'http://localhost:3000',
+            'http://127.0.0.1:3000',
+            'http://192.168.68.63:3000',
+            'http://172.20.10.3:3000',
             'http://34.136.210.47:3000'
           ],
           methods: ['GET', 'POST'],

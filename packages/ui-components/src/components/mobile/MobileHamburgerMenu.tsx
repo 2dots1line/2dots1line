@@ -193,7 +193,7 @@ export const MobileHamburgerMenu: React.FC<MobileHamburgerMenuProps> = ({
         </div>
         
         {/* Chat History - Expandable Section */}
-        <div className="p-4">
+        <div className="px-4 py-2">
           <button
             onClick={onChatHistory}
             className="w-full flex items-center justify-between p-3 rounded-lg text-white/80 hover:bg-white/10 hover:text-white transition-all"
@@ -281,7 +281,7 @@ export const MobileHamburgerMenu: React.FC<MobileHamburgerMenuProps> = ({
         </div>
         
         {/* Settings - Expandable Section */}
-        <div className="p-4">
+        <div className="px-4 py-2">
           <button
             onClick={onSettings}
             className="w-full flex items-center justify-between p-3 rounded-lg text-white/80 hover:bg-white/10 hover:text-white transition-all"
@@ -320,7 +320,7 @@ export const MobileHamburgerMenu: React.FC<MobileHamburgerMenuProps> = ({
         
         
         {/* Logout */}
-        <div className="p-4">
+        <div className="px-4 py-2">
           <button
             onClick={onLogout}
             className="w-full flex items-center gap-3 p-3 rounded-lg text-white/80 hover:bg-white/10 hover:text-white transition-all"

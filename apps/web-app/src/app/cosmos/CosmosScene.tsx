@@ -36,8 +36,7 @@ const CosmosScene: React.FC = () => {
   const edgeWidth = 1;
   const animatedEdges = true; // Turn on edge animation
   
-  // Background loading state
-  const [isBackgroundLoading, setIsBackgroundLoading] = useState(false);
+  // Background error state (keep for error handling)
   const [backgroundLoadError, setBackgroundLoadError] = useState<string | null>(null);
   
   // HRT seed entities state
@@ -51,21 +50,8 @@ const CosmosScene: React.FC = () => {
   // Use generic hook to handle transition content
   useViewTransitionContent('cosmos', isLoading, !!graphData);
 
-  // Background loading handlers
-  const handleBackgroundLoadStart = useCallback(() => {
-    setIsBackgroundLoading(true);
-    setBackgroundLoadError(null);
-    console.log('🌌 Background loading started');
-  }, []);
-
-  const handleBackgroundLoadComplete = useCallback(() => {
-    setIsBackgroundLoading(false);
-    setBackgroundLoadError(null);
-    console.log('🌌 Background loading completed');
-  }, []);
-
+  // Background error handler
   const handleBackgroundLoadError = useCallback((error: Error) => {
-    setIsBackgroundLoading(false);
     setBackgroundLoadError(error.message);
     console.error('🌌 Background loading error:', error);
   }, []);
@@ -332,8 +318,6 @@ const CosmosScene: React.FC = () => {
         edgeWidth={edgeWidth}
         animatedEdges={animatedEdges}
         modalOpen={!!selectedNode}
-        onBackgroundLoadStart={handleBackgroundLoadStart}
-        onBackgroundLoadComplete={handleBackgroundLoadComplete}
         onBackgroundLoadError={handleBackgroundLoadError}
         selectedEntityId={selectedEntityId}
         customCameraController={LookupCameraController}
@@ -360,16 +344,6 @@ const CosmosScene: React.FC = () => {
         }}
       />
       
-      {/* Background Loading Overlay */}
-      {isBackgroundLoading && (
-        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-20">
-          <div className="bg-white/10 backdrop-blur-md rounded-lg p-6 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-4"></div>
-            <p className="text-white/90 text-sm">Loading cosmic background...</p>
-            <p className="text-white/60 text-xs mt-2">This may take a moment on first visit</p>
-          </div>
-        </div>
-      )}
       
       {/* Background Error Overlay */}
       {backgroundLoadError && (

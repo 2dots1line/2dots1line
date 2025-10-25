@@ -6,7 +6,6 @@ import { DashboardSettings } from './DashboardSettings';
 import { ChatSettings } from './ChatSettings';
 import { CardsSettings } from './CardsSettings';
 import { CosmosSettings } from './CosmosSettings';
-import { Settings } from 'lucide-react';
 
 export const ContextualSettings: React.FC = () => {
   const pathname = usePathname();
@@ -24,10 +23,12 @@ export const ContextualSettings: React.FC = () => {
   
   return (
     <div className="space-y-3">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-white/90 font-brand">{contextName}</h3>
-      </div>
+      {/* Header - Only show for non-dashboard contexts to avoid redundancy */}
+      {currentContext !== 'dashboard' && currentContext !== 'cosmos' && currentContext !== 'cards' && currentContext !== 'chat' && (
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-white/90 font-brand">{contextName}</h3>
+        </div>
+      )}
       
       {/* View-specific settings */}
       <div className="space-y-3">
@@ -44,7 +45,6 @@ export const ContextualSettings: React.FC = () => {
           size="sm"
           className="w-full justify-start text-left"
         >
-          <Settings size={14} className="mr-2" />
           <span>All Settings</span>
         </GlassButton>
       </div>

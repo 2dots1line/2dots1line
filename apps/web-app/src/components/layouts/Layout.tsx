@@ -2,6 +2,7 @@
 
 import { GlassmorphicPanel, GlassButton, InfiniteCardCanvas, CardTile } from '@2dots1line/ui-components';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { MessageCircle } from 'lucide-react';
 
 import { HUDContainer } from '../hud/HUDContainer';
 import { ConversationHistoryPanel } from '../hud/ConversationHistoryPanel';
@@ -814,6 +815,39 @@ function Layout() {
       <LoginModal isOpen={isLoginModalOpen} onClose={closeModals} onSwitchToSignup={openSignupModal} />
 
       <SignupModal isOpen={isSignupModalOpen} onClose={closeModals} onSwitchToLogin={openLoginModal} />
+
+      {/* Chat Bubble Button for Dashboard - Desktop only */}
+      {isAuthenticated && activeView === 'dashboard' && !deviceInfo.isMobile && (
+        <button
+          onClick={() => setActiveView('chat')}
+          className="fixed bottom-4 left-4 z-40 w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 flex items-center justify-center text-white/80 hover:bg-white/20 hover:scale-105 transition-all duration-200 shadow-lg"
+          title="Start a conversation"
+        >
+          <MessageCircle size={18} />
+        </button>
+      )}
+
+      {/* Chat Bubble Button for Cards - Desktop only */}
+      {isAuthenticated && activeView === 'cards' && !deviceInfo.isMobile && (
+        <button
+          onClick={() => setActiveView('chat')}
+          className="fixed bottom-4 left-4 z-40 w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 flex items-center justify-center text-white/80 hover:bg-white/20 hover:scale-105 transition-all duration-200 shadow-lg"
+          title="Start a conversation"
+        >
+          <MessageCircle size={18} />
+        </button>
+      )}
+
+      {/* Chat Bubble Button for Cards - Mobile only */}
+      {isAuthenticated && activeView === 'cards' && deviceInfo.isMobile && (
+        <button
+          onClick={() => setActiveView('chat')}
+          className="fixed bottom-4 left-4 z-40 w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 flex items-center justify-center text-white/80 hover:bg-white/20 hover:scale-105 transition-all duration-200 shadow-lg"
+          title="Start a conversation"
+        >
+          <MessageCircle size={18} />
+        </button>
+      )}
 
       {/* PWA Install Prompt - Layer 7 (highest) */}
       <PWAInstallPrompt />

@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useBackgroundVideoStore, ViewType } from '../../stores/BackgroundVideoStore';
 import { useHUDStore } from '../../stores/HUDStore';
 import { GlassButton } from '@2dots1line/ui-components';
-import { Video, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 
 interface BackgroundVideoSelectorProps {
   view: ViewType;
@@ -34,7 +34,7 @@ export const BackgroundVideoSelector: React.FC<BackgroundVideoSelectorProps> = (
       if (currentMedia?.title) return currentMedia.title;
       if (currentMedia?.id) {
         const video = localVideos.find(v => v.id === currentMedia.id);
-        return video ? video.label : currentMedia.id;
+        return video ? video.label : 'Local Video';
       }
     }
     if (currentMedia?.source === 'pexels') return currentMedia?.title || 'Pexels Video';
@@ -45,8 +45,7 @@ export const BackgroundVideoSelector: React.FC<BackgroundVideoSelectorProps> = (
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <label className="text-xs font-medium text-white/70 flex items-center gap-1">
-          <Video size={12} className="opacity-70" />
+        <label className="text-sm font-semibold text-white/90">
           Background Video
         </label>
         {!isLoadingLocalVideos && localVideos.length > 0 && (
@@ -61,7 +60,7 @@ export const BackgroundVideoSelector: React.FC<BackgroundVideoSelectorProps> = (
       </div>
       
       {/* Current selection display */}
-      <div className="text-sm font-brand text-white/90 mb-2">
+      <div className="text-xs text-white/70 mb-2">
         Currently: {getCurrentDisplayName()}
       </div>
       
@@ -114,9 +113,6 @@ export const BackgroundVideoSelector: React.FC<BackgroundVideoSelectorProps> = (
       >
         <span className="text-sm font-brand">Search Pexels</span>
       </GlassButton>
-      <p className="text-xs text-white/50 mt-2">
-        Browse and select from Pexels video library
-      </p>
     </div>
   );
 };

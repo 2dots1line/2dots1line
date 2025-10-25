@@ -11,24 +11,18 @@ export const ChatSettings: React.FC = () => {
       
       <div className="pt-3 border-t border-white/20">
         <div className="space-y-3">
-          <div>
-            <label className="text-xs font-medium text-white/70 block mb-2">Notifications</label>
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-brand text-white/90">Enable notifications</span>
-              <button
-                onClick={() => setEnabled(!preferences.enabled)}
-                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                  preferences.enabled ? 'bg-blue-600' : 'bg-white/20'
-                }`}
-              >
-                <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
-                  preferences.enabled ? 'translate-x-5' : 'translate-x-1'
-                }`} />
-              </button>
-            </div>
-            <p className="text-xs text-white/50 mt-2">
-              Receive notifications for new messages and updates
-            </p>
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-brand text-white/90">Enable notifications</span>
+            <button
+              onClick={() => setEnabled(!preferences.enabled)}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                preferences.enabled ? 'bg-blue-600' : 'bg-white/20'
+              }`}
+            >
+              <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                preferences.enabled ? 'translate-x-5' : 'translate-x-1'
+              }`} />
+            </button>
           </div>
           
           <div>
@@ -38,9 +32,6 @@ export const ChatSettings: React.FC = () => {
             >
               Snooze 30 min
             </button>
-            <p className="text-xs text-white/50 mt-1">
-              Temporarily disable notifications
-            </p>
           </div>
         </div>
       </div>

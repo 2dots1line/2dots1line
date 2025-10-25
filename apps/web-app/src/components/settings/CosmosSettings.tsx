@@ -8,51 +8,33 @@ export const CosmosSettings: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* Node Labels Toggle */}
-      <div>
-        <label className="text-xs font-medium text-white/70 block mb-2 flex items-center gap-1">
-          {showNodeLabels ? <Eye size={12} /> : <EyeOff size={12} />}
-          Node Labels
-        </label>
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-brand text-white/90">Show node labels</span>
-          <button
-            onClick={() => setShowNodeLabels(!showNodeLabels)}
-            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-              showNodeLabels ? 'bg-blue-600' : 'bg-white/20'
-            }`}
-          >
-            <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
-              showNodeLabels ? 'translate-x-5' : 'translate-x-1'
-            }`} />
-          </button>
-        </div>
-        <p className="text-xs text-white/50 mt-2">
-          Display labels on graph nodes
-        </p>
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-brand text-white/90">Show node labels</span>
+        <button
+          onClick={() => setShowNodeLabels(!showNodeLabels)}
+          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+            showNodeLabels ? 'bg-blue-600' : 'bg-white/20'
+          }`}
+        >
+          <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+            showNodeLabels ? 'translate-x-5' : 'translate-x-1'
+          }`} />
+        </button>
       </div>
       
       {/* Edges Toggle */}
-      <div>
-        <label className="text-xs font-medium text-white/70 block mb-2 flex items-center gap-1">
-          <GitBranch size={12} />
-          Show Edges
-        </label>
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-brand text-white/90">Show connections</span>
-          <button
-            onClick={() => setShowEdges(!showEdges)}
-            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-              showEdges ? 'bg-blue-600' : 'bg-white/20'
-            }`}
-          >
-            <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
-              showEdges ? 'translate-x-5' : 'translate-x-1'
-            }`} />
-          </button>
-        </div>
-        <p className="text-xs text-white/50 mt-2">
-          Display connections between nodes
-        </p>
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-brand text-white/90">Show connections</span>
+        <button
+          onClick={() => setShowEdges(!showEdges)}
+          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+            showEdges ? 'bg-blue-600' : 'bg-white/20'
+          }`}
+        >
+          <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+            showEdges ? 'translate-x-5' : 'translate-x-1'
+          }`} />
+        </button>
       </div>
       
       {/* Edge appearance - collapsed under edges toggle */}

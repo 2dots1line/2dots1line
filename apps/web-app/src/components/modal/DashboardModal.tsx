@@ -49,7 +49,7 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
   const [dynamicDashboardData, setDynamicDashboardData] = useState<DynamicDashboardData | null>(null);
   // Use the same stores as infinite/sorted card views
   const { cards, setSelectedCard, isLoading: cardsLoading, error: cardsError } = useCardStore();
-  const { setCardDetailModalOpen } = useHUDStore();
+  const { setCardDetailModalOpen, setActiveView } = useHUDStore();
   const { trackEvent } = useEngagementStore();
   const { deviceInfo } = useDeviceStore();
   
@@ -811,6 +811,14 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
 
         </div>
 
+        {/* Mobile Dashboard Chat Button */}
+        <button
+          onClick={() => setActiveView('chat')}
+          className="fixed bottom-4 left-4 z-50 w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 flex items-center justify-center text-white/80 hover:bg-white/20 hover:scale-105 transition-all duration-200 shadow-lg"
+          title="Start a conversation"
+        >
+          <MessageCircle size={18} />
+        </button>
 
         {/* Entity Detail Modal for capsule clicks */}
         {selectedEntity && (

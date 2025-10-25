@@ -12,13 +12,20 @@ export const DashboardSettings: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4">
-      <BackgroundVideoSelector view="dashboard" />
+    <div className="space-y-6">
+      {/* Video Settings Section */}
+      <div className="space-y-3">
+        <BackgroundVideoSelector view="dashboard" />
+      </div>
       
-      <div className="pt-3 border-t border-white/20">
+      {/* AI Analysis Section */}
+      <div className="pt-4 border-t border-white/20">
         <div className="space-y-3">
-          <div>
-            <label className="text-xs font-medium text-white/70 block mb-2">AI Analysis</label>
+          <div className="space-y-2">
+            <h4 className="text-sm font-semibold text-white/90 flex items-center gap-2">
+              <Sparkles size={14} className="opacity-80" />
+              AI Analysis
+            </h4>
             <GlassButton
               onClick={handleTriggerInsight}
               disabled={isLoading}
@@ -28,7 +35,7 @@ export const DashboardSettings: React.FC = () => {
               <Sparkles size={14} className="mr-2" />
               <span className="text-sm font-brand">{isLoading ? 'Generating Insights...' : 'Refresh Insights'}</span>
             </GlassButton>
-            <p className="text-xs text-white/50 mt-2">
+            <p className="text-xs text-white/50">
               Analyze recent activity and generate new insights
             </p>
           </div>

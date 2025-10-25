@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, Video, Image, Loader2, X, Play, Pause } from 'lucide-react';
+import { Search, Video, Loader2, X, Play, Pause } from 'lucide-react';
 import { GlassmorphicPanel, GlassButton } from '@2dots1line/ui-components';
 import { useBackgroundVideoStore, type ViewType, type MediaItem } from '../../stores/BackgroundVideoStore';
 
@@ -17,7 +17,6 @@ export const PexelsSearchModal: React.FC<PexelsSearchModalProps> = ({
   targetView,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [mediaType, setMediaType] = useState<'video' | 'photo'>('video');
   const [localSearchResults, setLocalSearchResults] = useState<MediaItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +55,7 @@ export const PexelsSearchModal: React.FC<PexelsSearchModalProps> = ({
   };
 
   const handleSearch = async () => {
-    console.log('Search triggered with query:', searchQuery, 'type:', mediaType);
+    console.log('Search triggered with query:', searchQuery);
     if (!searchQuery.trim()) {
       await loadRecommendedMedia();
       return;
@@ -65,7 +64,7 @@ export const PexelsSearchModal: React.FC<PexelsSearchModalProps> = ({
     try {
       setIsLoading(true);
       setError(null);
-      await searchMedia(searchQuery, mediaType);
+      await searchMedia(searchQuery, 'video');
       // Results will be updated via the useEffect that syncs with store
     } catch (err) {
       setError('Failed to search media');
@@ -148,36 +147,15 @@ export const PexelsSearchModal: React.FC<PexelsSearchModalProps> = ({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Search for videos or photos..."
+              placeholder="Search for videos..."
               className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-transparent"
             />
-          </div>
-          
-          <div className="flex gap-2">
-            <GlassButton
-              onClick={() => setMediaType('video')}
-              className={`px-4 py-3 flex items-center gap-2 ${
-                mediaType === 'video' ? 'bg-white/20' : 'hover:bg-white/10'
-              }`}
-            >
-              <Video size={16} />
-              Videos
-            </GlassButton>
-            <GlassButton
-              onClick={() => setMediaType('photo')}
-              className={`px-4 py-3 flex items-center gap-2 ${
-                mediaType === 'photo' ? 'bg-white/20' : 'hover:bg-white/10'
-              }`}
-            >
-              <Image size={16} />
-              Photos
-            </GlassButton>
           </div>
           
           <GlassButton
             onClick={handleSearch}
             disabled={isLoading}
-            className="px-6 py-3 bg-white/20 hover:bg-white/30 disabled:opacity-50"
+            className="px-6 py-3 bg-white/20 hover:bg-white/30 disabled:opacity-50 flex-shrink-0"
           >
             {isLoading ? (
               <Loader2 size={16} className="animate-spin" />
