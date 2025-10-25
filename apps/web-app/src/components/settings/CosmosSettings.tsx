@@ -1,9 +1,18 @@
 import React from 'react';
 import { useCosmosStore } from '../../stores/CosmosStore';
-import { Eye, EyeOff, GitBranch } from 'lucide-react';
+import { Eye, EyeOff, GitBranch, Settings } from 'lucide-react';
 
 export const CosmosSettings: React.FC = () => {
-  const { showNodeLabels, setShowNodeLabels, showEdges, setShowEdges } = useCosmosStore();
+  const { 
+    showNodeLabels, 
+    setShowNodeLabels, 
+    showEdges, 
+    setShowEdges,
+    edgeWidth,
+    setEdgeWidth,
+    nodeSizeMultiplier,
+    setNodeSizeMultiplier
+  } = useCosmosStore();
   
   return (
     <div className="space-y-4">
@@ -39,12 +48,48 @@ export const CosmosSettings: React.FC = () => {
       
       {/* Edge appearance - collapsed under edges toggle */}
       {showEdges && (
-        <div className="pl-4 space-y-2 border-l-2 border-white/20">
-          <div className="text-xs text-white/50 font-brand">
-            Edge appearance settings can be added here
+        <div className="pl-4 space-y-3 border-l-2 border-white/20">
+          {/* Edge Width Slider */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-brand text-white/70">Edge width</span>
+              <span className="text-xs text-white/50">{edgeWidth.toFixed(1)}</span>
+            </div>
+            <input
+              type="range"
+              min="0.5"
+              max="5.0"
+              step="0.1"
+              value={edgeWidth}
+              onChange={(e) => setEdgeWidth(parseFloat(e.target.value))}
+              className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer slider"
+              style={{
+                background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${((edgeWidth - 0.5) / 4.5) * 100}%, rgba(255,255,255,0.2) ${((edgeWidth - 0.5) / 4.5) * 100}%, rgba(255,255,255,0.2) 100%)`
+              }}
+            />
           </div>
         </div>
       )}
+      
+      {/* Node Size Control */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-brand text-white/90">Node size</span>
+          <span className="text-xs text-white/50">{nodeSizeMultiplier.toFixed(1)}x</span>
+        </div>
+        <input
+          type="range"
+          min="0.5"
+          max="3.0"
+          step="0.1"
+          value={nodeSizeMultiplier}
+          onChange={(e) => setNodeSizeMultiplier(parseFloat(e.target.value))}
+          className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer slider"
+          style={{
+            background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${((nodeSizeMultiplier - 0.5) / 2.5) * 100}%, rgba(255,255,255,0.2) ${((nodeSizeMultiplier - 0.5) / 2.5) * 100}%, rgba(255,255,255,0.2) 100%)`
+          }}
+        />
+      </div>
     </div>
   );
 };

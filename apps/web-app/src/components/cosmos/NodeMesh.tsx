@@ -27,6 +27,7 @@ interface NodeMeshProps {
   onHover?: (nodeId: string | null) => void;
   isHighlighted?: boolean;
   isSearchResult?: boolean; // New prop to indicate if this is a search result (use bright star textures)
+  nodeSizeMultiplier?: number; // Node size multiplier for scaling
 }
 
 export const NodeMesh: React.FC<NodeMeshProps> = ({ 
@@ -35,7 +36,8 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
   modalOpen = false, 
   onHover,
   isHighlighted = false,
-  isSearchResult = false
+  isSearchResult = false,
+  nodeSizeMultiplier = 1.0
 }) => {
   const meshRef = useRef<THREE.Mesh>(null!);
   const groupRef = useRef<THREE.Group>(null!);
@@ -140,6 +142,9 @@ export const NodeMesh: React.FC<NodeMeshProps> = ({
       isSearchResult
     });
   }
+  
+  // Apply node size multiplier to all nodes
+  baseSize = baseSize * nodeSizeMultiplier;
   
   // Celestial body color scheme based on entity type
   const getCelestialColor = useMemo(() => {

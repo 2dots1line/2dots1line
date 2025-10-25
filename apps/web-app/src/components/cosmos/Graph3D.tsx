@@ -38,6 +38,7 @@ interface Graph3DProps {
   enableNodeRotation?: boolean; // Enable/disable node cluster rotation
   customCameraController?: React.ComponentType<any>; // Custom camera controller component
   selectedEntityId?: string | null; // External entity selection for edge highlighting
+  nodeSizeMultiplier?: number; // Node size multiplier for scaling all nodes
 }
 
 export const Graph3D: React.FC<Graph3DProps> = ({ 
@@ -58,7 +59,8 @@ export const Graph3D: React.FC<Graph3DProps> = ({
   rotationSpeed,
   enableNodeRotation = true,
   customCameraController,
-  selectedEntityId
+  selectedEntityId,
+  nodeSizeMultiplier = 1.0
 }) => {
   // State for hover management
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
@@ -365,6 +367,7 @@ export const Graph3D: React.FC<Graph3DProps> = ({
               (!!selectedEntityId && getConnectedNodes(selectedEntityId).includes(node.id))
             }
             isSearchResult={isSearchResult} // Use prop to determine if nodes are search results
+            nodeSizeMultiplier={nodeSizeMultiplier} // Pass node size multiplier
           />
         ))}
 

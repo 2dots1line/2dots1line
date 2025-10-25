@@ -24,12 +24,16 @@ interface CosmosStoreState {
   selectedNode: GraphNode | null;
   showNodeLabels: boolean; // New state for controlling node label visibility
   showEdges: boolean; // New state for controlling edge visibility
+  edgeWidth: number; // Edge width control (0.5 - 5.0)
+  nodeSizeMultiplier: number; // Node size multiplier (0.5 - 3.0)
   setGraphData: (data: UserGraphProjection) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   setSelectedNode: (node: GraphNode | null) => void;
   setShowNodeLabels: (show: boolean) => void; // New action for toggling node labels
   setShowEdges: (show: boolean) => void; // New action for toggling edges
+  setEdgeWidth: (width: number) => void; // New action for setting edge width
+  setNodeSizeMultiplier: (multiplier: number) => void; // New action for setting node size
 }
 
 export const useCosmosStore = create<CosmosStoreState>()((set) => ({
@@ -53,6 +57,8 @@ export const useCosmosStore = create<CosmosStoreState>()((set) => ({
   selectedNode: null,
   showNodeLabels: false, // Default to hiding labels for cleaner view
   showEdges: false, // Default to hiding edges for cleaner view
+  edgeWidth: 1.0, // Default edge width
+  nodeSizeMultiplier: 1.0, // Default node size multiplier
   setGraphData: (data) =>
     set({ graphData: data }),
   setLoading: (loading) =>
@@ -65,4 +71,8 @@ export const useCosmosStore = create<CosmosStoreState>()((set) => ({
     set({ showNodeLabels: show }),
   setShowEdges: (show) =>
     set({ showEdges: show }),
+  setEdgeWidth: (width) =>
+    set({ edgeWidth: Math.max(0.5, Math.min(5.0, width)) }), // Clamp between 0.5 and 5.0
+  setNodeSizeMultiplier: (multiplier) =>
+    set({ nodeSizeMultiplier: Math.max(0.5, Math.min(3.0, multiplier)) }), // Clamp between 0.5 and 3.0
 }));

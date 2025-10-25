@@ -26,14 +26,15 @@ const CosmosScene: React.FC = () => {
     setLoading,
     setError,
     setSelectedNode,
+    edgeWidth,
+    nodeSizeMultiplier,
   } = useCosmosStore();
   
   const { addMessage } = useChatStore();
 
-  // Edge control state - using defaults
+  // Edge control state - using store values
   const { showEdges } = useCosmosStore();
   const edgeOpacity = 0.5;
-  const edgeWidth = 1;
   const animatedEdges = true; // Turn on edge animation
   
   // Background error state (keep for error handling)
@@ -322,6 +323,7 @@ const CosmosScene: React.FC = () => {
         selectedEntityId={selectedEntityId}
         customCameraController={LookupCameraController}
         customTargetDistance={80}
+        nodeSizeMultiplier={nodeSizeMultiplier}
       />
       
       
