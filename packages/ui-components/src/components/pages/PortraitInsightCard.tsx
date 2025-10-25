@@ -88,7 +88,7 @@ export const PortraitInsightCard: React.FC<PortraitInsightCardProps> = ({
         {/* Light to dark gradient for translucency */}
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/5 to-black/30 rounded-lg" />
         
-        <div className="relative z-10 flex flex-col h-full">
+        <div className="relative z-10 flex flex-col h-full overflow-hidden">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <h3 className="text-xl font-semibold text-white/90">{title}</h3>

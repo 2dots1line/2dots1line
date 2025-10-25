@@ -66,7 +66,7 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
     rate: 0.8, // Slower, more natural pace
     pitch: 1.0, // Natural pitch
     volume: 0.9, // Clear volume
-    onEnd: () => console.log('Finished reading opening words')
+    onEnd: () => {}
   });
 
   // Data transformation functions for mobile dashboard
@@ -102,7 +102,6 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
     const growthEvents = (() => {
       const sectionData = (dynamicData.sections as any).mobile_growth_events;
       if (!sectionData || !sectionData.items) {
-        console.log('[Mobile Dashboard] No mobile_growth_events section found');
         return [];
       }
       
@@ -202,8 +201,6 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
 
   // Handle card clicks to open entity detail modal
   const handleCardClick = (entity: any) => {
-    console.log('handleCardClick called with entity:', entity);
-    
     // Use the same pattern as CapsulePill and SeedEntitiesDisplay
     // Dispatch custom event that the existing listener will handle
     const entityId = entity.id || entity.entity_id;
@@ -238,19 +235,10 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
     
     const displayText = entity.title || entity.name || 'Entity';
     
-    console.log('Extracted entityId:', entityId);
-    console.log('Extracted entityType:', entityType);
-    console.log('Section key:', entity.sectionKey);
-    console.log('Display text:', displayText);
-    console.log('Full entity object:', JSON.stringify(entity, null, 2));
-    
     if (entityId && entityType) {
-      console.log('Dispatching open-entity-modal event');
       window.dispatchEvent(new CustomEvent('open-entity-modal', {
         detail: { entityId, entityType, displayText }
       }));
-    } else {
-      console.error('Missing entityId or entityType:', { entityId, entityType });
     }
   };
 
@@ -319,7 +307,6 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
     const handleEntityModalOpen = async (event: Event) => {
       const { entityId, entityType, displayText } = (event as CustomEvent).detail || {};
       if (entityId && entityType) {
-        console.log('Open entity modal:', { entityId, entityType, displayText });
         
         try {
           // Create a basic entity object that matches the expected format
@@ -336,7 +323,6 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
             source_entity_type: entityType
           };
           
-          console.log('Created entity object for modal:', entity);
           setSelectedEntity(entity);
           setEntityModalOpen(true);
         } catch (error) {
@@ -424,12 +410,8 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
   const loadDashboardData = async () => {
     setIsLoading(true);
     try {
-      console.log('[DashboardModal] Starting to load dashboard data...');
-      
       // Check authentication
       const token = localStorage.getItem('auth_token');
-      console.log('[DashboardModal] Auth token exists:', !!token);
-      console.log('[DashboardModal] Auth token length:', token?.length || 0);
       
       // Load all dashboard data
       const [legacyResponse, dynamicResponse, configResponse, greetingResponse, metricsResponse] = await Promise.all([
@@ -452,9 +434,6 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
       }
 
       if (dynamicResponse.success && dynamicResponse.data) {
-        console.log('[DashboardModal] Dynamic dashboard data loaded successfully');
-        console.log('[DashboardModal] Available sections:', Object.keys(dynamicResponse.data.sections));
-        console.log('[DashboardModal] Mobile growth events section:', dynamicResponse.data.sections.mobile_growth_events);
         setDynamicDashboardData(dynamicResponse.data);
       } else {
         console.error('Failed to load dynamic dashboard data:', dynamicResponse.error);
@@ -625,7 +604,6 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
   // Mobile Dashboard - Direct overlay on video background using mobile-specific page templates
   // Only render on client side to prevent hydration mismatch
   if (deviceInfo.isMobile && dynamicDashboardData) {
-    console.log('[Mobile Dashboard] Rendering mobile dashboard with data');
     const transformedData = transformDashboardData(dynamicDashboardData);
     
     // Show loading state if data is still being processed
@@ -672,7 +650,6 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
               <div 
                 className="cursor-pointer"
                 onClick={(e: React.MouseEvent) => {
-                  console.log('[Mobile Dashboard] Opening card clicked!', transformedData.openingContent);
                   e.stopPropagation();
                   handleCardClick(transformedData.openingContent);
                 }}
@@ -732,17 +709,17 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
             </div>
           )}
 
-          {/* Insights Section - Use PortraitInsightCard */}
+          {/* Insights Section - Use PortraitInsightCard with standardized 16:9 aspect ratio */}
           {activeTab === 'dynamic' && (
             <div className="max-w-6xl mx-auto">
-              <div className="space-y-4">
+              <div className="space-y-6">
                 {transformedData.insights.map((insight) => (
                   <div 
+                    key={insight.id}
                     onClick={() => handleCardClick(insight)}
                     className="cursor-pointer hover:scale-[1.02] transition-transform duration-200"
                   >
                     <PortraitInsightCard
-                      key={insight.id}
                       title={insight.title}
                       content={insight.content}
                       cardCover={insight.cardCover}
@@ -805,7 +782,7 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                             events.map((event: any) => (
                               <div 
                                 key={event.id} 
-                                className="flex-shrink-0 w-80 cursor-pointer hover:scale-[1.02] transition-transform duration-200"
+                                className="flex-shrink-0 w-72 cursor-pointer hover:scale-[1.02] transition-transform duration-200"
                                 onClick={() => handleCardClick(event)}
                               >
                                 <GrowthEventCard
@@ -814,6 +791,7 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                                   growthDimension={event.growthDimension}
                                   cardCover={event.cardCover}
                                   className="w-full"
+                                  onReadMore={() => handleCardClick(event)}
                                 />
                               </div>
                             ))
