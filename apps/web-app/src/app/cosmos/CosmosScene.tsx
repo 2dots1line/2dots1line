@@ -11,6 +11,7 @@ import CosmosError from '../../components/modal/CosmosError';
 import CosmosLoading from '../../components/modal/CosmosLoading';
 import { EntityDetailModal } from '../../components/modal/EntityDetailModal';
 import SeedEntitiesDisplay from '../../components/cosmos/SeedEntitiesDisplay';
+import MobileNavigationControls from '../../components/cosmos/MobileNavigationControls';
 import { useEntitySelection } from '../../hooks/useEntitySelection';
 // import { LookupCameraController } from '../../components/cosmos/LookupCameraController'; // REMOVED
 import { useViewTransitionContent } from '../../hooks/useViewTransitionContent';
@@ -346,6 +347,12 @@ const CosmosScene: React.FC = () => {
         }}
       />
       
+      {/* Mobile Navigation Controls */}
+      <MobileNavigationControls
+        isChatOpen={false} // Main cosmos scene doesn't have chat
+        isSeedEntityPanelOpen={false} // Seed entities are always visible
+        isEntityModalOpen={!!selectedNode}
+      />
       
       {/* Background Error Overlay */}
       {backgroundLoadError && (

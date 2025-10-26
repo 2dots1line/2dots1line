@@ -45,6 +45,16 @@ export const useDeviceDetection = (): DeviceInfo => {
         isTablet,
         isDesktop,
       });
+      
+      console.log('📱 useDeviceDetection: Device detected', {
+        isMobile,
+        hasTouch,
+        screenWidth,
+        screenHeight,
+        isTablet,
+        isDesktop,
+        userAgent: navigator.userAgent
+      });
     };
 
     // Use requestAnimationFrame to ensure DOM is ready

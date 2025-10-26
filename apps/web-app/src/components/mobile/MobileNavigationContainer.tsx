@@ -71,6 +71,8 @@ export const MobileNavigationContainer: React.FC<MobileNavigationContainerProps>
       setActiveView(item.id as any);
     }
     setIsMenuOpen(false);
+    // Dispatch event to notify other components
+    window.dispatchEvent(new CustomEvent('navigation-panel-close'));
   };
   
   const handleChatHistory = () => {
@@ -199,7 +201,10 @@ export const MobileNavigationContainer: React.FC<MobileNavigationContainerProps>
         </button>
       ) : (
         <button
-          onClick={() => setIsMenuOpen(true)}
+          onClick={() => {
+            setIsMenuOpen(true);
+            window.dispatchEvent(new CustomEvent('navigation-panel-open'));
+          }}
           className="fixed top-4 left-3 z-50 w-9 h-9 bg-black/60 backdrop-blur-sm rounded-full border border-white/20 flex items-center justify-center text-white/80 hover:bg-black/80 transition-all"
           title="Menu"
         >
@@ -214,7 +219,10 @@ export const MobileNavigationContainer: React.FC<MobileNavigationContainerProps>
       {/* Hamburger Menu */}
       <MobileHamburgerMenu
         isOpen={isMenuOpen}
-        onClose={() => setIsMenuOpen(false)}
+        onClose={() => {
+          setIsMenuOpen(false);
+          window.dispatchEvent(new CustomEvent('navigation-panel-close'));
+        }}
         navigationItems={navigationItems}
         currentView={currentView as string}
         sessionHistory={sessionHistory}

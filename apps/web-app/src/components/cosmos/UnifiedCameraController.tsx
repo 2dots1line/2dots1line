@@ -331,8 +331,16 @@ export const UnifiedCameraController: React.FC<UnifiedCameraControllerProps> = (
           // Check if all keys are released after this update
           const allKeysReleased = !keysRef.current.w && !keysRef.current.a && !keysRef.current.s && !keysRef.current.d && !keysRef.current.space;
           if (allKeysReleased && state.mode === 'free') {
-            // Simply switch back to orbit mode without changing target
-            // This prevents drift and preserves entity focusing
+            // Update OrbitControls target to current camera position for smooth transition
+            if (controlsRef.current) {
+              // Calculate a target point in front of the camera
+              const direction = new THREE.Vector3();
+              camera.getWorldDirection(direction);
+              const targetPoint = camera.position.clone().add(direction.multiplyScalar(50));
+              controlsRef.current.target.copy(targetPoint);
+              controlsRef.current.update();
+            }
+            
             setState(prev => ({ 
               ...prev, 
               mode: 'orbit',
@@ -351,8 +359,16 @@ export const UnifiedCameraController: React.FC<UnifiedCameraControllerProps> = (
           // Check if all keys are released after this update
           const allKeysReleased = !keysRef.current.w && !keysRef.current.a && !keysRef.current.s && !keysRef.current.d && !keysRef.current.space;
           if (allKeysReleased && state.mode === 'free') {
-            // Simply switch back to orbit mode without changing target
-            // This prevents drift and preserves entity focusing
+            // Update OrbitControls target to current camera position for smooth transition
+            if (controlsRef.current) {
+              // Calculate a target point in front of the camera
+              const direction = new THREE.Vector3();
+              camera.getWorldDirection(direction);
+              const targetPoint = camera.position.clone().add(direction.multiplyScalar(50));
+              controlsRef.current.target.copy(targetPoint);
+              controlsRef.current.update();
+            }
+            
             setState(prev => ({ 
               ...prev, 
               mode: 'orbit',
