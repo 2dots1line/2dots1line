@@ -12,7 +12,7 @@ import CosmosLoading from '../../components/modal/CosmosLoading';
 import { EntityDetailModal } from '../../components/modal/EntityDetailModal';
 import SeedEntitiesDisplay from '../../components/cosmos/SeedEntitiesDisplay';
 import { useEntitySelection } from '../../hooks/useEntitySelection';
-import { LookupCameraController } from '../../components/cosmos/LookupCameraController';
+// import { LookupCameraController } from '../../components/cosmos/LookupCameraController'; // REMOVED
 import { useViewTransitionContent } from '../../hooks/useViewTransitionContent';
 import type { ChatMessage } from '../../services/chatService';
 
@@ -321,7 +321,7 @@ const CosmosScene: React.FC = () => {
         modalOpen={!!selectedNode}
         onBackgroundLoadError={handleBackgroundLoadError}
         selectedEntityId={selectedEntityId}
-        customCameraController={LookupCameraController}
+        // customCameraController={LookupCameraController} // REMOVED
         customTargetDistance={80}
         nodeSizeMultiplier={nodeSizeMultiplier}
       />

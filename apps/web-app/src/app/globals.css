@@ -92,4 +92,17 @@ body {
 
 /* Component-specific styles */
 @import '../styles/VoiceRecordingIndicator.css';
-@import '../styles/markdown.styles.css'; 
+@import '../styles/markdown.styles.css';
+
+/* Touch optimization for cosmos canvas */
+#cosmos-canvas {
+  touch-action: none;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+@media (max-width: 768px) {
+  #cosmos-canvas {
+    touch-action: manipulation;
+  }
+} 

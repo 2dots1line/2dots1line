@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Graph3D } from '../../../components/cosmos/Graph3D';
-import { LookupCameraController } from '../../../components/cosmos/LookupCameraController';
+// import { LookupCameraController } from '../../../components/cosmos/LookupCameraController'; // REMOVED
+import MobileNavigationControls from '../../../components/cosmos/MobileNavigationControls'; // NEW
 import { useCosmosStore } from '../../../stores/CosmosStore';
 import { cosmosService } from '../../../services/cosmosService';
 import CosmosInfoPanel from '../../../components/modal/CosmosInfoPanel';
@@ -872,7 +873,7 @@ const CosmosLookupScene: React.FC = () => {
         customCameraTarget={searchResultClusterCenter}
         customTargetDistance={80}
         rotationSpeed={0.0001}
-        customCameraController={LookupCameraController}
+        // customCameraController={LookupCameraController} // REMOVED
       />
       
       
@@ -880,6 +881,13 @@ const CosmosLookupScene: React.FC = () => {
       
       <CosmosInfoPanel />
       {selectedNode && <EntityDetailModal entity={selectedNode} isOpen={!!selectedNode} onClose={() => setSelectedNode(null)} />}
+      
+      {/* Mobile Navigation Controls */}
+      <MobileNavigationControls
+        isChatOpen={false} // Lookup scene doesn't have chat
+        isSeedEntityPanelOpen={false} // Lookup scene doesn't have seed entities
+        isEntityModalOpen={!!selectedNode}
+      />
       
       {/* Background Loading Overlay */}
       {isBackgroundLoading && (

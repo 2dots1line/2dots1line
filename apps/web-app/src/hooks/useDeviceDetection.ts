@@ -4,15 +4,21 @@ import { useState, useEffect } from 'react';
 
 export interface DeviceInfo {
   isMobile: boolean;
+  hasTouch: boolean;
   screenWidth: number;
   screenHeight: number;
+  isTablet: boolean;
+  isDesktop: boolean;
 }
 
 export const useDeviceDetection = (): DeviceInfo => {
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo>({
     isMobile: false,
+    hasTouch: false,
     screenWidth: 0,
     screenHeight: 0,
+    isTablet: false,
+    isDesktop: false,
   });
 
   useEffect(() => {
@@ -23,13 +29,21 @@ export const useDeviceDetection = (): DeviceInfo => {
       const screenWidth = window.innerWidth;
       const screenHeight = window.innerHeight;
       
-      // Simple mobile detection: screen width <= 768px
+      // Enhanced device detection
       const isMobile = screenWidth <= 768;
+      const isTablet = screenWidth > 768 && screenWidth <= 1024;
+      const isDesktop = screenWidth > 1024;
+      const hasTouch = 'ontouchstart' in window || 
+                      navigator.maxTouchPoints > 0 || 
+                      (navigator as any).msMaxTouchPoints > 0;
       
       setDeviceInfo({
         isMobile,
+        hasTouch,
         screenWidth,
         screenHeight,
+        isTablet,
+        isDesktop,
       });
     };
 

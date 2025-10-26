@@ -7,7 +7,8 @@ import CosmosError from '../modal/CosmosError';
 import CosmosLoading from '../modal/CosmosLoading';
 import { EntityDetailModal } from '../modal/EntityDetailModal';
 import QuestInfoPanel from '../modal/QuestInfoPanel';
-import { LookupCameraController } from './LookupCameraController';
+// import { LookupCameraController } from './LookupCameraController'; // REMOVED
+import MobileNavigationControls from './MobileNavigationControls'; // NEW
 import { HUDContainer } from '../hud/HUDContainer';
 import { GlassmorphicPanel, GlassButton } from '@2dots1line/ui-components';
 import { Send, Loader2, MessageSquare, X, Plus } from 'lucide-react';
@@ -422,7 +423,7 @@ const LiveQuestScene: React.FC = () => {
           customCameraPosition={[0, 0, 100]}
           customCameraTarget={{ x: 0, y: 0, z: 0 }}
           customTargetDistance={100}
-          customCameraController={LookupCameraController}
+          // customCameraController={LookupCameraController} // REMOVED
         />
       </div>
     );
@@ -637,11 +638,18 @@ const LiveQuestScene: React.FC = () => {
         customCameraTarget={center}
         customTargetDistance={80}
         enableNodeRotation={false} // Disable node cluster rotation for better interaction
-        customCameraController={LookupCameraController}
+        // customCameraController={LookupCameraController} // REMOVED
       />
       
       {/* Node Modal */}
       {selectedNode && <EntityDetailModal entity={selectedNode} isOpen={!!selectedNode} onClose={() => setSelectedNode(null)} />}
+      
+      {/* Mobile Navigation Controls */}
+      <MobileNavigationControls
+        isChatOpen={false} // Quest scene doesn't have chat
+        isSeedEntityPanelOpen={false} // Quest scene doesn't have seed entities
+        isEntityModalOpen={!!selectedNode}
+      />
     </div>
   );
 };

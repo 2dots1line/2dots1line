@@ -3,7 +3,8 @@ import { Canvas, useThree } from '@react-three/fiber';
 import { PerspectiveCamera } from '@react-three/drei';
 import { StarfieldBackground } from './StarfieldBackground';
 import { NASAStarfieldBackground } from './NASAStarfieldBackground';
-import { CameraController } from './CameraController';
+import { UnifiedCameraController } from './UnifiedCameraController'; // NEW
+import { useDeviceDetection } from '../../hooks/useDeviceDetection'; // NEW
 import { NodeMesh } from './NodeMesh';
 import { EdgeMesh, AnimatedEdgeMesh } from './EdgeMesh';
 import { EdgeLabel } from './EdgeLabel';
@@ -36,7 +37,7 @@ interface Graph3DProps {
   customTargetDistance?: number; // Custom target distance
   rotationSpeed?: number; // Custom rotation speed for the node cluster
   enableNodeRotation?: boolean; // Enable/disable node cluster rotation
-  customCameraController?: React.ComponentType<any>; // Custom camera controller component
+  // customCameraController?: React.ComponentType<any>; // REMOVED - no longer needed
   selectedEntityId?: string | null; // External entity selection for edge highlighting
   nodeSizeMultiplier?: number; // Node size multiplier for scaling all nodes
 }
@@ -58,12 +59,15 @@ export const Graph3D: React.FC<Graph3DProps> = ({
   customTargetDistance,
   rotationSpeed,
   enableNodeRotation = true,
-  customCameraController,
+  // customCameraController, // REMOVED - no longer needed
   selectedEntityId,
   nodeSizeMultiplier = 1.0
 }) => {
   // State for hover management
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  
+  // Device detection for mobile optimization
+  const { isMobile, hasTouch } = useDeviceDetection();
   
   // Engagement tracking
   const { trackEvent } = useEngagementStore();
@@ -277,17 +281,13 @@ export const Graph3D: React.FC<Graph3DProps> = ({
       {/* Procedural Starfield - Layer 2 (Nearby stars for depth) */}
       <StarfieldBackground />
       
-      {customCameraController ? (
-        React.createElement(customCameraController, {
-          initialTarget: nodeClusterCenter,
-          initialDistance: customTargetDistance || 80
-        })
-      ) : (
-        <CameraController 
-          initialTarget={nodeClusterCenter}
-          initialTargetDistance={customTargetDistance || 80}
-        />
-      )}
+      {/* Unified Camera Controller */}
+      <UnifiedCameraController
+        initialTarget={nodeClusterCenter}
+        initialDistance={customTargetDistance || 80}
+        isMobile={isMobile}
+        hasTouch={hasTouch}
+      />
       {/* Ambient light for overall illumination */}
       <ambientLight intensity={0.2} />
       

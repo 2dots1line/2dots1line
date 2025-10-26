@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
@@ -34,11 +34,29 @@ export const NodeClusterContainer: React.FC<NodeClusterContainerProps> = ({
   isHovered = false
 }) => {
   const groupRef = useRef<THREE.Group>(null);
+  const [isPausedForFocus, setIsPausedForFocus] = useState(false);
+
+  // Listen for pause/resume events from camera controller
+  useEffect(() => {
+    const handlePauseRotation = (event: CustomEvent) => {
+      const { pause, reason } = event.detail || {};
+      if (reason === 'entity-focus' || reason === 'entity-focus-complete') {
+        setIsPausedForFocus(pause);
+        console.log('🔄 NodeClusterContainer: Auto rotation', pause ? 'paused' : 'resumed', 'for', reason);
+      }
+    };
+
+    window.addEventListener('pause-auto-rotation', handlePauseRotation as EventListener);
+    
+    return () => {
+      window.removeEventListener('pause-auto-rotation', handlePauseRotation as EventListener);
+    };
+  }, []);
 
   useFrame(() => {
-    if (groupRef.current && enableRotation && !isHovered) {
+    if (groupRef.current && enableRotation && !isHovered && !isPausedForFocus) {
       // Rotate the entire node cluster for 3D parallax effect
-      // Pause rotation when any node is hovered for better interaction
+      // Pause rotation when any node is hovered OR when camera is focusing on entity
       groupRef.current.rotation.y += rotationSpeed;
       groupRef.current.rotation.x += rotationSpeed * 0.3; // Subtle X rotation for more dynamic feel
     }

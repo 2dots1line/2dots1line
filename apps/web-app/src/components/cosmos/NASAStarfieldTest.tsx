@@ -9,7 +9,7 @@ import React, { useRef, useState, useEffect, useCallback, Suspense } from 'react
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { PerspectiveCamera } from '@react-three/drei';
 import * as THREE from 'three';
-import { CameraController } from './CameraController';
+import { UnifiedCameraController } from './UnifiedCameraController'; // NEW
 import { StarfieldBackground } from './StarfieldBackground';
 import { MultiverseStarfield } from './MultiverseStarfield';
 
@@ -175,7 +175,7 @@ export const NASAStarfieldTest: React.FC<NASAStarfieldProps> = ({
         </Suspense>
         
         {/* Camera Controls with WASD support */}
-        <CameraController />
+        <UnifiedCameraController /> {/* Replaced CameraController */}
         
         {/* Performance Monitor */}
         <PerformanceMonitor 
