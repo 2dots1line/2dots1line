@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { updateCurrentRotation } from './coordinateTransform';
 
 interface NodeClusterContainerProps {
   children: React.ReactNode;
@@ -53,7 +54,7 @@ export const NodeClusterContainer: React.FC<NodeClusterContainerProps> = ({
         y: groupRef.current.rotation.y,
         z: groupRef.current.rotation.z
       };
-      console.log('🔄 NodeClusterContainer: Initial rotation stored:', initialRotationRef.current);
+      console.log('🔄 NodeCluster: initial rotation stored');
     }
   }, []);
 
@@ -61,7 +62,7 @@ export const NodeClusterContainer: React.FC<NodeClusterContainerProps> = ({
   useEffect(() => {
     const handlePauseRotation = (event: CustomEvent) => {
       const { pause, reason } = event.detail || {};
-      if (reason === 'entity-focus' || reason === 'entity-focus-complete') {
+      if (reason === 'entity-focus' || reason === 'entity-focus-complete' || reason === 'entity-click') {
         setIsPausedForFocus(pause);
         console.log('🔄 NodeClusterContainer: Auto rotation', pause ? 'paused' : 'resumed', 'for', reason);
       } else if (reason === 'camera-reset') {
@@ -75,7 +76,7 @@ export const NodeClusterContainer: React.FC<NodeClusterContainerProps> = ({
             y: groupRef.current.rotation.y,
             z: groupRef.current.rotation.z
           };
-          console.log('🔄 NodeClusterContainer: Starting reset animation from:', resetStartRotationRef.current, 'to:', initialRotationRef.current);
+          console.log('🔄 NodeCluster: starting reset animation');
         }
       }
     };
@@ -115,16 +116,30 @@ export const NodeClusterContainer: React.FC<NodeClusterContainerProps> = ({
           eased
         );
         
+        // Update shared rotation state
+        updateCurrentRotation({
+          x: groupRef.current.rotation.x,
+          y: groupRef.current.rotation.y,
+          z: groupRef.current.rotation.z
+        });
+        
         // Complete reset animation
         if (progress >= 1) {
           setIsResetting(false);
           setIsPausedForFocus(false);
-          console.log('🔄 NodeClusterContainer: Reset animation completed, resuming normal rotation');
+          console.log('🔄 NodeCluster: reset animation completed');
         }
       } else if (enableRotation && !isHovered && !isPausedForFocus) {
         // Normal rotation
         groupRef.current.rotation.y += rotationSpeed;
         groupRef.current.rotation.x += rotationSpeed * 0.3; // Subtle X rotation for more dynamic feel
+        
+        // Update shared rotation state
+        updateCurrentRotation({
+          x: groupRef.current.rotation.x,
+          y: groupRef.current.rotation.y,
+          z: groupRef.current.rotation.z
+        });
       }
     }
   });

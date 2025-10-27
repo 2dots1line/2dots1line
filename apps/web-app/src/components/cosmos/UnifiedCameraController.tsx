@@ -4,6 +4,7 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { computeClusterView } from './computeClusterView';
+import { transformCoordinatesToInitial } from './coordinateTransform';
 import * as THREE from 'three';
 
 interface CameraState {
@@ -234,15 +235,20 @@ export const UnifiedCameraController: React.FC<UnifiedCameraControllerProps> = (
           detail: { pause: true, reason: 'camera-reset' }
         }));
         
+        // Transform the reset target back to initial coordinates (accounting for current rotation)
+        const transformedTarget = transformCoordinatesToInitial(resetTarget);
+        
+        console.log('🎥 Camera reset: transformed target', { original: resetTarget, transformed: transformedTarget });
+        
         // Use computeClusterView for consistent reset positioning
         const clusterView = computeClusterView({
-          nodes: [{ x: resetTarget.x, y: resetTarget.y, z: resetTarget.z }],
+          nodes: [{ x: transformedTarget.x, y: transformedTarget.y, z: transformedTarget.z }],
           customTargetDistance: resetDistance,
           isMobile
         });
         
         // Set new target and position
-        controlsRef.current.target.set(resetTarget.x, resetTarget.y, resetTarget.z);
+        controlsRef.current.target.set(transformedTarget.x, transformedTarget.y, transformedTarget.z);
         const cameraPosition = new THREE.Vector3(
           clusterView.center.x,
           clusterView.center.y,
@@ -254,12 +260,12 @@ export const UnifiedCameraController: React.FC<UnifiedCameraControllerProps> = (
         
         setState(prev => ({
           ...prev,
-          target: new THREE.Vector3(resetTarget.x, resetTarget.y, resetTarget.z),
+          target: new THREE.Vector3(transformedTarget.x, transformedTarget.y, transformedTarget.z),
           position: cameraPosition.clone(),
           currentTargetDistance: clusterView.optimalDistance
         }));
         
-        console.log('🎥 UnifiedCameraController: Camera reset to original initial position:', resetTarget, 'distance:', clusterView.optimalDistance);
+        console.log('🎥 Camera reset: positioned at', transformedTarget, 'distance:', clusterView.optimalDistance);
       }
     };
 
