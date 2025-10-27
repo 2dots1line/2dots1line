@@ -144,7 +144,7 @@ export const MobileNavigationControls: React.FC<MobileNavigationControlsProps> =
     e?.preventDefault();
     
     window.dispatchEvent(new CustomEvent('camera-reset', { 
-      detail: { target: { x: 0, y: 0, z: 0 }, distance: 80 } 
+      detail: {} // Let UnifiedCameraController use its stored initial values
     }));
     onReset?.();
   }, [onReset, triggerHapticFeedback]);

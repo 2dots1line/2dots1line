@@ -3,6 +3,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
+import { computeClusterView } from './computeClusterView';
 import * as THREE from 'three';
 
 interface CameraState {
@@ -82,10 +83,19 @@ export const UnifiedCameraController: React.FC<UnifiedCameraControllerProps> = (
   useEffect(() => {
     if (!isInitialized && controlsRef.current) {
       const target = new THREE.Vector3(initialTarget.x, initialTarget.y, initialTarget.z);
+      
+      // Use computeClusterView for consistent initial positioning
+      const clusterView = computeClusterView({
+        nodes: [{ x: initialTarget.x, y: initialTarget.y, z: initialTarget.z }],
+        customTargetDistance: initialDistance,
+        isMobile
+      });
+      
+      // Position camera directly at cluster center from optimal distance
       const cameraPosition = new THREE.Vector3(
-        target.x + initialDistance * 0.7,
-        target.y + initialDistance * 0.5,
-        target.z + initialDistance * 0.7
+        clusterView.center.x,
+        clusterView.center.y,
+        clusterView.center.z + clusterView.optimalDistance
       );
       
       camera.position.copy(cameraPosition);
@@ -100,9 +110,9 @@ export const UnifiedCameraController: React.FC<UnifiedCameraControllerProps> = (
         currentTargetDistance: cameraPosition.distanceTo(target)
       }));
       
-      console.log('🎥 UnifiedCameraController: Initialized with target:', initialTarget, 'distance:', initialDistance);
+      console.log('🎥 UnifiedCameraController: Initialized with target:', initialTarget, 'distance:', clusterView.optimalDistance);
     }
-  }, [controlsRef.current, initialTarget, initialDistance, isInitialized, camera]);
+  }, [controlsRef.current, initialTarget, initialDistance, isInitialized, camera, isMobile]);
 
   // Handle camera focus requests - the core functionality
   useEffect(() => {
@@ -138,15 +148,19 @@ export const UnifiedCameraController: React.FC<UnifiedCameraControllerProps> = (
       if (controlsRef.current) {
         const target = new THREE.Vector3(position.x, position.y, position.z);
         
-        // Simple, reliable distance calculation - fixed reasonable distance
-        const optimalDistance = 80;
+        // Use computeClusterView to calculate optimal positioning for single entity
+        const clusterView = computeClusterView({
+          nodes: [{ x: position.x, y: position.y, z: position.z }],
+          customTargetDistance: 80,
+          isMobile
+        });
         
-        // Position camera to center entity in viewport
-        // Use a more centered approach - camera looks directly at entity
+        // Position camera directly at cluster center from optimal distance
+        // No artificial angling - camera stares straight at the target
         const newPosition = new THREE.Vector3(
-          target.x + optimalDistance * 0.5,  // More centered X
-          target.y + optimalDistance * 0.3,  // Lower Y for better viewing
-          target.z + optimalDistance * 0.8   // Slightly back for depth
+          clusterView.center.x,
+          clusterView.center.y,
+          clusterView.center.z + clusterView.optimalDistance
         );
         
         if (cameraMode === 'immediate') {
@@ -206,21 +220,34 @@ export const UnifiedCameraController: React.FC<UnifiedCameraControllerProps> = (
     };
 
     const handleCameraReset = (event: CustomEvent) => {
-      const { target = { x: 0, y: 0, z: 0 }, distance = 80 } = event.detail || {};
+      // Use initial values from props/state instead of hardcoded defaults
+      const resetTarget = initialTarget;
+      const resetDistance = state.initialTargetDistance;
+      
       if (controlsRef.current) {
-        controlsRef.current.target.set(target.x, target.y, target.z);
+        // Use computeClusterView for consistent reset positioning
+        const clusterView = computeClusterView({
+          nodes: [{ x: resetTarget.x, y: resetTarget.y, z: resetTarget.z }],
+          customTargetDistance: resetDistance,
+          isMobile
+        });
+        
+        controlsRef.current.target.set(resetTarget.x, resetTarget.y, resetTarget.z);
         const cameraPosition = new THREE.Vector3(
-          target.x + distance * 0.7,
-          target.y + distance * 0.5,
-          target.z + distance * 0.7
+          clusterView.center.x,
+          clusterView.center.y,
+          clusterView.center.z + clusterView.optimalDistance
         );
         camera.position.copy(cameraPosition);
         controlsRef.current.update();
         setState(prev => ({
           ...prev,
-          target: new THREE.Vector3(target.x, target.y, target.z),
-          position: cameraPosition.clone()
+          target: new THREE.Vector3(resetTarget.x, resetTarget.y, resetTarget.z),
+          position: cameraPosition.clone(),
+          currentTargetDistance: clusterView.optimalDistance
         }));
+        
+        console.log('🎥 UnifiedCameraController: Camera reset to initial position:', resetTarget, 'distance:', clusterView.optimalDistance);
       }
     };
 

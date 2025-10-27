@@ -12,6 +12,8 @@ import MobileNavigationControls from './MobileNavigationControls'; // NEW
 import { HUDContainer } from '../hud/HUDContainer';
 import { GlassmorphicPanel, GlassButton } from '@2dots1line/ui-components';
 import { Send, Loader2, MessageSquare, X, Plus } from 'lucide-react';
+import { computeClusterView } from './computeClusterView';
+import { useDeviceDetection } from '../../hooks/useDeviceDetection';
 // Removed entity lookup imports to keep quest visualization clean
 
 const LiveQuestScene: React.FC = () => {
@@ -49,6 +51,9 @@ const LiveQuestScene: React.FC = () => {
   
   // Track which messages have been added to prevent duplicates
   const [addedMessages, setAddedMessages] = useState<Set<string>>(new Set());
+  
+  // Device detection for mobile optimization
+  const { isMobile } = useDeviceDetection();
 
   // Removed expandWithKeyPhrases function - using quest visualization instead
 
@@ -387,12 +392,22 @@ const LiveQuestScene: React.FC = () => {
 
   const questGraphData = { nodes, edges };
 
-  // Compute cluster center for camera positioning
-  const center = useMemo(() => {
-    if (!nodes.length) return { x: 0, y: 0, z: 0 };
-    const sum = nodes.reduce((acc: any, n: any) => ({ x: acc.x + n.x, y: acc.y + n.y, z: acc.z + n.z }), { x: 0, y: 0, z: 0 });
-    return { x: sum.x / nodes.length, y: sum.y / nodes.length, z: sum.z / nodes.length };
-  }, [nodes]);
+  // Compute cluster view using unified helper
+  const clusterView = useMemo(() => {
+    if (!nodes.length) {
+      return {
+        center: { x: 0, y: 0, z: 0 },
+        bounds: { width: 0, height: 0, depth: 0 },
+        optimalDistance: 80
+      };
+    }
+    
+    return computeClusterView({
+      nodes,
+      customTargetDistance: 80,
+      isMobile
+    });
+  }, [nodes, isMobile]);
 
   // Remove full-screen processing overlay - make it fluid
 
@@ -634,9 +649,9 @@ const LiveQuestScene: React.FC = () => {
         animatedEdges={animatedEdges}
         modalOpen={!!selectedNode}
         isSearchResult={true} // Enable bright star textures and larger sizes for quest results
-        customCameraPosition={[center.x + 200, center.y + 200, center.z - 150]}
-        customCameraTarget={center}
-        customTargetDistance={80}
+        customCameraPosition={[clusterView.center.x, clusterView.center.y, clusterView.center.z + clusterView.optimalDistance]}
+        customCameraTarget={clusterView.center}
+        customTargetDistance={clusterView.optimalDistance}
         enableNodeRotation={false} // Disable node cluster rotation for better interaction
         // customCameraController={LookupCameraController} // REMOVED
       />

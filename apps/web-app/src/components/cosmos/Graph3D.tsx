@@ -11,6 +11,7 @@ import { EdgeLabel } from './EdgeLabel';
 import { NodeClusterContainer } from './NodeClusterContainer';
 import { useEngagementStore } from '../../stores/EngagementStore';
 import { useEngagementContext } from '../../hooks/useEngagementContext';
+import { computeClusterView } from './computeClusterView';
 import * as THREE from 'three';
 
 // TODO: Define proper types for graph data
@@ -218,34 +219,35 @@ export const Graph3D: React.FC<Graph3DProps> = ({
     return false;
   };
 
-  // Calculate node cluster center for camera positioning
-  const nodeClusterCenter = useMemo(() => {
+  // Calculate node cluster view using unified helper
+  const clusterView = useMemo(() => {
     // Use custom target if provided (for lookup scenes)
     if (customCameraTarget) {
       console.log('🌌 Using custom camera target:', customCameraTarget);
-      return customCameraTarget;
+      return {
+        center: customCameraTarget,
+        bounds: { width: 0, height: 0, depth: 0 },
+        optimalDistance: customTargetDistance || 80
+      };
     }
     
-    if (graphData.nodes.length === 0) return { x: 0, y: 0, z: 0 };
+    if (graphData.nodes.length === 0) {
+      return {
+        center: { x: 0, y: 0, z: 0 },
+        bounds: { width: 0, height: 0, depth: 0 },
+        optimalDistance: customTargetDistance || 80
+      };
+    }
     
-    const sum = graphData.nodes.reduce(
-      (acc, node) => ({
-        x: acc.x + node.x,
-        y: acc.y + node.y,
-        z: acc.z + node.z
-      }),
-      { x: 0, y: 0, z: 0 }
-    );
+    const result = computeClusterView({
+      nodes: graphData.nodes,
+      customTargetDistance,
+      isMobile
+    });
     
-    const center = {
-      x: sum.x / graphData.nodes.length,
-      y: sum.y / graphData.nodes.length,
-      z: sum.z / graphData.nodes.length
-    };
-    
-    console.log('🌌 Node cluster center:', center);
-    return center;
-  }, [graphData.nodes, customCameraTarget]);
+    console.log('🌌 Computed cluster view:', result);
+    return result;
+  }, [graphData.nodes, customCameraTarget, customTargetDistance, isMobile]);
 
   // Camera positioning is handled by CameraController via camera-focus-request events
 
@@ -265,7 +267,7 @@ export const Graph3D: React.FC<Graph3DProps> = ({
     >
       <PerspectiveCamera 
         makeDefault 
-        position={customCameraPosition || [nodeClusterCenter.x + 50, nodeClusterCenter.y + 30, nodeClusterCenter.z + 50]} 
+        position={customCameraPosition || [clusterView.center.x, clusterView.center.y, clusterView.center.z + clusterView.optimalDistance]} 
         fov={75} 
         near={0.1} 
         far={50000} 
@@ -283,8 +285,8 @@ export const Graph3D: React.FC<Graph3DProps> = ({
       
       {/* Unified Camera Controller */}
       <UnifiedCameraController
-        initialTarget={nodeClusterCenter}
-        initialDistance={customTargetDistance || 80}
+        initialTarget={clusterView.center}
+        initialDistance={clusterView.optimalDistance}
         isMobile={isMobile}
         hasTouch={hasTouch}
       />
