@@ -7,7 +7,7 @@ import { computeClusterView } from './computeClusterView';
 import * as THREE from 'three';
 
 interface CameraState {
-  mode: 'orbit' | 'free' | 'focusing' | 'animating';
+  mode: 'orbit' | 'free' | 'focusing';
   target: THREE.Vector3;
   position: THREE.Vector3;
   isTransitioning: boolean;
@@ -48,6 +48,10 @@ export const UnifiedCameraController: React.FC<UnifiedCameraControllerProps> = (
   const transitionRef = useRef<CameraTransition | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   
+  // Store original initial values to prevent them from changing over time
+  const originalInitialTarget = useRef<{ x: number; y: number; z: number }>(initialTarget);
+  const originalInitialDistance = useRef<number>(initialDistance);
+  
   const [state, setState] = useState<CameraState>({
     mode: 'orbit',
     target: new THREE.Vector3(initialTarget.x, initialTarget.y, initialTarget.z),
@@ -82,12 +86,12 @@ export const UnifiedCameraController: React.FC<UnifiedCameraControllerProps> = (
   // Initialize camera position
   useEffect(() => {
     if (!isInitialized && controlsRef.current) {
-      const target = new THREE.Vector3(initialTarget.x, initialTarget.y, initialTarget.z);
+      const target = new THREE.Vector3(originalInitialTarget.current.x, originalInitialTarget.current.y, originalInitialTarget.current.z);
       
       // Use computeClusterView for consistent initial positioning
       const clusterView = computeClusterView({
-        nodes: [{ x: initialTarget.x, y: initialTarget.y, z: initialTarget.z }],
-        customTargetDistance: initialDistance,
+        nodes: [{ x: originalInitialTarget.current.x, y: originalInitialTarget.current.y, z: originalInitialTarget.current.z }],
+        customTargetDistance: originalInitialDistance.current,
         isMobile
       });
       
@@ -110,9 +114,9 @@ export const UnifiedCameraController: React.FC<UnifiedCameraControllerProps> = (
         currentTargetDistance: cameraPosition.distanceTo(target)
       }));
       
-      console.log('🎥 UnifiedCameraController: Initialized with target:', initialTarget, 'distance:', clusterView.optimalDistance);
+      console.log('🎥 UnifiedCameraController: Initialized with original target:', originalInitialTarget.current, 'distance:', clusterView.optimalDistance);
     }
-  }, [controlsRef.current, initialTarget, initialDistance, isInitialized, camera, isMobile]);
+  }, [controlsRef.current, isInitialized, camera, isMobile]);
 
   // Handle camera focus requests - the core functionality
   useEffect(() => {
@@ -220,9 +224,9 @@ export const UnifiedCameraController: React.FC<UnifiedCameraControllerProps> = (
     };
 
     const handleCameraReset = (event: CustomEvent) => {
-      // Use initial values from props/state instead of hardcoded defaults
-      const resetTarget = initialTarget;
-      const resetDistance = state.initialTargetDistance;
+      // Use original initial values that don't change over time
+      const resetTarget = originalInitialTarget.current;
+      const resetDistance = originalInitialDistance.current;
       
       if (controlsRef.current) {
         // Use computeClusterView for consistent reset positioning
@@ -247,7 +251,7 @@ export const UnifiedCameraController: React.FC<UnifiedCameraControllerProps> = (
           currentTargetDistance: clusterView.optimalDistance
         }));
         
-        console.log('🎥 UnifiedCameraController: Camera reset to initial position:', resetTarget, 'distance:', clusterView.optimalDistance);
+        console.log('🎥 UnifiedCameraController: Camera reset to original initial position:', resetTarget, 'distance:', clusterView.optimalDistance);
       }
     };
 
