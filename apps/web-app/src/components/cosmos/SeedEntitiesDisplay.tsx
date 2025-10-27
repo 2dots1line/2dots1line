@@ -116,10 +116,10 @@ const SeedEntitiesDisplay: React.FC<SeedEntitiesDisplayProps> = ({
   const maxMobileHeight = screenHeight ? Math.min(screenHeight * 0.33, 300) : 300;
 
   return (
-    <div className={`absolute bottom-0 left-0 right-0 z-20 ${
+    <div className={`absolute bottom-0 z-20 ${
       isMobile 
-        ? 'px-2 pb-2' 
-        : 'bottom-6 left-1/2 transform -translate-x-1/2 w-3/5 max-w-4xl'
+        ? 'right-0 left-1/2 px-2 pb-2' 
+        : 'left-1/2 transform -translate-x-1/2 w-3/5 max-w-4xl'
     }`}>
       <GlassmorphicPanel
         ref={panelRef}
@@ -128,7 +128,7 @@ const SeedEntitiesDisplay: React.FC<SeedEntitiesDisplayProps> = ({
         padding="md"
         className={`border border-white/20 relative ${
           isMobile 
-            ? 'w-full' 
+            ? 'w-full max-w-[45vw]' 
             : ''
         }`}
         style={isMobile ? { maxHeight: `${maxMobileHeight}px` } : {}}
