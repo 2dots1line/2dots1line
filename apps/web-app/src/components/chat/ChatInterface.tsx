@@ -974,39 +974,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
               }`}
             />
             
-            {/* TTS button for bot messages */}
-            {msg.type === 'bot' && 
-             msg.content !== 'thinking...' && 
-             msg.content !== 'recollecting memory...' && 
-             msg.content !== 'searching the web...' && 
-             isTTSSupported && (
-              <div className="flex justify-start mt-2">
-                <GlassButton
-                  onClick={() => {
-                    if (isTTSPlaying) {
-                      stop();
-                    } else {
-                      speak(msg.content);
-                    }
-                  }}
-                  variant="default"
-                  size="sm"
-                  className="flex items-center gap-1 text-xs"
-                >
-                  {isTTSPlaying ? (
-                    <>
-                      <Pause size={12} className="stroke-current" strokeWidth={1.5} />
-                      <span>Pause</span>
-                    </>
-                  ) : (
-                    <>
-                      <Volume2 size={12} className="stroke-current" strokeWidth={1.5} />
-                      <span>Listen</span>
-                    </>
-                  )}
-                </GlassButton>
-              </div>
-            )}
           </div>
         )}
 
@@ -1088,10 +1055,41 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         )}
         
         {size !== 'mini' && (
-          <div className="mt-2">
+          <div className="mt-2 flex justify-between items-center">
             <span className="text-xs text-white/50">
               {(msg.timestamp instanceof Date ? msg.timestamp : new Date(msg.timestamp)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
+            {/* TTS button for bot messages - inline with timestamp */}
+            {msg.type === 'bot' && 
+             msg.content !== 'thinking...' && 
+             msg.content !== 'recollecting memory...' && 
+             msg.content !== 'searching the web...' && 
+             isTTSSupported && (
+              <GlassButton
+                onClick={() => {
+                  if (isTTSPlaying) {
+                    stop();
+                  } else {
+                    speak(msg.content);
+                  }
+                }}
+                variant="default"
+                size="sm"
+                className="flex items-center gap-1 text-xs"
+              >
+                {isTTSPlaying ? (
+                  <>
+                    <Pause size={12} className="stroke-current" strokeWidth={1.5} />
+                    <span>Pause</span>
+                  </>
+                ) : (
+                  <>
+                    <Volume2 size={12} className="stroke-current" strokeWidth={1.5} />
+                    <span>Listen</span>
+                  </>
+                )}
+              </GlassButton>
+            )}
           </div>
         )}
       </div>
