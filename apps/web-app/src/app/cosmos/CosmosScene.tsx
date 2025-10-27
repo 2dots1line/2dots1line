@@ -349,9 +349,9 @@ const CosmosScene: React.FC = () => {
           // Clear entity selection to remove highlighting
           clearSelection();
           
-          // Reset camera to initial loading position
+          // Reset camera to initial loading position when closing seed display
           window.dispatchEvent(new CustomEvent('camera-reset', { 
-            detail: {} // Let UnifiedCameraController use its stored initial values
+            detail: { reason: 'seed-display-close' } // Different reason for seed display close
           }));
           
           console.log('🎯 CosmosScene: SeedEntitiesDisplay closed - cleared selection and reset camera');

@@ -52,6 +52,7 @@ export const UnifiedCameraController: React.FC<UnifiedCameraControllerProps> = (
   // Store original initial values to prevent them from changing over time
   const originalInitialTarget = useRef<{ x: number; y: number; z: number }>(initialTarget);
   const originalInitialDistance = useRef<number>(initialDistance);
+  const isResettingRef = useRef<boolean>(false);
   
   const [state, setState] = useState<CameraState>({
     mode: 'orbit',
@@ -225,53 +226,84 @@ export const UnifiedCameraController: React.FC<UnifiedCameraControllerProps> = (
     };
 
     const handleCameraReset = async (event: CustomEvent) => {
-      // Use original initial values that don't change over time
-      const resetTarget = originalInitialTarget.current;
-      const resetDistance = originalInitialDistance.current;
+      const resetReason = event.detail?.reason || 'button-click';
       
-      if (controlsRef.current) {
-        // Pause auto rotation during camera reset
-        window.dispatchEvent(new CustomEvent('pause-auto-rotation', {
-          detail: { pause: true, reason: 'camera-reset' }
-        }));
+      // Prevent multiple simultaneous resets
+      if (isResettingRef.current) {
+        console.log('🎥 Camera reset: Already in progress, ignoring duplicate');
+        return;
+      }
+      
+      isResettingRef.current = true;
+      
+      try {
+        // Use original initial values that don't change over time
+        const resetTarget = originalInitialTarget.current;
+        const resetDistance = originalInitialDistance.current;
         
-        // Transform the reset target back to initial coordinates (lazy evaluation - math happens here)
-        let transformedTarget = resetTarget;
-        try {
-          const { transformCoordinatesToInitial } = await import('./coordinateTransform');
-          transformedTarget = transformCoordinatesToInitial(resetTarget);
-        } catch {
-          // Use original target as fallback
+        if (controlsRef.current) {
+          // Pause auto rotation during camera reset
+          window.dispatchEvent(new CustomEvent('pause-auto-rotation', {
+            detail: { pause: true, reason: 'camera-reset' }
+          }));
+          
+          // Wait for rotation reset to complete before doing camera calculations
+          const waitForRotationReset = () => {
+            return new Promise<void>((resolve) => {
+              const handleRotationComplete = () => {
+                window.removeEventListener('rotation-reset-complete', handleRotationComplete);
+                resolve();
+              };
+              window.addEventListener('rotation-reset-complete', handleRotationComplete);
+              
+              // Fallback timeout in case event doesn't fire
+              setTimeout(resolve, 1200);
+            });
+          };
+          
+          await waitForRotationReset();
+          
+          // Now do camera calculations with final rotation state
+          let transformedTarget = resetTarget;
+          try {
+            const { transformCoordinatesToInitial } = await import('./coordinateTransform');
+            transformedTarget = transformCoordinatesToInitial(resetTarget);
+          } catch {
+            // Use original target as fallback
+          }
+          
+          console.log('🎥 Camera reset:', resetReason, 'transformed target', { original: resetTarget, transformed: transformedTarget });
+          
+          // Use computeClusterView for consistent reset positioning
+          const clusterView = computeClusterView({
+            nodes: [{ x: transformedTarget.x, y: transformedTarget.y, z: transformedTarget.z }],
+            customTargetDistance: resetDistance,
+            isMobile
+          });
+          
+          // Set new target and position
+          controlsRef.current.target.set(transformedTarget.x, transformedTarget.y, transformedTarget.z);
+          const cameraPosition = new THREE.Vector3(
+            clusterView.center.x,
+            clusterView.center.y,
+            clusterView.center.z + clusterView.optimalDistance
+          );
+          
+          camera.position.copy(cameraPosition);
+          controlsRef.current.update();
+          
+          setState(prev => ({
+            ...prev,
+            target: new THREE.Vector3(transformedTarget.x, transformedTarget.y, transformedTarget.z),
+            position: cameraPosition.clone(),
+            currentTargetDistance: clusterView.optimalDistance
+          }));
+          
+          console.log('🎥 Camera reset:', resetReason, 'positioned at', transformedTarget, 'distance:', clusterView.optimalDistance);
         }
-        
-        console.log('🎥 Camera reset: transformed target', { original: resetTarget, transformed: transformedTarget });
-        
-        // Use computeClusterView for consistent reset positioning
-        const clusterView = computeClusterView({
-          nodes: [{ x: transformedTarget.x, y: transformedTarget.y, z: transformedTarget.z }],
-          customTargetDistance: resetDistance,
-          isMobile
-        });
-        
-        // Set new target and position
-        controlsRef.current.target.set(transformedTarget.x, transformedTarget.y, transformedTarget.z);
-        const cameraPosition = new THREE.Vector3(
-          clusterView.center.x,
-          clusterView.center.y,
-          clusterView.center.z + clusterView.optimalDistance
-        );
-        
-        camera.position.copy(cameraPosition);
-        controlsRef.current.update();
-        
-        setState(prev => ({
-          ...prev,
-          target: new THREE.Vector3(transformedTarget.x, transformedTarget.y, transformedTarget.z),
-          position: cameraPosition.clone(),
-          currentTargetDistance: clusterView.optimalDistance
-        }));
-        
-        console.log('🎥 Camera reset: positioned at', transformedTarget, 'distance:', clusterView.optimalDistance);
+      } finally {
+        // Always reset the flag, even if there's an error
+        isResettingRef.current = false;
       }
     };
 

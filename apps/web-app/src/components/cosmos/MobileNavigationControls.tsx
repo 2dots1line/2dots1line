@@ -133,9 +133,18 @@ export const MobileNavigationControls: React.FC<MobileNavigationControlsProps> =
 
   // Track active keys to prevent sticky keys
   const activeKeysRef = useRef<Set<string>>(new Set());
+  const lastResetTimeRef = useRef<number>(0);
 
   // All hooks must be called before any conditional returns
   const handleReset = useCallback((e?: React.MouseEvent | React.TouchEvent) => {
+    // Debounce reset button to prevent rapid clicks
+    const now = Date.now();
+    if (now - lastResetTimeRef.current < 2000) { // 2 second debounce
+      console.log('📱 Reset button debounced - too soon after last reset');
+      return;
+    }
+    lastResetTimeRef.current = now;
+    
     // Trigger haptic feedback
     triggerHapticFeedback();
     

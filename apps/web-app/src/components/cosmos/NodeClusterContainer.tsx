@@ -39,6 +39,7 @@ export const NodeClusterContainer: React.FC<NodeClusterContainerProps> = ({
 }) => {
   const groupRef = useRef<THREE.Group>(null);
   const [isPausedForFocus, setIsPausedForFocus] = useState(false);
+  const [isPausedAfterReset, setIsPausedAfterReset] = useState(false);
   
   // Track initial rotation state for reset functionality
   const initialRotationRef = useRef<{ x: number; y: number; z: number }>({ x: 0, y: 0, z: 0 });
@@ -83,6 +84,9 @@ export const NodeClusterContainer: React.FC<NodeClusterContainerProps> = ({
       const { pause, reason } = event.detail || {};
       if (reason === 'entity-focus' || reason === 'entity-focus-complete' || reason === 'entity-click') {
         setIsPausedForFocus(pause);
+        if (!pause) {
+          setIsPausedAfterReset(false); // Resume rotation when user interacts
+        }
         console.log('🔄 NodeClusterContainer: Auto rotation', pause ? 'paused' : 'resumed', 'for', reason);
       } else if (reason === 'camera-reset') {
         // Start reset animation
@@ -147,8 +151,17 @@ export const NodeClusterContainer: React.FC<NodeClusterContainerProps> = ({
       if (progress >= 1) {
         setIsResetting(false);
         setIsPausedForFocus(false);
+        setIsPausedAfterReset(true); // Keep paused after reset
+        
+        // Auto-resume rotation after 3 seconds if no user interaction
+        setTimeout(() => {
+          setIsPausedAfterReset(false);
+        }, 3000);
+        
+        // Notify camera that rotation reset is complete
+        window.dispatchEvent(new CustomEvent('rotation-reset-complete'));
       }
-    } else if (enableRotation && !isHovered && !isPausedForFocus) {
+    } else if (enableRotation && !isHovered && !isPausedForFocus && !isPausedAfterReset) {
       // Normal rotation
       groupRef.current.rotation.y += rotationSpeed;
       groupRef.current.rotation.x += rotationSpeed * 0.3;
