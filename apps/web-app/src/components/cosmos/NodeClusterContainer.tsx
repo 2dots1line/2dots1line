@@ -22,6 +22,9 @@ interface NodeClusterContainerProps {
  * HOVER PAUSE: Rotation automatically pauses when any node is hovered, making it easier
  * to interact with nodes and read labels.
  * 
+ * RESET FUNCTIONALITY: Tracks initial rotation state and can animate back to original
+ * position when camera reset is triggered.
+ * 
  * Rotation speeds (rad/frame):
  * - NASA Background: 0.0001 (slowest - distant stars)
  * - Starfield: 0.0002 (medium - mid-distance stars)  
@@ -35,6 +38,24 @@ export const NodeClusterContainer: React.FC<NodeClusterContainerProps> = ({
 }) => {
   const groupRef = useRef<THREE.Group>(null);
   const [isPausedForFocus, setIsPausedForFocus] = useState(false);
+  
+  // Track initial rotation state for reset functionality
+  const initialRotationRef = useRef<{ x: number; y: number; z: number }>({ x: 0, y: 0, z: 0 });
+  const [isResetting, setIsResetting] = useState(false);
+  const resetStartTimeRef = useRef<number>(0);
+  const resetStartRotationRef = useRef<{ x: number; y: number; z: number }>({ x: 0, y: 0, z: 0 });
+  
+  // Store initial rotation when component mounts
+  useEffect(() => {
+    if (groupRef.current) {
+      initialRotationRef.current = {
+        x: groupRef.current.rotation.x,
+        y: groupRef.current.rotation.y,
+        z: groupRef.current.rotation.z
+      };
+      console.log('🔄 NodeClusterContainer: Initial rotation stored:', initialRotationRef.current);
+    }
+  }, []);
 
   // Listen for pause/resume events from camera controller
   useEffect(() => {
@@ -43,6 +64,19 @@ export const NodeClusterContainer: React.FC<NodeClusterContainerProps> = ({
       if (reason === 'entity-focus' || reason === 'entity-focus-complete') {
         setIsPausedForFocus(pause);
         console.log('🔄 NodeClusterContainer: Auto rotation', pause ? 'paused' : 'resumed', 'for', reason);
+      } else if (reason === 'camera-reset') {
+        // Start reset animation
+        if (groupRef.current) {
+          setIsResetting(true);
+          setIsPausedForFocus(true); // Pause normal rotation
+          resetStartTimeRef.current = Date.now();
+          resetStartRotationRef.current = {
+            x: groupRef.current.rotation.x,
+            y: groupRef.current.rotation.y,
+            z: groupRef.current.rotation.z
+          };
+          console.log('🔄 NodeClusterContainer: Starting reset animation from:', resetStartRotationRef.current, 'to:', initialRotationRef.current);
+        }
       }
     };
 
@@ -54,11 +88,44 @@ export const NodeClusterContainer: React.FC<NodeClusterContainerProps> = ({
   }, []);
 
   useFrame(() => {
-    if (groupRef.current && enableRotation && !isHovered && !isPausedForFocus) {
-      // Rotate the entire node cluster for 3D parallax effect
-      // Pause rotation when any node is hovered OR when camera is focusing on entity
-      groupRef.current.rotation.y += rotationSpeed;
-      groupRef.current.rotation.x += rotationSpeed * 0.3; // Subtle X rotation for more dynamic feel
+    if (groupRef.current) {
+      if (isResetting) {
+        // Animate back to initial rotation
+        const elapsed = Date.now() - resetStartTimeRef.current;
+        const duration = 1000; // 1 second reset animation
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Smooth easing function (ease-out)
+        const eased = 1 - Math.pow(1 - progress, 3);
+        
+        // Interpolate rotation back to initial state
+        groupRef.current.rotation.x = THREE.MathUtils.lerp(
+          resetStartRotationRef.current.x,
+          initialRotationRef.current.x,
+          eased
+        );
+        groupRef.current.rotation.y = THREE.MathUtils.lerp(
+          resetStartRotationRef.current.y,
+          initialRotationRef.current.y,
+          eased
+        );
+        groupRef.current.rotation.z = THREE.MathUtils.lerp(
+          resetStartRotationRef.current.z,
+          initialRotationRef.current.z,
+          eased
+        );
+        
+        // Complete reset animation
+        if (progress >= 1) {
+          setIsResetting(false);
+          setIsPausedForFocus(false);
+          console.log('🔄 NodeClusterContainer: Reset animation completed, resuming normal rotation');
+        }
+      } else if (enableRotation && !isHovered && !isPausedForFocus) {
+        // Normal rotation
+        groupRef.current.rotation.y += rotationSpeed;
+        groupRef.current.rotation.x += rotationSpeed * 0.3; // Subtle X rotation for more dynamic feel
+      }
     }
   });
 

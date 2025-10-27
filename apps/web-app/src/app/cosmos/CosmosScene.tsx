@@ -342,8 +342,19 @@ const CosmosScene: React.FC = () => {
           selectEntity(entityId, graphData, POSITION_SCALE);
         }}
         onClose={() => {
+          // Clear seed entities
           setSeedEntityIds([]);
           setSeedEntities([]);
+          
+          // Clear entity selection to remove highlighting
+          clearSelection();
+          
+          // Reset camera to initial loading position
+          window.dispatchEvent(new CustomEvent('camera-reset', { 
+            detail: {} // Let UnifiedCameraController use its stored initial values
+          }));
+          
+          console.log('🎯 CosmosScene: SeedEntitiesDisplay closed - cleared selection and reset camera');
         }}
       />
       

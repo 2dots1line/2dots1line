@@ -229,6 +229,11 @@ export const UnifiedCameraController: React.FC<UnifiedCameraControllerProps> = (
       const resetDistance = originalInitialDistance.current;
       
       if (controlsRef.current) {
+        // Pause auto rotation during camera reset
+        window.dispatchEvent(new CustomEvent('pause-auto-rotation', {
+          detail: { pause: true, reason: 'camera-reset' }
+        }));
+        
         // Use computeClusterView for consistent reset positioning
         const clusterView = computeClusterView({
           nodes: [{ x: resetTarget.x, y: resetTarget.y, z: resetTarget.z }],
@@ -236,14 +241,17 @@ export const UnifiedCameraController: React.FC<UnifiedCameraControllerProps> = (
           isMobile
         });
         
+        // Set new target and position
         controlsRef.current.target.set(resetTarget.x, resetTarget.y, resetTarget.z);
         const cameraPosition = new THREE.Vector3(
           clusterView.center.x,
           clusterView.center.y,
           clusterView.center.z + clusterView.optimalDistance
         );
+        
         camera.position.copy(cameraPosition);
         controlsRef.current.update();
+        
         setState(prev => ({
           ...prev,
           target: new THREE.Vector3(resetTarget.x, resetTarget.y, resetTarget.z),
