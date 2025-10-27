@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useHUDStore } from '../../stores/HUDStore';
 import { useChatStore } from '../../stores/ChatStore';
@@ -132,32 +132,39 @@ export const MobileNavigationContainer: React.FC<MobileNavigationContainerProps>
     setExpandedSection(null);
   };
 
-  const handleCosmosChatOpen = () => {
+  const handleCosmosChatOpen = useCallback(async () => {
     // Check if there's transition content waiting to be displayed (without consuming it)
-    const { ViewTransitionService } = require('../../services/viewTransitionService');
-    const transitionData = sessionStorage.getItem(ViewTransitionService.STORAGE_KEY || 'view_transition_content');
-    
-    let hasTransitionContent = false;
-    if (transitionData) {
-      try {
-        const content = JSON.parse(transitionData);
-        hasTransitionContent = content.targetView === 'cosmos';
-      } catch (error) {
-        // Invalid data, ignore
+    try {
+      const { ViewTransitionService } = await import('../../services/viewTransitionService');
+      const transitionData = sessionStorage.getItem(ViewTransitionService.getStorageKey());
+      
+      let hasTransitionContent = false;
+      if (transitionData) {
+        try {
+          const content = JSON.parse(transitionData);
+          hasTransitionContent = content.targetView === 'cosmos';
+        } catch (error) {
+          // Invalid data, ignore
+        }
       }
-    }
-    
-    if (hasTransitionContent) {
-      // There's transition content - don't start fresh chat, let it display
-      console.log('🎬 MobileNavigationContainer: Transition content detected, preserving chat continuity');
-      setMobileCosmosChatOpen(true);
-    } else {
-      // No transition content - start fresh chat
-      console.log('🎬 MobileNavigationContainer: No transition content, starting fresh chat');
+      
+      if (hasTransitionContent) {
+        // There's transition content - don't start fresh chat, let it display
+        console.log('🎬 MobileNavigationContainer: Transition content detected, preserving chat continuity');
+        setMobileCosmosChatOpen(true);
+      } else {
+        // No transition content - start fresh chat
+        console.log('🎬 MobileNavigationContainer: No transition content, starting fresh chat');
+        startNewChat();
+        setMobileCosmosChatOpen(true);
+      }
+    } catch (error) {
+      console.error('MobileNavigationContainer: Error opening cosmos chat', error);
+      // Fallback: just open chat
       startNewChat();
       setMobileCosmosChatOpen(true);
     }
-  };
+  }, [startNewChat, setMobileCosmosChatOpen]);
   
   const handleSettings = () => {
     if (expandedSection === 'settings') {

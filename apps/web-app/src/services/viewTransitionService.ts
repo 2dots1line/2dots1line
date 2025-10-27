@@ -27,6 +27,13 @@ export class ViewTransitionService {
   private static readonly STORAGE_KEY = viewTransitionsConfig.storage_key;
 
   /**
+   * Get the storage key for transition content
+   */
+  static getStorageKey(): string {
+    return this.STORAGE_KEY;
+  }
+
+  /**
    * Get transition config for specific route
    */
   static getTransition(fromView: string, toView: string): ViewTransitionConfig | null {

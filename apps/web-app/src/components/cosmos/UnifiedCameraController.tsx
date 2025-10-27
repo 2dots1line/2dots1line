@@ -4,7 +4,7 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { computeClusterView } from './computeClusterView';
-import { transformCoordinatesToInitial } from './coordinateTransform';
+// Dynamic import to avoid SSR issues
 import * as THREE from 'three';
 
 interface CameraState {
@@ -224,7 +224,7 @@ export const UnifiedCameraController: React.FC<UnifiedCameraControllerProps> = (
       }
     };
 
-    const handleCameraReset = (event: CustomEvent) => {
+    const handleCameraReset = async (event: CustomEvent) => {
       // Use original initial values that don't change over time
       const resetTarget = originalInitialTarget.current;
       const resetDistance = originalInitialDistance.current;
@@ -235,8 +235,14 @@ export const UnifiedCameraController: React.FC<UnifiedCameraControllerProps> = (
           detail: { pause: true, reason: 'camera-reset' }
         }));
         
-        // Transform the reset target back to initial coordinates (accounting for current rotation)
-        const transformedTarget = transformCoordinatesToInitial(resetTarget);
+        // Transform the reset target back to initial coordinates (lazy evaluation - math happens here)
+        let transformedTarget = resetTarget;
+        try {
+          const { transformCoordinatesToInitial } = await import('./coordinateTransform');
+          transformedTarget = transformCoordinatesToInitial(resetTarget);
+        } catch {
+          // Use original target as fallback
+        }
         
         console.log('🎥 Camera reset: transformed target', { original: resetTarget, transformed: transformedTarget });
         
@@ -281,14 +287,14 @@ export const UnifiedCameraController: React.FC<UnifiedCameraControllerProps> = (
     window.addEventListener('camera-focus-request', handleCameraFocus as EventListener);
     window.addEventListener('camera-zoom-in', handleCameraZoomIn as EventListener);
     window.addEventListener('camera-zoom-out', handleCameraZoomOut as EventListener);
-    window.addEventListener('camera-reset', handleCameraReset as EventListener);
+    window.addEventListener('camera-reset', (event) => handleCameraReset(event as CustomEvent));
     window.addEventListener('camera-toggle-mode', handleCameraToggleMode as EventListener);
 
     return () => {
       window.removeEventListener('camera-focus-request', handleCameraFocus as EventListener);
       window.removeEventListener('camera-zoom-in', handleCameraZoomIn as EventListener);
       window.removeEventListener('camera-zoom-out', handleCameraZoomOut as EventListener);
-      window.removeEventListener('camera-reset', handleCameraReset as EventListener);
+      window.removeEventListener('camera-reset', (event) => handleCameraReset(event as CustomEvent));
       window.removeEventListener('camera-toggle-mode', handleCameraToggleMode as EventListener);
     };
   }, [camera]);

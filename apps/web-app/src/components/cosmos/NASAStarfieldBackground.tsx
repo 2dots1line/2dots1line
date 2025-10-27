@@ -131,7 +131,10 @@ export const NASAStarfieldBackground: React.FC<NASAStarfieldBackgroundProps> = (
   }, [resolution, debug, onLoadStart, onLoadComplete, onLoadError]);
 
   useEffect(() => {
-    loadTexture();
+    loadTexture().catch(error => {
+      console.error('Failed to load NASA background:', error);
+      onLoadError?.(error);
+    });
   }, [loadTexture]);
 
   useFrame(() => {

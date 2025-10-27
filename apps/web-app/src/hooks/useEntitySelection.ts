@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { transformCoordinatesByRotation } from '../components/cosmos/coordinateTransform';
+// Dynamic import to avoid SSR issues
 
 export const useEntitySelection = () => {
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
   
-  const selectEntity = useCallback((entityId: string, graphData: any, positionScale: number = 10) => {
+  const selectEntity = useCallback(async (entityId: string, graphData: any, positionScale: number = 10) => {
     console.log('🎯 useEntitySelection: selectEntity called with:', { entityId, positionScale });
     const entity = graphData.nodes?.find((node: any) => node.id === entityId);
     console.log('🎯 useEntitySelection: Found entity:', entity);
@@ -25,12 +25,18 @@ export const useEntitySelection = () => {
       const originalY = (entity.position_y || entity.y || 0) * positionScale;
       const originalZ = (entity.position_z || entity.z || 0) * positionScale;
       
-      // Transform coordinates by current rotation
-      const transformedPosition = transformCoordinatesByRotation({
-        x: originalX,
-        y: originalY,
-        z: originalZ
-      });
+      // Transform coordinates by current rotation (lazy evaluation - math happens here)
+      let transformedPosition = { x: originalX, y: originalY, z: originalZ };
+      try {
+        const { transformCoordinatesByRotation } = await import('../components/cosmos/coordinateTransform');
+        transformedPosition = transformCoordinatesByRotation({
+          x: originalX,
+          y: originalY,
+          z: originalZ
+        });
+      } catch {
+        // Use original position as fallback
+      }
       
       console.log('🎯 Entity focus: transformed coordinates', { original: { x: originalX, y: originalY, z: originalZ }, transformed: transformedPosition });
       

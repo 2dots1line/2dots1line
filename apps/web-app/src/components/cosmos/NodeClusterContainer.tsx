@@ -1,7 +1,7 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { updateCurrentRotation } from './coordinateTransform';
+import { performanceMonitor } from './performanceMonitor';
 
 interface NodeClusterContainerProps {
   children: React.ReactNode;
@@ -46,6 +46,24 @@ export const NodeClusterContainer: React.FC<NodeClusterContainerProps> = ({
   const resetStartTimeRef = useRef<number>(0);
   const resetStartRotationRef = useRef<{ x: number; y: number; z: number }>({ x: 0, y: 0, z: 0 });
   
+  // Cache coordinateTransform module to avoid repeated imports
+  const coordinateTransformRef = useRef<{ updateRawRotation: (rotation: { x: number; y: number; z: number }) => void } | null>(null);
+  
+  // Helper function to efficiently update raw rotation values (no heavy math)
+  const updateRawRotationState = useCallback((rotation: { x: number; y: number; z: number }) => {
+    // Use cached module or import if needed
+    if (coordinateTransformRef.current) {
+      coordinateTransformRef.current.updateRawRotation(rotation);
+    } else {
+      import('./coordinateTransform').then((module) => {
+        coordinateTransformRef.current = module;
+        module.updateRawRotation(rotation);
+      }).catch(() => {
+        // Silent fail - rotation updates are not critical
+      });
+    }
+  }, []);
+
   // Store initial rotation when component mounts
   useEffect(() => {
     if (groupRef.current) {
@@ -54,9 +72,10 @@ export const NodeClusterContainer: React.FC<NodeClusterContainerProps> = ({
         y: groupRef.current.rotation.y,
         z: groupRef.current.rotation.z
       };
-      console.log('🔄 NodeCluster: initial rotation stored');
+      // Initialize raw rotation state
+      updateRawRotationState(initialRotationRef.current);
     }
-  }, []);
+  }, [updateRawRotationState]);
 
   // Listen for pause/resume events from camera controller
   useEffect(() => {
@@ -89,58 +108,57 @@ export const NodeClusterContainer: React.FC<NodeClusterContainerProps> = ({
   }, []);
 
   useFrame(() => {
-    if (groupRef.current) {
-      if (isResetting) {
-        // Animate back to initial rotation
-        const elapsed = Date.now() - resetStartTimeRef.current;
-        const duration = 1000; // 1 second reset animation
-        const progress = Math.min(elapsed / duration, 1);
-        
-        // Smooth easing function (ease-out)
-        const eased = 1 - Math.pow(1 - progress, 3);
-        
-        // Interpolate rotation back to initial state
-        groupRef.current.rotation.x = THREE.MathUtils.lerp(
-          resetStartRotationRef.current.x,
-          initialRotationRef.current.x,
-          eased
-        );
-        groupRef.current.rotation.y = THREE.MathUtils.lerp(
-          resetStartRotationRef.current.y,
-          initialRotationRef.current.y,
-          eased
-        );
-        groupRef.current.rotation.z = THREE.MathUtils.lerp(
-          resetStartRotationRef.current.z,
-          initialRotationRef.current.z,
-          eased
-        );
-        
-        // Update shared rotation state
-        updateCurrentRotation({
-          x: groupRef.current.rotation.x,
-          y: groupRef.current.rotation.y,
-          z: groupRef.current.rotation.z
-        });
-        
-        // Complete reset animation
-        if (progress >= 1) {
-          setIsResetting(false);
-          setIsPausedForFocus(false);
-          console.log('🔄 NodeCluster: reset animation completed');
-        }
-      } else if (enableRotation && !isHovered && !isPausedForFocus) {
-        // Normal rotation
-        groupRef.current.rotation.y += rotationSpeed;
-        groupRef.current.rotation.x += rotationSpeed * 0.3; // Subtle X rotation for more dynamic feel
-        
-        // Update shared rotation state
-        updateCurrentRotation({
-          x: groupRef.current.rotation.x,
-          y: groupRef.current.rotation.y,
-          z: groupRef.current.rotation.z
-        });
+    // Update performance monitoring
+    performanceMonitor.updateFrame();
+    
+    if (!groupRef.current) return;
+    
+    if (isResetting) {
+      // Animate back to initial rotation
+      const elapsed = Date.now() - resetStartTimeRef.current;
+      const duration = 1000;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      
+      // Interpolate rotation back to initial state
+      groupRef.current.rotation.x = THREE.MathUtils.lerp(
+        resetStartRotationRef.current.x,
+        initialRotationRef.current.x,
+        eased
+      );
+      groupRef.current.rotation.y = THREE.MathUtils.lerp(
+        resetStartRotationRef.current.y,
+        initialRotationRef.current.y,
+        eased
+      );
+      groupRef.current.rotation.z = THREE.MathUtils.lerp(
+        resetStartRotationRef.current.z,
+        initialRotationRef.current.z,
+        eased
+      );
+      
+      // Update raw rotation state efficiently (no heavy math)
+      updateRawRotationState({
+        x: groupRef.current.rotation.x,
+        y: groupRef.current.rotation.y,
+        z: groupRef.current.rotation.z
+      });
+      
+      if (progress >= 1) {
+        setIsResetting(false);
+        setIsPausedForFocus(false);
       }
+    } else if (enableRotation && !isHovered && !isPausedForFocus) {
+      // Normal rotation
+      groupRef.current.rotation.y += rotationSpeed;
+      groupRef.current.rotation.x += rotationSpeed * 0.3;
+      
+      // Update raw rotation state efficiently (no heavy math)
+      updateRawRotationState({
+        x: groupRef.current.rotation.x,
+        y: groupRef.current.rotation.y,
+        z: groupRef.current.rotation.z
+      });
     }
   });
 
