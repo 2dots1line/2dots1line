@@ -10,6 +10,8 @@ export const CosmosSettings: React.FC = () => {
     setShowEdges,
     edgeWidth,
     setEdgeWidth,
+    edgeOpacity,
+    setEdgeOpacity,
     nodeSizeMultiplier,
     setNodeSizeMultiplier
   } = useCosmosStore();
@@ -65,6 +67,26 @@ export const CosmosSettings: React.FC = () => {
               className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer slider"
               style={{
                 background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${((edgeWidth - 0.5) / 4.5) * 100}%, rgba(255,255,255,0.2) ${((edgeWidth - 0.5) / 4.5) * 100}%, rgba(255,255,255,0.2) 100%)`
+              }}
+            />
+          </div>
+          
+          {/* Edge Opacity Slider */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-brand text-white/70">Edge opacity</span>
+              <span className="text-xs text-white/50">{edgeOpacity.toFixed(1)}</span>
+            </div>
+            <input
+              type="range"
+              min="0.1"
+              max="1.0"
+              step="0.1"
+              value={edgeOpacity}
+              onChange={(e) => setEdgeOpacity(parseFloat(e.target.value))}
+              className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer slider"
+              style={{
+                background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${((edgeOpacity - 0.1) / 0.9) * 100}%, rgba(255,255,255,0.2) ${((edgeOpacity - 0.1) / 0.9) * 100}%, rgba(255,255,255,0.2) 100%)`
               }}
             />
           </div>

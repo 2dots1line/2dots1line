@@ -40,7 +40,7 @@ export const EdgeMesh: React.FC<EdgeMeshProps> = ({
       color: new THREE.Color(color),
       transparent: true,
       opacity: opacity * effectiveStrength, // Use strength for opacity
-      linewidth: width,
+      linewidth: Math.max(1, Math.round(width)), // Ensure minimum width and round for better browser support
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
@@ -52,7 +52,7 @@ export const EdgeMesh: React.FC<EdgeMeshProps> = ({
       color: new THREE.Color(color),
       transparent: true,
       opacity: (opacity * effectiveStrength * 0.3), // Subtle glow using strength
-      linewidth: width * 3, // Wider glow
+      linewidth: Math.max(1, Math.round(width * 3)), // Wider glow with better browser support
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
@@ -101,7 +101,7 @@ export const AnimatedEdgeMesh: React.FC<EdgeMeshProps & { animated?: boolean }> 
       color: new THREE.Color(color),
       transparent: true,
       opacity: opacity * effectiveStrength,
-      linewidth: width,
+      linewidth: Math.max(1, Math.round(width)), // Better browser support
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });

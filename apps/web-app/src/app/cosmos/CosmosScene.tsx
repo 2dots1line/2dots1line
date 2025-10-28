@@ -34,8 +34,7 @@ const CosmosScene: React.FC = () => {
   const { addMessage } = useChatStore();
 
   // Edge control state - using store values
-  const { showEdges } = useCosmosStore();
-  const edgeOpacity = 0.5;
+  const { showEdges, edgeOpacity } = useCosmosStore();
   const animatedEdges = true; // Turn on edge animation
   
   // Background error state (keep for error handling)
