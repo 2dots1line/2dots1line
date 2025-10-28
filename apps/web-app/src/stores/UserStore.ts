@@ -567,10 +567,8 @@ export const useUserStore = create<UserState>()(
             }
           }
           console.log('UserStore - Rehydration complete');
-          // Mark as hydrated after rehydration
-          if (state) {
-            state.setHasHydrated(true);
-          }
+          // Mark as hydrated after rehydration - use the store instance, not the state
+          useUserStore.getState().setHasHydrated(true);
         };
       },
     }
