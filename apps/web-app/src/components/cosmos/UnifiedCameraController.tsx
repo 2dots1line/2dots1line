@@ -90,18 +90,11 @@ export const UnifiedCameraController: React.FC<UnifiedCameraControllerProps> = (
     if (!isInitialized && controlsRef.current) {
       const target = new THREE.Vector3(originalInitialTarget.current.x, originalInitialTarget.current.y, originalInitialTarget.current.z);
       
-      // Use computeClusterView for consistent initial positioning
-      const clusterView = computeClusterView({
-        nodes: [{ x: originalInitialTarget.current.x, y: originalInitialTarget.current.y, z: originalInitialTarget.current.z }],
-        customTargetDistance: originalInitialDistance.current,
-        isMobile
-      });
-      
-      // Position camera directly at cluster center from optimal distance
+      // Position camera directly at initial target from initial distance
       const cameraPosition = new THREE.Vector3(
-        clusterView.center.x,
-        clusterView.center.y,
-        clusterView.center.z + clusterView.optimalDistance
+        originalInitialTarget.current.x,
+        originalInitialTarget.current.y,
+        originalInitialTarget.current.z + originalInitialDistance.current
       );
       
       camera.position.copy(cameraPosition);
@@ -113,10 +106,10 @@ export const UnifiedCameraController: React.FC<UnifiedCameraControllerProps> = (
         ...prev,
         target: target.clone(),
         position: cameraPosition.clone(),
-        currentTargetDistance: cameraPosition.distanceTo(target)
+        currentTargetDistance: originalInitialDistance.current
       }));
       
-      console.log('🎥 UnifiedCameraController: Initialized with original target:', originalInitialTarget.current, 'distance:', clusterView.optimalDistance);
+      console.log('🎥 UnifiedCameraController: Initialized with original target:', originalInitialTarget.current, 'distance:', originalInitialDistance.current);
     }
   }, [controlsRef.current, isInitialized, camera, isMobile]);
 
@@ -241,65 +234,34 @@ export const UnifiedCameraController: React.FC<UnifiedCameraControllerProps> = (
         const resetTarget = originalInitialTarget.current;
         const resetDistance = originalInitialDistance.current;
         
-        if (controlsRef.current) {
+      if (controlsRef.current) {
           // Pause auto rotation during camera reset
           window.dispatchEvent(new CustomEvent('pause-auto-rotation', {
             detail: { pause: true, reason: 'camera-reset' }
           }));
           
-          // Wait for rotation reset to complete before doing camera calculations
-          const waitForRotationReset = () => {
-            return new Promise<void>((resolve) => {
-              const handleRotationComplete = () => {
-                window.removeEventListener('rotation-reset-complete', handleRotationComplete);
-                resolve();
-              };
-              window.addEventListener('rotation-reset-complete', handleRotationComplete);
-              
-              // Fallback timeout in case event doesn't fire
-              setTimeout(resolve, 1200);
-            });
-          };
+          // SIMPLE RESET: Just restore initial state like a page reload
+          console.log('🎥 Camera reset:', resetReason, 'restoring initial state');
           
-          await waitForRotationReset();
-          
-          // Now do camera calculations with final rotation state
-          let transformedTarget = resetTarget;
-          try {
-            const { transformCoordinatesToInitial } = await import('./coordinateTransform');
-            transformedTarget = transformCoordinatesToInitial(resetTarget);
-          } catch {
-            // Use original target as fallback
-          }
-          
-          console.log('🎥 Camera reset:', resetReason, 'transformed target', { original: resetTarget, transformed: transformedTarget });
-          
-          // Use computeClusterView for consistent reset positioning
-          const clusterView = computeClusterView({
-            nodes: [{ x: transformedTarget.x, y: transformedTarget.y, z: transformedTarget.z }],
-            customTargetDistance: resetDistance,
-            isMobile
-          });
-          
-          // Set new target and position
-          controlsRef.current.target.set(transformedTarget.x, transformedTarget.y, transformedTarget.z);
-          const cameraPosition = new THREE.Vector3(
-            clusterView.center.x,
-            clusterView.center.y,
-            clusterView.center.z + clusterView.optimalDistance
+          // Reset camera to exact initial position and target
+          controlsRef.current.target.set(resetTarget.x, resetTarget.y, resetTarget.z);
+          const initialCameraPosition = new THREE.Vector3(
+            resetTarget.x,
+            resetTarget.y,
+            resetTarget.z + resetDistance
           );
           
-          camera.position.copy(cameraPosition);
+          camera.position.copy(initialCameraPosition);
           controlsRef.current.update();
           
           setState(prev => ({
             ...prev,
-            target: new THREE.Vector3(transformedTarget.x, transformedTarget.y, transformedTarget.z),
-            position: cameraPosition.clone(),
-            currentTargetDistance: clusterView.optimalDistance
+            target: new THREE.Vector3(resetTarget.x, resetTarget.y, resetTarget.z),
+            position: initialCameraPosition.clone(),
+            currentTargetDistance: resetDistance
           }));
           
-          console.log('🎥 Camera reset:', resetReason, 'positioned at', transformedTarget, 'distance:', clusterView.optimalDistance);
+          console.log('🎥 Camera reset:', resetReason, 'restored to initial position', resetTarget, 'distance:', resetDistance);
         }
       } finally {
         // Always reset the flag, even if there's an error

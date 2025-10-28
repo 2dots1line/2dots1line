@@ -137,27 +137,27 @@ export const MobileNavigationContainer: React.FC<MobileNavigationContainerProps>
     try {
       const { ViewTransitionService } = await import('../../services/viewTransitionService');
       const transitionData = sessionStorage.getItem(ViewTransitionService.getStorageKey());
-      
-      let hasTransitionContent = false;
-      if (transitionData) {
-        try {
-          const content = JSON.parse(transitionData);
-          hasTransitionContent = content.targetView === 'cosmos';
-        } catch (error) {
-          // Invalid data, ignore
-        }
+    
+    let hasTransitionContent = false;
+    if (transitionData) {
+      try {
+        const content = JSON.parse(transitionData);
+        hasTransitionContent = content.targetView === 'cosmos';
+      } catch (error) {
+        // Invalid data, ignore
       }
-      
-      if (hasTransitionContent) {
-        // There's transition content - don't start fresh chat, let it display
-        console.log('🎬 MobileNavigationContainer: Transition content detected, preserving chat continuity');
-        setMobileCosmosChatOpen(true);
-      } else {
-        // No transition content - start fresh chat
-        console.log('🎬 MobileNavigationContainer: No transition content, starting fresh chat');
-        startNewChat();
-        setMobileCosmosChatOpen(true);
-      }
+    }
+    
+    if (hasTransitionContent) {
+      // There's transition content - don't start fresh chat, let it display
+      console.log('🎬 MobileNavigationContainer: Transition content detected, preserving chat continuity');
+      setMobileCosmosChatOpen(true);
+    } else {
+      // No transition content - start fresh chat
+      console.log('🎬 MobileNavigationContainer: No transition content, starting fresh chat');
+      startNewChat();
+      setMobileCosmosChatOpen(true);
+    }
     } catch (error) {
       console.error('MobileNavigationContainer: Error opening cosmos chat', error);
       // Fallback: just open chat

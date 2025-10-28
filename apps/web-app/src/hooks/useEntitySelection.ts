@@ -25,26 +25,19 @@ export const useEntitySelection = () => {
       const originalY = (entity.position_y || entity.y || 0) * positionScale;
       const originalZ = (entity.position_z || entity.z || 0) * positionScale;
       
-      // Transform coordinates by current rotation (lazy evaluation - math happens here)
-      let transformedPosition = { x: originalX, y: originalY, z: originalZ };
-      try {
-        const { transformCoordinatesByRotation } = await import('../components/cosmos/coordinateTransform');
-        transformedPosition = transformCoordinatesByRotation({
-          x: originalX,
-          y: originalY,
-          z: originalZ
-        });
-      } catch {
-        // Use original position as fallback
-      }
+      // SIMPLE APPROACH: Reset first, then focus on static coordinates
+      console.log('🎯 Entity focus: resetting first, then focusing on static coordinates', { x: originalX, y: originalY, z: originalZ });
       
-      console.log('🎯 Entity focus: transformed coordinates', { original: { x: originalX, y: originalY, z: originalZ }, transformed: transformedPosition });
+      // Step 1: Reset cluster to initial rotation
+      window.dispatchEvent(new CustomEvent('camera-reset', {
+        detail: { reason: 'entity-focus-reset' }
+      }));
       
-      // Dispatch camera focus event with transformed coordinates
+      // Step 2: Focus on entity after reset (use static coordinates)
       setTimeout(() => {
         const event = new CustomEvent('camera-focus-request', {
           detail: {
-            position: transformedPosition,
+            position: { x: originalX, y: originalY, z: originalZ }, // Static coordinates
             entity: {
               id: entity.id,
               title: entity.title || entity.label || entity.id,
@@ -53,8 +46,8 @@ export const useEntitySelection = () => {
           }
         });
         window.dispatchEvent(event);
-        console.log('🎯 Entity focus: camera positioned');
-      }, 100); // Small delay to ensure camera controller is ready
+        console.log('🎯 Entity focus: reset complete, camera positioned');
+      }, 100); // Small delay to ensure reset is complete
     } else {
       console.warn('🎯 useEntitySelection: Entity not found:', entityId);
     }

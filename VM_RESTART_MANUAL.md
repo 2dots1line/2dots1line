@@ -382,10 +382,10 @@ gcloud compute ssh twodots-vm --zone=us-central1-a --command="netstat -i"
 # Check current commit vs remote
 git log --oneline -3
 git fetch origin
-git log --oneline origin/compute-engine-deployment -3
+git log --oneline origin/mobile-dev-new -3
 
 # Force pull if needed
-git reset --hard origin/compute-engine-deployment
+git reset --hard origin/mobile-dev-new
 ```
 
 ### If Build Fails:
