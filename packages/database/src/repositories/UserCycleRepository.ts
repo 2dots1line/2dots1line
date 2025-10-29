@@ -73,14 +73,25 @@ export class UserCycleRepository {
   }
 
   async findCompletedCycles(userId: string, limit = 10): Promise<any[]> {
-    return this.db.prisma.user_cycles.findMany({
-      where: { 
-        user_id: userId,
-        status: 'completed'
-      },
-      take: limit,
-      orderBy: { ended_at: 'desc' },
-    });
+    // Use raw query to ensure proper NULL handling: order by ended_at DESC NULLS LAST, then created_at DESC
+    // This ensures the most recently completed cycle (with latest ended_at) comes first
+    // Prisma $queryRaw returns snake_case column names matching the database schema
+    const cycles = await this.db.prisma.$queryRaw<Array<{
+      cycle_id: string;
+      user_id: string;
+      created_at: Date;
+      completed_at: Date | null;
+      status: string;
+      type: string;
+      ended_at: Date | null;
+    }>>`
+      SELECT * FROM user_cycles
+      WHERE user_id = ${userId}::text
+        AND status = 'completed'
+      ORDER BY ended_at DESC NULLS LAST, created_at DESC
+      LIMIT ${limit}
+    `;
+    return cycles;
   }
 
   async update(cycleId: string, data: UpdateUserCycleData): Promise<any> {

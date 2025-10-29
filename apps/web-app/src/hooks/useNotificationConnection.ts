@@ -174,8 +174,17 @@ export const useNotificationConnection = () => {
         });
       });
       
-      // Dispatch custom event to trigger dashboard refresh
-      console.log('[Socket.IO] 📊 Dispatching dashboard refresh event');
+      // Dispatch custom event for useDashboard hook to refresh
+      console.log('[Socket.IO] 📊 Dispatching insight_generation_complete event for dashboard refresh');
+      window.dispatchEvent(new CustomEvent('insight_generation_complete', {
+        detail: {
+          cycleId: data.cycleId,
+          totalEntitiesCreated: data.totalEntitiesCreated,
+          timestamp: new Date().toISOString()
+        }
+      }));
+      
+      // Also dispatch legacy event for backward compatibility
       window.dispatchEvent(new CustomEvent('dashboard-refresh-required', {
         detail: {
           reason: 'insight_generation_complete',

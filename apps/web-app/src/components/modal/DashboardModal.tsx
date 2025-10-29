@@ -7,6 +7,7 @@ import { useHUDStore } from '../../stores/HUDStore';
 import { useEngagementStore } from '../../stores/EngagementStore';
 import { useDeviceStore } from '../../stores/DeviceStore';
 import { useAutoLoadCards } from '../hooks/useAutoLoadCards';
+import { useDashboard } from '../../hooks/useDashboard';
 import { 
   X, 
   TrendingUp, 
@@ -42,11 +43,14 @@ interface DashboardModalProps {
 // Types are now imported from dashboardService
 
 const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
-  const [isLoading, setIsLoading] = useState(true);
   const [isClient, setIsClient] = useState(false);
   const [userData, setUserData] = useState<{ name: string; email: string; memberSince: string } | null>(null);
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
-  const [dynamicDashboardData, setDynamicDashboardData] = useState<DynamicDashboardData | null>(null);
+  const [proactiveGreeting, setProactiveGreeting] = useState<string | null>(null);
+  
+  // ✅ Use unified dashboard hook - works for both mobile and desktop
+  const { data: dynamicDashboardData, isLoading, error, refetch } = useDashboard();
+  
   // Use the same stores as infinite/sorted card views
   const { cards, setSelectedCard, isLoading: cardsLoading, error: cardsError } = useCardStore();
   const { setCardDetailModalOpen, setActiveView } = useHUDStore();
@@ -205,10 +209,21 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
     // Dispatch custom event that the existing listener will handle
     const entityId = entity.id || entity.entity_id;
     
-    // Determine entity type based on section and context
-    let entityType = entity.metadata?.artifact_type || entity.type || entity.entity_type;
+    // ✅ Use entityType from API response (most reliable)
+    // Fallback to metadata or legacy detection for backward compatibility
+    let entityType = entity.entityType || entity.metadata?.artifact_type || entity.type || entity.entity_type;
     
-    // If no type found, determine based on section and context
+    // ✅ Normalize entityType to match expected format
+    if (entityType) {
+      // Convert PascalCase to lowercase for compatibility
+      const normalized = entityType.toLowerCase();
+      if (normalized === 'derivedartifact') entityType = 'derivedartifact';
+      else if (normalized === 'proactiveprompt') entityType = 'proactiveprompt';
+      else if (normalized === 'growthevent') entityType = 'growthevent';
+      else if (normalized === 'card') entityType = entity.source_entity_type?.toLowerCase() || 'card';
+    }
+    
+    // If still no type found, determine based on section and context (legacy fallback)
     if (!entityType) {
       if (entity.growthDimension) {
         // Growth events - this takes priority over section key
@@ -245,6 +260,8 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
   const isCurrentlyPlaying = (type: string, id: string) => {
     return isSpeaking;
   };
+  
+  // ✅ Dashboard config state (properly typed)
   const [dashboardConfig, setDashboardConfig] = useState<{
     dashboard_sections: Record<string, {
       title: string;
@@ -266,8 +283,8 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
       }>;
     };
   } | null>(null);
+  
   const [activeTab, setActiveTab] = useState<'opening' | 'dynamic' | 'growth-trajectory' | 'activity'>('opening');
-  const [proactiveGreeting, setProactiveGreeting] = useState<string | null>(null);
   const [selectedEntity, setSelectedEntity] = useState<any>(null);
   const [entityModalOpen, setEntityModalOpen] = useState(false);
   const [userMetrics, setUserMetrics] = useState<{
@@ -291,16 +308,8 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
     'activity': 'Activity'
   };
 
-  useEffect(() => {
-    if (isOpen) {
-      // Use setTimeout to defer the API calls to next tick, allowing UI to render first
-      const loadTimeout = setTimeout(() => {
-        loadDashboardData();
-      }, 0); // Defer to next tick
-      
-      return () => clearTimeout(loadTimeout);
-    }
-  }, [isOpen]);
+  // ✅ Removed - Main dashboard data is now loaded by useDashboard hook automatically
+  // Additional metadata is loaded by the useEffect below
 
   // Listen for entity modal open requests from inline capsules
   useEffect(() => {
@@ -407,62 +416,48 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
     ));
   };
 
-  const loadDashboardData = async () => {
-    setIsLoading(true);
-    try {
-      // Check authentication
-      const token = localStorage.getItem('auth_token');
-      
-      // Load all dashboard data
-      const [legacyResponse, dynamicResponse, configResponse, greetingResponse, metricsResponse] = await Promise.all([
-        dashboardService.getDashboardData(),
-        dashboardService.getDynamicDashboard(),
-        dashboardService.getDashboardConfig(),
-        dashboardService.getProactiveGreeting(),
-        dashboardService.getUserMetrics()
-      ]);
-      
-      if (legacyResponse.success && legacyResponse.data) {
-        setUserData({
-          name: 'User',
-          email: 'user@example.com',
-          memberSince: '2024-01-01'
-        });
-        setRecentActivity(legacyResponse.data.recentActivity);
-      } else {
-        console.error('Failed to load legacy dashboard data:', legacyResponse.error);
+  // ✅ Load additional metadata (not provided by main dashboard hook)
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    const loadAdditionalData = async () => {
+      try {
+        const [legacyResponse, configResponse, greetingResponse, metricsResponse] = await Promise.all([
+          dashboardService.getDashboardData(), // For legacy recentActivity
+          dashboardService.getDashboardConfig(),
+          dashboardService.getProactiveGreeting(),
+          dashboardService.getUserMetrics()
+        ]);
+        
+        // Set legacy data if available
+        if (legacyResponse.success && legacyResponse.data) {
+          setUserData({
+            name: 'User',
+            email: 'user@example.com',
+            memberSince: '2024-01-01'
+          });
+          setRecentActivity(legacyResponse.data.recentActivity || []);
+        }
+        
+        // Set additional metadata
+        if (configResponse.success && configResponse.data) {
+          setDashboardConfig(configResponse.data);
+        }
+        if (greetingResponse.success && greetingResponse.data) {
+          setProactiveGreeting(greetingResponse.data.greeting);
+        }
+        if (metricsResponse.success && metricsResponse.data) {
+          setUserMetrics(metricsResponse.data);
+        }
+      } catch (error) {
+        console.error('[DashboardModal] Error loading additional metadata:', error);
       }
-
-      if (dynamicResponse.success && dynamicResponse.data) {
-        setDynamicDashboardData(dynamicResponse.data);
-      } else {
-        console.error('Failed to load dynamic dashboard data:', dynamicResponse.error);
-      }
-
-      if (configResponse.success && configResponse.data) {
-        setDashboardConfig(configResponse.data);
-      } else {
-        console.error('Failed to load dashboard config:', configResponse.error);
-      }
-
-      if (greetingResponse.success && greetingResponse.data) {
-        setProactiveGreeting(greetingResponse.data.greeting);
-      } else {
-        console.error('Failed to load proactive greeting:', greetingResponse.error);
-      }
-
-      if (metricsResponse.success && metricsResponse.data) {
-        setUserMetrics(metricsResponse.data);
-      } else {
-        console.error('Failed to load user metrics:', metricsResponse.error);
-      }
-
-    } catch (error) {
-      console.error('Error loading dashboard data:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    };
+    
+    loadAdditionalData();
+  }, [isOpen]);
+  
+  // ✅ Main dashboard data is handled by useDashboard hook - no manual loading needed
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -536,16 +531,72 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
   };
 
 
-  // Render any section dynamically based on configuration
-  const renderSection = (sectionKey: string, sectionData: { items: Array<{ id: string; title: string; content: string; confidence?: number; actionability?: string }>; total_count: number }) => {
-    const config = dashboardConfig?.dashboard_sections?.[sectionKey];
-    if (!config || !dashboardConfig) return null;
-    
+  // Get icon emoji for a section key (fallback mapping when config unavailable)
+  const getSectionIcon = (sectionKey: string): string => {
+    const iconMap: Record<string, string> = {
+      insights: '💡',
+      patterns: '🔍',
+      recommendations: '📋',
+      synthesis: '🧠',
+      identified_patterns: '🎯',
+      emerging_themes: '🌟',
+      focus_areas: '🎯',
+      blind_spots: '⚠️',
+      celebration_moments: '🎉',
+      reflection_prompts: '🤔',
+      exploration_prompts: '🔍',
+      goal_setting_prompts: '🎯',
+      skill_development_prompts: '📚',
+      creative_expression_prompts: '🎨',
+      pattern_exploration_prompts: '🔍',
+      values_articulation_prompts: '💎',
+      future_visioning_prompts: '🔮',
+      wisdom_synthesis_prompts: '🧘',
+      storytelling_prompts: '📚',
+      metaphor_discovery_prompts: '🎭',
+      inspiration_hunting_prompts: '🎯',
+      synergy_building_prompts: '🔗',
+      legacy_planning_prompts: '🏛️',
+      assumption_challenging_prompts: '🤔',
+      horizon_expanding_prompts: '🌅',
+      meaning_making_prompts: '💭',
+      identity_integration_prompts: '🧩',
+      gratitude_deepening_prompts: '🙏',
+      wisdom_sharing_prompts: '🤝',
+      // New artifact types
+      memory_profile: '👤',
+      deeper_story: '📖',
+      hidden_connection: '🔗',
+      values_revolution: '⚡',
+      mastery_quest: '🏆',
+      breakthrough_moment: '💡',
+      synergy_discovery: '✨',
+      authentic_voice: '🎤',
+      leadership_evolution: '👑',
+      creative_renaissance: '🎨',
+      wisdom_integration: '🧘',
+      vision_crystallization: '🔮',
+      legacy_building: '🏛️',
+      horizon_expansion: '🌅',
+      transformation_phase: '🦋'
+    };
+    return iconMap[sectionKey] || '📄';
+  };
+
+  // Render any section - DATA-DRIVEN (no config dependency)
+  const renderSection = (sectionKey: string, sectionData: { title: string; items: Array<{ id: string; title: string; content: string; confidence?: number; actionability?: string }>; total_count: number }) => {
     // Hide sections with no data
-    if (!sectionData.items || sectionData.items.length === 0) return null;
+    if (!sectionData || !sectionData.items || sectionData.items.length === 0) return null;
     
+    // Use section title from API response, or fallback to section key
+    const sectionTitle = sectionData.title || sectionKey;
     
-    const IconComponent = getIconComponent(config.icon);
+    // Get icon from section key mapping (no config needed)
+    const iconEmoji = getSectionIcon(sectionKey);
+    const IconComponent = getIconComponent(iconEmoji);
+    
+    // Default max items if not in config
+    const maxItems = 5;
     
     return (
       <GlassmorphicPanel
@@ -557,11 +608,11 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
       >
         <div className="flex items-center gap-3 mb-4">
           <IconComponent size={20} className="text-white/80 stroke-current" strokeWidth={1.5} />
-          <h4 className="text-white/90 font-medium">{config.title}</h4>
+          <h4 className="text-white/90 font-medium">{sectionTitle}</h4>
           <span className="text-xs text-white/60">({sectionData.total_count})</span>
         </div>
         <div className="space-y-3">
-          {sectionData.items.slice(0, config.max_items || 3).map((item) => (
+          {sectionData.items.slice(0, maxItems).map((item) => (
             <div key={item.id} className="p-3 bg-white/10 rounded-lg">
               <div className="text-sm font-medium text-white/90 mb-2">{item.title}</div>
               <div className="text-xs text-white/70 leading-relaxed">
@@ -957,10 +1008,10 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
               </div>
             )}
 
-            {/* Dynamic Insights Tab - Configuration-Driven */}
+            {/* Dynamic Insights Tab - Data-Driven */}
             {activeTab === 'dynamic' && (
               <div className="space-y-6">
-                {dynamicDashboardData && dashboardConfig ? (
+                {dynamicDashboardData ? (
                   <>
                     {/* User Metrics Header */}
                     <GlassmorphicPanel
@@ -1000,23 +1051,35 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                       </div>
                     </GlassmorphicPanel>
 
-                    {/* DYNAMIC SECTIONS - Show all available sections directly */}
-                    {dashboardConfig && dynamicDashboardData?.sections ? (
+                    {/* DYNAMIC SECTIONS - Show all available sections directly (DATA-DRIVEN) */}
+                    {dynamicDashboardData?.sections ? (
                       <div className="columns-1 lg:columns-2 xl:columns-3 gap-6 space-y-6">
-                        {Object.entries(dynamicDashboardData.sections)
-                          .filter(([sectionKey, sectionData]) => 
+                        {(() => {
+                          const allSections = Object.entries(dynamicDashboardData.sections);
+                          const filteredSections = allSections.filter(([sectionKey, sectionData]) => 
                             sectionData && 
                             sectionData.items && 
                             sectionData.items.length > 0 &&
-                            // Exclude growth_dimensions, opening_words, and recent_cards as they belong to other tabs
+                            // Exclude growth_dimensions, opening_words, recent_cards, and mobile_growth_events as they belong to other tabs
                             sectionKey !== 'growth_dimensions' &&
                             sectionKey !== 'opening_words' &&
-                            sectionKey !== 'recent_cards'
-                          )
+                            sectionKey !== 'recent_cards' &&
+                            sectionKey !== 'mobile_growth_events'
+                          );
+                          
+                          console.log('[DashboardModal] Dynamic Insights sections:', {
+                            totalSections: allSections.length,
+                            filteredCount: filteredSections.length,
+                            sectionKeys: filteredSections.map(([key]) => key)
+                          });
+                          
+                          return filteredSections;
+                        })()
                           .sort(([a]: [string, any], [b]: [string, any]) => {
-                            const priorityA = dashboardConfig?.dashboard_sections?.[a]?.priority || 999;
-                            const priorityB = dashboardConfig?.dashboard_sections?.[b]?.priority || 999;
-                            return priorityA - priorityB;
+                            // Sort by section title alphabetically (config-independent)
+                            const titleA = a || '';
+                            const titleB = b || '';
+                            return titleA.localeCompare(titleB);
                           })
                           .map(([sectionKey, sectionData]: [string, any]) => (
                             <div key={sectionKey} className="break-inside-avoid mb-6">

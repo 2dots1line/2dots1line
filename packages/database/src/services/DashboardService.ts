@@ -1,13 +1,13 @@
 /**
  * DashboardService.ts
- * V9.7 Service for dynamic dashboard data aggregation and section generation
+ * V11.0 Streamlined data-driven dashboard service
  * 
- * Implements the simplified 1-to-1 mapping from insight worker outputs to dashboard sections
+ * Data-driven section generation: Groups by actual DB types, no config dependency
+ * All sections generated from database queries, ensuring consistency and reliability
  */
 
 import { DatabaseService } from '../DatabaseService';
 import { UserCycleRepository } from '../repositories/UserCycleRepository';
-import { DashboardConfigService } from './DashboardConfigService';
 
 export interface DashboardSectionData {
   section_type: string;
@@ -16,6 +16,7 @@ export interface DashboardSectionData {
     id: string;
     title: string;
     content: string;
+    entityType: 'DerivedArtifact' | 'ProactivePrompt' | 'GrowthEvent' | 'Card';
     confidence?: number;
     actionability?: string;
     priority?: number;
@@ -58,22 +59,24 @@ export interface DashboardData {
 }
 
 export class DashboardService {
-  private configService: DashboardConfigService;
-
-  constructor(private db: DatabaseService) {
-    this.configService = new DashboardConfigService();
-  }
+  constructor(private db: DatabaseService) {}
 
   /**
-   * Get dashboard configuration
+   * Get dashboard configuration (legacy support - returns minimal config)
+   * @deprecated Config is now handled on frontend. Kept for backward compatibility.
    */
   async getDashboardConfig(): Promise<any> {
-    try {
-      return await this.configService.loadConfig();
-    } catch (error) {
-      console.error('[DashboardService] Error loading dashboard config:', error);
-      throw error;
-    }
+    // Return minimal structure for frontend layout preferences only
+    return {
+      dashboard_layout: {
+        grid_columns: { default: 3, mobile: 1, tablet: 2 },
+        tabs: {
+          opening: { title: 'Opening', icon: '📖' },
+          dynamic_insights: { title: 'Dynamic Insights', icon: '🧠' },
+          growth_trajectory: { title: 'Growth Trajectory', icon: '📈' }
+        }
+      }
+    };
   }
 
   /**
@@ -81,22 +84,31 @@ export class DashboardService {
    */
   async getDashboardData(userId: string): Promise<DashboardData | null> {
     try {
+      console.log(`[DashboardService] Getting dashboard data for user: ${userId}`);
+      
       // Get the most recent completed cycle
       const userCycleRepo = new UserCycleRepository(this.db);
       const recentCycles = await userCycleRepo.findCompletedCycles(userId, 1);
       
       if (recentCycles.length === 0) {
-        console.log(`[DashboardService] No completed cycles found for user ${userId}`);
+        console.log(`[DashboardService] ⚠️  No completed cycles found for user ${userId} - returning null`);
         return null;
       }
 
       const cycle = recentCycles[0];
       const cycleId = cycle.cycle_id;
+      console.log(`[DashboardService] Using most recent cycle: ${cycleId} (status: ${cycle.status})`);
 
-      // Generate all dashboard sections
-      const sections = await this.generateDashboardSections(userId, cycleId);
+      // Generate all dashboard sections with error handling
+      let sections;
+      try {
+        sections = await this.generateDashboardSections(userId, cycleId);
+      } catch (sectionError) {
+        console.error(`[DashboardService] ❌ Failed to generate sections for cycle ${cycleId}:`, sectionError);
+        throw sectionError;
+      }
 
-      return {
+      const result = {
         user_id: userId,
         cycle_id: cycleId,
         generated_at: new Date().toISOString(),
@@ -111,8 +123,12 @@ export class DashboardService {
           prompts_created: 0, // Field removed in migration
         }
       };
+      
+      console.log(`[DashboardService] ✅ Successfully generated dashboard data with ${Object.keys(sections).length} sections`);
+      return result;
     } catch (error) {
-      console.error(`[DashboardService] Error getting dashboard data for user ${userId}:`, error);
+      console.error(`[DashboardService] ❌ ERROR getting dashboard data for user ${userId}:`, error);
+      console.error(`[DashboardService] Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
       throw error;
     }
   }
@@ -153,150 +169,233 @@ export class DashboardService {
   }
 
   /**
-   * Generate all dashboard sections for a given cycle
+   * Generate all dashboard sections for a given cycle - DATA-DRIVEN APPROACH
+   * Groups by actual database types, no config iteration
    */
   private async generateDashboardSections(userId: string, cycleId: string): Promise<DashboardData['sections']> {
-    // Load dashboard configuration
-    const config = await this.configService.loadConfig();
-    
-    // Get all derived artifacts for this cycle
-    const artifacts = await this.db.prisma.derived_artifacts.findMany({
-      where: {
-        user_id: userId,
-        cycle_id: cycleId
-      },
-      orderBy: { created_at: 'desc' }
-    });
+    try {
+      // Fetch all data in parallel for consistency
+      const [artifacts, prompts, growthEvents, recentCards, openingArtifact] = await Promise.all([
+        // Derived artifacts for this cycle
+        this.db.prisma.derived_artifacts.findMany({
+          where: { user_id: userId, cycle_id: cycleId },
+          orderBy: { created_at: 'desc' }
+        }),
+        // Proactive prompts for this cycle
+        this.db.prisma.proactive_prompts.findMany({
+          where: { user_id: userId, cycle_id: cycleId },
+          orderBy: { created_at: 'desc' }
+        }),
+        // Growth events (longitudinal - not cycle-scoped)
+        this.db.prisma.growth_events.findMany({
+          where: { user_id: userId },
+          orderBy: { created_at: 'desc' }
+        }),
+        // Recent cards
+        this.db.prisma.cards.findMany({
+          where: {
+            user_id: userId,
+            type: { in: ['concept', 'memoryunit'] }
+          },
+          orderBy: { created_at: 'desc' },
+          take: 5
+        }),
+        // Opening artifact (most recent, regardless of cycle)
+        this.db.prisma.derived_artifacts.findFirst({
+          where: { user_id: userId, type: 'opening' },
+          orderBy: { created_at: 'desc' }
+        })
+      ]);
 
-    // DEBUG: Log what we're actually getting from the database
-    console.log(`[DashboardService] DEBUG: Querying artifacts for user ${userId}, cycle ${cycleId}`);
-    console.log(`[DashboardService] DEBUG: Found ${artifacts.length} total artifacts`);
-    console.log(`[DashboardService] DEBUG: Artifact types:`, artifacts.map((a: any) => a.type));
-    console.log(`[DashboardService] DEBUG: Legacy artifacts:`, artifacts.filter((a: any) => ['insight', 'pattern', 'recommendation', 'synthesis'].includes(a.type)).map((a: any) => ({ type: a.type, title: a.title, cycle_id: a.cycle_id })));
-
-    // Get all proactive prompts for this cycle
-    const prompts = await this.db.prisma.proactive_prompts.findMany({
-      where: {
-        user_id: userId,
-        cycle_id: cycleId
-      },
-      orderBy: { created_at: 'desc' }
-    });
-
-    // Get growth events for this user (not filtered by cycle since growth events are longitudinal)
-    const growthEvents = await this.db.prisma.growth_events.findMany({
-      where: {
-        user_id: userId
-      },
-      orderBy: { created_at: 'desc' }
-    });
-
-
-    // Get recent cards for the magazine tab
-    const recentCards = await this.db.prisma.cards.findMany({
-      where: {
-        user_id: userId,
-        type: {
-          in: ['concept', 'memoryunit']
-        }
-      },
-      orderBy: { created_at: 'desc' },
-      take: 5
-    });
-
-    // Get the most recent opening artifact (regardless of cycle)
-    const openingArtifact = await this.db.prisma.derived_artifacts.findFirst({
-      where: {
-        user_id: userId,
-        type: 'opening'
-      },
-      orderBy: { created_at: 'desc' }
-    });
-
-    console.log(`[DashboardService] DEBUG: Found opening artifact:`, openingArtifact ? {
-      id: openingArtifact.entity_id,
-      title: openingArtifact.title,
-      cycle_id: openingArtifact.cycle_id,
-      created_at: openingArtifact.created_at
-    } : 'None');
-
-    // Generate sections dynamically based on configuration
-    const sections: any = {};
-    
-    // Process each section defined in configuration
-    const sectionPromises = Object.entries(config.dashboard_sections).map(async ([sectionKey, sectionConfig]) => {
-      console.log(`[DashboardService] DEBUG: Processing section ${sectionKey} with config:`, sectionConfig);
+      // ✅ Comprehensive data consistency logging
+      console.log(`[DashboardService] ========== DATA CONSISTENCY CHECK ==========`);
+      console.log(`[DashboardService] User: ${userId}, Cycle: ${cycleId}`);
+      console.log(`[DashboardService] Timestamp: ${new Date().toISOString()}`);
       
-      try {
-        // Map section types to data sources
-        if (sectionKey === 'recent_cards') {
-          return [sectionKey, await this.createCardSection(sectionKey, recentCards)];
-        } else if (sectionKey === 'opening_words') {
-          return [sectionKey, this.createOpeningWordsSection(sectionKey, openingArtifact)];
-        } else if (sectionKey === 'growth_dimensions') {
-          return [sectionKey, this.createGrowthDimensionsSection(sectionKey, growthEvents)];
-        } else if (sectionKey === 'mobile_growth_events') {
-          return [sectionKey, this.createMobileGrowthEventsSection(sectionKey, growthEvents)];
-        } else if (sectionKey.startsWith('growth_')) {
-          // Growth-specific sections
-          const artifactType = sectionKey.replace('growth_', '');
-          return [sectionKey, await this.createSection(sectionKey, artifacts.filter((a: any) => a.type === artifactType))];
-        } else if (sectionKey.endsWith('_prompts')) {
-          // Prompt sections
-          const promptType = sectionKey.replace('_prompts', '');
-          return [sectionKey, this.createPromptSection(sectionKey, prompts.filter((p: any) => p.type === promptType))];
-        } else {
-          // Regular artifact sections - map section keys to singular artifact types
-          const artifactType = sectionKey === 'insights' ? 'insight' :
-                             sectionKey === 'patterns' ? 'pattern' :
-                             sectionKey === 'recommendations' ? 'recommendation' :
-                             sectionKey === 'synthesis' ? 'synthesis' :
-                             sectionKey === 'identified_patterns' ? 'identified_pattern' : 
-                             sectionKey === 'emerging_themes' ? 'emerging_theme' :
-                             sectionKey === 'focus_areas' ? 'focus_area' :
-                             sectionKey === 'blind_spots' ? 'blind_spot' :
-                             sectionKey === 'celebration_moments' ? 'celebration_moment' :
-                             sectionKey === 'opening_words' ? 'opening' :
-                             // New artifact types - direct mapping (no transformation needed)
-                             sectionKey;
-          
-          return [sectionKey, await this.createSection(sectionKey, artifacts.filter((a: any) => a.type === artifactType))];
-        }
-      } catch (error) {
-        console.error(`[DashboardService] ERROR: Failed to create section ${sectionKey}:`, error);
-        // Create empty section as fallback
-        return [sectionKey, {
-          section_type: sectionKey,
-          title: sectionConfig?.title || sectionKey,
-          items: [],
-          total_count: 0,
-          last_updated: new Date().toISOString()
-        }];
+      // Detailed artifact logging
+      const artifactTypeCounts = artifacts.reduce((acc, a) => {
+        acc[a.type] = (acc[a.type] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      console.log(`[DashboardService] Artifacts: ${artifacts.length} total`);
+      console.log(`[DashboardService]   └─ Types: ${Object.entries(artifactTypeCounts).map(([type, count]) => `${type}(${count})`).join(', ') || 'none'}`);
+      
+      // Detailed prompt logging
+      const promptTypeCounts = prompts.reduce((acc, p) => {
+        acc[p.type] = (acc[p.type] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      console.log(`[DashboardService] Prompts: ${prompts.length} total`);
+      console.log(`[DashboardService]   └─ Types: ${Object.entries(promptTypeCounts).map(([type, count]) => `${type}(${count})`).join(', ') || 'none'}`);
+      
+      // Growth events logging
+      const growthEventTypeCounts = growthEvents.reduce((acc, e) => {
+        const type = e.type || 'unknown';
+        acc[type] = (acc[type] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      console.log(`[DashboardService] Growth Events: ${growthEvents.length} total (longitudinal, not cycle-scoped)`);
+      console.log(`[DashboardService]   └─ Types: ${Object.entries(growthEventTypeCounts).map(([type, count]) => `${type}(${count})`).join(', ') || 'none'}`);
+      
+      // Other data
+      console.log(`[DashboardService] Recent Cards: ${recentCards.length}`);
+      console.log(`[DashboardService] Opening Artifact: ${openingArtifact ? `Found (${openingArtifact.entity_id})` : 'None'}`);
+      
+      // Data validation warnings
+      const missingCycleIds = artifacts.filter(a => !a.cycle_id);
+      if (missingCycleIds.length > 0) {
+        console.warn(`[DashboardService] ⚠️  WARNING: ${missingCycleIds.length} artifacts missing cycle_id`);
       }
-    });
+      
+      const missingTypes = [...artifacts.filter(a => !a.type), ...prompts.filter(p => !p.type)];
+      if (missingTypes.length > 0) {
+        console.warn(`[DashboardService] ⚠️  WARNING: ${missingTypes.length} items missing type field`);
+      }
+      
+      console.log(`[DashboardService] =========================================`);
 
-    // Wait for all sections to be created
-    const sectionResults = await Promise.all(sectionPromises);
-    
-    // Convert array of [key, value] pairs back to object
-    for (const [sectionKey, sectionData] of sectionResults) {
-      sections[sectionKey as string] = sectionData;
+      const sections: Record<string, DashboardSectionData> = {};
+
+      // GROUP ARTIFACTS BY TYPE - Data-driven section generation
+      const artifactsByType = this.groupBy(artifacts, 'type');
+      for (const [artifactType, typeArtifacts] of Object.entries(artifactsByType)) {
+        const sectionKey = this.mapArtifactTypeToSectionKey(artifactType);
+        if (sectionKey && typeArtifacts.length > 0) {
+          sections[sectionKey] = await this.createArtifactSection(sectionKey, typeArtifacts as any[]);
+        }
+      }
+
+      // GROUP PROMPTS BY TYPE - Data-driven section generation
+      const promptsByType = this.groupBy(prompts, 'type');
+      for (const [promptType, typePrompts] of Object.entries(promptsByType)) {
+        const sectionKey = this.mapPromptTypeToSectionKey(promptType);
+        if (sectionKey && typePrompts.length > 0) {
+          sections[sectionKey] = this.createPromptSection(sectionKey, typePrompts as any[]);
+        }
+      }
+
+      // SPECIAL SECTIONS (always create, may be empty)
+      sections.recent_cards = await this.createCardSection('recent_cards', recentCards);
+      sections.opening_words = this.createOpeningWordsSection('opening_words', openingArtifact);
+      sections.growth_dimensions = this.createGrowthDimensionsSection('growth_dimensions', growthEvents);
+      sections.mobile_growth_events = this.createMobileGrowthEventsSection('mobile_growth_events', growthEvents);
+
+      // Filter out empty sections for cleaner response
+      const nonEmptySections: Record<string, DashboardSectionData> = {};
+      for (const [key, section] of Object.entries(sections)) {
+        if (section.items.length > 0) {
+          nonEmptySections[key] = section;
+        }
+      }
+
+      console.log(`[DashboardService] Generated ${Object.keys(nonEmptySections).length} non-empty sections: ${Object.keys(nonEmptySections).join(', ')}`);
+      
+      // Section validation
+      const sectionsWithItems = Object.entries(nonEmptySections).map(([key, section]) => ({
+        sectionKey: key,
+        itemCount: section.items.length,
+        title: section.title
+      }));
+      console.log(`[DashboardService] Section breakdown:`, sectionsWithItems);
+      
+      return nonEmptySections as DashboardData['sections'];
+    } catch (error) {
+      console.error(`[DashboardService] ❌ ERROR generating dashboard sections for user ${userId}, cycle ${cycleId}:`, error);
+      console.error(`[DashboardService] Error details:`, {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        userId,
+        cycleId
+      });
+      // Throw to be handled by calling code
+      throw error;
     }
-
-    return sections;
   }
 
   /**
-   * Create a dashboard section from derived artifacts
+   * Group array items by a key
    */
-  private async createSection(sectionType: string, artifacts: any[]): Promise<DashboardSectionData> {
-    const config = await this.configService.loadConfig();
-    const sectionConfig = config.dashboard_sections[sectionType];
-    
+  private groupBy<T>(array: T[], key: keyof T): Record<string, T[]> {
+    return array.reduce((acc, item) => {
+      const group = String(item[key] || 'unknown');
+      if (!acc[group]) acc[group] = [];
+      acc[group].push(item);
+      return acc;
+    }, {} as Record<string, T[]>);
+  }
+
+  /**
+   * Map artifact type (from DB) to section key (for API response)
+   */
+  private mapArtifactTypeToSectionKey(artifactType: string): string | null {
+    const mapping: Record<string, string> = {
+      'insight': 'insights',
+      'pattern': 'patterns',
+      'recommendation': 'recommendations',
+      'synthesis': 'synthesis',
+      'identified_pattern': 'identified_patterns',
+      'emerging_theme': 'emerging_themes',
+      'focus_area': 'focus_areas',
+      'blind_spot': 'blind_spots',
+      'celebration_moment': 'celebration_moments',
+      'opening': 'opening_words', // Handled separately but mapping exists
+      'memory_profile': 'memory_profile',
+      'deeper_story': 'deeper_story',
+      'hidden_connection': 'hidden_connection',
+      'values_revolution': 'values_revolution',
+      'mastery_quest': 'mastery_quest',
+      'breakthrough_moment': 'breakthrough_moment',
+      'synergy_discovery': 'synergy_discovery',
+      'authentic_voice': 'authentic_voice',
+      'leadership_evolution': 'leadership_evolution',
+      'creative_renaissance': 'creative_renaissance',
+      'wisdom_integration': 'wisdom_integration',
+      'vision_crystallization': 'vision_crystallization',
+      'legacy_building': 'legacy_building',
+      'horizon_expansion': 'horizon_expansion',
+      'transformation_phase': 'transformation_phase'
+    };
+    return mapping[artifactType] || null;
+  }
+
+  /**
+   * Map prompt type (from DB) to section key (for API response)
+   */
+  private mapPromptTypeToSectionKey(promptType: string): string | null {
+    const mapping: Record<string, string> = {
+      'reflection': 'reflection_prompts',
+      'exploration': 'exploration_prompts',
+      'goal_setting': 'goal_setting_prompts',
+      'skill_development': 'skill_development_prompts',
+      'creative_expression': 'creative_expression_prompts',
+      'pattern_exploration': 'pattern_exploration_prompts',
+      'values_articulation': 'values_articulation_prompts',
+      'future_visioning': 'future_visioning_prompts',
+      'wisdom_synthesis': 'wisdom_synthesis_prompts',
+      'storytelling': 'storytelling_prompts',
+      'metaphor_discovery': 'metaphor_discovery_prompts',
+      'inspiration_hunting': 'inspiration_hunting_prompts',
+      'synergy_building': 'synergy_building_prompts',
+      'legacy_planning': 'legacy_planning_prompts',
+      'assumption_challenging': 'assumption_challenging_prompts',
+      'horizon_expanding': 'horizon_expanding_prompts',
+      'meaning_making': 'meaning_making_prompts',
+      'identity_integration': 'identity_integration_prompts',
+      'gratitude_deepening': 'gratitude_deepening_prompts',
+      'wisdom_sharing': 'wisdom_sharing_prompts'
+    };
+    return mapping[promptType] || null;
+  }
+
+  /**
+   * Create a dashboard section from derived artifacts - DATA-DRIVEN
+   */
+  private async createArtifactSection(sectionType: string, artifacts: any[]): Promise<DashboardSectionData> {
     const items = artifacts.map(artifact => ({
       id: artifact.entity_id,
       title: artifact.title,
       content: artifact.content || '',
+      entityType: 'DerivedArtifact' as const,
       created_at: artifact.created_at.toISOString(),
       metadata: {
         artifact_type: artifact.type,
@@ -308,26 +407,30 @@ export class DashboardService {
 
     return {
       section_type: sectionType,
-      title: sectionConfig?.title || this.getSectionTitle(sectionType),
-      items: items.slice(0, sectionConfig?.max_items || this.getMaxItemsForSection(sectionType)),
+      title: this.getSectionTitle(sectionType),
+      items: items.slice(0, this.getMaxItemsForSection(sectionType)),
       total_count: items.length,
       last_updated: items.length > 0 ? items[0].created_at : new Date().toISOString()
     };
   }
 
   /**
-   * Create a dashboard section from proactive prompts
+   * Create a dashboard section from proactive prompts - DATA-DRIVEN
    */
   private createPromptSection(sectionType: string, prompts: any[]): DashboardSectionData {
     const items = prompts.map(prompt => ({
       id: prompt.entity_id,
       title: prompt.title || prompt.metadata?.title || 'Prompt',
       content: prompt.content,
+      entityType: 'ProactivePrompt' as const,
       confidence: prompt.metadata?.priority_level ? prompt.metadata.priority_level / 10 : undefined,
       actionability: prompt.metadata?.timing_suggestion,
       priority: prompt.metadata?.priority_level,
       created_at: prompt.created_at.toISOString(),
-      metadata: prompt.metadata
+      metadata: {
+        ...prompt.metadata,
+        prompt_type: prompt.type
+      }
     }));
 
     return {
@@ -342,8 +445,12 @@ export class DashboardService {
   /**
    * Get display title for a section type
    */
+  /**
+   * Get display title for a section type - Comprehensive mapping for all artifact and prompt types
+   */
   private getSectionTitle(sectionType: string): string {
     const titles: Record<string, string> = {
+      // Legacy artifact types
       insights: 'Insights',
       patterns: 'Patterns',
       recommendations: 'Recommendations',
@@ -353,25 +460,73 @@ export class DashboardService {
       focus_areas: 'Focus Areas',
       blind_spots: 'Blind Spots',
       celebration_moments: 'Celebration Moments',
+      // New artifact types
+      memory_profile: 'Memory Profile',
+      deeper_story: 'The Deeper Story',
+      hidden_connection: 'Hidden Connections',
+      values_revolution: 'Values Revolution',
+      mastery_quest: 'Mastery Quest',
+      breakthrough_moment: 'Breakthrough Moments',
+      synergy_discovery: 'Synergy Discoveries',
+      authentic_voice: 'Authentic Voice',
+      leadership_evolution: 'Leadership Evolution',
+      creative_renaissance: 'Creative Renaissance',
+      wisdom_integration: 'Wisdom Integration',
+      vision_crystallization: 'Vision Crystallization',
+      legacy_building: 'Legacy Building',
+      horizon_expansion: 'Horizon Expansion',
+      transformation_phase: 'Transformation Phase',
+      // Prompt types
       reflection_prompts: 'Reflection Prompts',
       exploration_prompts: 'Exploration Prompts',
       goal_setting_prompts: 'Goal Setting Prompts',
       skill_development_prompts: 'Skill Development Prompts',
       creative_expression_prompts: 'Creative Expression Prompts',
+      pattern_exploration_prompts: 'Pattern Exploration',
+      values_articulation_prompts: 'Values Articulation',
+      future_visioning_prompts: 'Future Visioning',
+      wisdom_synthesis_prompts: 'Wisdom Synthesis',
+      storytelling_prompts: 'Storytelling',
+      metaphor_discovery_prompts: 'Metaphor Discovery',
+      inspiration_hunting_prompts: 'Inspiration Hunting',
+      synergy_building_prompts: 'Synergy Building',
+      legacy_planning_prompts: 'Legacy Planning',
+      assumption_challenging_prompts: 'Assumption Challenging',
+      horizon_expanding_prompts: 'Horizon Expanding',
+      meaning_making_prompts: 'Meaning Making',
+      identity_integration_prompts: 'Identity Integration',
+      gratitude_deepening_prompts: 'Gratitude Deepening',
+      wisdom_sharing_prompts: 'Wisdom Sharing',
+      // Special sections
       recent_cards: 'Recent Cards',
       opening_words: 'Opening Words',
       growth_dimensions: 'Growth Dimensions',
+      mobile_growth_events: 'Growth Events',
       growth_insights: 'Growth Insights',
       growth_focus_areas: 'Growth Focus Areas'
     };
-    return titles[sectionType] || sectionType;
+    return titles[sectionType] || this.humanizeSectionKey(sectionType);
+  }
+
+  /**
+   * Humanize section key - converts snake_case to Title Case
+   */
+  private humanizeSectionKey(key: string): string {
+    return key
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
   }
 
   /**
    * Get maximum items to display for a section type
    */
+  /**
+   * Get maximum items to display - Reasonable defaults for all section types
+   */
   private getMaxItemsForSection(sectionType: string): number {
     const limits: Record<string, number> = {
+      // Legacy artifact types
       insights: 3,
       patterns: 2,
       recommendations: 2,
@@ -381,18 +536,52 @@ export class DashboardService {
       focus_areas: 3,
       blind_spots: 2,
       celebration_moments: 1,
+      // New artifact types - same defaults
+      memory_profile: 1,
+      deeper_story: 1,
+      hidden_connection: 2,
+      values_revolution: 1,
+      mastery_quest: 1,
+      breakthrough_moment: 2,
+      synergy_discovery: 2,
+      authentic_voice: 1,
+      leadership_evolution: 1,
+      creative_renaissance: 1,
+      wisdom_integration: 1,
+      vision_crystallization: 1,
+      legacy_building: 1,
+      horizon_expansion: 2,
+      transformation_phase: 1,
+      // Prompt types
       reflection_prompts: 2,
       exploration_prompts: 2,
       goal_setting_prompts: 2,
       skill_development_prompts: 2,
       creative_expression_prompts: 2,
+      pattern_exploration_prompts: 2,
+      values_articulation_prompts: 2,
+      future_visioning_prompts: 2,
+      wisdom_synthesis_prompts: 2,
+      storytelling_prompts: 2,
+      metaphor_discovery_prompts: 2,
+      inspiration_hunting_prompts: 2,
+      synergy_building_prompts: 2,
+      legacy_planning_prompts: 2,
+      assumption_challenging_prompts: 2,
+      horizon_expanding_prompts: 2,
+      meaning_making_prompts: 2,
+      identity_integration_prompts: 2,
+      gratitude_deepening_prompts: 2,
+      wisdom_sharing_prompts: 2,
+      // Special sections
       recent_cards: 5,
       opening_words: 1,
       growth_dimensions: 6,
+      mobile_growth_events: 6,
       growth_insights: 3,
       growth_focus_areas: 3
     };
-    return limits[sectionType] || 5;
+    return limits[sectionType] || 5; // Default to 5 if unknown type
   }
 
   /**
@@ -491,7 +680,8 @@ export class DashboardService {
         id: card.card_id,
         title: title,
         content: content,
-        created_at: card.created_at,
+        entityType: 'Card' as const,
+        created_at: card.created_at.toISOString(),
         metadata: {
           card_type: card.type,
           background_image_url: card.background_image_url,
@@ -528,6 +718,7 @@ export class DashboardService {
       id: openingArtifact.entity_id,
       title: openingArtifact.title,
       content: openingArtifact.content || '',
+      entityType: 'DerivedArtifact' as const,
       created_at: openingArtifact.created_at.toISOString(),
       metadata: {
         artifact_type: openingArtifact.type,
@@ -651,6 +842,7 @@ export class DashboardService {
         id: 'growth_dimensions_table',
         title: 'Growth Dimensions Table',
         content: 'Growth trajectory across self and world dimensions',
+        entityType: 'GrowthEvent' as const,
         created_at: new Date().toISOString(),
         metadata: tableData
       }], // Single table item containing the full table structure
@@ -805,6 +997,7 @@ export class DashboardService {
         content: events.length > 0 
           ? events.slice(0, 3).map((event: any) => `• ${event.content}`).join('\n')
           : 'No recent growth events',
+        entityType: 'GrowthEvent' as const,
         created_at: events.length > 0 ? events[0].created_at.toISOString() : new Date().toISOString(),
         metadata: {
           dimension: dimension.key,

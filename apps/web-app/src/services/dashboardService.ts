@@ -60,6 +60,7 @@ export interface DashboardSectionItem {
   id: string;
   title: string;
   content: string;
+  entityType: 'DerivedArtifact' | 'ProactivePrompt' | 'GrowthEvent' | 'Card'; // ✅ Type-safe entity type
   confidence?: number;
   actionability?: string;
   priority?: number;
@@ -84,28 +85,7 @@ export interface DynamicDashboardData {
   user_id: string;
   cycle_id: string;
   generated_at: string;
-  sections: {
-    insights: DashboardSection;
-    patterns: DashboardSection;
-    recommendations: DashboardSection;
-    synthesis: DashboardSection;
-    identified_patterns: DashboardSection;
-    emerging_themes: DashboardSection;
-    focus_areas: DashboardSection;
-    blind_spots: DashboardSection;
-    celebration_moments: DashboardSection;
-    reflection_prompts: DashboardSection;
-    exploration_prompts: DashboardSection;
-    goal_setting_prompts: DashboardSection;
-    skill_development_prompts: DashboardSection;
-    creative_expression_prompts: DashboardSection;
-    recent_cards: DashboardSection;
-    opening_words: DashboardSection;
-    growth_dimensions: DashboardSection;
-    mobile_growth_events: DashboardSection;
-    growth_insights: DashboardSection;
-    growth_focus_areas: DashboardSection;
-  };
+  sections: Record<string, DashboardSection>; // ✅ Flexible - sections are data-driven now
   cycle_info: {
     cycle_id: string;
     cycle_start_date: string;
