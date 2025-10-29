@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Calendar, Clock } from 'lucide-react';
 import { useOperationalParameters } from '../../hooks/useOperationalParameters';
 
@@ -22,13 +22,18 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [isCustomRange, setIsCustomRange] = useState<boolean>(false);
+  const [isInitialized, setIsInitialized] = useState<boolean>(false);
 
-  // Initialize with default range or preset
+  // Initialize with default range or preset (only once)
   useEffect(() => {
+    // Only initialize if we haven't initialized yet and we have the data we need
+    if (isInitialized) return;
+    
     if (defaultRange) {
       setStartDate(defaultRange.startDate);
       setEndDate(defaultRange.endDate);
       setIsCustomRange(true);
+      setIsInitialized(true);
     } else if (ontologyConstraints) {
       // Use dynamic default from operational parameters
       const end = new Date();
@@ -38,29 +43,48 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
       setStartDate(start.toISOString().split('T')[0]);
       setEndDate(end.toISOString().split('T')[0]);
       setIsCustomRange(false);
+      setIsInitialized(true);
     }
-  }, [defaultRange, ontologyConstraints]);
+  }, [defaultRange, ontologyConstraints, isInitialized]);
 
-  // Notify parent of changes
+  // Use ref to store the callback to avoid dependency issues
+  const onDateRangeChangeRef = useRef(onDateRangeChange);
+  
+  // Update ref when callback changes
+  useEffect(() => {
+    onDateRangeChangeRef.current = onDateRangeChange;
+  }, [onDateRangeChange]);
+
+  // Notify parent of changes (stable dependency array)
   useEffect(() => {
     if (startDate && endDate) {
-      onDateRangeChange({
+      const dateRange = {
         startDate: new Date(startDate).toISOString(),
         endDate: new Date(endDate).toISOString()
-      });
+      };
+      console.log(`[DateRangePicker] Notifying parent of date range change:`, dateRange);
+      onDateRangeChangeRef.current(dateRange);
     } else {
-      onDateRangeChange(null);
+      console.log(`[DateRangePicker] Clearing date range (startDate or endDate is empty)`);
+      onDateRangeChangeRef.current(null);
     }
-  }, [startDate, endDate, onDateRangeChange]);
+    // Stable dependency array - only depends on date values, not the callback
+  }, [startDate, endDate]);
 
   const handlePresetRange = (days: number) => {
+    console.log(`[DateRangePicker] Quick range button clicked: ${days} days`);
     const end = new Date();
     const start = new Date();
     start.setDate(start.getDate() - days);
     
-    setStartDate(start.toISOString().split('T')[0]);
-    setEndDate(end.toISOString().split('T')[0]);
+    const newStartDate = start.toISOString().split('T')[0];
+    const newEndDate = end.toISOString().split('T')[0];
+    
+    console.log(`[DateRangePicker] Setting date range: ${newStartDate} to ${newEndDate}`);
+    setStartDate(newStartDate);
+    setEndDate(newEndDate);
     setIsCustomRange(false);
+    setIsInitialized(true); // Mark as initialized so default useEffect doesn't override
   };
 
   const handleCustomRangeToggle = () => {

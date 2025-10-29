@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { BackgroundVideoSelector } from './BackgroundVideoSelector';
 import { DateRangePicker } from './DateRangePicker';
 import { GlassButton } from '@2dots1line/ui-components';
@@ -15,6 +15,12 @@ export const DashboardSettings: React.FC = () => {
   const { triggerInsight, isLoading: insightsLoading } = useInsightTrigger();
   const { triggerOntologyOptimization, isLoading: ontologyLoading } = useOntologyOptimizationTrigger();
   const [dateRange, setDateRange] = useState<DateRange | null>(null);
+
+  // Memoize the callback to ensure stable reference
+  const handleDateRangeChange = useCallback((range: DateRange | null) => {
+    console.log('[DashboardSettings] Date range updated:', range);
+    setDateRange(range);
+  }, []);
 
   const handleTriggerInsight = async () => {
     await triggerInsight(dateRange || undefined);
@@ -39,7 +45,7 @@ export const DashboardSettings: React.FC = () => {
             Data Range
           </h4>
           <DateRangePicker 
-            onDateRangeChange={setDateRange}
+            onDateRangeChange={handleDateRangeChange}
             className="bg-white/5 p-3 rounded-lg border border-white/10"
           />
           <p className="text-xs text-white/50">
