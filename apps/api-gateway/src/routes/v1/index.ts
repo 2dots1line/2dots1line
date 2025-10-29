@@ -15,6 +15,8 @@ import { createAgentRoutes } from './agent.routes';
 import { createQuestRoutes } from './quest.routes';
 import { QuestController } from '../../controllers/quest.controller';
 import { InsightController } from '../../controllers/insight.controller';
+import { OntologyController } from '../../controllers/ontology.controller';
+import { ConfigController } from '../../controllers/config.controller';
 import { CosmosQuestAgent } from '@2dots1line/cosmos-quest-service';
 import dashboardRoutes from '../../routes/dashboard';
 
@@ -28,6 +30,8 @@ export function createV1Routes(
   hrtParametersController: HRTParametersController,
   embeddingController: EmbeddingController,
   insightController: InsightController,
+  ontologyController: OntologyController,
+  configController: ConfigController,
   cosmosQuestAgent: CosmosQuestAgent
 ): IRouter {
   const v1Router: IRouter = Router();
@@ -172,6 +176,12 @@ v1Router.delete('/media/generated/:id', authMiddleware, mediaController.deleteGe
 
 // --- Insight Routes (Authenticated) ---
 v1Router.post('/insights/trigger', authMiddleware, insightController.triggerInsightJob.bind(insightController));
+
+// --- Ontology Routes (Authenticated) ---
+v1Router.post('/ontology/optimize', authMiddleware, ontologyController.triggerOntologyOptimization.bind(ontologyController));
+
+// --- Config Routes (Public) ---
+v1Router.get('/config/operational-parameters', configController.getOperationalParameters.bind(configController));
 
 // --- HRT Parameters Routes (Authenticated) ---
 v1Router.post('/hrt/parameters', authMiddleware, hrtParametersController.saveParameters);

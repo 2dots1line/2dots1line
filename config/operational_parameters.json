@@ -1,8 +1,11 @@
 {
   "version": "1.0",
-  "conversation_timeout_seconds": 300,
+  "conversation_timeout_seconds": 600,
   "workers": {
-    "check_interval_seconds": 30
+    "check_interval_seconds": 60
+  },
+  "ingestion": {
+    "min_importance_score_threshold": 3
   },
   "ontology_optimization": {
     "default_date_range_days": 2,

@@ -9,6 +9,7 @@ import {
   CommunityRepository,
   ProactivePromptRepository
 } from '@2dots1line/database';
+import { ConfigService } from '@2dots1line/config-service';
 import type { 
   CreateMemoryUnitData, 
   CreateConceptData, 
@@ -48,6 +49,7 @@ export class IngestionAnalyst {
   private derivedArtifactRepository: DerivedArtifactRepository;
   private communityRepository: CommunityRepository;
   private proactivePromptRepository: ProactivePromptRepository;
+  private configService: ConfigService;
 
   constructor(
     private holisticAnalysisTool: HolisticAnalysisTool,
@@ -65,6 +67,11 @@ export class IngestionAnalyst {
     this.derivedArtifactRepository = new DerivedArtifactRepository(dbService);
     this.communityRepository = new CommunityRepository(dbService);
     this.proactivePromptRepository = new ProactivePromptRepository(dbService);
+    this.configService = new ConfigService();
+  }
+
+  async initialize(): Promise<void> {
+    await this.configService.initialize();
   }
 
   async processConversation(job: Job<IngestionJobData>) {
@@ -199,8 +206,9 @@ export class IngestionAnalyst {
     console.log(`🔍 [IngestionAnalyst] DEBUG: Memory units to create: ${deduplicationDecisions.memoryUnitsToCreate.length}, to reuse: ${deduplicationDecisions.memoryUnitsToReuse.length}`);
 
     // Check importance score threshold
-    if (persistence_payload.conversation_importance_score < 1) {
-      console.log(`🔍 [IngestionAnalyst] DEBUG: Importance score ${persistence_payload.conversation_importance_score} below threshold, skipping entity creation`);
+    const minThreshold = await this.configService.getOperationalParameter('ingestion.min_importance_score_threshold', 1);
+    if (persistence_payload.conversation_importance_score < minThreshold) {
+      console.log(`🔍 [IngestionAnalyst] DEBUG: Importance score ${persistence_payload.conversation_importance_score} below threshold ${minThreshold}, skipping entity creation`);
       
       // Update conversation with context fields
       await this.conversationRepository.update(conversationId, {

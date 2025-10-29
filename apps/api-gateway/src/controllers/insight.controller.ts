@@ -58,14 +58,63 @@ export class InsightController {
         return;
       }
 
+      // Extract date range from request body
+      const { startDate, endDate } = req.body;
+      
+      // Validate date range if provided
+      let validatedStartDate: Date | undefined;
+      let validatedEndDate: Date | undefined;
+      
+      if (startDate) {
+        validatedStartDate = new Date(startDate);
+        if (isNaN(validatedStartDate.getTime())) {
+          res.status(400).json({
+            success: false,
+            error: {
+              code: 'INVALID_DATE',
+              message: 'Invalid start date format'
+            }
+          } as TApiResponse<any>);
+          return;
+        }
+      }
+      
+      if (endDate) {
+        validatedEndDate = new Date(endDate);
+        if (isNaN(validatedEndDate.getTime())) {
+          res.status(400).json({
+            success: false,
+            error: {
+              code: 'INVALID_DATE',
+              message: 'Invalid end date format'
+            }
+          } as TApiResponse<any>);
+          return;
+        }
+      }
+      
+      // Validate date range logic
+      if (validatedStartDate && validatedEndDate && validatedStartDate > validatedEndDate) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_DATE_RANGE',
+            message: 'Start date must be before end date'
+          }
+        } as TApiResponse<any>);
+        return;
+      }
+
       // Add job to insight queue
       const job = await this.insightQueue.add('user-cycle', {
         userId,
+        startDate: validatedStartDate?.toISOString(),
+        endDate: validatedEndDate?.toISOString(),
         source: 'manual-dashboard-trigger',
         timestamp: new Date().toISOString()
       });
 
-      console.log(`✅ Insight generation job ${job.id} queued for user ${userId}`);
+      console.log(`✅ Insight generation job ${job.id} queued for user ${userId}${validatedStartDate && validatedEndDate ? ` with date range ${validatedStartDate.toISOString().split('T')[0]} to ${validatedEndDate.toISOString().split('T')[0]}` : ''}`);
 
       // Return 202 Accepted with job information
       res.status(202).json({
@@ -74,7 +123,11 @@ export class InsightController {
           jobId: job.id,
           status: 'queued',
           message: 'Insight generation job has been queued successfully',
-          userId
+          userId,
+          dateRange: validatedStartDate && validatedEndDate ? {
+            startDate: validatedStartDate.toISOString(),
+            endDate: validatedEndDate.toISOString()
+          } : undefined
         }
       } as TApiResponse<any>);
 

@@ -31,6 +31,8 @@ import { MediaController } from './controllers/media.controller';
 import { HRTParametersController } from './controllers/hrtParameters.controller';
 import { EmbeddingController } from './controllers/embedding.controller';
 import { InsightController } from './controllers/insight.controller';
+import { OntologyController } from './controllers/ontology.controller';
+import { ConfigController } from './controllers/config.controller';
 
 async function createApp(): Promise<express.Application> {
   const app: express.Application = express();
@@ -125,8 +127,16 @@ async function createApp(): Promise<express.Application> {
   const insightController = new InsightController();
   console.log('✅ InsightController initialized successfully');
 
+  console.log('🔧 Initializing OntologyController...');
+  const ontologyController = new OntologyController();
+  console.log('✅ OntologyController initialized successfully');
+
+  console.log('🔧 Initializing ConfigController...');
+  const configController = new ConfigController();
+  console.log('✅ ConfigController initialized successfully');
+
   // Level 5: Mount controllers onto the Express app
-  app.use('/api/v1', createV1Routes(authController, userController, cardController, conversationController, graphController, mediaController, hrtParametersController, embeddingController, insightController, cosmosQuestAgent));
+  app.use('/api/v1', createV1Routes(authController, userController, cardController, conversationController, graphController, mediaController, hrtParametersController, embeddingController, insightController, ontologyController, configController, cosmosQuestAgent));
 
   // Central Error Handler
   app.use(errorHandler);

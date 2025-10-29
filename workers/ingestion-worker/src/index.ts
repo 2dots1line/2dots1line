@@ -100,6 +100,10 @@ async function main() {
 
     console.log('[IngestionWorker] IngestionAnalyst instantiated');
 
+    // Initialize the analyst (including ConfigService)
+    await analyst.initialize();
+    console.log('[IngestionWorker] IngestionAnalyst initialized');
+
     // 5. Create and start the BullMQ worker
     const worker = new Worker<IngestionJobData>(
       'ingestion-queue',

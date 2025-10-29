@@ -708,10 +708,11 @@ ingestion_analyst_rules: |
   5. **Extract actionable knowledge** - prioritize information that helps future conversations
   6. **Maintain temporal context** - note when events occurred relative to the conversation
   7. **Preserve emotional nuance** - capture feelings, motivations, and growth indicators
-  8. **Generate meaningful IDs** - use descriptive temp_ids that indicate content (e.g., "mem_career_change_2024")
+  8. **Generate meaningful titles** - use descriptive titles that indicate content (e.g., "Career Change Decision 2024")
   9. **Score importance objectively** - use 1-10 scale where 10 = life-changing revelations, 1 = casual mentions
   10. **Create forward momentum** - your output directly influences the next conversation's quality
-  11. **⚠️ CRITICAL: Language Matching** - ALWAYS use the same language that {{user_name}} uses. If they switch between different languages, use the dominant language from the most recent conversations and messages. This is MANDATORY and non-negotiable. 
+  11. **⚠️ CRITICAL: Language Matching** - ALWAYS use the same language that {{user_name}} uses. If they switch between different languages, use the dominant language from the most recent conversations and messages. This is MANDATORY and non-negotiable.
+  12. **⚠️ CRITICAL: Distinguish Personal vs Factual Content** - Only extract concepts when {{user_name}} demonstrates personal engagement, interest, or connection. Do NOT extract concepts from factual answers unless {{user_name}} explicitly expresses personal relevance, goals, or emotional connection to the topic. 
   </critical_rules>
 
 # NEW: Template for the Ingestion Analyst's instructions
@@ -728,10 +729,25 @@ ingestion_analyst_instructions: |
     * 4-6: Moderate personal events, work progress, relationship developments
     * 7-8: Significant life events, major achievements, emotional breakthroughs, career milestones
     * 9-10: Life-changing events, major personal transformations, profound insights, critical decisions
-  - extracted_memory_units: Array of discrete memories/experiences mentioned (focus on emotionally significant or transformative moments). ALWAYS extract at least 1-2 memory units from any conversation with personal content. For each memory unit, you MUST provide:
+  - extracted_memory_units: Array of discrete memories/experiences mentioned. Extract memories that meet these quality criteria: (1) Emotional significance - moments of joy, growth, struggle, or transformation, (2) Life impact - events that influence decisions, relationships, or goals, (3) Learning moments - insights, realizations, or breakthroughs, (4) Personal milestones - achievements, transitions, or significant changes. Only extract memories that genuinely matter to {{user_name}}'s life journey. Quantity should match conversation depth: brief conversations may yield 0-2 memories, deep conversations 2-6 memories, comprehensive life discussions 5-15 memories. For each memory unit, you MUST provide:
     * importance_score (1-10): Rate how significant this memory is to {{user_name}}'s life/journey
     * sentiment_score (-1.0 to 1.0): Rate the emotional tone from negative to positive
-  - extracted_concepts: Array of topics, themes, interests, or entities discussed. **CRITICAL EXCLUSION**: Do NOT extract {{user_name}} (the user themselves) as a concept - they already exist as the central person in their knowledge graph. Extract OTHER people, topics, themes, and entities that are NOT the user themselves. ALWAYS extract at least 2-3 concepts from any conversation with meaningful content.
+  - extracted_concepts: Array of topics, themes, interests, or entities discussed. **CRITICAL EXCLUSION**: Do NOT extract {{user_name}} (the user themselves) as a concept - they already exist as the central person in their knowledge graph. Extract OTHER people, topics, themes, and entities that are NOT the user themselves. Extract concepts that meet these quality criteria: (1) Personal relevance - directly connected to {{user_name}}'s goals, values, or challenges, (2) Recurring themes - topics that appear multiple times or are central to conversation, (3) Growth potential - topics that could lead to future development or exploration, (4) Strategic value - concepts that enhance understanding of {{user_name}}'s world, (5) **Personal engagement** - {{user_name}} must demonstrate genuine interest, ask follow-up questions, or express personal connection to the topic. **CRITICAL**: Do NOT extract concepts from factual answers unless {{user_name}} shows personal engagement with the topic. Only extract concepts that are conversationally meaningful and valuable. Quantity should match conversation breadth: single-topic conversations may yield 1-3 concepts, multi-topic conversations 2-5 concepts, comprehensive discussions 4-10 concepts.
+
+    **CONCEPT EXTRACTION EXAMPLES:**
+    
+    **✅ EXTRACT CONCEPTS (Personal Engagement):**
+    - User: "I'm really interested in learning quantum computing for my career"
+    - User: "That quantum computing explanation was fascinating - I want to explore this more"
+    - User: "I've been thinking about quantum computing and how it might affect my job"
+    - User: "My friend works in quantum computing and I'm curious about it"
+    - User: "I'm considering a career change to quantum computing"
+    
+    **❌ DO NOT EXTRACT CONCEPTS (No Personal Engagement):**
+    - User: "What is quantum computing?" → Agent explains → User says "Thanks" or "Interesting"
+    - User: "Tell me about machine learning" → Agent explains → User says "Got it" or "Okay"
+    - User: "How does blockchain work?" → Agent explains → User asks unrelated question
+    - User: "Explain cryptocurrency" → Agent explains → User says "That's helpful" and moves on
   - detected_growth_events: Array of personal development moments with quantified impact. For each growth event, you MUST provide:
     * title: Short, descriptive title (3-7 words, max 100 chars) - e.g., "Career Transition Breakthrough", "Self-Awareness Insight"
     * type: One of the 6D growth dimensions (know_self, know_world, act_self, act_world, show_self, show_world)
@@ -747,11 +763,11 @@ ingestion_analyst_instructions: |
     - 1.0: Very strong connection (dominant theme, deeply explored)
     
     **RELATIONSHIP EXAMPLES:**
-    * MemoryUnit → Concept: "mem_career_change_2024" → "Career Transition"
-    * MemoryUnit → GrowthEvent: "mem_leadership_breakthrough" → "event_123e4567-e89b-12d3-a456-426614174000"
+    * MemoryUnit → Concept: "Career Change Decision" → "Career Transition"
+    * MemoryUnit → GrowthEvent: "Leadership Breakthrough" → "event_123e4567-e89b-12d3-a456-426614174000"
     * Concept → GrowthEvent: "Leadership" → "event_123e4567-e89b-12d3-a456-426614174000"
     * Concept → Concept: "Leadership" → "Team Management"
-    * MemoryUnit → MemoryUnit: "mem_project_success" → "mem_team_celebration"
+    * MemoryUnit → MemoryUnit: "Project Success" → "Team Celebration"
     
     **RELATIONSHIP TYPE SELECTION:**
     Choose the most appropriate relationship_type from these options:
@@ -801,7 +817,7 @@ ingestion_analyst_instructions: |
     
     **RULES:**
     1. Create relationships when entities are clearly connected, regardless of the entity type. Link MemoryUnits to Concepts, Concepts to GrowthEvents, and MemoryUnits to GrowthEvents, etc. would hugely facilitate effective retrieval of connected entities.
-    2. Use exact temp_ids (e.g., "mem_career_change_2024") and exact concept names
+    2. Use exact entity titles and exact concept names
     3. People are represented as Concepts with type="person"
     4. Growth events should be referenced by their actual event_id (e.g., "event_123e4567-e89b-12d3-a456-426614174000"), NOT by dimension keys like "act_self" or "know_world"
     5. Relationship descriptions should be simple and clear (e.g., "evidences this growth event" rather than complex rationales)
@@ -828,7 +844,6 @@ ingestion_analyst_instructions: |
           "title": "string", 
           "content": "string",
           "source_type": "conversation_extraction",
-          "created_at": "ISO8601_timestamp",
           "importance_score": number, // 1-10 scale: how significant is this memory to the user's life/journey
           "sentiment_score": number // -1.0 to 1.0: negative (-1.0) to positive (1.0) emotional tone
         }
@@ -883,11 +898,9 @@ ingestion_analyst_instructions: |
       "conversation_importance_score": 7,
       "extracted_memory_units": [
         {
-          "temp_id": "mem_quantum_book_insight",
           "title": "Reading quantum physics book",
           "content": "Read a fascinating book about quantum physics and consciousness that completely changed my perspective on reality and the mind-body problem.",
           "source_type": "conversation_extraction",
-          "created_at": "2025-08-18T20:00:00.000Z",
           "importance_score": 8,
           "sentiment_score": 0.8
         }
@@ -913,14 +926,14 @@ ingestion_analyst_instructions: |
       ],
       "new_relationships": [
         {
-          "source_entity_id_or_name": "mem_quantum_book_insight",
+          "source_entity_id_or_name": "Reading quantum physics book",
           "target_entity_id_or_name": "Quantum Physics",
           "relationship_type": "EXEMPLIFIES_TRAIT",
           "relationship_description": "Memory unit exemplifies the concept of quantum physics exploration",
           "strength": 0.8
         },
         {
-          "source_entity_id_or_name": "mem_quantum_book_insight", 
+          "source_entity_id_or_name": "Reading quantum physics book", 
           "target_entity_id_or_name": "Consciousness",
           "relationship_type": "IS_SIMILAR_TO",
           "relationship_description": "Memory unit demonstrates connection between quantum physics and consciousness studies",
@@ -934,7 +947,7 @@ ingestion_analyst_instructions: |
           "strength": 0.6
         },
         {
-          "source_entity_id_or_name": "mem_quantum_book_insight",
+          "source_entity_id_or_name": "Reading quantum physics book",
           "target_entity_id_or_name": "event_123e4567-e89b-12d3-a456-426614174000",
           "relationship_type": "CONTRIBUTES_TO",
           "relationship_description": "Memory unit evidences this growth event",
