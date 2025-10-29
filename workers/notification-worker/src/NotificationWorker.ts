@@ -300,22 +300,33 @@ export class NotificationWorker {
     }
 
     const { type, userId } = job.data;
-    console.log(`[NotificationWorker] Processing ${type} event for user ${userId}`);
+    console.log(`[NotificationWorker] 📥 Received job ${job.id}: Processing ${type} event for user ${userId}`);
+    console.log(`[NotificationWorker] 📋 Job data:`, JSON.stringify(job.data, null, 2));
 
     try {
       // Check if user has active connections
       const userConnections = this.connectedClients.get(userId);
+      const connectionCount = userConnections ? userConnections.size : 0;
+      console.log(`[NotificationWorker] 🔌 User ${userId} has ${connectionCount} active Socket.IO connection(s)`);
+      
       if (!userConnections || userConnections.size === 0) {
-        console.log(`[NotificationWorker] No active connections for user ${userId}, skipping notification`);
+        console.log(`[NotificationWorker] ⚠️ No active connections for user ${userId}, skipping notification`);
+        console.log(`[NotificationWorker] 💡 All connected users:`, Array.from(this.connectedClients.keys()));
         return;
       }
 
       // Handle immediate notifications (video/image/insight generation complete)
       if (type === 'video_generation_complete' || type === 'image_generation_complete' || type === 'video_generation_failed' || type === 'insight_generation_complete') {
-        console.log(`[NotificationWorker] Sending immediate ${type} notification to user ${userId}`);
+        console.log(`[NotificationWorker] 🚀 Sending immediate ${type} notification to user ${userId}`);
+        console.log(`[NotificationWorker] 📡 Socket.IO server available:`, !!this.io);
+        console.log(`[NotificationWorker] 📡 Emitting to room: user:${userId}`);
+        
         if (this.io) {
           this.io.to(`user:${userId}`).emit(type, job.data);
-          console.log(`[NotificationWorker] ✅ Sent ${type} notification to user ${userId}`);
+          console.log(`[NotificationWorker] ✅ Successfully emitted ${type} event to room user:${userId}`);
+          console.log(`[NotificationWorker] 📊 Payload sent:`, JSON.stringify(job.data, null, 2));
+        } else {
+          console.error(`[NotificationWorker] ❌ Socket.IO server not available! Cannot send notification.`);
         }
         return;
       }

@@ -111,6 +111,7 @@ export class HolisticAnalysisTool {
     
     try {
       // Force reinitialization of LLMChatTool to ensure it uses the latest model configuration
+      // Note: Don't pass fallback here - let it use primary model, fallback only used on retry
       LLMChatTool.forceReinitialize();
       
       // Build the comprehensive prompt

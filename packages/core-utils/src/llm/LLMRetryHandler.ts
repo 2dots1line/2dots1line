@@ -76,10 +76,13 @@ export class LLMRetryHandler {
           console.log(`[LLMRetryHandler] ${callType.toUpperCase()} LLM call - Attempting to switch to fallback model...`);
           
           try {
-            // Force reinitialization to try a different model
+            // Get fallback model from environment
+            const fallbackModel = process.env.LLM_FALLBACK_MODEL || 'gemini-2.5-flash-lite';
+            
+            // Force reinitialization with fallback model to switch to a different model
             if ((llmTool as any).forceReinitialize) {
-              (llmTool as any).forceReinitialize();
-              console.log(`[LLMRetryHandler] ${callType.toUpperCase()} LLM call - Switched to fallback model`);
+              (llmTool as any).forceReinitialize(fallbackModel);
+              console.log(`[LLMRetryHandler] ${callType.toUpperCase()} LLM call - Switched to fallback model: ${fallbackModel}`);
             }
             
             // Add exponential backoff delay before retrying
@@ -104,10 +107,13 @@ export class LLMRetryHandler {
           console.log(`[LLMRetryHandler] ${callType.toUpperCase()} LLM call - Retryable error, attempting retry...`);
           
           try {
-            // Force reinitialization to try a different model
+            // Get fallback model from environment
+            const fallbackModel = process.env.LLM_FALLBACK_MODEL || 'gemini-2.5-flash-lite';
+            
+            // Force reinitialization with fallback model to switch to a different model
             if ((llmTool as any).forceReinitialize) {
-              (llmTool as any).forceReinitialize();
-              console.log(`[LLMRetryHandler] ${callType.toUpperCase()} LLM call - Switched to fallback model after unexpected error`);
+              (llmTool as any).forceReinitialize(fallbackModel);
+              console.log(`[LLMRetryHandler] ${callType.toUpperCase()} LLM call - Switched to fallback model after unexpected error: ${fallbackModel}`);
             }
             
             // Add exponential backoff delay before retrying

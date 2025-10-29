@@ -169,7 +169,7 @@ export class InsightWorkflowOrchestrator {
       
       // Send completion notification
       try {
-        await this.notificationQueue.add('insight_generation_complete', {
+        const notificationPayload = {
           type: 'insight_generation_complete',
           userId,
           cycleId,
@@ -181,10 +181,16 @@ export class InsightWorkflowOrchestrator {
           totalEntitiesCreated: artifactsCreated + promptsCreated + growthEventsCreated + memoryProfileCreated + openingCreated,
           processingDurationMs: processingDuration,
           message: `Insight generation completed! Created ${artifactsCreated + promptsCreated + growthEventsCreated + memoryProfileCreated + openingCreated} new insights and artifacts.`
-        });
-        console.log(`[InsightWorkflowOrchestrator] Sent completion notification for user ${userId}`);
+        };
+        
+        console.log(`[InsightWorkflowOrchestrator] 📤 Attempting to send completion notification for user ${userId}, cycle ${cycleId}`);
+        console.log(`[InsightWorkflowOrchestrator] Notification payload:`, JSON.stringify(notificationPayload, null, 2));
+        
+        const job = await this.notificationQueue.add('insight_generation_complete', notificationPayload);
+        console.log(`[InsightWorkflowOrchestrator] ✅ Successfully added notification job ${job.id} to queue for user ${userId}`);
       } catch (notifyError) {
-        console.error(`[InsightWorkflowOrchestrator] Failed to send completion notification for user ${userId}:`, notifyError);
+        console.error(`[InsightWorkflowOrchestrator] ❌ Failed to send completion notification for user ${userId}:`, notifyError);
+        console.error(`[InsightWorkflowOrchestrator] Error stack:`, notifyError instanceof Error ? notifyError.stack : 'No stack trace');
         // Don't fail the job if notification fails
       }
       

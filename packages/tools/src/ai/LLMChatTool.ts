@@ -188,13 +188,31 @@ class LLMChatToolImpl implements IExecutableTool<LLMChatInputPayload, LLMChatRes
 
   /**
    * Force reinitialization (useful when model configuration changes)
+   * @param fallbackModel - Optional fallback model to use. If not provided, will use LLM_FALLBACK_MODEL from env or config service
    */
-  public forceReinitialize(): void {
-    console.log(`🔄 LLMChatTool: Forcing reinitialization`);
+  public forceReinitialize(fallbackModel?: string): void {
+    // Determine fallback model to use
+    let modelToUse = fallbackModel;
+    
+    if (!modelToUse) {
+      // Try to get fallback from environment variable first
+      const envFallback = process.env.LLM_FALLBACK_MODEL || process.env.LLM_CHAT_FALLBACK_MODEL;
+      if (envFallback) {
+        modelToUse = envFallback;
+        console.log(`🔧 LLMChatTool: Using fallback model from environment: ${modelToUse}`);
+      }
+      // If no env var, default to gemini-2.5-flash-lite (as configured by user)
+      if (!modelToUse) {
+        modelToUse = 'gemini-2.5-flash-lite';
+        console.log(`🔧 LLMChatTool: Using default fallback model: ${modelToUse}`);
+      }
+    }
+    
+    console.log(`🔄 LLMChatTool: Forcing reinitialization${modelToUse ? ` with fallback model: ${modelToUse}` : ' (no fallback model, using primary)'}`);
     this.initialized = false;
     this.model = null;
     this.currentModelName = null;
-    this.initialize();
+    this.initialize(modelToUse); // Pass fallback model to initialize
   }
 
   /**
@@ -833,8 +851,13 @@ ${input.payload.systemPrompt}`;
           console.log(`🔄 LLMChatTool - Retryable error detected, attempting to switch to fallback model...`);
           
           try {
-            // Force reinitialization to try a different model
-            this.forceReinitialize();
+            // Get fallback model from environment (priority) or use default
+            const fallbackModel = process.env.LLM_FALLBACK_MODEL || 
+                                 process.env.LLM_CHAT_FALLBACK_MODEL ||
+                                 'gemini-2.5-flash-lite'; // Default fallback if nothing configured
+            
+            // Force reinitialization with fallback model to switch to a different model
+            this.forceReinitialize(fallbackModel);
             console.log(`🔄 LLMChatTool - Switched to fallback model: ${this.currentModelName}`);
             
             // Add exponential backoff delay before retrying
