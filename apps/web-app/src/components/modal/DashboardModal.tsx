@@ -479,9 +479,13 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 17) return 'Good afternoon';
-    return 'Good evening';
+    const key =
+      hour < 12
+        ? 'dashboard.greeting.morning'
+        : hour < 17
+        ? 'dashboard.greeting.afternoon'
+        : 'dashboard.greeting.evening';
+    return t(key as any);
   };
 
   const formatTimeAgo = (timestamp: string) => {
@@ -624,7 +628,7 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
       return (
         <div className="fixed inset-0 z-40 pointer-events-auto">
           <div className="flex items-center justify-center h-full">
-            <div className="text-white/60">Loading growth data...</div>
+            <div className="text-white/60">{t('dashboard.loading.growthData')}</div>
           </div>
         </div>
       );
@@ -698,12 +702,12 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                         {isSpeaking ? (
                           <>
                             <Pause size={14} className="stroke-current" strokeWidth={1.5} />
-                            <span className="text-sm">Pause</span>
+                            <span className="text-sm">{t('dashboard.actions.pause')}</span>
                           </>
                         ) : (
                           <>
                             <Play size={14} className="stroke-current" strokeWidth={1.5} />
-                            <span className="text-sm">Listen</span>
+                            <span className="text-sm">{t('dashboard.actions.listen')}</span>
                           </>
                         )}
                       </GlassButton>
@@ -862,7 +866,7 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
           <div>
             <h1 className="text-2xl font-bold text-white font-brand">{tabNames[activeTab]}</h1>
             <p className="text-white/70 text-sm">
-              {proactiveGreeting || `${getGreeting()}, ${userData?.name || 'there'}! Here's your growth journey.`}
+              {proactiveGreeting || `${getGreeting()}, ${userData?.name || t('common.user' as any)}! ${t('dashboard.greeting.subtitle' as any)}`}
             </p>
           </div>
           <GlassButton
@@ -1077,7 +1081,7 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                       <div className="flex items-center justify-between mb-6">
                         <div className="flex items-center gap-3">
                           <BookOpen size={24} className="text-white/80 stroke-current" strokeWidth={1.5} />
-                          <h3 className="text-2xl font-semibold text-white/90">Editor&apos;s Note</h3>
+                          <h3 className="text-2xl font-semibold text-white/90">{t('dashboard.sections.editorsNote')}</h3>
                         </div>
                         {isSupported && (
                           <GlassButton
@@ -1100,12 +1104,12 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                             {isSpeaking ? (
                               <>
                                 <Pause size={16} className="stroke-current" strokeWidth={1.5} />
-                                <span>Pause</span>
+                                <span>{t('dashboard.actions.pause')}</span>
                               </>
                             ) : (
                               <>
                                 <Play size={16} className="stroke-current" strokeWidth={1.5} />
-                                <span>Listen</span>
+                                <span>{t('dashboard.actions.listen')}</span>
                               </>
                             )}
                           </GlassButton>
@@ -1135,27 +1139,13 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                             return (
                               <>
                                 <h1 className="text-4xl font-bold text-white mb-6 leading-tight">
-                                  Your Journey Through the Cosmos
+                                  {t('dashboard.fallback.title')}
                                 </h1>
                                 <div className="text-lg text-white/90 leading-relaxed">
-                                  <p>
-                                    Welcome to your personal cosmic journey. This month, we&apos;ve witnessed remarkable growth 
-                                    across all dimensions of your being. Your conversations have revealed patterns of 
-                                    self-discovery that speak to a deeper understanding of your place in the universe.
-                                  </p>
-                                  <p>
-                                    The insights we&apos;ve gathered show a person who is not just growing, but evolving. 
-                                    Each interaction, each moment of reflection, each new connection you make adds 
-                                    another layer to the rich tapestry of your experience.
-                                  </p>
-                                  <p>
-                                    As you explore the cards and insights that follow, remember that this is your story. 
-                                    These are your discoveries, your breakthroughs, your moments of clarity. They represent 
-                                    not just where you&apos;ve been, but where you&apos;re heading.
-                                  </p>
-                                  <p className="text-white/70 italic">
-                                    &ldquo;The cosmos is within us. We are made of star-stuff. We are a way for the universe to know itself.&rdquo;
-                                  </p>
+                                  <p>{t('dashboard.fallback.paragraph1')}</p>
+                                  <p>{t('dashboard.fallback.paragraph2')}</p>
+                                  <p>{t('dashboard.fallback.paragraph3')}</p>
+                                  <p className="text-white/70 italic">“{t('dashboard.fallback.quote')}”</p>
                                 </div>
                               </>
                             );
@@ -1175,7 +1165,7 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                     >
                       <div className="flex items-center gap-3 mb-4">
                         <Eye size={20} className="text-white/80 stroke-current" strokeWidth={1.5} />
-                        <h4 className="text-white/90 font-medium">Recent Cards</h4>
+                        <h4 className="text-white/90 font-medium">{t('dashboard.sections.recentCards')}</h4>
                       </div>
                 <div className="space-y-6 h-full overflow-y-auto custom-scrollbar">
                   {renderRecentCards()}

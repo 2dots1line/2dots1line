@@ -5,6 +5,7 @@
     "currentLanguage": "当前语言",
     "description": "描述",
     "changeLanguageInSettings": "在设置面板中更改语言",
+    "user": "用户",
     "auth": {
       "login": "登录",
       "signup": "注册",
@@ -56,12 +57,55 @@
     }
   },
   "dashboard": {
+    "title": "仪表板",
+    "loading": {
+      "cards": "正在加载卡片...",
+      "insights": "正在加载洞察...",
+      "journey": "正在加载你的宇宙之旅...",
+      "growthData": "正在加载成长数据...",
+      "general": "加载中..."
+    },
+    "errors": {
+      "failedToLoad": "加载卡片失败",
+      "loadError": "加载失败"
+    },
+    "greeting": {
+      "morning": "早上好",
+      "afternoon": "下午好",
+      "evening": "晚上好",
+      "subtitle": "这是你的成长旅程。"
+    },
+    "tabs": {
+      "overview": "概览",
+      "insights": "洞察",
+      "growth": "成长",
+      "activity": "活动"
+    },
+    "sections": {
+      "recentActivity": "最近活动",
+      "dynamicInsights": "动态洞察",
+      "editorsNote": "编辑笔记",
+      "noInsightsAvailable": "暂无动态洞察",
+      "noInsightsDescription": "继续你的旅程以解锁个性化洞察和成长模式。",
+      "recentCards": "最近卡片"
+    },
+    "metrics": {
+      "memoryUnits": "记忆单元",
+      "concepts": "概念",
+      "growthEvents": "成长事件",
+      "cards": "卡片"
+    },
+    "actions": {
+      "pause": "暂停",
+      "listen": "收听",
+      "startConversation": "开始对话"
+    },
     "fallback": {
       "title": "你的宇宙之旅",
-      "paragraph1": "欢迎来到你的个人宇宙之旅。这个月，我们见证了你在各个维度的显著成长。你的对话揭示了自我发现的模式，反映出你对自己在宇宙中位置的更深理解。",
-      "paragraph2": "我们收集的洞察显示，你不仅在成长，而且在进化。每一次互动，每一刻反思，每一个新建立的联系，都为你丰富的经历增添了新的层次。",
-      "paragraph3": "当你探索接下来的卡片和洞察时，请记住这是你的故事。这些是你的发现，你的突破，你的清晰时刻。它们不仅代表你曾经去过的地方，也代表你正在前往的方向。",
-      "quote": "宇宙在我们之中。我们由星尘组成。我们是宇宙认识自己的一种方式。"
+      "paragraph1": "欢迎来到你的个人宇宙旅程。这个月，我们见证了你在各个维度上的显著成长。你的对话呈现出自我探索的模式，体现了你对自身在宇宙中位置的更深理解。",
+      "paragraph2": "我们所收集的洞察显示，你不仅在成长，更在进化。每一次交流、每一次反思、每一次新的连接，都会为你的经历织得更丰富的篇章。",
+      "paragraph3": "当你继续探索下面的卡片与洞察时，请记住这是你的故事。那些是你的发现、你的突破、你的清晰时刻。它们不仅代表你曾经的旅程，也指向你将要到达的方向。",
+      "quote": "宇宙在我们之中。我们由星尘构成。我们是宇宙认识自身的方式。"
     },
     "empty": {
       "noCards": "暂无最近的卡片",
@@ -167,6 +211,12 @@
       "failedToLoad": "加载卡片失败",
       "loadError": "加载失败"
     },
+    "greeting": {
+      "morning": "早上好",
+      "afternoon": "下午好",
+      "evening": "晚上好",
+      "subtitle": "这是你的成长旅程。"
+    },
     "tabs": {
       "overview": "概览",
       "insights": "洞察",
@@ -178,7 +228,8 @@
       "dynamicInsights": "动态洞察",
       "editorsNote": "编辑笔记",
       "noInsightsAvailable": "暂无动态洞察",
-      "noInsightsDescription": "继续你的旅程以解锁个性化洞察和成长模式。"
+      "noInsightsDescription": "继续你的旅程以解锁个性化洞察和成长模式。",
+      "recentCards": "最近卡片"
     },
     "metrics": {
       "memoryUnits": "记忆单元",
@@ -190,6 +241,17 @@
       "pause": "暂停",
       "listen": "收听",
       "startConversation": "开始对话"
+    },
+    "fallback": {
+      "title": "你的宇宙之旅",
+      "paragraph1": "欢迎来到你的个人宇宙旅程。这个月，我们见证了你在各个维度上的显著成长。你的对话呈现出自我探索的模式，体现了你对自身在宇宙中位置的更深理解。",
+      "paragraph2": "我们所收集的洞察显示，你不仅在成长，更在进化。每一次交流、每一次反思、每一次新的连接，都会为你的经历织得更丰富的篇章。",
+      "paragraph3": "当你继续探索下面的卡片与洞察时，请记住这是你的故事。那些是你的发现、你的突破、你的清晰时刻。它们不仅代表你曾经的旅程，也指向你将要到达的方向。",
+      "quote": "宇宙在我们之中。我们由星尘构成。我们是宇宙认识自身的方式。"
+    },
+    "empty": {
+      "noCards": "暂无最近的卡片",
+      "noInsights": "暂无洞察"
     }
   },
   "errors": {
@@ -197,5 +259,15 @@
     "notFound": "未找到",
     "internalError": "内部服务器错误",
     "badRequest": "错误的请求"
+  },
+  "dev": {
+    "preview": {
+      "desktop": "桌面预览",
+      "mobile": "移动预览"
+    },
+    "hud": {
+      "show": "显示 HUD",
+      "hide": "隐藏 HUD"
+    }
   }
 }
