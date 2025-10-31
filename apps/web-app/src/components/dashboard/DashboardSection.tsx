@@ -44,7 +44,7 @@ export const DashboardSection: React.FC<DashboardSectionProps> = ({
     return icons[sectionType] || '📄';
   };
 
-  const getPriorityColor = (priority?: number) => {
+  const _getPriorityColor = (priority?: number) => {
     if (!priority) return 'text-gray-500';
     if (priority >= 8) return 'text-red-500';
     if (priority >= 6) return 'text-orange-500';
@@ -52,7 +52,7 @@ export const DashboardSection: React.FC<DashboardSectionProps> = ({
     return 'text-green-500';
   };
 
-  const getConfidenceColor = (confidence?: number) => {
+  const _getConfidenceColor = (confidence?: number) => {
     if (!confidence) return 'text-gray-400';
     if (confidence >= 0.8) return 'text-green-500';
     if (confidence >= 0.6) return 'text-yellow-500';

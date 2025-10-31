@@ -3,6 +3,7 @@ import { useBackgroundVideoStore, ViewType } from '../../stores/BackgroundVideoS
 import { useHUDStore } from '../../stores/HUDStore';
 import { GlassButton } from '@2dots1line/ui-components';
 import { RefreshCw } from 'lucide-react';
+import type { VideoFile } from '../../stores/BackgroundVideoStore';
 
 interface BackgroundVideoSelectorProps {
   view: ViewType;
@@ -27,13 +28,12 @@ export const BackgroundVideoSelector: React.FC<BackgroundVideoSelectorProps> = (
   
   const currentMedia = mediaPreferences[view];
   const isLocal = currentMedia?.source === 'local';
-  
-  // Get display name for current selection
+
   const getCurrentDisplayName = () => {
     if (isLocal) {
       if (currentMedia?.title) return currentMedia.title;
       if (currentMedia?.id) {
-        const video = localVideos.find(v => v.id === currentMedia.id);
+        const video = localVideos.find((v: VideoFile) => v.id === currentMedia.id);
         return video ? video.label : 'Local Video';
       }
     }
@@ -69,7 +69,7 @@ export const BackgroundVideoSelector: React.FC<BackgroundVideoSelectorProps> = (
         value={isLocal ? (currentMedia?.id || '') : ''}
         onChange={(e) => {
           if (e.target.value) {
-            const selected = localVideos.find(v => v.id === e.target.value);
+            const selected = localVideos.find((v: VideoFile) => v.id === e.target.value);
             setMediaForView(view, {
               source: 'local',
               type: 'video',
@@ -87,15 +87,19 @@ export const BackgroundVideoSelector: React.FC<BackgroundVideoSelectorProps> = (
         
         {/* Group by directory */}
         {localVideos.length > 0 && (() => {
-          const groups = localVideos.reduce((acc, video) => {
-            if (!acc[video.directory]) acc[video.directory] = [];
-            acc[video.directory].push(video);
-            return acc;
-          }, {} as Record<string, typeof localVideos>);
-          
-          return Object.entries(groups).map(([dir, videos]) => (
+          const groups = localVideos.reduce(
+            (acc: Record<string, VideoFile[]>, video: VideoFile) => {
+              if (!acc[video.directory]) acc[video.directory] = [];
+              acc[video.directory].push(video);
+              return acc;
+            },
+            {} as Record<string, VideoFile[]>
+          );
+
+          const groupEntries = Object.entries(groups) as Array<[string, VideoFile[]]>;
+          return groupEntries.map(([dir, videos]) => (
             <optgroup key={dir} label={dir === 'root' ? 'Default Videos' : dir} className="bg-gray-800">
-              {videos.map((video) => (
+              {videos.map((video: VideoFile) => (
                 <option key={video.id} value={video.id} className="bg-gray-900 text-white">
                   {video.label}
                 </option>

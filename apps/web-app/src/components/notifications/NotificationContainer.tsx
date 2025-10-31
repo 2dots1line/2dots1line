@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { useNotificationStore } from '../../stores/NotificationStore';
 import { NotificationToast } from './NotificationToast';
 import { useNotificationPreferencesStore } from '../../stores/NotificationPreferencesStore';
+import type { Notification } from '../../stores/NotificationStore';
 
 interface NotificationContainerProps {
   position?: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
@@ -15,8 +16,11 @@ export const NotificationContainer: React.FC<NotificationContainerProps> = ({
   position = 'top-right',
   maxNotifications = 5,
 }) => {
-  const { notifications, removeNotification, markAsRead } = useNotificationStore();
-  const preferences = useNotificationPreferencesStore((s) => s.preferences);
+  type NotificationStoreState = ReturnType<typeof useNotificationStore.getState>;
+  const { notifications, removeNotification, markAsRead } = useNotificationStore() as NotificationStoreState;
+
+  type PreferencesState = ReturnType<typeof useNotificationPreferencesStore.getState>;
+  const preferences = useNotificationPreferencesStore((s: PreferencesState) => s.preferences);
 
   const enabled = preferences.enabled;
   const isDndActive = preferences.snoozeUntil !== null && Date.now() < preferences.snoozeUntil;
@@ -28,9 +32,9 @@ export const NotificationContainer: React.FC<NotificationContainerProps> = ({
   const effectivePosition = preferences.position || position;
   const effectiveMax = preferences.maxToasts ?? maxNotifications;
   const visibleNotifications = notifications
-    .filter((n) => !n.isRead)
-    .filter((n) => preferences.allowTypes[n.type as keyof typeof preferences.allowTypes] !== false)
-    .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+    .filter((n: Notification) => !n.isRead)
+    .filter((n: Notification) => preferences.allowTypes[n.type as keyof typeof preferences.allowTypes] !== false)
+    .sort((a: Notification, b: Notification) => b.timestamp.getTime() - a.timestamp.getTime())
     .slice(0, effectiveMax);
 
   if (visibleNotifications.length === 0) {
@@ -54,7 +58,7 @@ export const NotificationContainer: React.FC<NotificationContainerProps> = ({
       style={{ zIndex: 950 }}
     >
       <div className="flex flex-col space-y-2 pointer-events-auto">
-        {visibleNotifications.map((notification) => (
+        {visibleNotifications.map((notification: Notification) => (
           <NotificationToast
             key={notification.id}
             notification={notification}

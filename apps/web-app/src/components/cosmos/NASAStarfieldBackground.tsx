@@ -34,8 +34,8 @@ export const NASAStarfieldBackground: React.FC<NASAStarfieldBackgroundProps> = (
 }) => {
   const meshRef = useRef<THREE.Mesh>(null);
   const [texture, setTexture] = useState<THREE.Texture | null>(null);
-  const [isLoadingTexture, setIsLoadingTexture] = useState(false);
-  const [loadProgress, setLoadProgress] = useState(0);
+  const [_isLoadingTexture, setIsLoadingTexture] = useState(false);
+  const [_loadProgress, setLoadProgress] = useState(0);
 
   const loadTexture = useCallback(async () => {
     const texturePath = `/NASA/starmap_2020_${resolution}.exr`;

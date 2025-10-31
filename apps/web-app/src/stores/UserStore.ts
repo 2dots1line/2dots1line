@@ -35,6 +35,7 @@ export interface UserState {
   initializeAuth: () => void;
   setHasHydrated: (hydrated: boolean) => void;
   updateUserPreferences: (preferences: Record<string, unknown>) => void;
+  setLanguagePreference: (language: string) => Promise<void>;
 }
 
 // API base URL - updated to use the correct port where API Gateway is running
@@ -423,7 +424,8 @@ export const useUserStore = create<UserState>()(
         if (typeof window !== 'undefined') {
           const token = localStorage.getItem('auth_token');
           
-          // Development mode auto-auth
+          // Development mode auto-auth - TEMPORARILY DISABLED to show login page
+          /* 
           if (process.env.NODE_ENV === 'development' && !token && !state.isAuthenticated) {
             const persistedState = localStorage.getItem('user-storage');
             
@@ -460,6 +462,7 @@ export const useUserStore = create<UserState>()(
             }
             return;
           }
+          */
           
           // If we have a token, verify it with the backend
           if (token) {
@@ -501,6 +504,45 @@ export const useUserStore = create<UserState>()(
                 error: 'Session expired. Please log in again.',
               });
             }
+            
+            /* COMMENTED OUT - Original auth verification code
+            try {
+              axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+              const response = await axios.get(`${API_BASE_URL}/api/v1/auth/verify`, {
+                timeout: 5000 // 5 second timeout to prevent hanging
+              });
+              
+              if (response.data.success) {
+                const { user, token: newToken, refreshed } = response.data.data;
+                
+                // Update state with verified user
+                set({
+                  user,
+                  isAuthenticated: true,
+                  error: null,
+                });
+                
+                // If token was refreshed, store the new one
+                if (refreshed && newToken) {
+                  localStorage.setItem('auth_token', newToken);
+                  axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+                  console.log('UserStore.initializeAuth - Token refreshed automatically');
+                }
+                
+                console.log('UserStore.initializeAuth - Token verified successfully');
+              }
+            } catch (error) {
+              // Token is invalid or expired - clear authentication state
+              console.log('UserStore.initializeAuth - Token verification failed, logging out', error);
+              localStorage.removeItem('auth_token');
+              delete axios.defaults.headers.common['Authorization'];
+              set({
+                user: null,
+                isAuthenticated: false,
+                error: 'Session expired. Please log in again.',
+              });
+            }
+            */
           } else if (state.isAuthenticated) {
             // No token but state says authenticated - clear inconsistent state
             console.log('UserStore.initializeAuth - Clearing inconsistent state');
@@ -540,6 +582,39 @@ export const useUserStore = create<UserState>()(
             },
           };
           set({ user: updatedUser });
+        }
+      },
+
+      setLanguagePreference: async (language: string) => {
+        const { user } = get();
+        if (!user) {
+          throw new Error('User not authenticated');
+        }
+
+        try {
+          // Update language preference via API
+          const response = await axios.put(`${API_BASE_URL}/api/v1/users/${user.user_id}`, {
+            language_preference: language,
+          });
+
+          if (response.data.success) {
+            // Update local state with new language preference
+            const updatedUser = {
+              ...user,
+              language_preference: language,
+            };
+            set({ user: updatedUser });
+            console.log('UserStore.setLanguagePreference - Language preference updated:', language);
+          } else {
+            throw new Error(response.data.error?.message || 'Failed to update language preference');
+          }
+        } catch (error: unknown) {
+          const errorMessage = isAxiosError(error) 
+            ? (error.response?.data?.error?.message || error.response?.data?.error || 'Failed to update language preference')
+            : 'Failed to update language preference';
+          
+          console.error('UserStore.setLanguagePreference - Error:', errorMessage);
+          throw new Error(errorMessage);
         }
       },
     }),
@@ -605,4 +680,4 @@ if (typeof window !== 'undefined') {
       return Promise.reject(error);
     }
   );
-} 
+}

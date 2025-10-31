@@ -16,7 +16,6 @@ export const LookupCameraController: React.FC<LookupCameraControllerProps> = ({
   const controlsRef = useRef<any>();
   const [isInitialized, setIsInitialized] = React.useState(false);
   const [keys, setKeys] = useState({ w: false, a: false, s: false, d: false, shift: false, space: false });
-  const initialTargetDistance = useRef<number>(initialDistance);
   
   // Camera animation ref for smooth transitions
   const cameraAnimationRef = useRef<{
@@ -54,7 +53,7 @@ export const LookupCameraController: React.FC<LookupCameraControllerProps> = ({
       
       console.log('🎥 LookupCameraController: Initialized with target:', initialTarget, 'distance:', initialDistance);
     }
-  }, [controlsRef.current, initialTarget, initialDistance, isInitialized, camera]);
+  }, [initialTarget, initialDistance, isInitialized, camera]);
 
   // Handle camera focus requests - works in both modes
   useEffect(() => {

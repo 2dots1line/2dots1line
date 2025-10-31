@@ -5,44 +5,43 @@ import { useDeviceStore } from '../../stores/DeviceStore';
 import { useHUDStore } from '../../stores/HUDStore';
 import Layout from '../layouts/Layout';
 import { MobilePreviewToggle } from '../dev/MobilePreviewToggle';
-import { MobileHUDContainer } from '../hud/MobileHUDContainer';
 import { MobileChatView } from '../chat/MobileChatView';
 import { ContextualSettings } from '../settings/ContextualSettings';
 import { MobileNavigationContainer } from '../mobile/MobileNavigationContainer';
 
 export const LayoutRouter: React.FC = () => {
-  const { deviceInfo } = useDeviceStore();
-  const { 
-    activeView,
-    showSettings,
-    mobileCardsChatOpen,
-    mobileCosmosChatOpen,
-    mobileCardsChatExpanded,
-    mobileCosmosChatExpanded,
-    setMobileCardsChatOpen,
-    setMobileCosmosChatOpen,
-    setMobileCardsChatExpanded,
-    setMobileCosmosChatExpanded,
-    toggleSettings
-  } = useHUDStore();
   const [isClient, setIsClient] = React.useState(false);
   const [isHydrated, setIsHydrated] = React.useState(false);
   const [hasError, setHasError] = React.useState(false);
   
-  // Handle hydration
+  // ALL HOOKS MUST BE CALLED FIRST - before any conditional returns
+  const { deviceInfo } = useDeviceStore();
+  const { 
+    activeView,
+    showSettings,
+    toggleSettings
+  } = useHUDStore();
+  
+  // Handle hydration - simplified to prevent SSR mismatch
   React.useEffect(() => {
     try {
       setIsClient(true);
-      // Small delay to ensure device detection has run
-      const timer = setTimeout(() => {
-        setIsHydrated(true);
-      }, 100);
-      return () => clearTimeout(timer);
+      setIsHydrated(true);
     } catch (error) {
       console.error('LayoutRouter hydration error:', error);
       setHasError(true);
     }
   }, []);
+
+  // Early return for SSR
+  if (!isClient) {
+    return <div>Loading...</div>;
+  }
+
+  // Error boundary fallback
+  if (hasError) {
+    return <div>Something went wrong. Please refresh the page.</div>;
+  }
   
   // Show error state if something went wrong
   if (hasError) {

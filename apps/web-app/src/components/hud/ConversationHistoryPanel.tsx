@@ -1,20 +1,14 @@
 'use client';
 
-import { GlassmorphicPanel, GlassButton, DragHandle, MinimizeToggle } from '@2dots1line/ui-components';
-import { 
-  MessageSquare, 
-  Clock, 
-  Trash2, 
-  Plus,
-  ChevronLeft,
-  Search,
-  History
-} from 'lucide-react';
+import { GlassmorphicPanel, GlassButton, DragHandle } from '@2dots1line/ui-components';
+import { MessageSquare, Clock, Plus, ChevronLeft, Search, History } from 'lucide-react';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from '@2dots1line/core-utils/i18n/useTranslation';
 
 import { chatService, type SessionSummary } from '../../services/chatService';
 import { useChatStore } from '../../stores/ChatStore';
 import { useHUDStore } from '../../stores/HUDStore';
+import { useUserStore } from '../../stores/UserStore';
 
 const DEFAULT_POSITION = { x: 20, y: 120 }; // 20px from left, 120px from top
 
@@ -29,24 +23,40 @@ export const ConversationHistoryPanel: React.FC = () => {
   
   const panelRef = useRef<HTMLDivElement>(null);
   
+  const { user } = useUserStore();
+  const { t } = useTranslation(user?.language_preference);
+  
   const {
     sessionHistory,
     setSessionHistory,
-    loadSession,
     startNewChat,
     setCurrentSession,
     setCurrentConversation,
     setMessages
   } = useChatStore();
 
-  const { setActiveView } = useHUDStore();
+  const { setActiveView: _setActiveView } = useHUDStore();
+
+  const loadSessionHistory = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const sessions = await chatService.getSessions(50);
+      setSessionHistory(sessions);
+    } catch (err) {
+      console.error('Failed to load session history:', err);
+      setError('Failed to load session history');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [setSessionHistory]);
 
   // Load session history when panel expands
   useEffect(() => {
     if (isExpanded && sessionHistory.length === 0) {
       loadSessionHistory();
     }
-  }, [isExpanded, sessionHistory.length]);
+  }, [isExpanded, sessionHistory.length, loadSessionHistory]);
 
   // Handle mouse down for dragging
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -97,25 +107,10 @@ export const ConversationHistoryPanel: React.FC = () => {
     };
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
-  const loadSessionHistory = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const sessions = await chatService.getSessions(50);
-      setSessionHistory(sessions);
-    } catch (err) {
-      console.error('Failed to load session history:', err);
-      setError('Failed to load session history');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [setSessionHistory]);
-
   const handleNewChat = useCallback(async () => {
     try {
-      startNewChat(); // This clears the current conversation and prepares for a new one
-      setIsExpanded(false); // Close panel after starting new chat
+      startNewChat();
+      setIsExpanded(false);
     } catch (err) {
       console.error('Failed to start new chat:', err);
       setError('Failed to start new chat');
@@ -162,9 +157,8 @@ export const ConversationHistoryPanel: React.FC = () => {
     }
   }, [setCurrentSession, setCurrentConversation, setMessages]);
 
-  const handleDeleteSession = useCallback(async (sessionId: string, e: React.MouseEvent) => {
+  const _handleDeleteSession = useCallback(async (sessionId: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent triggering session selection
-    
     // TODO: Implement delete session functionality when API is available
     console.log('Delete session functionality not yet implemented');
     
@@ -180,7 +174,7 @@ export const ConversationHistoryPanel: React.FC = () => {
     //   console.error('Failed to delete session:', err);
     //   setError('Failed to delete session');
     // }
-  }, [setSessionHistory]);
+  }, []);
 
   const formatTimestamp = (timestamp: Date | string) => {
     const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
@@ -197,9 +191,9 @@ export const ConversationHistoryPanel: React.FC = () => {
   };
 
   // Filter sessions based on search query
-  const filteredSessions = sessionHistory.filter(session =>
+  const filteredSessions = sessionHistory.filter((session: SessionSummary) =>
     session.most_recent_conversation_title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (session.conversations && session.conversations.some(conv => 
+    (session.conversations && session.conversations.some((conv: SessionSummary['conversations'][number]) =>
       conv.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())
     ))
   );
@@ -237,7 +231,7 @@ export const ConversationHistoryPanel: React.FC = () => {
             className="mb-3 cursor-move"
           >
             <div className="flex items-center justify-center py-2">
-              <span className="text-xs text-white/70 font-medium">Session History</span>
+              <span className="text-xs text-white/70 font-medium">{t('hud.sessionHistory' as any)}</span>
             </div>
           </DragHandle>
 
@@ -247,7 +241,7 @@ export const ConversationHistoryPanel: React.FC = () => {
               <Search size={14} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/50" />
               <input
                 type="text"
-                placeholder="Search sessions..."
+                placeholder={t('hud.searchSessions' as any)}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="
@@ -285,11 +279,11 @@ export const ConversationHistoryPanel: React.FC = () => {
               <div className="text-center py-8">
                 <MessageSquare size={24} className="mx-auto mb-2 text-white/50" />
                 <p className="text-white/50 text-sm">
-                  {searchQuery ? 'No sessions found' : 'No sessions yet'}
+                  {searchQuery ? t('common.status.error') : t('hud.noSessions' as any)}
                 </p>
               </div>
             ) : (
-              filteredSessions.map((session) => (
+              filteredSessions.map((session: SessionSummary) => (
                 <GlassButton
                   key={session.session_id}
                   onClick={() => handleSessionSelect(session.session_id)}
@@ -303,7 +297,7 @@ export const ConversationHistoryPanel: React.FC = () => {
                     {/* <GlassButton
                       onClick={(e) => handleDeleteSession(session.session_id, e)}
                       className="p-1 hover:bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Delete session"
+                      title={t('hud.deleteSession' as any)}
                     >
                       <Trash2 size={12} className="text-red-300" />
                     </GlassButton> */}
@@ -338,7 +332,7 @@ export const ConversationHistoryPanel: React.FC = () => {
             flex items-center justify-center
             group
           "
-          title={isExpanded ? "Hide session history" : "Show session history"}
+          title={isExpanded ? t('hud.hideHistory' as any) : t('hud.showHistory' as any)}
         >
           <div className="flex items-center gap-1">
             <History size={14} className="text-white/80" />

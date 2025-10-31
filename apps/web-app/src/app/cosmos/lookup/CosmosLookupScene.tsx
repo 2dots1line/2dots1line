@@ -4,13 +4,9 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Graph3D } from '../../../components/cosmos/Graph3D';
 import { LookupCameraController } from '../../../components/cosmos/LookupCameraController';
 import { useCosmosStore } from '../../../stores/CosmosStore';
-import { cosmosService } from '../../../services/cosmosService';
 import CosmosInfoPanel from '../../../components/modal/CosmosInfoPanel';
-import CosmosError from '../../../components/modal/CosmosError';
-import CosmosLoading from '../../../components/modal/CosmosLoading';
 import { EntityDetailModal } from '../../../components/modal/EntityDetailModal';
 import { LookupControls } from '../../../components/cosmos/LookupControls';
-import { performKeyPhraseLookup, createGraphProjection, LookupConfig as EntityLookupConfig } from '../../../utils/entityLookup';
 
 interface EntityLookupState {
   entityId: string;
@@ -32,12 +28,12 @@ interface LocalLookupConfig {
 const CosmosLookupScene: React.FC = () => {
   const {
     graphData,
-    isLoading,
-    error,
+    isLoading: _isLoading,
+    error: _error,
     selectedNode,
     setGraphData,
-    setLoading,
-    setError,
+    setLoading: _setLoading,
+    setError: _setError,
     setSelectedNode,
   } = useCosmosStore();
 
@@ -574,7 +570,7 @@ const CosmosLookupScene: React.FC = () => {
 
   // Function to focus camera on a specific entity using the clean LookupCameraController system
   const focusCameraOnEntity = useCallback((entityId: string) => {
-    const entity = graphData.nodes.find(node => node.id === entityId);
+    const entity = graphData.nodes.find((node: { id: string }) => node.id === entityId);
     if (entity) {
       const nodeAny = entity as any;
       const x = (nodeAny.position_x || nodeAny.x || 0) * POSITION_SCALE;
@@ -601,23 +597,40 @@ const CosmosLookupScene: React.FC = () => {
   }, [graphData.nodes]);
 
   const POSITION_SCALE = 10;
-  
+
+  type LookupNode = {
+    id: string;
+    position_x?: number;
+    position_y?: number;
+    position_z?: number;
+    x?: number;
+    y?: number;
+    z?: number;
+    type?: string;
+    label?: string;
+    title?: string;
+    content?: string;
+    importance?: number;
+    metadata?: { createdAt?: string; lastUpdated?: string };
+    entity_type?: string;
+  };
+
   // Calculate search result cluster center for camera positioning
   const searchResultClusterCenter = useMemo(() => {
     if (graphData.nodes.length === 0) return { x: 0, y: 0, z: 0 };
-    
+
     const sum = graphData.nodes.reduce(
-      (acc, node) => {
+      (acc: { x: number; y: number; z: number }, node: LookupNode) => {
         const nodeAny = node as any;
         let x = nodeAny.position_x || nodeAny.x || 0;
         let y = nodeAny.position_y || nodeAny.y || 0;
         let z = nodeAny.position_z || nodeAny.z || 0;
-        
+
         // Apply the same scaling that's applied to nodes
         x = x * POSITION_SCALE;
         y = y * POSITION_SCALE;
         z = z * POSITION_SCALE;
-        
+
         return {
           x: acc.x + x,
           y: acc.y + y,
@@ -626,26 +639,26 @@ const CosmosLookupScene: React.FC = () => {
       },
       { x: 0, y: 0, z: 0 }
     );
-    
+
     const center = {
       x: sum.x / graphData.nodes.length,
       y: sum.y / graphData.nodes.length,
       z: sum.z / graphData.nodes.length
     };
-    
+
     console.log('🔍 CosmosLookupScene: Search result cluster center (scaled):', center);
     return center;
   }, [graphData.nodes]);
-  
+
   // Process graph data for display
   const safeGraphData = {
     ...graphData,
-    nodes: (graphData.nodes ?? []).map((node, index) => {
+    nodes: (graphData.nodes ?? []).map((node: LookupNode, index: number) => {
       const nodeAny = node as any;
       const x = nodeAny.position_x || nodeAny.x || 0;
       const y = nodeAny.position_y || nodeAny.y || 0;
       const z = nodeAny.position_z || nodeAny.z || 0;
-      
+
       const scaledNode = {
         ...node,
         x: x * POSITION_SCALE,
@@ -675,7 +688,7 @@ const CosmosLookupScene: React.FC = () => {
       
       return scaledNode;
     }),
-    edges: (graphData.edges ?? []).map(edge => ({
+    edges: (graphData.edges ?? []).map((edge: { source: string | number; target: string | number; weight?: number; type?: string }) => ({
       ...edge,
       source: String(edge.source),
       target: String(edge.target),
@@ -854,7 +867,7 @@ const CosmosLookupScene: React.FC = () => {
 
       <Graph3D
         graphData={safeGraphData}
-        onNodeClick={(node) => setSelectedNode(node)}
+        onNodeClick={(node: any) => setSelectedNode(node)}
         showEdges={showEdges}
         edgeOpacity={edgeOpacity}
         edgeWidth={edgeWidth}

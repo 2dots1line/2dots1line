@@ -2,6 +2,7 @@
 
 import { GlassmorphicPanel, GlassButton, InfiniteCardCanvas, CardTile } from '@2dots1line/ui-components';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useTranslation } from '@2dots1line/core-utils/i18n/useTranslation';
 import { MessageCircle } from 'lucide-react';
 
 import { HUDContainer } from '../hud/HUDContainer';
@@ -26,12 +27,12 @@ import { useDynamicCardSizing } from '../../hooks/useDynamicCardSizing';
 import { MobileCardSearchBar } from '../mobile/MobileCardSearchBar';
 
 function Layout() {
+  const { user, isAuthenticated, logout, hasHydrated } = useUserStore();
+  const { t } = useTranslation(user?.language_preference);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isSignupModalOpen, setIsSignupModalOpen] = useState(false);
   const { deviceInfo } = useDeviceStore();
   const { cardSize, gapSize } = useDynamicCardSizing(3);
-
-  const { user, isAuthenticated, logout, hasHydrated } = useUserStore();
   const { 
     setActiveView, 
     activeView, 
@@ -55,8 +56,9 @@ function Layout() {
   } = useCardStore();
   
   // Access loaders reactively with selectors
-  const sortedLoader = useCardStore(state => state.sortedLoader);
-  const randomLoader = useCardStore(state => state.randomLoader);
+  type CardStoreState = ReturnType<typeof useCardStore.getState>;
+  const sortedLoader = useCardStore((state: CardStoreState) => state.sortedLoader);
+  const randomLoader = useCardStore((state: CardStoreState) => state.randomLoader);
   const { loadUserPreferences } = useBackgroundVideoStore();
   
   // Cards view settings from store
@@ -549,9 +551,9 @@ function Layout() {
         <DynamicBackground view="dashboard" />
         <main className="relative z-10 flex flex-col items-center justify-center min-h-screen p-4">
           <div className="text-white text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-            <div>Verifying your session...</div>
-          </div>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+              <div>{t('auth.verifyingSession')}</div>
+            </div>
         </main>
       </div>
     );
@@ -573,11 +575,11 @@ function Layout() {
             <div className="flex items-center gap-4">
               {/* Login Button */}
               <GlassButton onClick={openLoginModal} className="text-onBackground font-brand">
-                Log in
+                {t('common.auth.login')}
               </GlassButton>
               {/* Signup Button */}
               <GlassButton onClick={openSignupModal} className="text-onBackground font-brand">
-                Sign up
+                {t('common.auth.signup')}
               </GlassButton>
             </div>
           </nav>
@@ -592,10 +594,10 @@ function Layout() {
             className="w-full max-w-xl md:max-w-2xl text-center sm:rounded-2xl"
           >
             <h1 className="font-brand text-3xl sm:text-4xl md:text-5xl font-medium text-primary mb-4">
-              A New Horizon Awaits
+              {t('landing.hero.title')}
             </h1>
             <p className="font-sans text-base sm:text-lg text-onSurface max-w-prose mx-auto">
-              Step into a space of reflection and connection. Discover the stories within, and watch your inner world expand.
+              {t('landing.hero.description')}
             </p>
           </GlassmorphicPanel>
         )}
@@ -616,8 +618,8 @@ function Layout() {
             <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/20 backdrop-blur-sm">
               <div className="text-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-                <div className="text-white text-xl">Loading your cards...</div>
-                <div className="text-white/70 text-sm mt-2">This won't block tab switching</div>
+                <div className="text-white text-xl">{t('common.status.loading')}</div>
+                <div className="text-white/70 text-sm mt-2">{t('cards.actions.loadingCards')}</div>
               </div>
             </div>
           ) : (
@@ -640,10 +642,10 @@ function Layout() {
                             await initializeSortedLoader(sortKey, newCoverFirst, true);
                           }}
                         />
-                        Covers first
+                        {t('cards.settings.showCoversFirst')}
                       </label>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm text-onSurface/80">Sort by</span>
+                        <span className="text-sm text-onSurface/80">{t('cards.settings.sortBy')}</span>
                         <select
                           className="bg-transparent border border-white/20 rounded px-2 py-1 text-sm text-onSurface"
                           value={sortKey}
@@ -655,10 +657,10 @@ function Layout() {
                             await initializeSortedLoader(newSortKey, hasCoverFirst, true);
                           }}
                         >
-                          <option value="newest">Newest</option>
-                          <option value="oldest">Oldest</option>
-                          <option value="title_asc">Title A–Z</option>
-                          <option value="title_desc">Title Z–A</option>
+                          <option value="newest">{t('cards.sortBy.newest')}</option>
+                          <option value="oldest">{t('cards.sortBy.oldest')}</option>
+                          <option value="title_asc">{t('cards.sortBy.titleAsc')}</option>
+                          <option value="title_desc">{t('cards.sortBy.titleDesc')}</option>
                         </select>
                       </div>
 
@@ -667,9 +669,9 @@ function Layout() {
                         <GlassButton
                           onClick={() => setViewMode('sorted')}
                           className="ml-2 text-onBackground font-brand"
-                          aria-label="Open Sorted View"
+                          aria-label={t('cards.openSortedView')}
                         >
-                          Sort
+                          {t('common.actions.search')}
                         </GlassButton>
                       )}
 
@@ -679,7 +681,7 @@ function Layout() {
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search by name…"
+                            placeholder={t('search.placeholder')}
                             className="bg-transparent border border-white/20 rounded px-2 py-1 text-sm text-onSurface placeholder:text-onSurface/50 w-48 pr-8"
                           />
                           {isSearching && (
@@ -700,7 +702,7 @@ function Layout() {
                           onClick={() => setViewMode('infinite')}
                           className="ml-2 text-onBackground font-brand"
                         >
-                          Go to Infinite View
+                          {t('cards.goToInfiniteView')}
                         </GlassButton>
                       )}
                     </div>
@@ -779,7 +781,7 @@ function Layout() {
                       <div className="flex justify-center py-8">
                         <div className="text-center">
                           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white/50 mx-auto mb-2"></div>
-                          <div className="text-white/60 text-sm">Loading more cards...</div>
+                          <div className="text-white/60 text-sm">{t('cards.loadingMore')}</div>
                         </div>
                       </div>
                     )}
@@ -821,7 +823,7 @@ function Layout() {
         <button
           onClick={() => setActiveView('chat')}
           className="fixed bottom-4 left-4 z-40 w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 flex items-center justify-center text-white/80 hover:bg-white/20 hover:scale-105 transition-all duration-200 shadow-lg"
-          title="Start a conversation"
+          title={t('chat.startConversation')}
         >
           <MessageCircle size={18} />
         </button>

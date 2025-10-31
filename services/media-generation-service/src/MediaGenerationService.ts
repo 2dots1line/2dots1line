@@ -7,7 +7,7 @@
 import { EnvironmentModelConfigService } from '@2dots1line/config-service';
 import { GoogleGenAI } from '@google/genai';
 import { OpenAI } from 'openai';
-import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
+import { environmentLoader } from '@2dots1line/core-utils';
 import fs from 'fs';
 import path from 'path';
 

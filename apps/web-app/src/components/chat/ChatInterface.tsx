@@ -12,7 +12,7 @@ import { GroundingMetadata } from './GroundingMetadata';
 import { 
   X, 
   Send, 
-  Image, 
+  Image as ImageIcon, 
   Paperclip, 
   Mic, 
   MicOff,
@@ -20,15 +20,14 @@ import {
   Globe,
   Maximize2,
   Minimize2,
-  Play,
   Pause,
   Volume2
 } from 'lucide-react';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
 
-import { chatService, type ChatMessage, type UiAction, type MediaGenerationAction, type ViewSwitchAction } from '../../services/chatService';
+import { chatService, type ChatMessage, type UiAction, type MediaGenerationAction, type ViewSwitchAction, type SendMessageResponse } from '../../services/chatService';
 import { userService } from '../../services/userService';
 import { useChatStore } from '../../stores/ChatStore';
 import { useUserStore } from '../../stores/UserStore';
@@ -36,7 +35,7 @@ import { useHUDStore } from '../../stores/HUDStore';
 import { useBackgroundVideoStore } from '../../stores/BackgroundVideoStore';
 import { useEngagementStore } from '../../stores/EngagementStore';
 import { useEngagementContext } from '../../hooks/useEngagementContext';
-import { usePathname } from 'next/navigation';
+
 import { ViewTransitionService } from '../../services/viewTransitionService';
 
 export type ChatSize = 'full' | 'medium' | 'mini';
@@ -147,8 +146,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     isRecording,
     isSupported: isVoiceSupported,
     transcript,
-    interimTranscript,
-    error: voiceError,
     toggleRecording,
     abortRecording,
     clearTranscript
@@ -241,7 +238,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
           let fullResponse = '';
-          let botMessageId = `bot-proactive-${Date.now()}`;
+          const botMessageId = `bot-proactive-${Date.now()}`;
 
           // Create initial bot message
           const initialMessage: ChatMessage = {
@@ -253,7 +250,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
           addMessage(initialMessage);
 
           // Stream the response
-          while (true) {
+          for (;;) {
             const { done, value } = await reader.read();
             if (done) break;
 
@@ -268,7 +265,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                     fullResponse += jsonData.content;
                     updateMessage(botMessageId, { content: fullResponse });
                   }
-                } catch (e) {
+                } catch {
                   // Skip invalid JSON
                 }
               }
@@ -689,7 +686,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         if (navTarget.route === '/') {
           // Navigating to main page - set activeView via HUD
           if (navTarget.activeView) {
-            useHUDStore.getState().setActiveView(navTarget.activeView as any);
+            useHUDStore.getState().setActiveView(navTarget.activeView as 'chat' | 'cards' | 'cosmos' | 'dashboard');
           }
           router.push('/');
         } else {
@@ -702,7 +699,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     }
     
     // Other actions (open_card, focus_entity, etc.) - future implementation
-  }, [router, trackEvent, currentView, addMessage]);
+  }, [router, trackEvent, currentView, addMessage, handleImageGeneration, handleVideoGeneration]);
 
   // Early return after all hooks are defined
   if (!isOpen) return null;
@@ -761,8 +758,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         );
         setCurrentAttachment(null);
       } else {
-        let botMessageId = `bot-${Date.now()}`;
-        let finalResponse: any = null;
+        const botMessageId = `bot-${Date.now()}`;
+        let finalResponse: SendMessageResponse | null = null;
         
         const initialBotMessage: ChatMessage = {
           id: botMessageId,
@@ -811,7 +808,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
               timestamp: new Date()
             });
           },
-          (metadata: any) => {
+          (metadata: Partial<SendMessageResponse>) => {
             if (metadata.conversation_id) {
               setCurrentConversation(metadata.conversation_id);
             }
@@ -819,27 +816,22 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
               setCurrentSession(metadata.session_id);
             }
           },
-          (response: any) => {
+          (response: SendMessageResponse) => {
             finalResponse = response;
-            
-            // If response has ui_actions, attach them to the bot message
             if (response.ui_actions && response.ui_actions.length > 0) {
-              console.log('🎬 ChatInterface: Received ui_actions:', response.ui_actions);
               updateMessage(botMessageId, {
                 content: accumulatedResponse || getPlaceholderText(currentDecision),
                 timestamp: new Date(),
                 ui_actions: response.ui_actions
               });
             }
-
-            // If grounding metadata is present, attach it so renderer can show citations
-            if ((response as any).metadata && (response as any).metadata.grounding_metadata) {
+            if (response.metadata?.grounding_metadata) {
               updateMessage(botMessageId, {
                 content: accumulatedResponse || getPlaceholderText(currentDecision),
                 timestamp: new Date(),
                 ...(response.ui_actions && { ui_actions: response.ui_actions }),
-                grounding_metadata: (response as any).metadata.grounding_metadata as any
-              } as any);
+                grounding_metadata: response.metadata.grounding_metadata
+              });
             }
           },
           (error: Error) => {
@@ -886,7 +878,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       } else if (response && !response.success) {
         throw new Error(response.error || 'Failed to send message');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error sending message:', error);
       const errorMessage: ChatMessage = {
         id: `error-${Date.now()}`,
@@ -1048,34 +1040,24 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         )}
 
         {/* Final grounding metadata (show after response complete) */}
-        {msg.type === 'bot' && (msg as any).grounding_metadata && (
-          <GroundingMetadata metadata={(msg as any).grounding_metadata} />
+        {msg.type === 'bot' && msg.grounding_metadata && (
+          <GroundingMetadata metadata={msg.grounding_metadata} />
         )}
         
         {/* Inline action buttons */}
-        {msg.ui_actions && msg.ui_actions.length > 0 && (
-          <div className="inline-flex items-center gap-2 ml-2">
-            {msg.ui_actions.map((action, index) => {
-              console.log(`[render] Message ${msg.id} - Action ${index}:`, action);
-              console.log(`[render] Action payload:`, action.payload);
-              const payload = action.payload as any;
-              if (payload.parameters) {
-                console.log(`[render] Action parameters:`, payload.parameters);
-              }
+        {msg.ui_actions && (
+          <div className="mt-2 space-y-2">
+            {msg.ui_actions.map((action: UiAction, idx) => {
               return (
-                <span key={index} className="inline-flex items-center gap-2">
-                  {action.buttons.map((button, btnIndex) => (
+                <span
+                  key={`ui-${action.action}-${action.payload.target}-${idx}`}
+                  className="inline-flex flex-wrap gap-2"
+                >
+                  {action.buttons.map((button: { label: string; value: 'confirm' | 'dismiss' }) => (
                     <button
-                      key={btnIndex}
+                      key={button.value}
+                      className="px-3 py-1 text-xs rounded bg-white/10 hover:bg-white/20"
                       onClick={() => handleActionClick(action, button.value)}
-                      className={`inline-flex items-center px-4 py-1.5 rounded-full
-                                 backdrop-blur-sm border text-sm font-medium
-                                 transition-all duration-200 ease-in-out
-                                 hover:scale-105 active:scale-95
-                                 ${button.value === 'confirm' 
-                                   ? 'bg-green-500/10 border-green-400/30 text-green-400 hover:shadow-[0_0_12px_rgba(74,222,128,0.4)]'
-                                   : 'bg-gray-500/10 border-gray-400/30 text-gray-400 hover:shadow-[0_0_12px_rgba(156,163,175,0.4)]'
-                                 }`}
                       aria-label={`${button.label}: ${action.question}`}
                     >
                       {button.label}
@@ -1249,7 +1231,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
             ref={messagesContainerRef}
             className={`flex-1 overflow-y-auto ${config.messagesPadding} space-y-4 custom-scrollbar`}
           >
-            {displayMessages.map((msg) => (
+            {displayMessages.map((msg: ChatMessage) => (
               <div
                 key={msg.id}
                 className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -1341,7 +1323,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 title="Upload image"
                 disabled={isLoading}
               >
-                <Image size={18} className="stroke-current" strokeWidth={1.5} />
+                <ImageIcon size={18} className="stroke-current" strokeWidth={1.5} />
               </GlassButton>
               <GlassButton
                 onClick={handleFileUpload}

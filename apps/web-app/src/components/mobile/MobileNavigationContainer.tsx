@@ -130,10 +130,10 @@ export const MobileNavigationContainer: React.FC<MobileNavigationContainerProps>
     setExpandedSection(null);
   };
 
-  const handleCosmosChatOpen = () => {
+  const handleCosmosChatOpen = async () => {
     // Check if there's transition content waiting to be displayed (without consuming it)
-    const { ViewTransitionService } = require('../../services/viewTransitionService');
-    const transitionData = sessionStorage.getItem(ViewTransitionService.STORAGE_KEY || 'view_transition_content');
+    const { ViewTransitionService } = await import('../../services/viewTransitionService');
+    const transitionData = sessionStorage.getItem('viewTransitionContent');
     
     let hasTransitionContent = false;
     if (transitionData) {

@@ -1,9 +1,40 @@
+'use client';
+
 import React from 'react';
 import './globals.css';
 import NotificationRoot from '../components/notifications/NotificationRoot';
 import { ViewTracker } from '../components/engagement/ViewTracker';
 import { EngagementDebugger } from '../components/engagement/EngagementDebugger';
 import { DeviceDetectionProvider } from '../components/adaptive/DeviceDetectionProvider';
+import { TranslationProvider } from '../components/providers/TranslationProvider';
+
+// Simple Error Boundary using React 18 ErrorBoundary pattern
+function ErrorBoundary({ children }: { children: React.ReactNode }) {
+  const [hasError, setHasError] = React.useState(false);
+
+  React.useEffect(() => {
+    const handleError = (error: ErrorEvent) => {
+      console.error('Error caught by boundary:', error);
+      setHasError(true);
+    };
+
+    window.addEventListener('error', handleError);
+    return () => window.removeEventListener('error', handleError);
+  }, []);
+
+  if (hasError) {
+    return (
+      <div style={{ padding: '20px', textAlign: 'center', color: 'white' }}>
+        <h2>Something went wrong.</h2>
+        <button onClick={() => window.location.reload()}>
+          Reload Page
+        </button>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}
 
 export default function RootLayout({
   children,
@@ -32,15 +63,19 @@ export default function RootLayout({
         <meta name="msapplication-tap-highlight" content="no" />
       </head>
       <body>
-        <DeviceDetectionProvider>
-          {/* Engagement tracking */}
-          <ViewTracker />
-          {/* Engagement debugger (development only) - HIDDEN */}
-          {/* <EngagementDebugger /> */}
-          {/* Notification layer */}
-          <NotificationRoot />
-          {children}
-        </DeviceDetectionProvider>
+        <ErrorBoundary>
+          <TranslationProvider>
+            <DeviceDetectionProvider>
+              {/* Engagement tracking */}
+              <ViewTracker />
+              {/* Engagement debugger (development only) - HIDDEN */}
+              {/* <EngagementDebugger /> */}
+              {/* Notification layer */}
+              <NotificationRoot />
+              {children}
+            </DeviceDetectionProvider>
+          </TranslationProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );

@@ -4,17 +4,10 @@ import React, { useState } from 'react';
 import { ExternalLink, ChevronDown, ChevronUp, Globe } from 'lucide-react';
 import { GlassmorphicPanel } from '@2dots1line/ui-components';
 import CapsulePill from '../shared/CapsulePill';
+import { type GroundingMetadata as GroundingMetadataModel } from '../../services/chatService';
 
 interface GroundingMetadataProps {
-  metadata: {
-    search_queries: string[];
-    grounding_chunks: Array<{
-      web_url: string;
-      title?: string;
-      snippet?: string;
-    }>;
-    grounding_supports?: Array<any>;
-  };
+  metadata: GroundingMetadataModel;
 }
 
 export const GroundingMetadata: React.FC<GroundingMetadataProps> = ({ metadata }) => {

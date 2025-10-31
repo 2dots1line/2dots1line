@@ -1,0 +1,179 @@
+{
+  "common": {
+    "auth": {
+      "login": "Log in",
+      "signup": "Sign up",
+      "logout": "Log out"
+    },
+    "actions": {
+      "save": "Save",
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "edit": "Edit",
+      "close": "Close",
+      "confirm": "Confirm",
+      "reset": "Reset to Defaults",
+      "search": "Search",
+      "apply": "Apply",
+      "send": "Send"
+    },
+    "status": {
+      "loading": "Loading...",
+      "saving": "Saving...",
+      "success": "Success",
+      "error": "Error",
+      "enabled": "Enabled",
+      "disabled": "Disabled"
+    },
+    "demo": "Demo",
+    "currentLanguage": "Current Language",
+    "description": "Description",
+    "changeLanguageInSettings": "Change language in the settings panel"
+  },
+  "landing": {
+    "hero": {
+      "title": "A New Horizon Awaits",
+      "description": "Step into a space of reflection and connection. Discover the stories within, and watch your inner world expand."
+    }
+  },
+  "chat": {
+    "input": {
+      "placeholder": "Ask anything"
+    },
+    "actions": {
+      "newChat": "Start new chat",
+      "expandChat": "Expand chat",
+      "collapseChat": "Collapse to mini"
+    },
+    "errors": {
+      "sendFailed": "I apologize, but I encountered an error processing your message: {{message}}. Please try again.",
+      "genericError": "An error occurred. Please try again."
+    },
+    "status": {
+      "generating": "Generating your image...",
+      "videoGenerating": "Starting video generation..."
+    }
+  },
+  "dashboard": {
+    "fallback": {
+      "title": "Your Journey Through the Cosmos",
+      "paragraph1": "Welcome to your personal cosmic journey. This month, we've witnessed remarkable growth across all dimensions of your being. Your conversations have revealed patterns of self-discovery that speak to a deeper understanding of your place in the universe.",
+      "paragraph2": "The insights we've gathered show a person who is not just growing, but evolving. Each interaction, each moment of reflection, each new connection you make adds another layer to the rich tapestry of your experience.",
+      "paragraph3": "As you explore the cards and insights that follow, remember that this is your story. These are your discoveries, your breakthroughs, your moments of clarity. They represent not just where you've been, but where you're heading.",
+      "quote": "The cosmos is within us. We are made of star-stuff. We are a way for the universe to know itself."
+    },
+    "empty": {
+      "noCards": "No recent cards available",
+      "noInsights": "No insights yet"
+    }
+  },
+  "settings": {
+    "title": "All Settings",
+    "language": {
+      "title": "Language Settings",
+      "description": "Choose your preferred language for the application interface.",
+      "updated": "Language updated successfully"
+    },
+    "backgroundMedia": {
+      "title": "Background Media",
+      "description": "Choose different background media for each 2D view. You can use local videos or search for new ones from Pexels.",
+      "localVideos": "Local Videos",
+      "pexelsLibrary": "Pexels Library",
+      "searchPexels": "Search Pexels",
+      "generatedVideos": "AI Generated Videos",
+      "resetToDefaults": "Reset to Defaults",
+      "noGeneratedVideos": "Ask Dot to generate a custom video for you!"
+    },
+    "notifications": {
+      "title": "Notification Settings",
+      "description": "Configure in-app toasts and delivery preferences.",
+      "enableNotifications": "Enable Notifications",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "allowTypes": "Allow Types",
+      "position": "Position",
+      "maxVisible": "Max Visible",
+      "autoHide": "Auto-hide (seconds, 0 = never)",
+      "snoozeUntil": "Snooze Until",
+      "clearSnooze": "Clear Snooze",
+      "sendTest": "Send Test",
+      "testNotification": {
+        "title": "Test Notification",
+        "description": "This is a local test toast"
+      },
+      "types": {
+        "newCardAvailable": "New Card Available",
+        "graphProjectionUpdated": "Graph Projection Updated",
+        "newStarGenerated": "New Star Generated"
+      },
+      "positions": {
+        "topRight": "top-right",
+        "topLeft": "top-left",
+        "bottomRight": "bottom-right",
+        "bottomLeft": "bottom-left"
+      }
+    }
+  },
+  "hud": {
+    "navigation": "Navigation",
+    "sessionHistory": "Session History",
+    "searchSessions": "Search sessions...",
+    "noSessions": "No conversation history yet",
+    "deleteSession": "Delete session",
+    "showHistory": "Show session history",
+    "hideHistory": "Hide session history",
+    "openMiniChat": "Open mini chat",
+    "buttons": {
+      "dashboard": "Dashboard",
+      "chat": "Chat",
+      "cards": "Cards",
+      "cosmos": "Cosmos",
+      "settings": "Settings",
+      "miniChat": "Mini Chat"
+    }
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "loading": {
+      "cards": "Loading cards...",
+      "insights": "Loading insights...",
+      "journey": "Loading your cosmic journey...",
+      "growthData": "Loading growth data...",
+      "general": "Loading..."
+    },
+    "errors": {
+      "failedToLoad": "Failed to load cards",
+      "loadError": "Failed to load"
+    },
+    "tabs": {
+      "overview": "Overview",
+      "insights": "Insights",
+      "growth": "Growth",
+      "activity": "Activity"
+    },
+    "sections": {
+      "recentActivity": "Recent Activity",
+      "dynamicInsights": "Dynamic Insights",
+      "editorsNote": "Editor's Note",
+      "noInsightsAvailable": "No Dynamic Insights Available",
+      "noInsightsDescription": "Continue your journey to unlock personalized insights and growth patterns."
+    },
+    "metrics": {
+      "memoryUnits": "Memory Units",
+      "concepts": "Concepts",
+      "growthEvents": "Growth Events",
+      "cards": "Cards"
+    },
+    "actions": {
+      "pause": "Pause",
+      "listen": "Listen",
+      "startConversation": "Start a conversation"
+    }
+  },
+  "errors": {
+    "unauthorized": "Unauthorized",
+    "notFound": "Not found",
+    "internalError": "Internal Server Error",
+    "badRequest": "Bad request"
+  }
+}

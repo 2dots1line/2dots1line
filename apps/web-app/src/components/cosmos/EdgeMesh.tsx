@@ -21,7 +21,7 @@ export const EdgeMesh: React.FC<EdgeMeshProps> = ({
   color = '#00ff88', 
   width = 2, 
   opacity = 0.6,
-  type = 'default',
+  type: _type = 'default',
   strength = 1.0, // Primary property
   weight // Legacy fallback
 }) => {
@@ -81,7 +81,7 @@ export const AnimatedEdgeMesh: React.FC<EdgeMeshProps & { animated?: boolean }> 
   color = '#00ff88', 
   width = 2, 
   opacity = 0.6,
-  type = 'default',
+  type: _type = 'default',
   strength = 1.0, // Primary property
   weight, // Legacy fallback
   animated = false

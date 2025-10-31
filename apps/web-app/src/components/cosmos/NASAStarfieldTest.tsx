@@ -5,8 +5,8 @@
  * V11.0 - Isolated testing of OpenEXR integration
  */
 
-import React, { useRef, useState, useEffect, useCallback, Suspense } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import React, { useRef, useState, useEffect, Suspense } from 'react';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { PerspectiveCamera } from '@react-three/drei';
 import * as THREE from 'three';
 import { CameraController } from './CameraController';
@@ -22,7 +22,7 @@ interface NASAStarfieldProps {
 }
 
 // Loading component
-const LoadingSpinner: React.FC = () => (
+const _LoadingSpinner: React.FC = () => (
   <div className="absolute inset-0 flex items-center justify-center bg-black text-white">
     <div className="text-center">
       <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4"></div>
@@ -92,11 +92,11 @@ const PerformanceMonitor: React.FC<{
   resolution: string;
   onFpsUpdate?: (fps: number) => void;
 }> = ({ 
-  loadTime, 
-  resolution,
+  loadTime: _loadTime, 
+  resolution: _resolution,
   onFpsUpdate
 }) => {
-  const [fps, setFps] = useState(0);
+  const [_fps, setFps] = useState(0);
   const frameCount = useRef(0);
   const lastTime = useRef(Date.now());
 
@@ -120,7 +120,7 @@ const PerformanceMonitor: React.FC<{
 // Main Test Component
 export const NASAStarfieldTest: React.FC<NASAStarfieldProps> = ({ 
   resolution = '8k',
-  debug = true 
+  debug: _debug = true 
 }) => {
   const [fps, setFps] = useState(0);
 

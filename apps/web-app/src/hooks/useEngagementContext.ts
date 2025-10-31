@@ -100,16 +100,18 @@ export const useEngagementContext = () => {
    * Analyze engagement patterns for proactive suggestions
    */
   const analyzeEngagementPatterns = useCallback((timeWindowMs: number = 30000) => {
-    const recentEvents = getRecentEvents(timeWindowMs);
-    
+    const recentEvents: EngagementEvent[] = getRecentEvents(timeWindowMs);
+  
     const patterns = {
       cosmosExploration: {
-        entityClicks: recentEvents.filter(e => e.view === 'cosmos' && e.type === 'click' && e.targetType === 'entity').length,
+        entityClicks: recentEvents.filter((e: EngagementEvent) =>
+          e.view === 'cosmos' && e.type === 'click' && e.targetType === 'entity'
+        ).length,
         hasMultipleEntityClicks: false,
         shouldSuggestWalkthrough: false
       },
       crossViewNavigation: {
-        viewSwitches: recentEvents.filter(e => e.type === 'navigation').length,
+        viewSwitches: recentEvents.filter((e: EngagementEvent) => e.type === 'navigation').length,
         hasRapidSwitching: false
       },
       deepEngagement: {

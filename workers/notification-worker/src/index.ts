@@ -1,7 +1,7 @@
 import express from 'express';
 import { createServer } from 'http';
 import cors from 'cors';
-import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
+import { environmentLoader } from '@2dots1line/core-utils';
 import { DatabaseService } from '@2dots1line/database';
 import { NotificationWorker } from './NotificationWorker';
 import { Redis } from 'ioredis';

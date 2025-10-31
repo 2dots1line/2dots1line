@@ -213,11 +213,13 @@ export class UserService {
     name?: string;
     profileImageUrl?: string;
     preferences?: any;
+    language_preference?: string;
   }): Promise<User> {
     const updateData: any = {};
     if (updates.name !== undefined) updateData.name = updates.name;
     if (updates.profileImageUrl !== undefined) updateData.profile_picture_url = updates.profileImageUrl;
     if (updates.preferences !== undefined) updateData.preferences = updates.preferences;
+    if (updates.language_preference !== undefined) updateData.language_preference = updates.language_preference;
 
     return this.userRepository.update(userId, updateData);
   }
@@ -245,4 +247,4 @@ export class UserService {
       await this.redisConnection.quit();
     }
   }
-} 
+}

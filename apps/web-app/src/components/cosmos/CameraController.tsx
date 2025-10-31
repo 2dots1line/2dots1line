@@ -13,37 +13,34 @@ export const CameraController: React.FC<CameraControllerProps> = ({
   initialTargetDistance: propInitialDistance = 50
 }) => {
   const { camera } = useThree();
-  const controlsRef = useRef<any>();
+  const controlsRef = useRef<unknown>(null);
   const [keys, setKeys] = useState({ w: false, a: false, s: false, d: false, shift: false, space: false });
-  const initialTargetDistance = useRef<number>(propInitialDistance); // Store initial target distance
+  const initialTargetDistance = useRef<number>(propInitialDistance);
   const [isInitialized, setIsInitialized] = useState(false);
   
-  // Calculate if manual input is active (for OrbitControls enabled state)
   const hasManualInput = keys.w || keys.a || keys.s || keys.d || keys.space;
 
-  // Initialize OrbitControls target with cluster center
   useEffect(() => {
     if (controlsRef.current && !isInitialized) {
-      // Set the target to the cluster center
-      controlsRef.current.target.set(initialTarget.x, initialTarget.y, initialTarget.z);
-      controlsRef.current.update();
+      const controls = controlsRef.current as { target: THREE.Vector3; update: () => void };
+      controls.target.set(initialTarget.x, initialTarget.y, initialTarget.z);
+      controls.update();
       setIsInitialized(true);
-      
       console.log('🎥 CameraController: Initialized with target:', initialTarget, 'distance:', propInitialDistance);
     }
-  }, [controlsRef.current, initialTarget, propInitialDistance, isInitialized]);
+  }, [initialTarget, propInitialDistance, isInitialized]);
 
-  // Capture initial target distance when controls are first available
   useEffect(() => {
     if (controlsRef.current && initialTargetDistance.current === propInitialDistance) {
-      const currentTarget = controlsRef.current.target;
+      const controls = controlsRef.current as { target: THREE.Vector3; update: () => void };
+      const currentTarget = controls.target;
       const actualDistance = camera.position.distanceTo(currentTarget);
       if (actualDistance > 0) {
         initialTargetDistance.current = actualDistance;
         console.log('🎥 CameraController: Captured actual target distance:', actualDistance);
       }
     }
-  }, [camera, controlsRef.current, propInitialDistance]);
+  }, [camera, propInitialDistance]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -83,17 +80,18 @@ export const CameraController: React.FC<CameraControllerProps> = ({
       console.log('🎥 CameraController: Controls available:', !!controlsRef.current);
       
       if (controlsRef.current) {
+        const controls = controlsRef.current as { target: THREE.Vector3; update: () => void };
         // Smoothly animate to the new target (same logic as LookupCameraController)
         const target = new THREE.Vector3(position.x, position.y, position.z);
-        controlsRef.current.target.copy(target);
-        
+        controls.target.copy(target);
+
         // Position camera at a good viewing angle (same offset as LookupCameraController)
         const offset = new THREE.Vector3(30, 20, 30);
         const newPosition = target.clone().add(offset);
         camera.position.copy(newPosition);
-        
-        controlsRef.current.update();
-        
+
+        controls.update();
+
         console.log('🎥 CameraController: Camera focused on entity at:', position);
       } else {
         console.warn('🎥 CameraController: Controls not available for camera focus');
@@ -132,24 +130,25 @@ export const CameraController: React.FC<CameraControllerProps> = ({
       
       // When using manual input, update OrbitControls target to maintain seamless transition
       if (controlsRef.current) {
+        const controls = controlsRef.current as { target: THREE.Vector3; update: () => void };
         // Calculate current distance from camera to target, fallback to initial distance
-        const currentTarget = controlsRef.current.target;
+        const currentTarget = controls.target;
         const currentDistance = camera.position.distanceTo(currentTarget);
         const targetDistance = currentDistance > 0 ? currentDistance : initialTargetDistance.current;
-        
+
         // Update target to maintain the same distance in camera's look direction
         const newTarget = camera.position.clone().add(direction.multiplyScalar(targetDistance));
-        controlsRef.current.target.copy(newTarget);
-        
+        controls.target.copy(newTarget);
+
         // Pre-update the controls to prevent snapping
-        controlsRef.current.update();
+        controls.update();
       }
     }
   });
 
   return (
     <OrbitControls
-      ref={controlsRef}
+      ref={(instance) => { controlsRef.current = instance; }}
       enabled={!hasManualInput} // Only disable when WASD is active
       enableDamping
       dampingFactor={0.05}

@@ -7,7 +7,7 @@ import {
   SSEMessage,
   NotificationJobPayload
 } from '@2dots1line/shared-types';
-import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
+import { environmentLoader } from '@2dots1line/core-utils';
 import { DatabaseService } from '@2dots1line/database';
 import { Worker, Job } from 'bullmq';
 import { Redis } from 'ioredis';

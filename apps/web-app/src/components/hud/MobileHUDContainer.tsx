@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { useTranslation } from '@2dots1line/core-utils/i18n/useTranslation';
 import { 
   BarChart3, 
   MessageCircle, 
@@ -20,16 +21,7 @@ interface MobileHUDContainerProps {
   className?: string;
 }
 
-const MOBILE_HUD_BUTTONS: Array<{ id: ViewType; label: string; icon: React.ComponentType<any> }> = [
-  { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
-  { id: 'chat', label: 'Chat', icon: MessageCircle },
-  { id: 'cards', label: 'Cards', icon: CreditCard },
-  { id: 'cosmos', label: 'Cosmos', icon: Network },
-  { id: 'settings', label: 'Settings', icon: Settings },
-];
-
-// Separate chat button for mini chat
-const MOBILE_CHAT_BUTTON = { id: 'mini-chat', label: 'Mini Chat', icon: MessageCircle };
+// MOBILE_HUD_BUTTONS will be created inside component to access translations
 
 export const MobileHUDContainer: React.FC<MobileHUDContainerProps> = ({
   onViewSelect,
@@ -41,10 +33,22 @@ export const MobileHUDContainer: React.FC<MobileHUDContainerProps> = ({
   const [autoHideTimer, setAutoHideTimer] = useState<NodeJS.Timeout | null>(null);
   const hudRef = useRef<HTMLDivElement>(null);
   
+  const { user } = useUserStore();
+  const { t } = useTranslation(user?.language_preference);
+  
+  // Create mobile HUD buttons with translations
+  const MOBILE_HUD_BUTTONS: Array<{ id: ViewType; label: string; icon: React.ComponentType<any> }> = [
+    { id: 'dashboard', label: t('hud.buttons.dashboard' as any), icon: BarChart3 },
+    { id: 'chat', label: t('hud.buttons.chat' as any), icon: MessageCircle },
+    { id: 'cards', label: t('hud.buttons.cards' as any), icon: CreditCard },
+    { id: 'cosmos', label: t('hud.buttons.cosmos' as any), icon: Network },
+    { id: 'settings', label: t('hud.buttons.settings' as any), icon: Settings },
+  ];
+  
   const {
     activeView,
     showSettings,
-    isNavigatingFromCosmos,
+    isNavigatingFromCosmos: _isNavigatingFromCosmos,
     mobileHudVisible,
     mobileCardsChatOpen,
     mobileCosmosChatOpen,
@@ -219,18 +223,17 @@ export const MobileHUDContainer: React.FC<MobileHUDContainerProps> = ({
         router.push('/cosmos');
       }
     } else if (viewId === 'cards') {
-      // For cards view, just set active view (don't auto-open chat)
+      // If we're on main page and cards is already active, toggle mini chat
+      const isAlreadyCardsOnMain = pathname === '/' && activeView === 'cards';
       setActiveView(viewId);
       onViewSelect?.(viewId);
+      if (isAlreadyCardsOnMain) {
+        handleMobileChatToggle('cards');
+      }
     } else if (viewId === 'chat') {
       // For chat view, set active view (full screen chat)
       setActiveView(viewId);
       onViewSelect?.(viewId);
-    } else if (viewId === 'cards' && pathname === '/') {
-      // If we're on main page and cards is active, show mini chat
-      if (activeView === 'cards') {
-        handleMobileChatToggle('cards');
-      }
     } else {
       // For other views, navigate back to main page and set the active view
       if (pathname === '/cosmos') {
@@ -314,7 +317,7 @@ export const MobileHUDContainer: React.FC<MobileHUDContainerProps> = ({
               className="w-12 h-12 rounded-full flex items-center justify-center
                          text-white/80 hover:text-white hover:bg-white/20
                          transition-all duration-200"
-              title="Open mini chat"
+              title={t('hud.openMiniChat' as any)}
             >
               <MessageCircle 
                 size={20} 

@@ -3,12 +3,14 @@
 import { GlassmorphicPanel, GlassButton } from '@2dots1line/ui-components';
 import { X } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from '../../hooks/useTranslation';
 
 import { useBackgroundVideoStore, type ViewType } from '../../stores/BackgroundVideoStore';
 import { useNotificationPreferencesStore, type NotificationPosition, type NotificationType } from '../../stores/NotificationPreferencesStore';
 import { useNotificationStore } from '../../stores/NotificationStore';
 import { PexelsSearchModal } from './PexelsSearchModal';
 import { HRTControlPanel } from '../settings/HRTControlPanel';
+import { LanguageSelector } from '../settings/LanguageSelector';
 
 interface GlobalSettingsModalProps {
   isOpen: boolean;
@@ -16,9 +18,12 @@ interface GlobalSettingsModalProps {
 }
 
 export const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ isOpen, onClose }) => {
+  const { t } = useTranslation();
   const { mediaPreferences, setMediaForView, resetToDefaults, generatedMedia, loadGeneratedMedia, deleteGeneratedMedia, applyGeneratedVideo } = useBackgroundVideoStore();
   const [pexelsModalOpen, setPexelsModalOpen] = useState(false);
   const [targetView, setTargetView] = useState<ViewType>('dashboard');
+  // Use a local alias to type items from generatedMedia without changing imports
+  type GeneratedMediaItem = ReturnType<typeof useBackgroundVideoStore.getState>['generatedMedia'][number];
 
   // Notification preferences
   const {
@@ -67,7 +72,7 @@ export const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ isOpen
         className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto pointer-events-auto"
       >
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-white font-brand">All Settings</h2>
+          <h2 className="text-2xl font-bold text-white font-brand">{t('settings.title')}</h2>
           <GlassButton
             onClick={onClose}
             className="p-2 hover:bg-white/20"
@@ -78,9 +83,9 @@ export const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ isOpen
         
         {/* Background Media Settings */}
         <div className="mb-8">
-          <h3 className="text-xl font-semibold text-white mb-4 font-brand">Background Media</h3>
+          <h3 className="text-xl font-semibold text-white mb-4 font-brand">{t('settings.backgroundMedia.title')}</h3>
           <p className="text-white/80 mb-6">
-            Choose different background media for each 2D view. You can use local videos or search for new ones from Pexels.
+            {t('settings.backgroundMedia.description')}
           </p>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -153,7 +158,7 @@ export const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ isOpen
                       </p>
                     ) : (
                       <div className="max-h-32 overflow-y-auto space-y-1 bg-white/5 rounded-lg p-2">
-                        {generatedMedia.map(media => (
+                        {generatedMedia.map((media: GeneratedMediaItem) => (
                           <div key={media.id} className="flex items-center gap-2 p-2 bg-white/5 rounded hover:bg-white/10 transition-colors">
                             <button
                               onClick={() => applyGeneratedVideo(media.id, key)}
@@ -192,8 +197,8 @@ export const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ isOpen
         
         {/* Notification Settings */}
         <div className="border-t border-white/20 pt-6 mb-8">
-          <h3 className="text-xl font-semibold text-white mb-4 font-brand">Notification Settings</h3>
-          <p className="text-white/80 mb-6">Configure in-app toasts and delivery preferences.</p>
+          <h3 className="text-xl font-semibold text-white mb-4 font-brand">{t('settings.notifications.title')}</h3>
+          <p className="text-white/80 mb-6">{t('settings.notifications.description')}</p>
 
           {/* Master Enable */}
           <div className="flex items-center justify-between mb-4">
@@ -313,6 +318,22 @@ export const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ isOpen
               Send Test
             </GlassButton>
           </div>
+        </div>
+
+        {/* Language Settings */}
+        <div className="border-t border-white/20 pt-6 mb-8">
+          <h3 className="text-xl font-semibold text-white mb-4 font-brand">Language Settings</h3>
+          <p className="text-white/80 mb-6">Choose your preferred language for the application interface.</p>
+          
+          <div className="max-w-xs">
+            <LanguageSelector />
+          </div>
+        </div>
+
+        {/* Language Settings */}
+        <div className="border-t border-white/20 pt-6 mb-8">
+          <h3 className="text-xl font-semibold text-white mb-4 font-brand">{t('settings.language.title')}</h3>
+          <p className="text-white/80 mb-6">{t('settings.language.description')}</p>
         </div>
 
         {/* HRT Control Panel */}

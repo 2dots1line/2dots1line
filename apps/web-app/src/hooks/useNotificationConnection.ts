@@ -76,11 +76,14 @@ export const useNotificationConnection = () => {
           });
           
           // 🔥 NEW: Refresh local videos list to pick up the new file from filesystem
-          const { useBackgroundVideoStore } = require('../stores/BackgroundVideoStore');
-          const { loadLocalVideos } = useBackgroundVideoStore.getState();
-          loadLocalVideos().catch((err: Error) => 
-            console.error('[Socket.IO] Failed to refresh local videos:', err)
-          );
+          import('../stores/BackgroundVideoStore').then(({ useBackgroundVideoStore }) => {
+            const { loadLocalVideos } = useBackgroundVideoStore.getState();
+            loadLocalVideos().catch((err: Error) => 
+              console.error('[Socket.IO] Failed to refresh local videos:', err)
+            );
+          }).catch((err: Error) => {
+            console.error('[Socket.IO] Failed to import BackgroundVideoStore:', err);
+          });
           
           // Dispatch custom event for chat interface to show inline preview
           if (typeof window !== 'undefined') {

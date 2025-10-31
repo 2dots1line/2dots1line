@@ -9,7 +9,7 @@ import * as path from 'path';
 import yaml from 'js-yaml';
 import { Redis } from 'ioredis';
 import { CoreIdentity } from '@2dots1line/shared-types';
-import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
+import { environmentLoader } from '@2dots1line/core-utils';
 
 export class ConfigService {
   private configCache = new Map<string, any>();
@@ -285,4 +285,4 @@ export class ConfigService {
       return defaultValue;
     }
   }
-} 
+}

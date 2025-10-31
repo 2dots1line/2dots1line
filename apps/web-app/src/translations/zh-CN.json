@@ -1,0 +1,386 @@
+{
+  "common": {
+    "auth": {
+      "login": "登录",
+      "signup": "注册",
+      "logout": "退出登录",
+      "signingIn": "登录中…",
+      "creatingAccount": "创建账户中…"
+    },
+    "actions": {
+      "save": "保存",
+      "cancel": "取消",
+      "delete": "删除",
+      "edit": "编辑",
+      "close": "关闭",
+      "confirm": "确认",
+      "reset": "重置",
+      "search": "搜索",
+      "apply": "应用",
+      "send": "发送",
+      "refresh": "刷新",
+      "install": "安装",
+      "dismiss": "忽略",
+      "select": "选择",
+      "play": "播放",
+      "pause": "暂停",
+      "stop": "停止"
+    },
+    "status": {
+      "loading": "加载中…",
+      "saving": "保存中…",
+      "success": "成功",
+      "error": "错误",
+      "enabled": "已启用",
+      "disabled": "已禁用",
+      "online": "在线",
+      "offline": "离线",
+      "connecting": "连接中…"
+    },
+    "navigation": {
+      "dashboard": "仪表板",
+      "cards": "卡片",
+      "chat": "聊天",
+      "cosmos": "宇宙",
+      "settings": "设置"
+    },
+    "time": {
+      "now": "现在",
+      "today": "今天",
+      "yesterday": "昨天",
+      "thisWeek": "本周",
+      "lastWeek": "上周",
+      "thisMonth": "本月",
+      "lastMonth": "上月"
+    }
+  },
+  "landing": {
+    "hero": {
+      "title": "新的地平线等待着你",
+      "description": "踏入反思与连接的空间。发现内在的故事，看着你的内心世界扩展。"
+    },
+    "welcome": {
+      "title": "欢迎来到 2D1L",
+      "description": "你的个人知识宇宙。"
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "登录",
+      "subtitle": "欢迎回来",
+      "emailLabel": "邮箱地址",
+      "emailPlaceholder": "输入你的邮箱",
+      "passwordLabel": "密码",
+      "passwordPlaceholder": "输入你的密码",
+      "loginButton": "登录",
+      "switchToSignup": "还没有账户？",
+      "signupLink": "注册"
+    },
+    "signup": {
+      "title": "注册",
+      "subtitle": "创建你的账户",
+      "nameLabel": "全名",
+      "namePlaceholder": "输入你的全名",
+      "emailLabel": "邮箱地址",
+      "emailPlaceholder": "输入你的邮箱",
+      "passwordLabel": "密码",
+      "passwordPlaceholder": "创建密码",
+      "confirmPasswordLabel": "确认密码",
+      "confirmPasswordPlaceholder": "确认你的密码",
+      "signupButton": "创建账户",
+      "switchToLogin": "已有账户？",
+      "loginLink": "登录"
+    }
+  },
+  "chat": {
+    "input": {
+      "placeholder": "输入你的消息…"
+    },
+    "actions": {
+      "newChat": "新对话",
+      "expandChat": "展开聊天",
+      "collapseChat": "收起聊天",
+      "clearHistory": "清除历史",
+      "exportChat": "导出对话"
+    },
+    "errors": {
+      "sendFailed": "消息发送失败。",
+      "genericError": "发生了未知错误。",
+      "networkError": "网络连接错误。",
+      "serverError": "服务器错误。"
+    },
+    "status": {
+      "generating": "生成中…",
+      "videoGenerating": "视频生成中…",
+      "thinking": "思考中…",
+      "typing": "输入中…"
+    },
+    "settings": {
+      "title": "聊天设置",
+      "enableNotifications": "启用通知",
+      "backgroundVideo": "背景视频"
+    }
+  },
+  "dashboard": {
+    "title": "仪表板",
+    "fallback": {
+      "title": "欢迎",
+      "paragraph1": "探索你的卡片与洞察。",
+      "paragraph2": "连接想法并发现关联。",
+      "paragraph3": "构建你的个人知识图谱。",
+      "quote": "知识在分享中成长。"
+    },
+    "empty": {
+      "noCards": "暂时没有卡片。",
+      "noInsights": "暂时没有洞察。"
+    },
+    "actions": {
+      "refreshInsights": "刷新洞察",
+      "generatingInsights": "生成洞察中…"
+    }
+  },
+  "cards": {
+    "title": "卡片",
+    "viewMode": {
+      "grid": "网格",
+      "list": "列表",
+      "sorted": "排序"
+    },
+    "sortBy": {
+      "newest": "最新优先",
+      "oldest": "最旧优先",
+      "titleAsc": "标题 (A-Z)",
+      "titleDesc": "标题 (Z-A)"
+    },
+    "settings": {
+      "title": "卡片设置",
+      "viewMode": "查看模式",
+      "sortBy": "排序方式",
+      "showCoversFirst": "优先显示封面",
+      "defaultCoverStyle": "默认封面样式"
+    },
+    "actions": {
+      "generateCover": "生成封面",
+      "editCard": "编辑卡片",
+      "deleteCard": "删除卡片",
+      "shareCard": "分享卡片",
+      "loadingCards": "正在加载卡片..."
+    }
+  },
+  "cosmos": {
+    "title": "宇宙",
+    "settings": {
+      "title": "宇宙设置",
+      "showNodeLabels": "显示节点标签",
+      "showConnections": "显示连接",
+      "edgeWidth": "边缘宽度",
+      "nodeSize": "节点大小"
+    },
+    "navigation": {
+      "lookup": "查找",
+      "quest": "任务",
+      "questLive": "实时任务"
+    }
+  },
+  "settings": {
+    "title": "所有设置",
+    "language": {
+      "title": "语言设置",
+      "description": "选择应用界面的首选语言。",
+      "updated": "语言已更新。"
+    },
+    "backgroundMedia": {
+      "title": "背景媒体",
+      "description": "为应用选择背景视觉效果。",
+      "localVideos": "本地视频",
+      "defaultVideos": "默认视频",
+      "pexelsLibrary": "Pexels 库",
+      "searchPexels": "搜索 Pexels",
+      "aiGenerated": "AI 生成",
+      "askDot": "询问 Dot",
+      "refreshVideoList": "刷新视频列表"
+    },
+    "notifications": {
+      "title": "通知",
+      "description": "管理通知偏好。",
+      "enable": "启用通知",
+      "enableNotifications": "启用通知",
+      "allowTypes": "允许的类型",
+      "allowedTypes": "允许的类型",
+      "position": "位置",
+      "maxVisible": "最多显示",
+      "autoHide": "自动隐藏",
+      "autoHideSeconds": "自动隐藏（秒，0 = 永不）",
+      "doNotDisturb": "请勿打扰",
+      "snooze15": "延后 15 分钟",
+      "snooze30": "延后 30 分钟",
+      "snooze60": "延后 60 分钟",
+      "clearSnooze": "清除延后",
+      "snoozingUntil": "延后至 {{time}}",
+      "sendTest": "发送测试通知（本地）",
+      "testNotification": {
+        "title": "测试通知",
+        "description": "这是一条示例通知。"
+      },
+      "types": {
+        "newCard": "新卡片",
+        "graphUpdate": "图谱更新",
+        "newStar": "新星标",
+        "allowed": "允许",
+        "blocked": "阻止"
+      },
+      "positions": {
+        "topLeft": "左上",
+        "topRight": "右上",
+        "bottomLeft": "左下",
+        "bottomRight": "右下"
+      }
+    },
+    "hrt": {
+      "title": "混合检索工具 (HRT) 参数",
+      "description": "调整系统如何查找和排序相关内容",
+      "loadingParameters": "加载参数中…",
+      "vectorSearch": {
+        "title": "向量搜索 (Weaviate)",
+        "description": "控制系统如何查找语义相似的内容",
+        "resultsPerKeyPhrase": "每个关键词的结果数",
+        "resultsPerKeyPhraseDesc": "为每个关键词找到的相似实体数量",
+        "similarityThreshold": "相似度阈值",
+        "similarityThresholdDesc": "最小相似度分数（0.1 = 10% 相似度）",
+        "searchTimeout": "搜索超时",
+        "searchTimeoutDesc": "等待向量搜索结果的最长时间"
+      },
+      "graphTraversal": {
+        "title": "图遍历 (Neo4j)",
+        "description": "控制系统如何探索实体之间的关系",
+        "maxResultLimit": "最大结果限制",
+        "maxResultLimitDesc": "从图遍历中检索的最大实体数量",
+        "maxGraphHops": "最大图跳数",
+        "maxGraphHopsDesc": "从种子实体遍历的关系步数",
+        "maxSeedEntities": "最大种子实体",
+        "maxSeedEntitiesDesc": "开始遍历的最大种子实体数量",
+        "queryTimeout": "查询超时",
+        "queryTimeoutDesc": "等待图遍历结果的最长时间"
+      },
+      "scoring": {
+        "title": "评分和优先级",
+        "description": "控制实体如何排名和选择最终结果",
+        "finalEntitiesToKeep": "保留的最终实体",
+        "finalEntitiesToKeepDesc": "传递给 LLM 的顶级评分实体数量",
+        "recencyDecayRate": "时效性衰减率",
+        "recencyDecayRateDesc": "旧内容失去相关性的速度（越高 = 衰减越快）",
+        "diversityThreshold": "多样性阈值",
+        "diversityThresholdDesc": "选定实体之间的最小相似度差异"
+      },
+      "scoringWeights": {
+        "title": "评分权重",
+        "description": "平衡不同评分因子（总和必须为 1.0）",
+        "warning": "权重总和不等于 1.0",
+        "semanticSimilarity": "语义相似度权重",
+        "semanticSimilarityDesc": "优先考虑语义相似度的程度",
+        "recency": "时效性权重",
+        "recencyDesc": "优先考虑最新内容的程度",
+        "importance": "重要性分数权重",
+        "importanceDesc": "优先考虑高重要性内容的程度"
+      },
+      "performance": {
+        "title": "性能调优",
+        "description": "高级性能和缓存选项",
+        "maxRetrievalTime": "最大检索时间",
+        "maxRetrievalTimeDesc": "整个检索过程的最长总时间",
+        "enableParallelProcessing": "启用并行处理",
+        "enableParallelProcessingDesc": "同时处理多个阶段以获得更快的结果",
+        "cacheResults": "缓存结果",
+        "cacheResultsDesc": "为重复查询缓存检索结果"
+      },
+      "qualityFilters": {
+        "title": "质量过滤器",
+        "description": "提高结果质量的过滤器",
+        "minimumRelevanceScore": "最小相关性分数",
+        "minimumRelevanceScoreDesc": "包含在结果中的最小最终分数",
+        "deduplicateSimilarResults": "去重相似结果",
+        "deduplicateSimilarResultsDesc": "从结果中移除高度相似的实体",
+        "boostRecentContent": "提升最新内容",
+        "boostRecentContentDesc": "为最近创建的内容给予更高分数"
+      },
+      "actions": {
+        "resetToDefaults": "重置为默认值？",
+        "reset": "重置",
+        "save": "保存参数",
+        "saving": "保存中…"
+      },
+      "status": {
+        "lastUpdated": "最后更新：{{time}}",
+        "connected": "已连接",
+        "disconnected": "已断开",
+        "error": "错误"
+      }
+    }
+  },
+  "modals": {
+    "entityDetail": {
+      "loading": "加载中…",
+      "imageStyle": "图像样式",
+      "selectImageStyle": "选择图像样式"
+    },
+    "pexelsSearch": {
+      "title": "搜索 Pexels 视频",
+      "description": "从 Pexels 库中搜索高质量视频",
+      "searchPlaceholder": "搜索视频…",
+      "searching": "搜索中…",
+      "noResults": "未找到结果",
+      "error": "搜索时出错",
+      "results": "结果",
+      "of": "共",
+      "loadMore": "加载更多",
+      "select": "选择",
+      "close": "关闭"
+    },
+    "globalSettings": {
+      "title": "所有设置",
+      "languageSettings": "语言设置",
+      "languageDescription": "选择应用界面的首选语言。"
+    }
+  },
+  "hud": {
+    "title": "控制面板",
+    "contextualSettings": "上下文设置",
+    "globalSettings": "全局设置",
+    "conversationHistory": "对话历史",
+    "minimize": "最小化",
+    "maximize": "最大化"
+  },
+  "pwa": {
+    "install": {
+      "title": "安装 2D1L",
+      "description": "安装应用以获得全屏、无干扰的体验。",
+      "safariDescription": "通过\"添加到主屏幕\"获得全屏宇宙体验。",
+      "install": "安装",
+      "dismiss": "忽略",
+      "safariInstructions": {
+        "macos": "在 Safari (macOS) 上安装：\\n\\n1) 点击分享按钮\\n2) 点击\"添加到程序坞\"\\n3) 确认\"添加\"",
+        "ios": "在 Safari (iOS) 上安装：\\n\\n1) 点击分享按钮\\n2) 点击\"添加到主屏幕\"\\n3) 点击\"添加\"确认"
+      }
+    }
+  },
+  "search": {
+    "placeholder": "搜索…",
+    "noResults": "未找到结果",
+    "searching": "搜索中…"
+  },
+  "media": {
+    "video": "视频",
+    "image": "图像",
+    "audio": "音频",
+    "document": "文档"
+  },
+  "errors": {
+    "unauthorized": "未授权",
+    "notFound": "未找到",
+    "internalError": "服务器内部错误",
+    "badRequest": "请求错误",
+    "networkError": "网络错误",
+    "timeout": "请求超时",
+    "unknown": "未知错误"
+  }
+}

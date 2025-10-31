@@ -137,28 +137,29 @@ export const ConversationHistoryModal: React.FC<ConversationHistoryModalProps> =
       // await chatService.deleteSession(sessionId);
       
       // Remove from local state
-      setSessionHistory(sessionHistory.filter(session => session.session_id !== sessionId));
+      setSessionHistory(
+        sessionHistory.filter((session: SessionSummary) => session.session_id !== sessionId)
+      );
     } catch (err) {
       console.error('Error deleting session:', err);
       setError('Failed to delete session');
     }
   }, [sessionHistory, setSessionHistory]);
 
-  const filteredSessions = sessionHistory.filter(session =>
+  const filteredSessions: SessionSummary[] = sessionHistory.filter((session: SessionSummary) =>
     session.most_recent_conversation_title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (session.conversations && session.conversations.some(conv => 
+    (session.conversations && session.conversations.some((conv: SessionSummary['conversations'][number]) => 
       conv.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())
     ))
   );
 
-  const formatTimestamp = (timestamp: Date) => {
-    const date = new Date(timestamp);
+  const formatTimestamp = (timestamp: Date | string) => {
+    const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
     const now = new Date();
     const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
-    
+
     if (diffInHours < 24) {
-      const dateObj = date instanceof Date ? date : new Date(date);
-    return dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     } else if (diffInHours < 168) { // 7 days
       return date.toLocaleDateString([], { weekday: 'short' });
     } else {
@@ -248,7 +249,7 @@ export const ConversationHistoryModal: React.FC<ConversationHistoryModalProps> =
               </div>
             ) : (
               <div className="space-y-2 max-h-[50vh] overflow-y-auto">
-                {filteredSessions.map((session) => (
+                {filteredSessions.map((session: SessionSummary) => (
                   <div
                     key={session.session_id}
                     onClick={() => handleSessionSelect(session.session_id)}

@@ -1,12 +1,11 @@
-import React, { useState, useRef, useCallback, useMemo } from 'react';
-import { Canvas, useThree } from '@react-three/fiber';
+import React, { useState } from 'react';
+import { Canvas } from '@react-three/fiber';
 import { PerspectiveCamera } from '@react-three/drei';
 import { StarfieldBackground } from './StarfieldBackground';
 import { NASAStarfieldBackground } from './NASAStarfieldBackground';
 import { CameraController } from './CameraController';
 import { NodeMesh } from './NodeMesh';
 import { EdgeMesh, AnimatedEdgeMesh } from './EdgeMesh';
-import { EdgeLabel } from './EdgeLabel';
 import { NodeClusterContainer } from './NodeClusterContainer';
 import { useEngagementStore } from '../../stores/EngagementStore';
 import { useEngagementContext } from '../../hooks/useEngagementContext';
@@ -54,7 +53,7 @@ export const Graph3D: React.FC<Graph3DProps> = ({
   onBackgroundLoadError,
   isSearchResult = false,
   customCameraPosition,
-  customCameraTarget,
+  customCameraTarget: _customCameraTarget,
   customTargetDistance,
   rotationSpeed,
   enableNodeRotation = true,
@@ -67,7 +66,7 @@ export const Graph3D: React.FC<Graph3DProps> = ({
   
   // Engagement tracking
   const { trackEvent } = useEngagementStore();
-  const { trackEntityEngagement, stopEntityEngagement } = useEngagementContext();
+  const { trackEntityEngagement, stopEntityEngagement: _stopEntityEngagement } = useEngagementContext();
   
   // Normalize edge data - handle both 'links' and 'edges' properties
   const edges = graphData.links || graphData.edges || [];
@@ -214,34 +213,24 @@ export const Graph3D: React.FC<Graph3DProps> = ({
     return false;
   };
 
-  // Calculate node cluster center for camera positioning
-  const nodeClusterCenter = useMemo(() => {
-    // Use custom target if provided (for lookup scenes)
-    if (customCameraTarget) {
-      console.log('🌌 Using custom camera target:', customCameraTarget);
-      return customCameraTarget;
-    }
-    
-    if (graphData.nodes.length === 0) return { x: 0, y: 0, z: 0 };
-    
+  // Compute cluster center for initial camera target
+  const nodeClusterCenter = React.useMemo(() => {
+    if (!graphData.nodes || graphData.nodes.length === 0) return { x: 0, y: 0, z: 0 };
     const sum = graphData.nodes.reduce(
-      (acc, node) => ({
+      (acc, node: any) => ({
         x: acc.x + node.x,
         y: acc.y + node.y,
         z: acc.z + node.z
       }),
       { x: 0, y: 0, z: 0 }
     );
-    
     const center = {
       x: sum.x / graphData.nodes.length,
       y: sum.y / graphData.nodes.length,
       z: sum.z / graphData.nodes.length
     };
-    
-    console.log('🌌 Node cluster center:', center);
     return center;
-  }, [graphData.nodes, customCameraTarget]);
+  }, [graphData.nodes]);
 
   // Camera positioning is handled by CameraController via camera-focus-request events
 
@@ -311,7 +300,7 @@ export const Graph3D: React.FC<Graph3DProps> = ({
         enableRotation={enableNodeRotation}
         isHovered={!!hoveredNodeId}
       >
-        {graphData.nodes.map((node) => (
+        {graphData.nodes.map((node: any) => (
           <NodeMesh 
             key={node.id} 
             node={node} 
@@ -366,8 +355,8 @@ export const Graph3D: React.FC<Graph3DProps> = ({
               (!!hoveredNodeId && getConnectedNodes(hoveredNodeId).includes(node.id)) ||
               (!!selectedEntityId && getConnectedNodes(selectedEntityId).includes(node.id))
             }
-            isSearchResult={isSearchResult} // Use prop to determine if nodes are search results
-            nodeSizeMultiplier={nodeSizeMultiplier} // Pass node size multiplier
+            isSearchResult={isSearchResult}
+            nodeSizeMultiplier={nodeSizeMultiplier}
           />
         ))}
 
@@ -392,7 +381,7 @@ export const Graph3D: React.FC<Graph3DProps> = ({
           
           const edgeColor = getEdgeColor(edge);
           const edgeStrength = getEdgeStrength(edge);
-          const edgeLabel = getEdgeLabel(edge);
+          const _edgeLabel = getEdgeLabel(edge);
           
           return (
             <group key={`edge-${edge.id}-${index}`}>

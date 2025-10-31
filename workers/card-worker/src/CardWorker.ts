@@ -12,7 +12,7 @@
 
 import { ConfigService } from '@2dots1line/config-service';
 import { DatabaseService, CardRepository, MemoryRepository, ConceptRepository, DerivedArtifactRepository, ProactivePromptRepository, CommunityRepository, GrowthEventRepository, UserRepository } from '@2dots1line/database';
-import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
+import { environmentLoader } from '@2dots1line/core-utils';
 import { Worker, Job, Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import { 

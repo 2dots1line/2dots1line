@@ -4,7 +4,7 @@
  * Prioritizes environment variables over JSON configuration for reliable model selection
  */
 
-import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
+import { environmentLoader } from '@2dots1line/core-utils';
 import { ModelConfigService } from './ModelConfigService';
 
 export interface EnvironmentModelConfig {

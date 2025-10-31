@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import { useBackgroundVideoStore, type ViewType, type AllViewType } from '../stores/BackgroundVideoStore';
 
 interface DynamicBackgroundProps {
@@ -30,6 +31,9 @@ export const DynamicBackground: React.FC<DynamicBackgroundProps> = ({
   
   // Handle generated media
   if (media.source === 'generated') {
+    if (!media.url) {
+      return <LocalBackgroundVideo view={view as ViewType} className={className} overlayOpacity={overlayOpacity} />;
+    }
     return (
       <div className={`absolute inset-0 z-0 ${className}`}>
         <video
@@ -53,6 +57,9 @@ export const DynamicBackground: React.FC<DynamicBackgroundProps> = ({
   // Handle Pexels media
   if (media.source === 'pexels') {
     if (media.type === 'video') {
+      if (!media.url) {
+        return <LocalBackgroundVideo view={view as ViewType} className={className} overlayOpacity={overlayOpacity} />;
+      }
       return (
         <div className={`absolute inset-0 z-0 ${className}`}>
           <video
@@ -73,13 +80,21 @@ export const DynamicBackground: React.FC<DynamicBackgroundProps> = ({
       );
     } else {
       // Pexels photo
+      if (!media.url) {
+        return <LocalBackgroundVideo view={view as ViewType} className={className} overlayOpacity={overlayOpacity} />;
+      }
       return (
         <div className={`absolute inset-0 z-0 ${className}`}>
-          <img
-            src={media.url}
-            alt={media.title || 'Background'}
-            className="w-full h-full object-cover"
-          />
+          <div className="relative w-full h-full">
+            <Image
+              src={media.url!}
+              alt={media.title || 'Background'}
+              fill
+              sizes="100vw"
+              className="object-cover"
+              priority={false}
+            />
+          </div>
           <div 
             className="absolute inset-0 bg-black"
             style={{ opacity: overlayOpacity }}

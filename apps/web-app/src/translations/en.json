@@ -1,0 +1,435 @@
+{
+  "common": {
+    "auth": {
+      "login": "Log In",
+      "signup": "Sign Up",
+      "logout": "Log Out",
+      "signingIn": "Signing in...",
+      "creatingAccount": "Creating account..."
+    },
+    "actions": {
+      "save": "Save",
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "edit": "Edit",
+      "close": "Close",
+      "confirm": "Confirm",
+      "reset": "Reset",
+      "search": "Search",
+      "apply": "Apply",
+      "send": "Send",
+      "refresh": "Refresh",
+      "install": "Install",
+      "dismiss": "Dismiss",
+      "select": "Select",
+      "play": "Play",
+      "pause": "Pause",
+      "stop": "Stop"
+    },
+    "status": {
+      "loading": "Loading...",
+      "saving": "Saving...",
+      "success": "Success",
+      "error": "Error",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "online": "Online",
+      "offline": "Offline",
+      "connecting": "Connecting..."
+    },
+    "navigation": {
+      "dashboard": "Dashboard",
+      "cards": "Cards",
+      "chat": "Chat",
+      "cosmos": "Cosmos",
+      "settings": "Settings"
+    },
+    "time": {
+      "now": "Now",
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "thisWeek": "This week",
+      "lastWeek": "Last week",
+      "thisMonth": "This month",
+      "lastMonth": "Last month"
+    }
+  },
+  "landing": {
+    "hero": {
+      "title": "A New Horizon Awaits",
+      "description": "Step into a space of reflection and connection. Discover the stories within, and watch your inner world expand."
+    },
+    "welcome": {
+      "title": "Welcome to 2D1L",
+      "description": "Your personal knowledge cosmos."
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "Log In",
+      "subtitle": "Welcome back",
+      "emailLabel": "Email Address",
+      "emailPlaceholder": "Enter your email",
+      "passwordLabel": "Password",
+      "passwordPlaceholder": "Enter your password",
+      "loginButton": "Log In",
+      "switchToSignup": "Don't have an account?",
+      "signupLink": "Sign up"
+    },
+    "signup": {
+      "title": "Sign Up",
+      "subtitle": "Create your account",
+      "nameLabel": "Full Name",
+      "namePlaceholder": "Enter your full name",
+      "emailLabel": "Email Address",
+      "emailPlaceholder": "Enter your email",
+      "passwordLabel": "Password",
+      "passwordPlaceholder": "Create a password",
+      "confirmPasswordLabel": "Confirm Password",
+      "confirmPasswordPlaceholder": "Confirm your password",
+      "signupButton": "Create Account",
+      "switchToLogin": "Already have an account?",
+      "loginLink": "Log in"
+    }
+  },
+  "chat": {
+    "input": {
+      "placeholder": "Ask anything"
+    },
+    "actions": {
+      "newChat": "Start new chat",
+      "expandChat": "Expand chat",
+      "collapseChat": "Collapse to mini",
+      "clearHistory": "Clear history",
+      "exportChat": "Export chat"
+    },
+    "errors": {
+      "sendFailed": "I apologize, but I encountered an error processing your message: {{message}}. Please try again.",
+      "genericError": "An error occurred. Please try again.",
+      "networkError": "Network connection error.",
+      "serverError": "Server error."
+    },
+    "status": {
+      "generating": "Generating your image...",
+      "videoGenerating": "Starting video generation...",
+      "thinking": "Thinking...",
+      "typing": "Typing..."
+    },
+    "settings": {
+      "title": "Chat Settings",
+      "enableNotifications": "Enable notifications",
+      "backgroundVideo": "Background video"
+    }
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "fallback": {
+      "title": "Your Journey Through the Cosmos",
+      "paragraph1": "Welcome to your personal cosmic journey. This month, we've witnessed remarkable growth across all dimensions of your being.",
+      "paragraph2": "The insights we've gathered show a person who is not just growing, but evolving.",
+      "paragraph3": "As you explore the cards and insights that follow, remember that this is your story.",
+      "quote": "The cosmos is within us. We are made of star-stuff. We are a way for the universe to know itself."
+    },
+    "empty": {
+      "noCards": "No recent cards available",
+      "noInsights": "No insights yet"
+    },
+    "loading": {
+      "cards": "Loading cards...",
+      "insights": "Loading insights...",
+      "journey": "Loading your cosmic journey...",
+      "growthData": "Loading growth data...",
+      "general": "Loading..."
+    },
+    "errors": {
+      "failedToLoad": "Failed to load cards",
+      "loadError": "Failed to load"
+    },
+    "tabs": {
+      "overview": "Overview",
+      "insights": "Insights",
+      "growth": "Growth",
+      "activity": "Activity"
+    },
+    "sections": {
+      "recentActivity": "Recent Activity",
+      "dynamicInsights": "Dynamic Insights",
+      "editorsNote": "Editor's Note",
+      "noInsightsAvailable": "No Dynamic Insights Available",
+      "noInsightsDescription": "Continue your journey to unlock personalized insights and growth patterns."
+    },
+    "metrics": {
+      "memoryUnits": "Memory Units",
+      "concepts": "Concepts",
+      "growthEvents": "Growth Events",
+      "cards": "Cards"
+    },
+    "actions": {
+      "pause": "Pause",
+      "listen": "Listen",
+      "startConversation": "Start a conversation",
+      "refreshInsights": "Refresh insights",
+      "generatingInsights": "Generating insights..."
+    }
+  },
+  "cards": {
+    "title": "Cards",
+    "viewMode": {
+      "grid": "Grid",
+      "list": "List",
+      "sorted": "Sorted"
+    },
+    "sortBy": {
+      "newest": "Newest first",
+      "oldest": "Oldest first",
+      "titleAsc": "Title (A-Z)",
+      "titleDesc": "Title (Z-A)"
+    },
+    "settings": {
+      "title": "Card Settings",
+      "viewMode": "View mode",
+      "sortBy": "Sort by",
+      "showCoversFirst": "Show covers first",
+      "defaultCoverStyle": "Default cover style"
+    },
+    "actions": {
+      "generateCover": "Generate cover",
+      "editCard": "Edit card",
+      "deleteCard": "Delete card",
+      "shareCard": "Share card",
+      "loadingCards": "Loading cards..."
+    }
+  },
+  "cosmos": {
+    "title": "Cosmos",
+    "settings": {
+      "title": "Cosmos Settings",
+      "showNodeLabels": "Show node labels",
+      "showConnections": "Show connections",
+      "edgeWidth": "Edge width",
+      "nodeSize": "Node size"
+    },
+    "navigation": {
+      "lookup": "Lookup",
+      "quest": "Quest",
+      "questLive": "Quest Live"
+    }
+  },
+  "settings": {
+    "title": "All Settings",
+    "language": {
+      "title": "Language Preference",
+      "description": "Choose your preferred language for the interface and AI responses.",
+      "updated": "Language updated successfully"
+    },
+    "backgroundMedia": {
+      "title": "Background Media",
+      "description": "Choose different background media for each 2D view. You can use local videos or search for new ones from Pexels.",
+      "localVideos": "Local Videos",
+      "defaultVideos": "Default Videos",
+      "pexelsLibrary": "Pexels Library",
+      "searchPexels": "Search Pexels",
+      "aiGenerated": "AI Generated Videos ({{count}})",
+      "askDot": "Ask Dot to generate a custom video for you!",
+      "refreshVideoList": "Refresh video list"
+    },
+    "notifications": {
+      "title": "Notification Settings",
+      "description": "Configure in-app toasts and delivery preferences",
+      "enable": "Enable Notifications",
+      "enableNotifications": "Enable notifications",
+      "allowTypes": "Allow Types",
+      "allowedTypes": "Allowed types",
+      "position": "Position",
+      "maxVisible": "Max Visible",
+      "autoHide": "Auto-hide (seconds, 0 = never)",
+      "autoHideSeconds": "Auto-hide (seconds, 0 = never)",
+      "doNotDisturb": "Do Not Disturb",
+      "snooze15": "Snooze 15m",
+      "snooze30": "Snooze 30m",
+      "snooze60": "Snooze 60m",
+      "clearSnooze": "Clear Snooze",
+      "snoozingUntil": "Snoozing until {{time}}",
+      "sendTest": "Send Test",
+      "testNotification": {
+        "title": "Test Notification",
+        "description": "This is a local test toast"
+      },
+      "types": {
+        "newCard": "New Card Available",
+        "graphUpdate": "Graph Projection Updated",
+        "newStar": "New Star Generated",
+        "allowed": "Allowed",
+        "blocked": "Blocked"
+      },
+      "positions": {
+        "topLeft": "Top Left",
+        "topRight": "Top Right",
+        "bottomLeft": "Bottom Left",
+        "bottomRight": "Bottom Right"
+      }
+    },
+    "hrt": {
+      "title": "Hybrid Retrieval Tool (HRT) Parameters",
+      "description": "Adjust how the system finds and ranks relevant content",
+      "loadingParameters": "Loading parameters...",
+      "vectorSearch": {
+        "title": "Vector Search (Weaviate)",
+        "description": "Control how the system finds semantically similar content",
+        "resultsPerKeyPhrase": "Results per key phrase",
+        "resultsPerKeyPhraseDesc": "Number of similar entities to find for each key phrase",
+        "similarityThreshold": "Similarity threshold",
+        "similarityThresholdDesc": "Minimum similarity score (0.1 = 10% similarity)",
+        "searchTimeout": "Search timeout",
+        "searchTimeoutDesc": "Maximum time to wait for vector search results"
+      },
+      "graphTraversal": {
+        "title": "Graph Traversal (Neo4j)",
+        "description": "Control how the system explores relationships between entities",
+        "maxResultLimit": "Max result limit",
+        "maxResultLimitDesc": "Maximum number of entities to retrieve from graph traversal",
+        "maxGraphHops": "Max graph hops",
+        "maxGraphHopsDesc": "Number of relationship steps to traverse from seed entities",
+        "maxSeedEntities": "Max seed entities",
+        "maxSeedEntitiesDesc": "Maximum number of seed entities to start traversal from",
+        "queryTimeout": "Query timeout",
+        "queryTimeoutDesc": "Maximum time to wait for graph traversal results"
+      },
+      "scoring": {
+        "title": "Scoring and Prioritization",
+        "description": "Control how entities are ranked and final results selected",
+        "finalEntitiesToKeep": "Final entities to keep",
+        "finalEntitiesToKeepDesc": "Number of top-scored entities to pass to LLM",
+        "recencyDecayRate": "Recency decay rate",
+        "recencyDecayRateDesc": "How quickly older content loses relevance (higher = faster decay)",
+        "diversityThreshold": "Diversity threshold",
+        "diversityThresholdDesc": "Minimum similarity difference between selected entities"
+      },
+      "scoringWeights": {
+        "title": "Scoring Weights",
+        "description": "Balance different scoring factors (must sum to 1.0)",
+        "warning": "Weights do not sum to 1.0",
+        "semanticSimilarity": "Semantic similarity weight",
+        "semanticSimilarityDesc": "How much to prioritize semantic similarity",
+        "recency": "Recency weight",
+        "recencyDesc": "How much to prioritize recent content",
+        "importance": "Importance score weight",
+        "importanceDesc": "How much to prioritize high-importance content"
+      },
+      "performance": {
+        "title": "Performance Tuning",
+        "description": "Advanced performance and caching options",
+        "maxRetrievalTime": "Max retrieval time",
+        "maxRetrievalTimeDesc": "Maximum total time for entire retrieval process",
+        "enableParallelProcessing": "Enable parallel processing",
+        "enableParallelProcessingDesc": "Process multiple stages simultaneously for faster results",
+        "cacheResults": "Cache results",
+        "cacheResultsDesc": "Cache retrieval results for repeated queries"
+      },
+      "qualityFilters": {
+        "title": "Quality Filters",
+        "description": "Filters to improve result quality",
+        "minimumRelevanceScore": "Minimum relevance score",
+        "minimumRelevanceScoreDesc": "Minimum final score to include in results",
+        "deduplicateSimilarResults": "Deduplicate similar results",
+        "deduplicateSimilarResultsDesc": "Remove highly similar entities from results",
+        "boostRecentContent": "Boost recent content",
+        "boostRecentContentDesc": "Give higher scores to recently created content"
+      },
+      "actions": {
+        "resetToDefaults": "Reset to defaults?",
+        "reset": "Reset",
+        "save": "Save Parameters",
+        "saving": "Saving..."
+      },
+      "status": {
+        "lastUpdated": "Last updated: {{time}}",
+        "connected": "Connected",
+        "disconnected": "Disconnected",
+        "error": "Error"
+      }
+    }
+  },
+  "modals": {
+    "entityDetail": {
+      "loading": "Loading...",
+      "imageStyle": "Image style",
+      "selectImageStyle": "Select image style"
+    },
+    "pexelsSearch": {
+      "title": "Search Pexels Videos",
+      "description": "Search for high-quality videos from the Pexels library",
+      "searchPlaceholder": "Search for videos...",
+      "searching": "Searching...",
+      "noResults": "No results found",
+      "error": "Error occurred while searching",
+      "results": "results",
+      "of": "of",
+      "loadMore": "Load more",
+      "select": "Select",
+      "close": "Close"
+    },
+    "globalSettings": {
+      "title": "All Settings",
+      "languageSettings": "Language Settings",
+      "languageDescription": "Choose your preferred language for the application interface."
+    }
+  },
+  "hud": {
+    "title": "HUD",
+    "navigation": "Navigation",
+    "sessionHistory": "Session History",
+    "searchSessions": "Search sessions...",
+    "noSessions": "No conversation history yet",
+    "deleteSession": "Delete session",
+    "showHistory": "Show session history",
+    "hideHistory": "Hide session history",
+    "openMiniChat": "Open mini chat",
+    "contextualSettings": "Contextual Settings",
+    "globalSettings": "Global Settings",
+    "conversationHistory": "Conversation History",
+    "minimize": "Minimize",
+    "maximize": "Maximize",
+    "buttons": {
+      "dashboard": "Dashboard",
+      "chat": "Chat",
+      "cards": "Cards",
+      "cosmos": "Cosmos",
+      "settings": "Settings",
+      "miniChat": "Mini Chat"
+    }
+  },
+  "pwa": {
+    "install": {
+      "title": "Install 2D1L",
+      "description": "Install the app for a full-screen, distraction-free experience.",
+      "safariDescription": "Get the full-screen cosmos experience with \"Add to Home Screen\".",
+      "install": "Install",
+      "dismiss": "Dismiss",
+      "safariInstructions": {
+        "macos": "To install on Safari (macOS):\\n\\n1) Click the Share button\\n2) Click \"Add to Dock\"\\n3) Confirm \"Add\"",
+        "ios": "To install on Safari (iOS):\\n\\n1) Tap the Share button\\n2) Tap \"Add to Home Screen\"\\n3) Tap \"Add\" to confirm"
+      }
+    }
+  },
+  "search": {
+    "placeholder": "Search...",
+    "noResults": "No results found",
+    "searching": "Searching..."
+  },
+  "media": {
+    "video": "Video",
+    "image": "Image",
+    "audio": "Audio",
+    "document": "Document"
+  },
+  "errors": {
+    "unauthorized": "Unauthorized",
+    "notFound": "Not found",
+    "internalError": "Internal Server Error",
+    "badRequest": "Bad request",
+    "networkError": "Network error",
+    "timeout": "Request timeout",
+    "unknown": "Unknown error"
+  }
+}

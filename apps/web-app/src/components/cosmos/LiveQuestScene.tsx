@@ -3,14 +3,12 @@ import { Graph3D } from './Graph3D';
 import { useQuestConnection } from '../../hooks/useQuestConnection';
 import { useCosmosStore } from '../../stores/CosmosStore';
 import { useUserStore } from '../../stores/UserStore';
-import CosmosError from '../modal/CosmosError';
-import CosmosLoading from '../modal/CosmosLoading';
 import { EntityDetailModal } from '../modal/EntityDetailModal';
 import QuestInfoPanel from '../modal/QuestInfoPanel';
 import { LookupCameraController } from './LookupCameraController';
 import { HUDContainer } from '../hud/HUDContainer';
 import { GlassmorphicPanel, GlassButton } from '@2dots1line/ui-components';
-import { Send, Loader2, MessageSquare, X, Plus } from 'lucide-react';
+import { Send, Loader2, MessageSquare } from 'lucide-react';
 // Removed entity lookup imports to keep quest visualization clean
 
 const LiveQuestScene: React.FC = () => {
@@ -19,7 +17,7 @@ const LiveQuestScene: React.FC = () => {
   const [messages, setMessages] = useState<Array<{type: 'user' | 'agent' | 'system', content: string, timestamp: Date}>>([]);
   const [streamingNarration, setStreamingNarration] = useState<string>('');
   const [isStreaming, setIsStreaming] = useState(false);
-  const [stageDirections, setStageDirections] = useState<any[]>([]);
+  const [_stageDirections, _setStageDirections] = useState<any[]>([]);
   
   const { user } = useUserStore();
   const authToken = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
@@ -32,19 +30,19 @@ const LiveQuestScene: React.FC = () => {
     setSelectedNode,
     showEdges,
     setShowEdges,
-    graphData,
-    setGraphData,
-    showNodeLabels,
+    graphData: _graphData,
+    setGraphData: _setGraphData,
+    showNodeLabels: _showNodeLabels,
     setShowNodeLabels
   } = useCosmosStore();
 
   // Local edge control state
-  const [edgeOpacity, setEdgeOpacity] = useState(0.5);
-  const [edgeWidth, setEdgeWidth] = useState(1.0);
-  const [animatedEdges, setAnimatedEdges] = useState(true);
+  const [edgeOpacity, _setEdgeOpacity] = useState(0.5);
+  const [edgeWidth, _setEdgeWidth] = useState(1.0);
+  const [animatedEdges, _setAnimatedEdges] = useState(true);
 
   // Store current quest ID for reference
-  const [currentQuestId, setCurrentQuestId] = useState<string | null>(null);
+  const [_currentQuestId, setCurrentQuestId] = useState<string | null>(null);
   
   // Track which messages have been added to prevent duplicates
   const [addedMessages, setAddedMessages] = useState<Set<string>>(new Set());
@@ -77,7 +75,7 @@ const LiveQuestScene: React.FC = () => {
     setMessages([]);
     setStreamingNarration('');
     setIsStreaming(false);
-    setStageDirections([]);
+    _setStageDirections([]);
     setAddedMessages(new Set()); // Clear message tracking
     
     // Add user message to chat
@@ -171,7 +169,7 @@ const LiveQuestScene: React.FC = () => {
     // Handle stage directions
     if (questState.stage_direction) {
       console.log('🎬 LiveQuestScene: Stage direction received:', questState.stage_direction);
-      setStageDirections(prev => [...prev, questState.stage_direction]);
+      _setStageDirections(prev => [...prev, questState.stage_direction]);
       
       // Execute stage direction immediately
       executeStageDirection(questState.stage_direction);

@@ -9,7 +9,7 @@ import { Vector3, CatmullRomCurve3 } from 'three';
 import { CosmosNode } from '@2dots1line/shared-types';
 
 // Local types to avoid circular dependencies
-interface SimpleCosmosNode {
+interface _SimpleCosmosNode {
   id: string;
   title: string;
   position: { x: number; y: number; z: number };
@@ -467,4 +467,4 @@ export const useCosmosNavigation = (options: UseCosmosNavigationOptions = {}): U
     keys,
     mousePosition,
   };
-}; 
+};

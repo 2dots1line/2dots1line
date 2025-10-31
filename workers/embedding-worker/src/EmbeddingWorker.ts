@@ -10,7 +10,7 @@
  * persisted and can be indexed later. Performance specialization allows independent scaling.
  */
 
-import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
+import { environmentLoader } from '@2dots1line/core-utils';
 import { DatabaseService } from '@2dots1line/database';
 import { TTextEmbeddingInputPayload, TTextEmbeddingResult, IExecutableTool } from '@2dots1line/shared-types';
 import { TextEmbeddingTool } from '@2dots1line/tools';

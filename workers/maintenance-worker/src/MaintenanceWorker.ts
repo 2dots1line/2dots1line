@@ -5,7 +5,7 @@
  */
 
 import { DatabaseService } from '@2dots1line/database';
-import { environmentLoader } from '@2dots1line/core-utils/dist/environment/EnvironmentLoader';
+import { environmentLoader } from '@2dots1line/core-utils';
 import * as cron from 'node-cron';
 
 /**

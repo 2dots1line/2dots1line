@@ -6,7 +6,7 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.build.json && npm run copy:css",
-    "copy:css": "copyfiles 'src/**/*.css' dist --up 1",
+    "copy:css": "copyfiles \"src/**/*.css\" dist --up 1",
     "dev": "tsc --watch",
     "lint": "eslint src --max-warnings 0",
     "test": "jest"

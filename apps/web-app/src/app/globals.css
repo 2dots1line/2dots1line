@@ -92,4 +92,5 @@ body {
 
 /* Component-specific styles */
 @import '../styles/VoiceRecordingIndicator.css';
-@import '../styles/markdown.styles.css'; 
+@import '../styles/markdown.styles.css';
+@import '@2dots1line/ui-components/dist/components/cards/InfiniteCardCanvas.css';

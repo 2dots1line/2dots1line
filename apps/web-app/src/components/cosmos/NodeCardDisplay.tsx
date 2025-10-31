@@ -1,11 +1,5 @@
-/**
- * NodeCardDisplay Component
- * Displays card data in a rich, formatted way for the Cosmos node modal
- */
-
 import React from 'react';
 import { DisplayCard } from '@2dots1line/shared-types';
-import { CardTile } from '@2dots1line/ui-components';
 import { Star, Share2, Archive, Edit, ExternalLink } from 'lucide-react';
 
 interface NodeCardDisplayProps {
@@ -210,4 +204,4 @@ export const NodeCardDisplayGlass: React.FC<NodeCardDisplayProps> = (props) => {
       <NodeCardDisplay {...props} className="glass-panel backdrop-blur-md" />
     </div>
   );
-}; 
+};

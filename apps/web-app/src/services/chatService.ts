@@ -117,6 +117,7 @@ export interface SendMessageRequest {
   };
 }
 
+// Extend metadata to include grounding information
 export interface SendMessageResponse {
   success: boolean;
   conversation_id?: string;
@@ -128,6 +129,7 @@ export interface SendMessageResponse {
   metadata?: {
     processing_time_ms?: number;
     source_card_id?: string;
+    grounding_metadata?: GroundingMetadata;
   };
   ui_actions?: UiAction[]; // NEW: UI action suggestions from backend
   file_info?: {
@@ -139,49 +141,7 @@ export interface SendMessageResponse {
   details?: string;
 }
 
-export interface ChatHistory {
-  messages: ChatMessage[];
-  conversation_id: string;
-  total_count: number;
-}
-
-export interface ConversationSummary {
-  id: string;
-  title: string;
-  lastMessage: string;
-  timestamp: Date;
-  messageCount: number;
-  status: 'active' | 'ended';
-}
-
-export interface SessionSummary {
-  session_id: string;
-  created_at: Date;
-  last_active_at: Date;
-  most_recent_conversation_title: string;
-  conversation_count: number;
-  conversations: ConversationSummary[];
-}
-
-export interface ConversationHistoryResponse {
-  conversations: ConversationSummary[];
-  total: number;
-  limit: number;
-  offset: number;
-}
-
-export interface ConversationResponse {
-  conversation: {
-    id: string;
-    title: string | null;
-    status: string;
-    start_time: Date;
-    ended_at: Date | null;
-    messageCount: number;
-  };
-  messages: ChatMessage[];
-}
-
+// Optionally tighten streaming metadata callback typing
 class ChatService {
   private getAuthHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
@@ -204,7 +164,7 @@ class ChatService {
   async sendMessageStreaming(
     request: SendMessageRequest,
     onChunk: (chunk: string) => void,
-    onMetadata?: (metadata: any) => void,
+    onMetadata?: (metadata: Partial<SendMessageResponse>) => void,
     onComplete?: (response: SendMessageResponse) => void,
     onError?: (error: Error) => void,
     messageId?: string,
@@ -256,6 +216,7 @@ class ChatService {
       console.log('🌊 ChatService: Starting to read stream...');
 
       try {
+        // eslint-disable-next-line no-constant-condition
         while (true) {
           const { done, value } = await reader.read();
           
@@ -688,4 +649,50 @@ class ChatService {
   }
 }
 
-export const chatService = new ChatService(); 
+export const chatService = new ChatService();
+
+// Exported types used by HUD and services
+export interface ConversationSummary {
+  id: string;
+  title: string | null;
+  lastMessage: string;
+  timestamp: Date | string;
+  messageCount: number;
+  status: 'active' | 'ended';
+  start_time: Date | string;
+  ended_at: Date | string | null;
+}
+
+export interface ChatHistory {
+  messages: ChatMessage[];
+  conversation_id: string;
+  total_count: number;
+}
+
+export interface ConversationHistoryResponse {
+  conversations: ConversationSummary[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface ConversationResponse {
+  conversation: {
+    id: string;
+    title: string | null;
+    status: string;
+    start_time: Date | string;
+    ended_at: Date | string | null;
+    messageCount: number;
+  };
+  messages: ChatMessage[];
+}
+
+export interface SessionSummary {
+  session_id: string;
+  created_at: Date | string;
+  last_active_at: Date | string;
+  most_recent_conversation_title: string;
+  conversation_count: number;
+  conversations: ConversationSummary[];
+}

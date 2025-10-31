@@ -1,11 +1,17 @@
 'use client';
 
 import { GlassmorphicPanel, GlassButton, MarkdownRenderer, CardTile, useTextToSpeech, HeroAudioCard, PortraitInsightCard, GrowthEventCard, ProactivePromptCard } from '@2dots1line/ui-components';
+import { useTranslation } from '@2dots1line/core-utils/i18n/useTranslation';
+import { useUserStore } from '../../stores/UserStore';
 import { EntityDetailModal } from './EntityDetailModal';
 import { useCardStore } from '../../stores/CardStore';
 import { useHUDStore } from '../../stores/HUDStore';
 import { useEngagementStore } from '../../stores/EngagementStore';
 import { useDeviceStore } from '../../stores/DeviceStore';
+import { useDashboardStore } from '../../stores/DashboardStore';
+import { useNotificationStore } from '../../stores/NotificationStore';
+import { useChatStore } from '../../stores/ChatStore';
+import { useAudioStore } from '../../stores/AudioStore';
 import { useAutoLoadCards } from '../hooks/useAutoLoadCards';
 import { 
   X, 
@@ -47,6 +53,10 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
   const [userData, setUserData] = useState<{ name: string; email: string; memberSince: string } | null>(null);
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [dynamicDashboardData, setDynamicDashboardData] = useState<DynamicDashboardData | null>(null);
+  
+  const { user } = useUserStore();
+  const { t } = useTranslation(user?.language_preference);
+  
   // Use the same stores as infinite/sorted card views
   const { cards, setSelectedCard, isLoading: cardsLoading, error: cardsError } = useCardStore();
   const { setCardDetailModalOpen, setActiveView } = useHUDStore();
@@ -176,18 +186,21 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
       case 'opening':
         content = `${transformedData.openingContent.title}. ${transformedData.openingContent.content}`;
         break;
-      case 'insight':
+      case 'insight': {
         const insight = transformedData.insights.find(i => i.id === id);
         content = insight ? `${insight.title}. ${insight.content}` : '';
         break;
-      case 'growth':
+      }
+      case 'growth': {
         const growthEvent = transformedData.growthEvents.find(g => g.id === id);
         content = growthEvent ? `${growthEvent.title}. ${growthEvent.content}` : '';
         break;
-      case 'prompt':
+      }
+      case 'prompt': {
         const prompt = transformedData.prompts.find(p => p.id === id);
         content = prompt ? `${prompt.title}. ${prompt.content}` : '';
         break;
+      }
     }
     
     if (content) {
@@ -285,10 +298,10 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
 
   // Tab name mapping
   const tabNames: Record<string, string> = {
-    'opening': 'Opening',
-    'dynamic': 'Dynamic Insights',
-    'growth-trajectory': 'Growth Trajectory',
-    'activity': 'Activity'
+    'opening': t('dashboard.tabs.overview' as any),
+    'dynamic': t('dashboard.tabs.insights' as any),
+    'growth-trajectory': t('dashboard.tabs.growth' as any),
+    'activity': t('dashboard.tabs.activity' as any)
   };
 
   useEffect(() => {
@@ -366,7 +379,7 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
       return (
         <div className="text-center py-4 text-white/60">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white/60 mx-auto mb-2"></div>
-          <p className="text-sm">Loading cards...</p>
+          <p className="text-sm">{t('dashboard.loading.cards' as any)}</p>
         </div>
       );
     }
@@ -376,7 +389,7 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
       return (
         <div className="text-center py-4 text-red-400">
           <div className="text-2xl mb-2">⚠️</div>
-          <p className="text-sm">Failed to load cards</p>
+          <p className="text-sm">{t('dashboard.errors.failedToLoad' as any)}</p>
           <p className="text-xs text-red-300 mt-1">{cardsError}</p>
         </div>
       );
@@ -387,7 +400,7 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
       return (
         <div className="text-center py-4 text-white/60">
           <div className="text-2xl mb-2">📭</div>
-          <p className="text-sm">No recent cards available</p>
+          <p className="text-sm">{t('dashboard.empty.noCards')}</p>
         </div>
       );
     }
@@ -623,9 +636,9 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
         <div className="absolute top-4 left-20 right-4 z-50">
           <div className="flex gap-2 mb-4">
             {[
-              { key: 'opening', label: 'Opening' },
-              { key: 'dynamic', label: 'Insights' },
-              { key: 'growth-trajectory', label: 'Growth' }
+              { key: 'opening', label: t('dashboard.tabs.overview' as any) },
+              { key: 'dynamic', label: t('dashboard.tabs.insights' as any) },
+              { key: 'growth-trajectory', label: t('dashboard.tabs.growth' as any) }
             ].map((tab) => (
               <button
                 key={tab.key}
@@ -876,10 +889,10 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
             {/* Tab Navigation */}
             <div className="flex gap-2 mb-6 flex-wrap">
               {[
-                { key: 'opening', label: 'Opening', icon: BookOpen },
-                { key: 'dynamic', label: 'Dynamic Insights', icon: Brain },
-                { key: 'growth-trajectory', label: 'Growth Trajectory', icon: TrendingUp },
-                { key: 'activity', label: 'Activity', icon: Activity }
+                { key: 'opening', label: t('dashboard.tabs.overview' as any), icon: BookOpen },
+                { key: 'dynamic', label: t('dashboard.tabs.insights' as any), icon: Brain },
+                { key: 'growth-trajectory', label: t('dashboard.tabs.growth' as any), icon: TrendingUp },
+                { key: 'activity', label: t('dashboard.tabs.activity' as any), icon: Activity }
               ].map((tab) => {
                 const IconComponent = tab.icon;
                 return (
@@ -928,7 +941,7 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                 >
                   <div className="flex items-center gap-3 mb-4">
                     <Activity size={20} className="text-white/80 stroke-current" strokeWidth={1.5} />
-                    <h3 className="text-white/90 font-medium">Recent Activity</h3>
+                    <h3 className="text-white/90 font-medium">{t('dashboard.sections.recentActivity' as any)}</h3>
                   </div>
                   <div className="space-y-4">
                     {recentActivity.map((activity) => (
@@ -972,7 +985,7 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-3">
                           <Brain size={20} className="text-white/80 stroke-current" strokeWidth={1.5} />
-                          <h3 className="text-white/90 font-medium">Dynamic Insights</h3>
+                          <h3 className="text-white/90 font-medium">{t('dashboard.sections.dynamicInsights' as any)}</h3>
                         </div>
                         {userMetrics?.latest_cycle_date_range?.start_date && (
                           <div className="text-sm text-white/60">
@@ -991,7 +1004,7 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
                         </div>
                         <div>
                           <div className="text-2xl font-bold text-white">{userMetrics?.growth_events_count || 0}</div>
-                          <div className="text-xs text-white/60">Growth Events</div>
+                          <div className="text-xs text-white/60">{t('dashboard.metrics.growthEvents' as any)}</div>
                         </div>
                         <div>
                           <div className="text-2xl font-bold text-white">{userMetrics?.cards_count || 0}</div>
@@ -1305,4 +1318,4 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
   );
 };
 
-export default DashboardModal; 
+export default DashboardModal;

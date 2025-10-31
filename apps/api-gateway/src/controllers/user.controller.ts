@@ -55,6 +55,7 @@ export class UserController {
           name: user.name,
           profileImageUrl: user.profile_picture_url,
           preferences: user.preferences,
+          language_preference: user.language_preference,
           createdAt: user.created_at,
           // Note: users table doesn't have updated_at field in current schema
         }
@@ -234,15 +235,15 @@ export class UserController {
         return;
       }
       
-      const { name, profileImageUrl, preferences } = req.body;
+      const { name, profileImageUrl, preferences, language_preference } = req.body;
       
       // Validate that at least one field is being updated
-      if (!name && !profileImageUrl && !preferences) {
+      if (!name && !profileImageUrl && !preferences && !language_preference) {
         res.status(400).json({ 
           success: false, 
           error: {
             code: 'BAD_REQUEST',
-            message: 'At least one field (name, profileImageUrl, or preferences) must be provided'
+            message: 'At least one field (name, profileImageUrl, preferences, or language_preference) must be provided'
           }
         } as TApiResponse<any>);
         return;
@@ -251,7 +252,8 @@ export class UserController {
       const updatedUser = await this.userService.updateUser(userId, {
         name,
         profileImageUrl,
-        preferences
+        preferences,
+        language_preference
       });
       
       res.status(200).json({
@@ -262,6 +264,7 @@ export class UserController {
           name: updatedUser.name,
           profile_picture_url: updatedUser.profile_picture_url,
           preferences: updatedUser.preferences,
+          language_preference: updatedUser.language_preference,
           created_at: updatedUser.created_at
         }
       } as TApiResponse<any>);
@@ -390,4 +393,4 @@ export class UserController {
       } as TApiResponse<any>);
     }
   };
-} 
+}

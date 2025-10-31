@@ -8,12 +8,8 @@ import {
   Move3D,
   RotateCcw,
   ZoomIn,
-  ZoomOut,
   Home,
-  Search,
-  Filter,
   Settings,
-  Maximize2,
   Minimize2,
   Eye,
   EyeOff,
@@ -22,7 +18,6 @@ import {
   Pause,
   Info
 } from 'lucide-react';
-import { CosmosNavigationState } from '@2dots1line/shared-types';
 import { GlassmorphicPanel, GlassButton } from '@2dots1line/ui-components';
 
 interface CosmosNavigationControlsProps {
@@ -122,7 +117,7 @@ export const CosmosNavigationControls: React.FC<CosmosNavigationControlsProps> =
   }, [keyboardShortcuts]);
 
   // Movement handlers
-  const handleDirectionalMove = useCallback((direction: [number, number, number]) => {
+  const _handleDirectionalMove = useCallback((direction: [number, number, number]) => {
     onMoveCamera(direction);
     if (debug) console.log('🎮 CosmosNavigationControls: Directional move', direction);
   }, [onMoveCamera, debug]);
@@ -215,14 +210,14 @@ export const CosmosNavigationControls: React.FC<CosmosNavigationControlsProps> =
               <div>
                 <label className="text-xs text-white/70 mb-2 block">Camera Mode</label>
                 <div className="grid grid-cols-2 gap-1">
-                  {cameraModes.map((mode) => (
+                  {cameraModes.map((mode: typeof cameraModes[number]) => (
                     <GlassButton
                       key={mode.id}
                       onClick={() => onCameraModeChange(mode.id)}
                       className={`p-2 text-xs ${
                         cameraMode === mode.id
-                          ? 'bg-white/20 text-white'
-                          : 'bg-white/5 text-white/70 hover:bg-white/10'
+                          ? 'bg白/20 text白'
+                          : 'bg白/5 text白/70 hover:bg白/10'
                       }`}
                     >
                       <mode.icon size={14} className="mb-1" />
@@ -367,7 +362,7 @@ export const CosmosNavigationControls: React.FC<CosmosNavigationControlsProps> =
               </div>
 
               <div className="grid grid-cols-2 gap-1">
-                {positionPresets.map((preset) => (
+                {positionPresets.map((preset: typeof positionPresets[number]) => (
                   <GlassButton
                     key={preset.name}
                     onClick={() => onFlyToPosition(preset.position)}
@@ -474,4 +469,4 @@ export const CosmosNavigationControls: React.FC<CosmosNavigationControlsProps> =
       </GlassmorphicPanel>
     </div>
   );
-}; 
+};

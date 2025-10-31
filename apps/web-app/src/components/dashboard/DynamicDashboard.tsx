@@ -47,7 +47,7 @@ export const DynamicDashboard: React.FC<DynamicDashboardProps> = ({
     }
   };
 
-  const handleCycleChange = (newCycleId: string) => {
+  const _handleCycleChange = (newCycleId: string) => {
     setSelectedCycle(newCycleId);
   };
 

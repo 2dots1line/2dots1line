@@ -91,7 +91,7 @@ export class MockQuestDataGenerator {
     return {
       type: 'key_phrases',
       execution_id: `cq_mock_${Date.now()}`,
-      capsules: mockPhrases.map((phrase, index) => ({
+      capsules: mockPhrases.map((phrase: string, index: number) => ({
         phrase,
         confidence_score: 0.85 + Math.random() * 0.15,
         color: this.getCapsuleColor(index),

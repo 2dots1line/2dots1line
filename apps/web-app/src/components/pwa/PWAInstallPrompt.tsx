@@ -14,7 +14,7 @@ const SNOOZE_DAYS = 7;
 function isStandalone(): boolean {
   // iOS: navigator.standalone; others: display-mode
   const dm = window.matchMedia?.('(display-mode: standalone)')?.matches;
-  // @ts-ignore
+  // @ts-expect-error - navigator.standalone is not in TypeScript types but exists on iOS Safari
   return !!(dm || window.navigator.standalone);
 }
 

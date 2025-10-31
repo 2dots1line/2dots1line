@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useCallback } from 'react';
-import { GlassmorphicPanel, GlassButton } from '@2dots1line/ui-components';
+import { GlassmorphicPanel } from '@2dots1line/ui-components';
 import { useEngagementStore } from '../../stores/EngagementStore';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
 import { X } from 'lucide-react';
@@ -77,7 +77,7 @@ const SeedEntitiesDisplay: React.FC<SeedEntitiesDisplayProps> = ({
     return null;
   }
 
-  const handleEntityClick = (entityId: string) => {
+  const _handleEntityClick = (entityId: string) => {
     const entity = entities.find(e => e.id === entityId);
     const entityName = entity?.title || entity?.type || `Entity ${entityId.slice(-6)}`;
     

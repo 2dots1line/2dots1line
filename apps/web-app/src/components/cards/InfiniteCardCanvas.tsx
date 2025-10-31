@@ -1,5 +1,6 @@
 import { Shuffle } from 'lucide-react';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import Image from 'next/image';
 import { useEngagementStore } from '../../stores/EngagementStore';
 
 import './InfiniteCardCanvas.css';
@@ -102,12 +103,14 @@ const CardDisplay: React.FC<CardDisplayProps> = ({ card, onMakeover }) => {
   return (
     <div className="card-item" onClick={handleCardClick}>
       <div className="card-content">
-        <div className="card-image-container">
-          <img 
-            src={card.imageUrl} 
+        <div className="card-image-container relative">
+          <Image
+            src={card.imageUrl}
             alt={card.title}
-            className="card-image"
-            loading="lazy"
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            className="card-image object-cover"
+            priority={false}
           />
           <button 
             className="makeover-button"
@@ -125,7 +128,7 @@ const CardDisplay: React.FC<CardDisplayProps> = ({ card, onMakeover }) => {
           <p className="card-description">{card.description}</p>
           {card.tags && (
             <div className="card-tags">
-              {card.tags.map((tag, index) => (
+              {card.tags.map((tag: string, index: number) => (
                 <span key={index} className="card-tag">
                   {tag}
                 </span>
@@ -218,7 +221,7 @@ export const InfiniteCardCanvas: React.FC<InfiniteCardCanvasProps> = ({ onClose 
         onScroll={handleScroll}
       >
         <div className="cards-grid">
-          {cards.map((card) => (
+          {cards.map((card: Card) => (
             <CardDisplay 
               key={card.id} 
               card={card} 
@@ -229,4 +232,4 @@ export const InfiniteCardCanvas: React.FC<InfiniteCardCanvasProps> = ({ onClose 
       </div>
     </div>
   );
-}; 
+};

@@ -1,6 +1,4 @@
-'use client';
-
-import React, { useEffect } from 'react';
+import React from 'react';
 import { HUDContainer } from '../../../components/hud/HUDContainer';
 import CosmosLookupScene from './CosmosLookupScene';
 

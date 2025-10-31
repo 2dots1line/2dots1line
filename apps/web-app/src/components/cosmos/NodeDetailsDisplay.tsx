@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, Clock, Star, TrendingUp, MessageCircle, FileText, Users, Tag } from 'lucide-react';
+import { Calendar, Star, TrendingUp, MessageCircle, FileText, Users, Tag } from 'lucide-react';
 
 interface NodeDetailsDisplayProps {
   nodeDetails: {
@@ -288,4 +288,4 @@ export const NodeDetailsDisplay: React.FC<NodeDetailsDisplayProps> = ({ nodeDeta
       )}
     </div>
   );
-}; 
+};

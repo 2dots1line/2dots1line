@@ -3,8 +3,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Graph3D } from '../../components/cosmos/Graph3D';
 import { useCosmosStore } from '../../stores/CosmosStore';
-import { useChatStore } from '../../stores/ChatStore';
-import { useHUDStore } from '../../stores/HUDStore';
 import { cosmosService } from '../../services/cosmosService';
 import CosmosInfoPanel from '../../components/modal/CosmosInfoPanel';
 import CosmosError from '../../components/modal/CosmosError';
@@ -14,7 +12,6 @@ import SeedEntitiesDisplay from '../../components/cosmos/SeedEntitiesDisplay';
 import { useEntitySelection } from '../../hooks/useEntitySelection';
 import { LookupCameraController } from '../../components/cosmos/LookupCameraController';
 import { useViewTransitionContent } from '../../hooks/useViewTransitionContent';
-import type { ChatMessage } from '../../services/chatService';
 
 const CosmosScene: React.FC = () => {
   const {
@@ -30,7 +27,7 @@ const CosmosScene: React.FC = () => {
     nodeSizeMultiplier,
   } = useCosmosStore();
   
-  const { addMessage } = useChatStore();
+
 
   // Edge control state - using store values
   const { showEdges } = useCosmosStore();
@@ -130,7 +127,7 @@ const CosmosScene: React.FC = () => {
         setSeedEntityIds(newSeedEntityIds);
         
         // Find corresponding entities from graph data
-        const foundEntities = graphData.nodes?.filter(node => 
+        const foundEntities = graphData.nodes?.filter((node: { id: string }) => 
           newSeedEntityIds.includes(node.id)
         ) || [];
         setSeedEntities(foundEntities);
@@ -151,7 +148,7 @@ const CosmosScene: React.FC = () => {
       const { entityId } = customEvent.detail || {};
       
       if (entityId) {
-        const node = graphData.nodes?.find(n => n.id === entityId);
+        const node = graphData.nodes?.find((n: { id: string }) => n.id === entityId);
         if (node) {
           setSelectedNode(node);
         }
@@ -172,8 +169,29 @@ const CosmosScene: React.FC = () => {
     return <CosmosError message={error} />;
   }
 
+  type CosmosNode = {
+    id: string;
+    x?: number;
+    y?: number;
+    z?: number;
+    position?: [number, number, number] | { x?: number; y?: number; z?: number };
+    type?: string;
+    label?: string;
+    title?: string;
+    content?: string;
+    importance?: number;
+    metadata?: { createdAt?: string; lastUpdated?: string };
+  };
+
+  type CosmosEdge = {
+    source: string | number;
+    target: string | number;
+    weight?: number;
+    type?: string;
+  };
+
   // Check if all nodes have zero or very small positions
-  const allNodesHaveSmallPositions = (graphData.nodes ?? []).every(node => {
+  const allNodesHaveSmallPositions = (graphData.nodes ?? []).every((node: CosmosNode) => {
     // Handle both flat structure (x, y, z) and nested structure (position array/object)
     let x = 0, y = 0, z = 0;
     
@@ -223,7 +241,7 @@ const CosmosScene: React.FC = () => {
   
   const safeGraphData = {
     ...graphData,
-    nodes: (graphData.nodes ?? []).map((node, index) => {
+    nodes: (graphData.nodes ?? []).map((node: CosmosNode, index: number) => {
       // Handle both flat structure (x, y, z) and nested structure (position array/object)
       let x = 0, y = 0, z = 0;
       
@@ -287,7 +305,7 @@ const CosmosScene: React.FC = () => {
       return scaledNode;
     }),
     // Pass raw edges; Graph3D handles color mapping and normalization
-    edges: (graphData.edges ?? []).map(edge => ({
+    edges: (graphData.edges ?? []).map((edge: CosmosEdge) => ({
       ...edge,
       source: String(edge.source),
       target: String(edge.target),
@@ -300,7 +318,7 @@ const CosmosScene: React.FC = () => {
     originalEdgeCount: graphData.edges?.length || 0,
     processedEdgeCount: safeGraphData.edges.length,
     firstEdge: safeGraphData.edges[0],
-    edgeTypes: [...new Set(safeGraphData.edges.map(e => e.type))],
+    edgeTypes: [...new Set(safeGraphData.edges.map((e: { type?: string }) => e.type))],
     showEdges,
     edgeOpacity,
     edgeWidth,
@@ -313,7 +331,7 @@ const CosmosScene: React.FC = () => {
 
       <Graph3D
         graphData={safeGraphData}
-        onNodeClick={(node) => setSelectedNode(node)}
+        onNodeClick={(node: any) => setSelectedNode(node)}
         showEdges={showEdges}
         edgeOpacity={edgeOpacity}
         edgeWidth={edgeWidth}

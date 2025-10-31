@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useEngagementStore } from '../../stores/EngagementStore';
 import { useEngagementContext } from '../../hooks/useEngagementContext';
+import type { EngagementEvent } from '@2dots1line/shared-types';
 
 /**
  * Debug component to visualize engagement tracking data
@@ -12,32 +13,42 @@ export const EngagementDebugger: React.FC = () => {
   const [isVisible, setIsVisible] = useState(false);
   const { events, getEngagementContext } = useEngagementStore();
   const { getFormattedEngagementContext, analyzeEngagementPatterns } = useEngagementContext();
-  const [engagementData, setEngagementData] = useState<any>(null);
 
-  // Only show in development
-  if (process.env.NODE_ENV !== 'development') {
-    return null;
+  interface EngagementDebugData {
+    context: unknown;
+    formatted: unknown;
+    patterns: Record<string, unknown> | null;
+    recentEvents: EngagementEvent[];
   }
+  const [engagementData, setEngagementData] = useState<EngagementDebugData | null>(null);
 
   useEffect(() => {
+    // Only run in development; keeps hooks order stable
+    if (process.env.NODE_ENV !== 'development') {
+      return;
+    }
+
     const updateData = () => {
-      const context = getEngagementContext(30000); // Last 30 seconds
+      const context = getEngagementContext(30000);
       const formatted = getFormattedEngagementContext(30000);
       const patterns = analyzeEngagementPatterns(30000);
-      
+
       setEngagementData({
         context,
         formatted,
         patterns,
-        recentEvents: events.slice(-10) // Last 10 events
+        recentEvents: events.slice(-10),
       });
     };
 
     updateData();
-    const interval = setInterval(updateData, 2000); // Update every 2 seconds
-    
+    const interval = setInterval(updateData, 2000);
     return () => clearInterval(interval);
   }, [events, getEngagementContext, getFormattedEngagementContext, analyzeEngagementPatterns]);
+
+  if (process.env.NODE_ENV !== 'development') {
+    return null;
+  }
 
   return (
     <div style={{
@@ -74,33 +85,24 @@ export const EngagementDebugger: React.FC = () => {
       {isVisible && engagementData && (
         <div>
           <div><strong>Recent Events ({engagementData.recentEvents.length}):</strong></div>
-          {engagementData.recentEvents.map((event: any, index: number) => (
+          {engagementData.recentEvents.map((event: EngagementEvent, index: number) => (
             <div key={index} style={{ marginLeft: '10px', fontSize: '10px' }}>
               {event.type} {event.target} ({event.view})
             </div>
           ))}
-          
-          <div style={{ marginTop: '10px' }}>
-            <strong>Session Duration:</strong> {Math.round((engagementData.context?.sessionDuration || 0) / 1000)}s
-          </div>
-          
-          <div>
-            <strong>Total Clicks:</strong> {engagementData.context?.interactionSummary?.totalClicks || 0}
-          </div>
-          
-          <div>
-            <strong>View Switches:</strong> {engagementData.context?.interactionSummary?.viewSwitches || 0}
-          </div>
-          
+
+          {/* Patterns typed entries */}
           {engagementData.patterns && (
             <div style={{ marginTop: '10px' }}>
               <strong>Patterns:</strong>
               <div style={{ fontSize: '10px', marginLeft: '10px' }}>
-                {Object.entries(engagementData.patterns).map(([key, value]: [string, any]) => (
-                  <div key={key}>
-                    {key}: {JSON.stringify(value)}
-                  </div>
-                ))}
+                {Object.entries(engagementData.patterns).map(
+                  ([key, value]: [string, unknown]) => (
+                    <div key={key}>
+                      {key}: {JSON.stringify(value)}
+                    </div>
+                  )
+                )}
               </div>
             </div>
           )}

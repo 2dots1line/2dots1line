@@ -9,7 +9,7 @@ import * as THREE from 'three';
 import { CosmosNode, NodeConnection } from '@2dots1line/shared-types';
 
 // Local types to avoid circular dependencies
-interface SimpleCosmosNode {
+interface _SimpleCosmosNode {
   id: string;
   title: string;
   position: { x: number; y: number; z: number };
@@ -17,7 +17,7 @@ interface SimpleCosmosNode {
   is_hovered: boolean;
 }
 
-interface SimpleNodeConnection {
+interface _SimpleNodeConnection {
   id: string;
   target_node_id: string;
   connection_type: string;
@@ -521,4 +521,4 @@ export const useNodeInteractions = (options: UseNodeInteractionsOptions = {}): U
     handleKeyDown,
     handleKeyUp,
   };
-}; 
+};

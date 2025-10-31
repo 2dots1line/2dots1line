@@ -105,7 +105,7 @@ export const useQuestConnection = (authToken: string | null, userId: string | nu
           break;
         
         // V11.0: Stage directions
-        case 'stage_direction':
+        case 'stage_direction': {
           const direction = data.direction;
           if (!direction) break;
           
@@ -160,6 +160,7 @@ export const useQuestConnection = (authToken: string | null, userId: string | nu
               break;
           }
           break;
+        }
       }
     };
 

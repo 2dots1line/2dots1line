@@ -2,8 +2,36 @@
   "name": "@2dots1line/core-utils",
   "version": "0.1.0",
   "description": "Core utilities for 2dots1line V7",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./i18n": {
+      "import": "./dist/i18n/index.js",
+      "require": "./dist/i18n/index.js",
+      "types": "./dist/i18n/index.d.ts"
+    },
+    "./i18n/useTranslation": {
+      "import": "./dist/i18n/useTranslation.js",
+      "require": "./dist/i18n/useTranslation.js",
+      "types": "./dist/i18n/useTranslation.d.ts"
+    },
+    "./i18n/i18nConfig": {
+      "import": "./dist/i18n/i18nConfig.js",
+      "require": "./dist/i18n/i18nConfig.js",
+      "types": "./dist/i18n/i18nConfig.d.ts"
+    },
+    "./environment/EnvironmentLoader": {
+      "import": "./dist/environment/EnvironmentLoader.js",
+      "require": "./dist/environment/EnvironmentLoader.js",
+      "types": "./dist/environment/EnvironmentLoader.d.ts"
+    },
+    "./dist/*": "./dist/*"
+  },
   "scripts": {
     "build": "pnpm clean && tsc -p tsconfig.build.json",
     "lint": "eslint src --ext .ts,.tsx",
@@ -18,9 +46,13 @@
     "uuid": "^9.0.1",
     "zod": "^3.22.4"
   },
+  "peerDependencies": {
+    "react": "^18.0.0"
+  },
   "devDependencies": {
     "@types/jest": "^29.5.0",
     "@types/node": "^20.17.0",
+    "@types/react": "^18.0.0",
     "@types/uuid": "^9.0.7",
     "rimraf": "^5.0.1",
     "typescript": "^5.8.3"

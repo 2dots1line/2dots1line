@@ -1,0 +1,201 @@
+{
+  "common": {
+    "welcome": "欢迎",
+    "demo": "演示",
+    "currentLanguage": "当前语言",
+    "description": "描述",
+    "changeLanguageInSettings": "在设置面板中更改语言",
+    "auth": {
+      "login": "登录",
+      "signup": "注册",
+      "logout": "登出"
+    },
+    "actions": {
+      "save": "保存",
+      "cancel": "取消",
+      "delete": "删除",
+      "edit": "编辑",
+      "close": "关闭",
+      "confirm": "确认",
+      "reset": "恢复默认设置",
+      "search": "搜索",
+      "apply": "应用",
+      "send": "发送"
+    },
+    "status": {
+      "loading": "加载中...",
+      "saving": "保存中...",
+      "success": "成功",
+      "error": "错误",
+      "enabled": "已启用",
+      "disabled": "已禁用"
+    }
+  },
+  "landing": {
+    "hero": {
+      "title": "新的地平线在等待",
+      "description": "走进一个反思与连接的空间。发现内心的故事，看着你的内心世界不断扩展。"
+    }
+  },
+  "chat": {
+    "input": {
+      "placeholder": "问我任何问题"
+    },
+    "actions": {
+      "newChat": "开始新对话",
+      "expandChat": "展开对话",
+      "collapseChat": "收起为迷你模式"
+    },
+    "errors": {
+      "sendFailed": "抱歉，处理您的消息时遇到错误：{{message}}。请重试。",
+      "genericError": "发生错误。请重试。"
+    },
+    "status": {
+      "generating": "正在生成图片...",
+      "videoGenerating": "开始生成视频..."
+    }
+  },
+  "dashboard": {
+    "fallback": {
+      "title": "你的宇宙之旅",
+      "paragraph1": "欢迎来到你的个人宇宙之旅。这个月，我们见证了你在各个维度的显著成长。你的对话揭示了自我发现的模式，反映出你对自己在宇宙中位置的更深理解。",
+      "paragraph2": "我们收集的洞察显示，你不仅在成长，而且在进化。每一次互动，每一刻反思，每一个新建立的联系，都为你丰富的经历增添了新的层次。",
+      "paragraph3": "当你探索接下来的卡片和洞察时，请记住这是你的故事。这些是你的发现，你的突破，你的清晰时刻。它们不仅代表你曾经去过的地方，也代表你正在前往的方向。",
+      "quote": "宇宙在我们之中。我们由星尘组成。我们是宇宙认识自己的一种方式。"
+    },
+    "empty": {
+      "noCards": "暂无最近的卡片",
+      "noInsights": "暂无洞察"
+    }
+  },
+  "settings": {
+    "title": "所有设置",
+    "language": {
+      "title": "语言偏好",
+      "description": "选择界面和AI回复的首选语言",
+      "updated": "语言更新成功"
+    },
+    "theme": {
+      "title": "主题设置",
+      "description": "自定义应用的外观和感觉"
+    },
+    "privacy": {
+      "title": "隐私设置",
+      "description": "管理您的数据和隐私偏好"
+    },
+    "account": {
+      "title": "账户设置",
+      "description": "管理您的账户信息和偏好"
+    },
+    "about": {
+      "title": "关于",
+      "description": "应用信息和版本详情"
+    },
+    "backgroundMedia": {
+      "title": "背景媒体",
+      "description": "为每个2D视图选择不同的背景媒体。你可以使用本地视频或从Pexels搜索新视频。",
+      "localVideos": "本地视频",
+      "pexelsLibrary": "Pexels 库",
+      "searchPexels": "搜索 Pexels",
+      "aiGenerated": "AI 生成的视频 ({{count}})",
+      "askDot": "让 Dot 为你生成自定义视频！",
+      "resetToDefaults": "重置为默认",
+      "noGeneratedVideos": "请让Dot为您生成自定义视频！"
+    },
+    "notifications": {
+      "title": "通知设置",
+      "description": "配置应用内提示和推送偏好",
+      "enable": "启用通知",
+      "enabled": "已启用",
+      "disabled": "已禁用",
+      "allowTypes": "允许的类型",
+      "position": "位置",
+      "maxVisible": "最大可见数",
+      "autoHide": "自动隐藏（秒，0 = 永不）",
+      "doNotDisturb": "勿扰模式",
+      "snooze15": "暂停 15 分钟",
+      "snooze30": "暂停 30 分钟",
+      "snooze60": "暂停 60 分钟",
+      "clearSnooze": "清除暂停",
+      "snoozingUntil": "暂停至 {{time}}",
+      "sendTest": "发送测试",
+      "testNotification": {
+        "title": "测试通知",
+        "description": "这是一个本地测试提示"
+      },
+      "types": {
+        "newCard": "新卡片可用",
+        "graphUpdate": "图谱投影已更新",
+        "newStar": "新星体已生成"
+      },
+      "positions": {
+        "topRight": "右上角",
+        "topLeft": "左上角",
+        "bottomRight": "右下角",
+        "bottomLeft": "左下角"
+      }
+    }
+  },
+  "hud": {
+    "navigation": "导航",
+    "sessionHistory": "会话历史",
+    "searchSessions": "搜索会话...",
+    "noSessions": "暂无对话历史",
+    "deleteSession": "删除会话",
+    "showHistory": "显示会话历史",
+    "hideHistory": "隐藏会话历史",
+    "openMiniChat": "打开迷你聊天",
+    "buttons": {
+      "dashboard": "仪表板",
+      "chat": "聊天",
+      "cards": "卡片",
+      "cosmos": "星云",
+      "settings": "设置",
+      "miniChat": "迷你聊天"
+    }
+  },
+  "dashboard": {
+    "title": "仪表板",
+    "loading": {
+      "cards": "正在加载卡片...",
+      "insights": "正在加载洞察...",
+      "journey": "正在加载你的宇宙之旅...",
+      "growthData": "正在加载成长数据...",
+      "general": "加载中..."
+    },
+    "errors": {
+      "failedToLoad": "加载卡片失败",
+      "loadError": "加载失败"
+    },
+    "tabs": {
+      "overview": "概览",
+      "insights": "洞察",
+      "growth": "成长",
+      "activity": "活动"
+    },
+    "sections": {
+      "recentActivity": "最近活动",
+      "dynamicInsights": "动态洞察",
+      "editorsNote": "编辑笔记",
+      "noInsightsAvailable": "暂无动态洞察",
+      "noInsightsDescription": "继续你的旅程以解锁个性化洞察和成长模式。"
+    },
+    "metrics": {
+      "memoryUnits": "记忆单元",
+      "concepts": "概念",
+      "growthEvents": "成长事件",
+      "cards": "卡片"
+    },
+    "actions": {
+      "pause": "暂停",
+      "listen": "收听",
+      "startConversation": "开始对话"
+    }
+  },
+  "errors": {
+    "unauthorized": "未授权",
+    "notFound": "未找到",
+    "internalError": "内部服务器错误",
+    "badRequest": "错误的请求"
+  }
+}

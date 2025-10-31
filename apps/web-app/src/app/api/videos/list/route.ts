@@ -11,12 +11,7 @@ interface VideoFile {
   createdAt?: string;
 }
 
-export async function GET() {
-  try {
-    const videosDir = path.join(process.cwd(), 'public', 'videos');
-    const videos: VideoFile[] = [];
-
-    function scanDirectory(dir: string, relativePath: string = '') {
+function scanDirectory(dir: string, relativePath: string = '', videos: VideoFile[]) {
       const entries = fs.readdirSync(dir, { withFileTypes: true });
       
       for (const entry of entries) {
@@ -25,7 +20,7 @@ export async function GET() {
         
         if (entry.isDirectory()) {
           // Recursively scan subdirectories
-          scanDirectory(fullPath, relPath);
+          scanDirectory(fullPath, relPath, videos);
         } else if (entry.isFile() && /\.(mp4|webm|mov)$/i.test(entry.name)) {
           const stats = fs.statSync(fullPath);
           const dirName = relativePath || 'root';
@@ -42,7 +37,12 @@ export async function GET() {
       }
     }
 
-    scanDirectory(videosDir);
+export async function GET() {
+  try {
+    const videosDir = path.join(process.cwd(), 'public', 'videos');
+    const videos: VideoFile[] = [];
+
+    scanDirectory(videosDir, '', videos);
     
     // Sort: generated videos first (newest first), then others
     videos.sort((a, b) => {

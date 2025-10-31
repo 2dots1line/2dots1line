@@ -1,8 +1,7 @@
 import React from 'react';
-
 import { cn } from '../utils/cn';
 
-interface GlassmorphicPanelProps {
+export interface GlassmorphicPanelProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
   className?: string;
   variant?: 'glass-panel' | 'custom';
@@ -15,54 +14,23 @@ interface GlassmorphicPanelProps {
   shadow?: 'none' | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
 }
 
-const GlassmorphicPanel: React.FC<GlassmorphicPanelProps> = ({
-  children,
-  className = '',
-  variant = 'glass-panel',
-  opacity = 10,
-  blur = 'md',
-  border = true,
-  borderOpacity = 20,
-  rounded = 'lg',
-  padding = 'md',
-  shadow = 'lg',
-}) => {
-  // If using the glass-panel variant, apply the CSS class directly
-  if (variant === 'glass-panel') {
-    const roundedClasses = {
-      none: '',
-      sm: 'rounded-sm',
-      md: 'rounded-md',
-      lg: 'rounded-lg',
-      xl: 'rounded-xl',
-      '2xl': 'rounded-2xl',
-      full: 'rounded-full',
-    };
-
-    const paddingClasses = {
-      none: '',
-      sm: 'p-2',
-      md: 'p-4',
-      lg: 'p-6',
-      xl: 'p-8',
-      mobile: 'p-1',
-    };
-
-    return (
-      <div
-        className={cn(
-          'glass-panel',
-          roundedClasses[rounded],
-          paddingClasses[padding],
-          className
-        )}
-      >
-        {children}
-      </div>
-    );
-  }
-
-  // Custom variant with granular control
+// Convert to forwardRef so consumers can pass `ref`
+const GlassmorphicPanel = React.forwardRef<HTMLDivElement, GlassmorphicPanelProps>(function GlassmorphicPanel(
+  {
+    children,
+    className = '',
+    variant = 'glass-panel',
+    opacity = 15,
+    blur = 'lg',
+    border = true,
+    borderOpacity = 20,
+    rounded = 'lg',
+    padding = 'md',
+    shadow = 'md',
+    ...rest
+  },
+  ref
+) {
   const blurClasses = {
     sm: 'backdrop-blur-sm',
     md: 'backdrop-blur-md',
@@ -104,6 +72,7 @@ const GlassmorphicPanel: React.FC<GlassmorphicPanelProps> = ({
 
   return (
     <div
+      ref={ref}
       className={cn(
         backgroundOpacity,
         blurClasses[blur],
@@ -113,10 +82,11 @@ const GlassmorphicPanel: React.FC<GlassmorphicPanelProps> = ({
         shadowClasses[shadow],
         className
       )}
+      {...rest}
     >
       {children}
     </div>
   );
-};
+});
 
-export default GlassmorphicPanel; 
+export default GlassmorphicPanel;

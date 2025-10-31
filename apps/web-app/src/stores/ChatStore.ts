@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import type { ChatMessage, SessionSummary } from '../services/chatService';
 import { chatService } from '../services/chatService';
 
@@ -301,14 +301,19 @@ export const useChatStore = create<ChatState>()(
         sessionHistory: state.sessionHistory,
         showNewChatButton: state.showNewChatButton,
       }),
-      // Make storage user-scoped to prevent data leakage between users
-      getStorage: () => {
-        if (typeof window === 'undefined') return localStorage;
-        
+      // SSR-safe storage adapter with user-scoped key
+      storage: createJSONStorage(() => {
+        if (typeof window === 'undefined') {
+          return {
+            getItem: (_key: string) => null,
+            setItem: (_key: string, _value: string) => undefined,
+            removeItem: (_key: string) => undefined,
+          };
+        }
+
         // Get current user ID from UserStore
         const userStorage = localStorage.getItem('user-storage');
         let userId = 'anonymous';
-        
         if (userStorage) {
           try {
             const parsed = JSON.parse(userStorage);
@@ -317,16 +322,16 @@ export const useChatStore = create<ChatState>()(
             console.warn('Failed to parse user storage for chat storage key:', error);
           }
         }
-        
+
         // Create user-scoped storage key
         const userScopedKey = `chat-storage-${userId}`;
-        
+
         return {
-          getItem: (key: string) => localStorage.getItem(userScopedKey),
-          setItem: (key: string, value: string) => localStorage.setItem(userScopedKey, value),
-          removeItem: (key: string) => localStorage.removeItem(userScopedKey),
+          getItem: (_key: string) => localStorage.getItem(userScopedKey),
+          setItem: (_key: string, value: string) => localStorage.setItem(userScopedKey, value),
+          removeItem: (_key: string) => localStorage.removeItem(userScopedKey),
         };
-      },
+      }),
     }
   )
 );

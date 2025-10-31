@@ -3,41 +3,11 @@
  * V11.0 - Detailed card information with image browser and metadata
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { X, Heart, Share2, Archive, Image, Palette, ChevronLeft, ChevronRight, Tag, Clock, MapPin, ExternalLink, Edit3 } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { X, Heart, Share2, Archive, ExternalLink, Edit3, Tag, Clock, MapPin } from 'lucide-react';
 import { DisplayCard, CosmosNode, NodeConnection } from '@2dots1line/shared-types';
 import { GlassmorphicPanel, GlassButton } from '@2dots1line/ui-components';
-
-// Local types to avoid circular dependencies
-interface ImageMetadata {
-  filename: string;
-  url: string;
-  tags: string[];
-  category: string;
-  semantic_score?: number;
-}
-
-interface ImageMetadata {
-  filename: string;
-  url: string;
-  tags: string[];
-  category: string;
-  semantic_score?: number;
-}
-
-interface ImageCollection {
-  name: string;
-  category: string;
-  images: string[];
-}
-
-// Local image collections to avoid circular dependency
-const imageCollections: ImageCollection[] = [
-  { name: 'Nature', category: 'nature', images: [] },
-  { name: 'Abstract', category: 'abstract', images: [] },
-  { name: 'Technology', category: 'technology', images: [] },
-  { name: 'Art', category: 'art', images: [] }
-];
+import Image from 'next/image';
 
 interface CardDetailSidePanelProps {
   isOpen: boolean;
@@ -61,7 +31,6 @@ export const CardDetailSidePanel: React.FC<CardDetailSidePanelProps> = ({
   connections = [],
   onClose,
   onFlyToNode,
-  onUpdateCard,
   onToggleFavorite,
   onShareCard,
   onArchiveCard,
@@ -209,11 +178,13 @@ export const CardDetailSidePanel: React.FC<CardDetailSidePanelProps> = ({
             <div className="space-y-4">
               {/* Card Image */}
               {cardImage && (
-                <div className="w-full h-48 rounded-lg overflow-hidden">
-                  <img
+                <div className="relative w-full h-48 rounded-lg overflow-hidden">
+                  <Image
                     src={cardImage}
                     alt={cardData?.title || 'Card'}
-                    className="w-full h-full object-cover"
+                    fill
+                    sizes="384px"
+                    className="object-cover"
                   />
                 </div>
               )}
@@ -418,4 +389,4 @@ export const CardDetailSidePanel: React.FC<CardDetailSidePanelProps> = ({
       </GlassmorphicPanel>
     </div>
   );
-}; 
+};
