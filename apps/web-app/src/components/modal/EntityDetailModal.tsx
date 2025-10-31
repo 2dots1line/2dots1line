@@ -6,7 +6,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { X, RefreshCw, AlertCircle, Wand2, Palette } from 'lucide-react';
-import { GlassmorphicPanel, GlassButton } from '@2dots1line/ui-components';
+import { GlassmorphicPanel, GlassButton, MarkdownRenderer } from '@2dots1line/ui-components';
 import { useEntityDetails } from '../../hooks/cosmos/useEntityDetails';
 import { useRelatedEntities } from '../../hooks/useRelatedEntities';
 import { cardService } from '../../services/cardService';
@@ -469,9 +469,13 @@ export const EntityDetailModal: React.FC<EntityDetailModalProps> = ({
                   padding="md"
                   className="border border-white/10"
                 >
-                  <p className="text-white/90 leading-relaxed text-sm">
-                    {entityDetails.description}
-                  </p>
+                  <div className="text-white/90 leading-relaxed text-sm">
+                    <MarkdownRenderer
+                      content={entityDetails.description}
+                      variant="dashboard"
+                      className="text-sm text-white/90 leading-relaxed"
+                    />
+                  </div>
                 </GlassmorphicPanel>
               )}
 

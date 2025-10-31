@@ -10,7 +10,7 @@ import {
   LogOut
 } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 
 import { useHUDStore, ViewType } from '../../stores/HUDStore';
 import { useCardStore } from '../../stores/CardStore';
@@ -125,8 +125,10 @@ export const HUDContainer: React.FC<HUDContainerProps> = ({
   };
 
   // Handle pending view when returning to main page
-  useEffect(() => {
+  // Use useLayoutEffect to ensure this runs synchronously before Layout's auto-dashboard effect
+  useLayoutEffect(() => {
     if (pathname === '/' && pendingView) {
+      // Apply pending view immediately to prevent Layout from defaulting to dashboard
       setActiveView(pendingView);
       onViewSelect?.(pendingView);
       setPendingView(null);

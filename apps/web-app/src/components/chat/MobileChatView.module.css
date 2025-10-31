@@ -37,8 +37,8 @@
   transition: opacity 300ms ease-in-out;
 }
 
-/* Remove header completely (Layer 3) */
-.mobileChatContainer :global(.flex.items-center.justify-between) {
+/* Remove header completely (Layer 3) - be more specific to avoid hiding message timestamps */
+.mobileChatContainer > :global(.glass-panel.rounded-xl) > :global(.flex.items-center.justify-between) {
   display: none !important;
 }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { 
   BarChart3, 
@@ -247,8 +247,10 @@ export const MobileHUDContainer: React.FC<MobileHUDContainerProps> = ({
   };
 
   // Handle pending view when returning to main page
-  useEffect(() => {
+  // Use useLayoutEffect to ensure this runs synchronously before Layout's auto-dashboard effect
+  useLayoutEffect(() => {
     if (pathname === '/' && pendingView) {
+      // Apply pending view immediately to prevent Layout from defaulting to dashboard
       setActiveView(pendingView);
       onViewSelect?.(pendingView);
       setPendingView(null);

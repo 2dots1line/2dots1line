@@ -32,7 +32,7 @@ import {
   Pause,
   Volume2
 } from 'lucide-react';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { dashboardService, type RecentActivity, type DynamicDashboardData, type DashboardSectionItem } from '../../services/dashboardService';
 
 interface DashboardModalProps {
@@ -62,8 +62,34 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
     setIsClient(true);
   }, []);
   
+  // Mobile scroll header transparency tracking
+  const [isScrolledUp, setIsScrolledUp] = useState(false);
+  const [lastScrollY, setLastScrollY] = useState(0);
+  const mobileScrollContainerRef = useRef<HTMLDivElement>(null);
+
   // Ensure cards are loaded when dashboard opens
   useAutoLoadCards();
+
+  // Mobile scroll transparency effect (like cards search bar) - placed before any early returns
+  useEffect(() => {
+    const scrollContainer = mobileScrollContainerRef.current;
+    if (!scrollContainer || !deviceInfo.isMobile) return;
+
+    const handleScroll = () => {
+      const currentScrollY = scrollContainer.scrollTop;
+      if (currentScrollY > lastScrollY && currentScrollY > 50) {
+        setIsScrolledUp(true);
+      } else if (currentScrollY < lastScrollY) {
+        setIsScrolledUp(false);
+      }
+      setLastScrollY(currentScrollY);
+    };
+
+    scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      scrollContainer.removeEventListener('scroll', handleScroll);
+    };
+  }, [lastScrollY, deviceInfo.isMobile]);
   
   // Text-to-speech functionality
   const { speak, stop, isSpeaking, isSupported } = useTextToSpeech({
@@ -652,6 +678,8 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
     );
   }
 
+  // (moved earlier to keep hook order consistent before early returns)
+
   // Mobile Dashboard - Direct overlay on video background using mobile-specific page templates
   // Only render on client side to prevent hydration mismatch
   if (deviceInfo.isMobile && dynamicDashboardData) {
@@ -670,8 +698,10 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
     
     return (
       <div className="fixed inset-0 z-40 pointer-events-auto">
-        {/* Mobile Navigation */}
-        <div className="absolute top-4 left-20 right-4 z-50">
+        {/* Mobile Navigation - with scroll-based transparency */}
+        <div className={`absolute top-4 left-20 right-4 z-50 transition-opacity duration-300 ${
+          isScrolledUp ? 'opacity-30' : 'opacity-100'
+        }`}>
           <div className="flex gap-2 mb-4">
             {[
               { key: 'opening', label: 'Opening' },
@@ -694,7 +724,7 @@ const DashboardModal: React.FC<DashboardModalProps> = ({ isOpen, onClose }) => {
         </div>
 
         {/* Mobile Content with reduced top spacing */}
-        <div className="pt-20 px-4 pb-4 h-full overflow-y-auto">
+        <div ref={mobileScrollContainerRef} className="pt-20 px-4 pb-4 h-full overflow-y-auto">
           {/* Opening Section - Use same approach as desktop with MarkdownRenderer */}
           {activeTab === 'opening' && (
             <div className="max-w-4xl mx-auto">

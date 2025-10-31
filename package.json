@@ -33,7 +33,8 @@
     "health:check": "./scripts/AUTOMATION/monitoring/health-check.sh",
     "clean:rebuild": "./scripts/AUTOMATION/clean-rebuild.sh",
     "fix:conflicts": "./scripts/AUTOMATION/build-system/fix-build-conflicts.sh",
-    "audit:system": "./scripts/AUTOMATION/systematic-audit.sh"
+    "audit:system": "./scripts/AUTOMATION/systematic-audit.sh",
+    "seed:dot": "ts-node scripts/seed/seed-dot-self-knowledge.ts"
   },
   "dependencies": {
     "@google/genai": "^1.17.0",

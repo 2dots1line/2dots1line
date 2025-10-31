@@ -328,30 +328,7 @@ export const ConversationHistoryPanel: React.FC = () => {
         </GlassmorphicPanel>
       </div>
 
-      {/* Minimize Toggle - Left edge, mirror of HUD chevron */}
-      <div className="absolute top-0 left-0 z-50">
-        <GlassButton
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="
-            w-10 h-10 rounded-full bg-white/10 border border-white/20
-            hover:bg-white/20 transition-all duration-200
-            flex items-center justify-center
-            group
-          "
-          title={isExpanded ? "Hide session history" : "Show session history"}
-        >
-          <div className="flex items-center gap-1">
-            <History size={14} className="text-white/80" />
-            <ChevronLeft 
-              size={12} 
-              className={`
-                text-white/80 transition-transform duration-300
-                ${isExpanded ? 'rotate-180' : 'rotate-0'}
-              `}
-            />
-          </div>
-        </GlassButton>
-      </div>
+      {/* Left-edge session history toggle removed per design update */}
     </div>
   );
 };

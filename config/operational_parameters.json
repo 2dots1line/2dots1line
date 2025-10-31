@@ -18,5 +18,6 @@
     "max_concept_merges": 20,
     "max_strategic_relationships": 30,
     "max_community_structures": 10
-  }
+  },
+  "dot_system_user_email": "dot@2d1l.system"
 } 

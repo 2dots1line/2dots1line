@@ -1054,6 +1054,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
           </div>
         )}
         
+        {/* Timestamp and Listen button - show for all sizes except mini (including mobile full-size embedded) */}
         {size !== 'mini' && (
           <div className="mt-2 flex justify-between items-center">
             <span className="text-xs text-white/50">
