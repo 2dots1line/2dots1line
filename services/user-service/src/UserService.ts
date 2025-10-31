@@ -93,7 +93,11 @@ export class UserService {
         title: userName,
         type: 'person',
         content: `The user (${userName}) in this knowledge graph - the central person whose experiences, interests, and growth are being tracked.`,
-        importance_score: 10 // High importance since user is central to their own knowledge graph
+        importance_score: 10, // High importance since user is central to their own knowledge graph
+        // Initialize spatial coordinates so Cosmos can render immediately
+        position_x: 1,
+        position_y: 1,
+        position_z: 1
       };
 
       // Check if Neo4j is available
