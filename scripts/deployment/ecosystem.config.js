@@ -195,8 +195,8 @@ module.exports = {
       env_production: {
         NODE_ENV: 'production',
         ...baseEnv,
-        NEXT_PUBLIC_API_BASE_URL: 'http://34.136.210.47:3001',
-        NEXT_PUBLIC_NOTIFICATION_SERVICE_URL: 'http://34.136.210.47:3002',
+        NEXT_PUBLIC_API_BASE_URL: 'https://2d1l.com',
+        NEXT_PUBLIC_NOTIFICATION_SERVICE_URL: 'https://2d1l.com',
       },
       env_development: {
         NODE_ENV: 'development',

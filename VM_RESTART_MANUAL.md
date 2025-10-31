@@ -23,7 +23,7 @@ cd ~/2D1L
 ```bash
 # CRITICAL: Use fetch + pull to ensure latest changes are retrieved
 git fetch origin
-git pull origin compute-engine-deployment
+git pull origin mobile-dev-new
 
 # Verify you're on the right branch
 git branch
