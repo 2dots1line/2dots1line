@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Search, X } from 'lucide-react';
 import { GlassmorphicPanel } from '@2dots1line/ui-components';
+import { useUserStore } from '../../stores/UserStore';
+import { useTranslation } from '@2dots1line/core-utils/i18n/useTranslation';
 
 interface MobileCardSearchBarProps {
   searchQuery: string;
@@ -29,6 +31,9 @@ export const MobileCardSearchBar: React.FC<MobileCardSearchBarProps> = ({
 }) => {
   const [isScrolledUp, setIsScrolledUp] = useState(false);
   const [lastScrollY, setLastScrollY] = useState(0);
+
+  const { user } = useUserStore();
+  const { t } = useTranslation(user?.language_preference);
 
   const handleClearSearch = () => {
     onSearchChange('');
@@ -79,7 +84,7 @@ export const MobileCardSearchBar: React.FC<MobileCardSearchBarProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Search cards..."
+              placeholder={t('cards.search.placeholder')}
               className="w-full bg-white/10 rounded-2xl px-12 py-3 text-base text-white placeholder:text-white/50 border border-white/10 focus:border-white/30 focus:outline-none transition-colors"
             />
             {searchQuery && (
@@ -107,16 +112,16 @@ export const MobileCardSearchBar: React.FC<MobileCardSearchBarProps> = ({
         <div className="flex items-center justify-between gap-3 ml-14">
           {/* Sort Dropdown */}
           <div className="flex items-center gap-2">
-            <span className="text-sm text-white/80">Sort:</span>
+            <span className="text-sm text-white/80">{t('cards.settings.sortBy')}</span>
             <select
               className="bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-white/40"
               value={sortKey}
               onChange={(e) => onSortChange(e.target.value)}
             >
-              <option value="newest">Newest</option>
-              <option value="oldest">Oldest</option>
-              <option value="title_asc">Title A–Z</option>
-              <option value="title_desc">Title Z–A</option>
+              <option value="newest">{t('cards.sortBy.newest')}</option>
+              <option value="oldest">{t('cards.sortBy.oldest')}</option>
+              <option value="title_asc">{t('cards.sortBy.titleAsc')}</option>
+              <option value="title_desc">{t('cards.sortBy.titleDesc')}</option>
             </select>
           </div>
 
@@ -128,7 +133,7 @@ export const MobileCardSearchBar: React.FC<MobileCardSearchBarProps> = ({
               onChange={(e) => onCoverFirstChange(e.target.checked)}
               className="w-4 h-4 rounded border-white/20 bg-white/10 text-white focus:ring-white/20"
             />
-            Covers first
+            {t('cards.settings.showCoversFirst')}
           </label>
         </div>
       </GlassmorphicPanel>

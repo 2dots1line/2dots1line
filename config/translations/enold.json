@@ -57,61 +57,6 @@
     "startConversation": "Start a conversation"
   },
   "dashboard": {
-    "title": "Dashboard",
-    "loading": {
-      "cards": "Loading cards...",
-      "insights": "Loading insights...",
-      "journey": "Loading your cosmic journey...",
-      "growthData": "Loading growth data...",
-      "general": "Loading..."
-    },
-    "errors": {
-      "failedToLoad": "Failed to load cards",
-      "loadError": "Failed to load"
-    },
-    "greeting": {
-      "morning": "Good morning",
-      "afternoon": "Good afternoon",
-      "evening": "Good evening",
-      "subtitle": "Here's your growth journey."
-    },
-    "tabs": {
-      "overview": "Overview",
-      "insights": "Insights",
-      "growth": "Growth",
-      "activity": "Activity"
-    },
-    "sections": {
-      "recentActivity": "Recent Activity",
-      "dynamicInsights": "Dynamic Insights",
-      "editorsNote": "Editor's Note",
-      "noInsightsAvailable": "No Dynamic Insights Available",
-      "noInsightsDescription": "Continue your journey to unlock personalized insights and growth patterns.",
-      "recentCards": "Recent Cards"
-    },
-    "metrics": {
-      "memoryUnits": "Memory Units",
-      "concepts": "Concepts",
-      "growthEvents": "Growth Events",
-      "cards": "Cards"
-    },
-    "actions": {
-      "pause": "Pause",
-      "listen": "Listen",
-      "startConversation": "Start a conversation"
-    },
-    "cards": {
-      "actions": { "loadingCards": "Loading cards..." },
-      "settings": { "showCoversFirst": "Covers first", "sortBy": "Sort by" },
-      "sortBy": { "newest": "Newest", "oldest": "Oldest", "titleAsc": "Title A–Z", "titleDesc": "Title Z–A" },
-      "openSortedView": "Open Sorted View",
-      "goToInfiniteView": "Go to Infinite View",
-      "loadingMore": "Loading more...",
-      "search": { "placeholder": "Search cards..." }
-    },
-    "search": {
-      "placeholder": "Search cards..."
-    },
     "fallback": {
       "title": "Your Journey Through the Cosmos",
       "paragraph1": "Welcome to your personal cosmic journey. This month, we've witnessed remarkable growth across all dimensions of your being. Your conversations have revealed patterns of self-discovery that speak to a deeper understanding of your place in the universe.",
@@ -189,6 +134,74 @@
       "miniChat": "Mini Chat"
     }
   },
+  "dashboard": {
+    "title": "Dashboard",
+    "loading": {
+      "cards": "Loading cards...",
+      "insights": "Loading insights...",
+      "journey": "Loading your cosmic journey...",
+      "growthData": "Loading growth data...",
+      "general": "Loading..."
+    },
+    "errors": {
+      "failedToLoad": "Failed to load cards",
+      "loadError": "Failed to load"
+    },
+    "greeting": {
+      "morning": "Good morning",
+      "afternoon": "Good afternoon",
+      "evening": "Good evening",
+      "subtitle": "Here's your growth journey."
+    },
+    "tabs": {
+      "overview": "Overview",
+      "insights": "Insights",
+      "growth": "Growth",
+      "activity": "Activity"
+    },
+    "sections": {
+      "recentActivity": "Recent Activity",
+      "dynamicInsights": "Dynamic Insights",
+      "editorsNote": "Editor's Note",
+      "noInsightsAvailable": "No Dynamic Insights Available",
+      "noInsightsDescription": "Continue your journey to unlock personalized insights and growth patterns.",
+      "recentCards": "Recent Cards"
+    },
+    "metrics": {
+      "memoryUnits": "Memory Units",
+      "concepts": "Concepts",
+      "growthEvents": "Growth Events",
+      "cards": "Cards"
+    },
+    "actions": {
+      "pause": "Pause",
+      "listen": "Listen",
+      "startConversation": "Start a conversation"
+    },
+    "cards": {
+      "actions": { "loadingCards": "Loading cards..." },
+      "settings": { "showCoversFirst": "Covers first", "sortBy": "Sort by" },
+      "sortBy": { "newest": "Newest", "oldest": "Oldest", "titleAsc": "Title A-Z", "titleDesc": "Title Z-A" },
+      "openSortedView": "Open Sorted View",
+      "goToInfiniteView": "Go to Infinite View",
+      "loadingMore": "Loading more...",
+      "search": { "placeholder": "Search cards..." }
+    },
+    "search": {
+      "placeholder": "Search cards..."
+    },
+    "fallback": {
+      "title": "Your Journey Through the Cosmos",
+      "paragraph1": "Welcome to your personal cosmic journey. This month, we've witnessed remarkable growth across all dimensions of your being. Your conversations have revealed patterns of self-discovery that speak to a deeper understanding of your place in the universe.",
+      "paragraph2": "The insights we've gathered show a person who is not just growing, but evolving. Each interaction, each moment of reflection, each new connection you make adds another layer to the rich tapestry of your experience.",
+      "paragraph3": "As you explore the cards and insights that follow, remember that this is your story. These are your discoveries, your breakthroughs, your moments of clarity. They represent not just where you've been, but where you're heading.",
+      "quote": "The cosmos is within us. We are made of star-stuff. We are a way for the universe to know itself."
+    },
+    "empty": {
+      "noCards": "No recent cards available",
+      "noInsights": "No insights yet"
+    }
+  },
   "errors": {
     "unauthorized": "Unauthorized",
     "notFound": "Not found",
@@ -204,14 +217,5 @@
       "show": "Show HUD",
       "hide": "Hide HUD"
     }
-  },
-  "cards": {
-    "actions": { "loadingCards": "Loading cards..." },
-    "settings": { "showCoversFirst": "Covers first", "sortBy": "Sort by" },
-    "sortBy": { "newest": "Newest", "oldest": "Oldest", "titleAsc": "Title A–Z", "titleDesc": "Title Z–A" },
-    "openSortedView": "Open Sorted View",
-    "goToInfiniteView": "Go to Infinite View",
-    "loadingMore": "Loading more...",
-    "search": { "placeholder": "Search cards..." }
   }
 }

@@ -101,18 +101,6 @@
       "listen": "收听",
       "startConversation": "开始对话"
     },
-    "cards": {
-      "actions": { "loadingCards": "正在加载卡片..." },
-      "settings": { "showCoversFirst": "封面优先", "sortBy": "排序方式" },
-      "sortBy": { "newest": "最新", "oldest": "最旧", "titleAsc": "标题 A–Z", "titleDesc": "标题 Z–A" },
-      "openSortedView": "打开排序视图",
-      "goToInfiniteView": "切换到无限视图",
-      "loadingMore": "正在加载更多...",
-      "search": { "placeholder": "搜索卡片..." }
-    },
-    "search": {
-      "placeholder": "搜索卡片..."
-    },
     "fallback": {
       "title": "你的宇宙之旅",
       "paragraph1": "欢迎来到你的个人宇宙旅程。这个月，我们acee为您生成自定义视频！",
@@ -211,6 +199,70 @@
       "miniChat": "迷你聊天"
     }
   },
+  "dashboard": {
+    "title": "仪表板",
+    "loading": {
+      "cards": {
+        "actions": { "loadingCards": "正在加载卡片..." },
+        "settings": { "showCoversFirst": "封面优先", "sortBy": "排序方式" },
+        "sortBy": { "newest": "最新", "oldest": "最旧", "titleAsc": "标题 A–Z", "titleDesc": "标题 Z–A" },
+        "openSortedView": "打开排序视图",
+        "goToInfiniteView": "切换到无限视图",
+        "loadingMore": "正在加载更多...",
+        "search": { "placeholder": "搜索卡片..." }
+      },
+      "insights": "正在加载洞察...",
+      "journey": "正在加载你的宇宙之旅...",
+      "growthData": "正在加载成长数据...",
+      "general": "加载中..."
+    },
+    "errors": {
+      "failedToLoad": "加载卡片失败",
+      "loadError": "加载失败"
+    },
+    "greeting": {
+      "morning": "早上好",
+      "afternoon": "下午好",
+      "evening": "晚上好",
+      "subtitle": "这是你的成长旅程。"
+    },
+    "tabs": {
+      "overview": "概览",
+      "insights": "洞察",
+      "growth": "成长",
+      "activity": "活动"
+    },
+    "sections": {
+      "recentActivity": "最近活动",
+      "dynamicInsights": "动态洞察",
+      "editorsNote": "编辑笔记",
+      "noInsightsAvailable": "暂无动态洞察",
+      "noInsightsDescription": "继续你的旅程以解锁个性化洞察和成长模式。",
+      "recentCards": "最近卡片"
+    },
+    "metrics": {
+      "memoryUnits": "记忆单元",
+      "concepts": "概念",
+      "growthEvents": "成长事件",
+      "cards": "卡片"
+    },
+    "actions": {
+      "pause": "暂停",
+      "listen": "收听",
+      "startConversation": "开始对话"
+    },
+    "fallback": {
+      "title": "你的宇宙之旅",
+      "paragraph1": "欢迎来到你的个人宇宙旅程。这个月，我们acee为您生成自定义视频！",
+      "paragraph2": "我们所收集的洞察显示，你不仅在成长，更在进化。每一次交流、每一次反思、每一次新的连接，都会为你的经历织得更丰富的篇章。",
+      "paragraph3": "当你继续探索下面的卡片与洞察时，请记住这是你的故事。那些是你的发现、你的突破、你的清晰时刻。它们不仅代表你曾经的旅程，也指向你将要到达的方向。",
+      "quote": "宇宙在我们之中。我们由星尘构成。我们是宇宙认识自身的方式。"
+    },
+    "empty": {
+      "noCards": "暂无最近的卡片",
+      "noInsights": "暂无洞察"
+    }
+  },
   "errors": {
     "unauthorized": "未授权",
     "notFound": "未找到",
@@ -226,14 +278,5 @@
       "show": "显示 HUD",
       "hide": "隐藏 HUD"
     }
-  },
-  "cards": {
-    "actions": { "loadingCards": "正在加载卡片..." },
-    "settings": { "showCoversFirst": "封面优先", "sortBy": "排序方式" },
-    "sortBy": { "newest": "最新", "oldest": "最旧", "titleAsc": "标题 A–Z", "titleDesc": "标题 Z–A" },
-    "openSortedView": "打开排序视图",
-    "goToInfiniteView": "切换到无限视图",
-    "loadingMore": "正在加载更多...",
-    "search": { "placeholder": "搜索卡片..." }
   }
 }

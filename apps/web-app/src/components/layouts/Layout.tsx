@@ -681,7 +681,7 @@ function Layout() {
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder={t('search.placeholder')}
+                            placeholder={t('cards.search.placeholder')}
                             className="bg-transparent border border-white/20 rounded px-2 py-1 text-sm text-onSurface placeholder:text-onSurface/50 w-48 pr-8"
                           />
                           {isSearching && (
@@ -834,7 +834,7 @@ function Layout() {
         <button
           onClick={() => setActiveView('chat')}
           className="fixed bottom-4 left-4 z-40 w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 flex items-center justify-center text-white/80 hover:bg-white/20 hover:scale-105 transition-all duration-200 shadow-lg"
-          title="Start a conversation"
+          title={t('chat.startConversation')}
         >
           <MessageCircle size={18} />
         </button>
@@ -845,7 +845,7 @@ function Layout() {
         <button
           onClick={() => setActiveView('chat')}
           className="fixed bottom-4 left-4 z-40 w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 flex items-center justify-center text-white/80 hover:bg-white/20 hover:scale-105 transition-all duration-200 shadow-lg"
-          title="Start a conversation"
+          title={t('chat.startConversation')}
         >
           <MessageCircle size={18} />
         </button>
